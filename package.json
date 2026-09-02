@@ -1,5 +1,5 @@
 {
-	"name": "vgpu-react-starter",
+	"name": "openlight",
 	"private": true,
 	"type": "module",
 	"scripts": {
@@ -8,13 +8,18 @@
 		"check": "biome check --write"
 	},
 	"dependencies": {
+		"@tailwindcss/vite": "^4.3.3",
+		"cn": "^0.2.4",
 		"react": "^19.2.8",
 		"react-dom": "^19.2.8",
+		"tailwindcss": "^4.3.3",
 		"vgpu": "^0.3.1",
-		"vgpu-react": "^0.1.2"
+		"vgpu-react": "^0.2.0"
 	},
 	"devDependencies": {
 		"@biomejs/biome": "2.5.11",
+		"@types/react": "^19.2.18",
+		"@types/react-dom": "^19.2.5",
 		"@vitejs/plugin-react": "^6.1.1",
 		"typescript": "^7.0.2",
 		"vite": "^8.2.2"

@@ -2,5 +2,22 @@
 	"$schema": "./node_modules/@biomejs/biome/configuration_schema.json",
 	"files": {
 		"includes": ["**", "!dist"]
+	},
+	"linter": {
+		"rules": {
+			"style": {
+				"noRestrictedImports": {
+					"level": "error",
+					"options": {
+						"patterns": [
+							{
+								"group": ["../**"],
+								"message": "Import from @/ instead of a parent directory."
+							}
+						]
+					}
+				}
+			}
+		}
 	}
 }
