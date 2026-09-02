@@ -1,6 +1,6 @@
-# vgpu-react-starter
+# OpenLight
 
-A starting point for a Vite + React + vgpu app. Bun for install and scripts. Biome for format and lint.
+A Vite, React, and vgpu app. Bun for install and scripts. Biome for format and lint.
 
 `src/main.tsx` mounts `GpuProvider`, which calls `init()` and renders nothing until the device is ready. `src/app.tsx` is the first component inside it. Grow from there.
 

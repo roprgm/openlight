@@ -1,6 +1,6 @@
-# vgpu-react-starter
+# OpenLight
 
-A Vite, React, and vgpu starting point.
+A Vite, React, and vgpu app.
 
 ## Run
 
