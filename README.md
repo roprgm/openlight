@@ -1,6 +1,10 @@
 # OpenLight
 
-A Vite, React, and vgpu app.
+**An open-source image editor for the browser, built with [vgpu.sh](https://vgpu.sh)**
+
+Open a photo, adjust light and color, export the result. Edits are non-destructive and rendering runs on your GPU through WebGPU. Everything stays on your machine: no account, no upload.
+
+Needs a WebGPU-capable browser: Chrome or Edge stable, Safari 26+.
 
 ## Run
 
@@ -9,8 +13,11 @@ bun install
 bun dev
 ```
 
-## Build
-
 ```sh
-bun run build
+bun run check   # format + lint
+bun run build   # typecheck + bundle
 ```
+
+## License
+
+[MIT](LICENSE)
