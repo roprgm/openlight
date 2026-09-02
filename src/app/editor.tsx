@@ -3,6 +3,7 @@ import { sampler } from "vgpu";
 import { Canvas, useCanvas, useFrameLoop, useGpu, useShader } from "vgpu-react";
 import ResizablePanel from "@/components/ui/resizable-panel";
 import Spinner from "@/components/ui/spinner";
+import Histogram from "@/features/histogram/histogram";
 import usePanZoom, { type View } from "@/hooks/use-pan-zoom";
 import decode, { type Target } from "@/lib/decode";
 import shader from "./editor.wgsl";
@@ -74,7 +75,7 @@ export default function Editor({ file }: EditorProps) {
 					<Spinner />
 				)}
 			</div>
-			<ResizablePanel />
+			<ResizablePanel>{image && <Histogram image={image} />}</ResizablePanel>
 		</main>
 	);
 }
