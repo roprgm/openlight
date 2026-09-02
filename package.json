@@ -10,6 +10,7 @@
 	"dependencies": {
 		"@tailwindcss/vite": "^4.3.3",
 		"cn": "^0.2.4",
+		"libheif-js": "^1.19.8",
 		"react": "^19.2.8",
 		"react-dom": "^19.2.8",
 		"tailwindcss": "^4.3.3",

@@ -1,5 +1,6 @@
 import { type DragEvent, useRef } from "react";
 import Button from "@/components/ui/button";
+import { accept, canDecode } from "@/lib/decode";
 import Backdrop from "./backdrop";
 
 type OpenProps = { onOpen: (files: FileList | null) => void };
@@ -12,7 +13,7 @@ function OpenImage({ onOpen }: OpenProps) {
 				Open image
 			</Button>
 			<input
-				accept="image/*"
+				accept={accept}
 				hidden
 				onChange={(event) => onOpen(event.currentTarget.files)}
 				ref={input}
@@ -27,7 +28,7 @@ type LandingProps = { onOpen: (image: File) => void };
 export default function Landing({ onOpen }: LandingProps) {
 	const open = (files: FileList | null) => {
 		const image = files?.[0];
-		if (image?.type.startsWith("image/")) {
+		if (image && canDecode(image)) {
 			onOpen(image);
 		}
 	};
@@ -43,7 +44,7 @@ export default function Landing({ onOpen }: LandingProps) {
 			onDrop={drop}
 		>
 			<Backdrop />
-			<img alt="" className="w-16" src="/logo.svg" />
+			<img alt="" className="w-16" height="64" src="/logo.svg" width="64" />
 			<h1 className="text-2xl font-bold">OpenLight</h1>
 			<p className="text-neutral-400">Edit locally in your browser.</p>
 			<OpenImage onOpen={open} />
