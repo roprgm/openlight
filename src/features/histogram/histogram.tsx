@@ -1,12 +1,12 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { compute, storage, type Target } from "vgpu";
-import { useFrameLoop, useGpu } from "vgpu-react";
+import { useGpu } from "vgpu-react";
 import shader from "./bins.wgsl";
 
 const channels = ["#f25445", "#6bd175", "#5c8ffa"];
 const empty = new Uint32Array(769);
 
-/** Bins a 512×320 sampling of the displayed image on the GPU, as often as the readback allows. */
+/** Bins a 512×320 sampling of the displayed image on the GPU whenever it changes. */
 function useBins(image: Target) {
 	const gpu = useGpu();
 	const [bins, setBins] = useState(empty);
@@ -15,20 +15,16 @@ function useBins(image: Target) {
 		() => compute(gpu, shader, { set: { bins: buffer } }),
 		[gpu, buffer],
 	);
-	const reading = useRef(false);
 
-	useFrameLoop(() => {
-		if (reading.current) {
-			return;
-		}
-		reading.current = true;
+	useEffect(() => {
+		let stale = false;
 		buffer.write(empty);
 		counter.set({ source: image.color }).dispatch(32, 20);
-		buffer.read().then((data) => {
-			reading.current = false;
-			setBins(new Uint32Array(data));
-		});
-	});
+		buffer.read().then((data) => !stale && setBins(new Uint32Array(data)));
+		return () => {
+			stale = true;
+		};
+	}, [buffer, counter, image]);
 
 	return bins;
 }
