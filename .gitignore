@@ -3,3 +3,5 @@ dist
 .DS_Store
 .vercel
 .env*
+playwright-report
+test-results

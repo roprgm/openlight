@@ -34,6 +34,14 @@ All React bindings come from `vgpu-react`; everything else comes from `vgpu`.
 - Shader code lives in `.wgsl` files next to the component that imports them. The Vite loader and ambient types are already configured.
 - The working space is linear Rec.2020 in `rgba16float`. Decoders convert into it, the editor shader converts out of it; nothing in between assumes a format or primaries, so both can change (an 8-bit variant is planned).
 
+## Testing
+
+Prefer a small number of browser-level tests for real application features. Each test should exercise a complete user-visible behavior and cover as much relevant code as practical. Avoid narrow unit tests for simple implementation details and do not add tests only to increase coverage.
+
+Maintain a browser-side control API for agents and browser tests. Expose stable, semantic commands for real workflows such as loading an image, changing an adjustment, reading application state, and waiting for processing or rendering to settle. Commands must call the same application actions as the UI so they exercise production behavior without reproducing pointer or keyboard input. Use DOM interaction only when the UI interaction itself is under test.
+
+Extend the control API whenever a feature adds a workflow that agents need to exercise. It may require an explicit test mode, but it must work in local browsers, CI, and remote browser sessions.
+
 ## Done
 
-`bun run check` formats and lints. `bun run build` type-checks. Run both after changing files and before a commit.
+`bun run check` formats and lints. `bun run build` type-checks. `bun run test` runs the browser tests. Run all three after changing files and before a commit.
