@@ -1,7 +1,13 @@
 import { display } from "../../lib/color.wgsl";
+import { linearToSrgb3 } from "@vgpu/wgsl-std/color";
+
+struct Params {
+  working: u32,
+}
 
 @group(0) @binding(0) var source: texture_2d<f32>;
 @group(0) @binding(1) var<storage, read_write> bins: array<atomic<u32>, 768>;
+@group(0) @binding(2) var<uniform> params: Params;
 
 const samples = vec2u(512, 320);
 // Soft-binning weight spread across a bin pair; kept as a fixed-point scale so atomics stay integer.
@@ -22,8 +28,11 @@ fn softBin(channel: u32, position: f32) {
     return;
   }
   let texel = textureLoad(source, id.xy * textureDimensions(source) / samples, 0).rgb;
-  let encoded = display(texel) * 255.0;
-  softBin(0u, encoded.r);
-  softBin(1u, encoded.g);
-  softBin(2u, encoded.b);
+  var encoded = display(texel);
+  if (params.working != 0u) {
+    encoded = linearToSrgb3(clamp(texel, vec3f(0.0), vec3f(1.0)));
+  }
+  softBin(0u, encoded.r * 255.0);
+  softBin(1u, encoded.g * 255.0);
+  softBin(2u, encoded.b * 255.0);
 }

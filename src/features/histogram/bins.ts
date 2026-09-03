@@ -7,9 +7,14 @@ export function histogram(gpu: Gpu) {
 	const buffer = storage(gpu, emptyBins.byteLength);
 	const counter = compute(gpu, shader, { set: { bins: buffer } });
 	return {
-		async read(image: Target) {
+		async read(image: Target, space: "display" | "working" = "display") {
 			buffer.write(emptyBins);
-			counter.set({ source: image.color }).dispatch(32, 20);
+			counter
+				.set({
+					source: image.color,
+					params: { working: Number(space === "working") },
+				})
+				.dispatch(32, 20);
 			return new Uint32Array(await buffer.read());
 		},
 	};

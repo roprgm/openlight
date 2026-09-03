@@ -7,6 +7,7 @@ function getState() {
 	return {
 		file: scene.source?.file.name,
 		adjustments: { ...scene.adjustments },
+		curve: scene.curve.map((point) => ({ ...point })),
 	};
 }
 
@@ -22,6 +23,7 @@ export function useControls() {
 		() => ({
 			loadImage: (file: File) => useScene.getState().loadImage(gpu, file),
 			setAdjustments: useScene.getState().setAdjustments,
+			setCurve: useScene.getState().setCurve,
 			getState,
 		}),
 		[gpu],
