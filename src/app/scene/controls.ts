@@ -1,5 +1,6 @@
 import { useEffect, useMemo } from "react";
 import { useGpu } from "vgpu-react";
+import { type ExportOptions, exportImage } from "@/app/export-image";
 import { useScene } from ".";
 
 function getState() {
@@ -24,6 +25,7 @@ export function useControls() {
 			loadImage: (file: File) => useScene.getState().loadImage(gpu, file),
 			setAdjustments: useScene.getState().setAdjustments,
 			setCurve: useScene.getState().setCurve,
+			exportImage: (options?: ExportOptions) => exportImage(gpu, options),
 			getState,
 		}),
 		[gpu],

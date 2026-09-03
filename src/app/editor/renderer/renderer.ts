@@ -38,7 +38,7 @@ export function createRenderer(gpu: Gpu, source: Target) {
 	const applyCurve = effect(gpu, curvesShader, {
 		set: { source: adjusted.color, curve },
 	});
-	const bins = histogram(gpu);
+	let bins: ReturnType<typeof histogram> | undefined;
 	const display = effect(gpu, shader, {
 		set: {
 			sourceSampler: sampler(gpu, { magFilter: "linear", minFilter: "linear" }),
@@ -60,6 +60,7 @@ export function createRenderer(gpu: Gpu, source: Target) {
 		if (disposed || outputs.size === 0) {
 			return;
 		}
+		bins ??= histogram(gpu);
 		const counts = await bins.read(image, space);
 		if (!disposed) {
 			for (const draw of outputs) {
