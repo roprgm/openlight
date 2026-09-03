@@ -17,7 +17,8 @@
 		"react-dom": "^19.2.8",
 		"tailwindcss": "^4.3.3",
 		"vgpu": "^0.3.1",
-		"vgpu-react": "^0.2.0"
+		"vgpu-react": "^0.2.0",
+		"zustand": "^5.0.15"
 	},
 	"devDependencies": {
 		"@biomejs/biome": "2.5.11",
