@@ -23,6 +23,10 @@ The `src/` root holds entrypoints, ambient types, and global styles. Import acro
 Dependencies point downward: `app/` may import every folder; `features/` may import `components/`, `hooks/`, and `lib/`; `components/` and `hooks/` may import `lib/`.
 Keep feature-specific components, hooks, and helpers inside their feature. Move them to a generic folder only when their interface no longer contains feature concepts.
 
+## Styling
+
+Tailwind classes stay inline in the component that renders them; reuse styling by composing React components or repeating classes (whichever is fewer lines), never by sharing class-string constants across files. Use `cva` for a component's variants; promote a style to a token in `src/index.css` only when it is app-global, like a shadow or a font style.
+
 ## GPU
 
 All React bindings come from `vgpu-react`; everything else comes from `vgpu`.

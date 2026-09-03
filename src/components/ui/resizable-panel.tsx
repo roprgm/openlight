@@ -24,12 +24,12 @@ export default function ResizablePanel({
 
 	return (
 		<aside
-			className={cn("relative shrink-0", className)}
+			className={cn("relative shrink-0 bg-neutral-800 shadow-ridge", className)}
 			style={{ width, ...style }}
 			{...props}
 		>
 			<div
-				className="absolute inset-y-0 -left-1 w-2 cursor-col-resize touch-none after:absolute after:inset-y-0 after:left-1 after:w-px after:bg-neutral-800 hover:after:bg-neutral-700 after:transition-colors after:duration-200"
+				className="absolute inset-y-0 -left-1 w-2 cursor-col-resize touch-none after:absolute after:inset-y-0 after:left-1 after:w-px after:bg-black hover:after:bg-neutral-600 after:transition-colors after:duration-200"
 				onPointerDown={(event) =>
 					event.currentTarget.setPointerCapture(event.pointerId)
 				}

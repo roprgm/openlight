@@ -46,7 +46,7 @@ export default function Landing({ onOpen }: LandingProps) {
 			<Backdrop />
 			<img alt="" className="w-16" height="64" src="/logo.svg" width="64" />
 			<h1 className="text-2xl font-bold">OpenLight</h1>
-			<p className="text-neutral-400">Edit locally in your browser.</p>
+			<p className="text-neutral-400">Edit photos in your browser.</p>
 			<OpenImage onOpen={open} />
 		</main>
 	);

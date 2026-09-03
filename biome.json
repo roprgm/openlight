@@ -3,6 +3,11 @@
 	"files": {
 		"includes": ["**", "!dist"]
 	},
+	"css": {
+		"parser": {
+			"tailwindDirectives": true
+		}
+	},
 	"linter": {
 		"rules": {
 			"style": {
