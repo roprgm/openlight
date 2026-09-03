@@ -1,11 +1,15 @@
 import type { Gpu, Target } from "vgpu";
+import decodeHeic from "./heic";
 import linearize from "./linearize";
 import decodeSvg from "./svg";
 import type { Decoder, Pixels } from "./types";
 
 export type { Target };
 
-/** Decoder backed by a worker module: post the file, receive transferred pixels or an error. */
+/**
+ * Decoder backed by a worker module: post the file, receive transferred pixels or an error.
+ * Unused since HEIC moved to WebCodecs; kept for CPU-heavy decoders to come (RAW).
+ */
 export function workerDecoder(
 	load: () => Promise<{ default: new () => Worker }>,
 ) {
@@ -33,6 +37,7 @@ type Format = {
 
 const native = async () => createImageBitmap;
 const svg = async () => decodeSvg;
+const heic = async () => decodeHeic;
 
 const formats: Format[] = [
 	{ types: ["image/png"], extensions: ["png"], load: native },
@@ -42,6 +47,11 @@ const formats: Format[] = [
 	{ types: ["image/avif"], extensions: ["avif"], load: native },
 	{ types: ["image/bmp"], extensions: ["bmp"], load: native },
 	{ types: ["image/svg+xml"], extensions: ["svg"], load: svg },
+	{
+		types: ["image/heic", "image/heif"],
+		extensions: ["heic", "heif"],
+		load: heic,
+	},
 ];
 
 /** Matches by MIME type, then by extension for files the OS doesn't type. */

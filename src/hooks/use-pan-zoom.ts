@@ -71,7 +71,8 @@ export default function usePanZoom(content?: Size) {
 		if (!element) {
 			return;
 		}
-		update((view) => view);
+		const observer = new ResizeObserver(() => update((view) => view));
+		observer.observe(element);
 		const wheel = (event: WheelEvent) => {
 			event.preventDefault();
 			const { left, top, width, height } = element.getBoundingClientRect();
@@ -89,7 +90,10 @@ export default function usePanZoom(content?: Size) {
 			);
 		};
 		element.addEventListener("wheel", wheel, { passive: false });
-		return () => element.removeEventListener("wheel", wheel);
+		return () => {
+			observer.disconnect();
+			element.removeEventListener("wheel", wheel);
+		};
 	}, [update]);
 
 	const handlers = {

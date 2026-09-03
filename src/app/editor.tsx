@@ -8,23 +8,31 @@ import usePanZoom, { type View } from "@/hooks/use-pan-zoom";
 import decode, { type Target } from "@/lib/decode";
 import shader from "./editor.wgsl";
 
+type Decoding = { image?: Target; error?: string };
+
 /** Decodes the file into the GPU, disposing it on cleanup. */
 function useDecode(file: File) {
 	const gpu = useGpu();
-	const [image, setImage] = useState<Target>();
+	const [state, setState] = useState<Decoding>({});
 
 	useEffect(() => {
 		let cancelled = false;
 		const decoding = decode(gpu, file);
-		decoding.then((image) => !cancelled && setImage(image));
+		decoding.then(
+			(image) => !cancelled && setState({ image }),
+			(error: Error) => !cancelled && setState({ error: error.message }),
+		);
 		return () => {
 			cancelled = true;
-			decoding.then((image) => image.color.dispose());
-			setImage(undefined);
+			decoding.then(
+				(image) => image.color.dispose(),
+				() => {},
+			);
+			setState({});
 		};
 	}, [gpu, file]);
 
-	return image;
+	return state;
 }
 
 type ImageProps = { image: Target; view: View };
@@ -57,7 +65,7 @@ function Image({ image, view }: ImageProps) {
 type EditorProps = { file: File };
 
 export default function Editor({ file }: EditorProps) {
-	const image = useDecode(file);
+	const { image, error } = useDecode(file);
 	const { ref, view, handlers } = usePanZoom(image?.size);
 
 	return (
@@ -71,6 +79,10 @@ export default function Editor({ file }: EditorProps) {
 					<Canvas className="size-full min-h-0">
 						<Image image={image} view={view} />
 					</Canvas>
+				) : error ? (
+					<p className="max-w-md text-center text-neutral-400">
+						Couldn't open {file.name}: {error}
+					</p>
 				) : (
 					<Spinner />
 				)}

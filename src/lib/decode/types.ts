@@ -4,5 +4,13 @@ export type Pixels = {
 	height: number;
 	data: Uint8ClampedArray<ArrayBuffer>;
 };
-export type Decoded = ImageBitmap | Pixels;
+/** Video frames tiled on a grid `columns` wide, cropped to width × height, then rotated counter-clockwise by `rotation` quarter turns. */
+export type Frames = {
+	width: number;
+	height: number;
+	tiles: VideoFrame[];
+	columns: number;
+	rotation: number;
+};
+export type Decoded = ImageBitmap | Pixels | Frames;
 export type Decoder = (file: Blob) => Promise<Decoded>;

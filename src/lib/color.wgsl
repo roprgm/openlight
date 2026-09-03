@@ -1,10 +1,16 @@
 import { linearToSrgb3 } from "@vgpu/wgsl-std/color";
 
-// The working space is linear Rec.2020; these convert its primaries to and from linear sRGB (column-major).
+// The working space is linear Rec.2020; these convert its primaries to and from linear sRGB and Display P3 (column-major).
 export const srgbToRec2020 = mat3x3f(
   0.6274, 0.0691, 0.0164,
   0.3293, 0.9195, 0.0880,
   0.0433, 0.0114, 0.8956,
+);
+
+export const p3ToRec2020 = mat3x3f(
+  0.7538, 0.0457, -0.0012,
+  0.1986, 0.9418, 0.0176,
+  0.0476, 0.0125, 0.9836,
 );
 
 export const rec2020ToSrgb = mat3x3f(
