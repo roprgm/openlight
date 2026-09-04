@@ -2,7 +2,7 @@ import { Canvas } from "vgpu-react";
 import type { Source } from "@/app/scene";
 import ResizablePanel from "@/components/ui/resizable-panel";
 import Spinner from "@/components/ui/spinner";
-import usePanZoom from "@/hooks/use-pan-zoom";
+import { usePanZoom } from "@/hooks/use-pan-zoom";
 import type { Target } from "@/lib/decode";
 import CanvasRenderer from "./renderer";
 import { RendererProvider } from "./renderer/provider";
@@ -16,7 +16,7 @@ function Workspace({ image }: WorkspaceProps) {
 	return (
 		<RendererProvider source={image}>
 			<div
-				className="grid min-w-0 flex-1 cursor-grab touch-none place-items-center active:cursor-grabbing"
+				className="grid min-h-0 min-w-0 flex-1 cursor-grab touch-none place-items-center active:cursor-grabbing"
 				ref={ref}
 				{...handlers}
 			>
@@ -35,7 +35,7 @@ export default function Editor({ source }: EditorProps) {
 	const { image, error } = source;
 
 	return (
-		<main className="flex h-full">
+		<main className="flex h-dvh flex-col md:flex-row">
 			{image ? (
 				<Workspace image={image} />
 			) : (

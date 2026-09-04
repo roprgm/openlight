@@ -14,6 +14,14 @@ export type View = { zoom: number; pan: Point; percent: number };
 const fit: View = { zoom: 1, pan: [0, 0], percent: 0 };
 const maxZoom = 8;
 
+function measureGesture(points: Iterable<Point>) {
+	const [first, second = first] = points;
+	return {
+		center: [(first[0] + second[0]) / 2, (first[1] + second[1]) / 2] as const,
+		distance: Math.hypot(second[0] - first[0], second[1] - first[1]),
+	};
+}
+
 /** Keeps the content point under `focal` fixed while changing zoom. */
 function zoomAt(view: View, focal: Point, zoom: number): View {
 	const ratio = Math.min(Math.max(zoom, 1), maxZoom) / view.zoom;
@@ -49,10 +57,11 @@ function clamp(view: View, content: Size, viewport: Size): View {
 /**
  * Pan and zoom over `content` inside the element given `ref`.
  * Zoom 1 is the initial fit: contain, but no larger than real size. `pan` is in CSS px from the viewport center.
- * Wheel pans, ctrl/cmd+wheel (and pinch) zooms at the cursor, drag pans, double-click resets.
+ * Wheel/drag pans, ctrl/cmd+wheel zooms at the cursor, two pointers pinch and pan, double-click resets.
  */
-export default function usePanZoom(content?: Size) {
+export function usePanZoom(content?: Size) {
 	const ref = useRef<HTMLDivElement>(null);
+	const pointers = useRef(new Map<number, Point>());
 	const [view, setView] = useState(fit);
 
 	const update = useCallback(
@@ -96,15 +105,46 @@ export default function usePanZoom(content?: Size) {
 		};
 	}, [update]);
 
+	const release = (event: PointerEvent<HTMLElement>) =>
+		pointers.current.delete(event.pointerId);
 	const handlers = {
-		onPointerDown: (event: PointerEvent<HTMLElement>) =>
-			event.currentTarget.setPointerCapture(event.pointerId),
-		onPointerMove: (event: PointerEvent<HTMLElement>) =>
-			event.buttons === 1 &&
-			update((view) => ({
-				...view,
-				pan: [view.pan[0] + event.movementX, view.pan[1] + event.movementY],
-			})),
+		onPointerDown: (event: PointerEvent<HTMLElement>) => {
+			if (event.button !== 0 || pointers.current.size === 2) {
+				return;
+			}
+			pointers.current.set(event.pointerId, [event.clientX, event.clientY]);
+			event.currentTarget.setPointerCapture(event.pointerId);
+		},
+		onPointerMove: (event: PointerEvent<HTMLElement>) => {
+			const points = pointers.current;
+			if (!points.has(event.pointerId)) {
+				return;
+			}
+			const previous = measureGesture(points.values());
+			points.set(event.pointerId, [event.clientX, event.clientY]);
+			const next = measureGesture(points.values());
+			const { left, top, width, height } =
+				event.currentTarget.getBoundingClientRect();
+			const focal: Point = [
+				previous.center[0] - left - width / 2,
+				previous.center[1] - top - height / 2,
+			];
+			const ratio =
+				previous.distance > 0 ? next.distance / previous.distance : 1;
+			update((view) => {
+				const zoomed = zoomAt(view, focal, view.zoom * ratio);
+				return {
+					...zoomed,
+					pan: [
+						zoomed.pan[0] + next.center[0] - previous.center[0],
+						zoomed.pan[1] + next.center[1] - previous.center[1],
+					],
+				};
+			});
+		},
+		onPointerUp: release,
+		onPointerCancel: release,
+		onLostPointerCapture: release,
 		onDoubleClick: () => setView(fit),
 	};
 
