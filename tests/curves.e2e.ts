@@ -208,6 +208,7 @@ test("the curve panel edits points over a combined input histogram", async ({
 	await expect(input).toHaveAttribute("points", /,0\.0/);
 	await expect(output).toHaveAttribute("points", /,0\.0/);
 	const inputBefore = await input.getAttribute("points");
+	const inputNode = await input.elementHandle();
 	const outputBefore = await output.getAttribute("points");
 	await graph.click({
 		position: { x: bounds.width / 2, y: bounds.height / 2 },
@@ -231,6 +232,7 @@ test("the curve panel edits points over a combined input histogram", async ({
 	expect(edited.y).toBeCloseTo(0.75, 2);
 	await expect(output).not.toHaveAttribute("points", outputBefore ?? "");
 	await expect(input).toHaveAttribute("points", inputBefore ?? "");
+	expect(await inputNode?.evaluate((node) => node.isConnected)).toBe(true);
 	await expect
 		.poll(async () => (await centerPixel(page))[0])
 		.toBeGreaterThan(185);

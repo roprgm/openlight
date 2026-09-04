@@ -9,7 +9,8 @@ Demonstrate a professional photo editor with little, readable code.
 ## Size
 
 Keep each file focused on one responsibility and one abstraction level. Entry points compose; providers, hooks, and domain modules own lifecycles and policy.
-Prefer the smallest implementation that preserves clear ownership.
+Prefer the smallest complete implementation that preserves clear ownership. Evaluate simplicity across the whole feature, including lifecycle glue and consumers; moving lines into helpers is not a reduction.
+Start with a direct function and thin UI composition. Add a layer only when it hides a real responsibility or removes duplication; keep cohesive work together when splitting it would only add forwarding.
 Prefer direct vgpu operations. Add wrappers, validation, scheduling, or caching only for a current requirement.
 One component per responsibility: when a component holds state or refs that only part of its markup uses, extract that part into its own component. Within a file, define a function above the function that uses it.
 
@@ -22,6 +23,8 @@ Providers expose stable engine instances and connect their lifetime to mounting 
 The Zustand scene store owns document state. UI interactions and browser commands call the same actions; the renderer reads the scene directly.
 
 ## Structure
+
+Prefer named exports (`export function`) and named imports. Use default exports only when a concrete integration requires or clearly benefits from them, such as a worker loader or dynamic-import consumer that expects a default export.
 
 The `src/` root holds entrypoints, ambient types, and global styles. Import across folders through the `@/` alias (`@/hooks/use-pointer`); relative paths stay inside a folder. Source modules belong to these folders:
 

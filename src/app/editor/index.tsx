@@ -6,7 +6,7 @@ import usePanZoom from "@/hooks/use-pan-zoom";
 import type { Target } from "@/lib/decode";
 import CanvasRenderer from "./renderer";
 import { RendererProvider } from "./renderer/provider";
-import Sidebar from "./sidebar";
+import { Sidebar } from "./sidebar";
 
 type WorkspaceProps = { image: Target };
 

@@ -1,8 +1,17 @@
-import Histogram from "@/app/editor/sidebar/histogram";
+import { useRenderer } from "@/app/editor/renderer/provider";
 import { useScene } from "@/app/scene";
+import { Histogram } from "@/features/histogram";
+import type { createHistogram } from "@/features/histogram/histogram";
 import Graph from "./graph";
 
-export default function Curves() {
+const histogramColors = ["#a3a3a3"] as const;
+
+type CurvesProps = {
+	histogram: ReturnType<typeof createHistogram>;
+};
+
+export function Curves({ histogram }: CurvesProps) {
+	const renderer = useRenderer();
 	const points = useScene((scene) => scene.curve);
 	const setCurve = useScene((scene) => scene.setCurve);
 	return (
@@ -33,9 +42,13 @@ export default function Curves() {
 			<div className="px-0.5">
 				<div className="relative aspect-square rounded border border-black bg-neutral-900 shadow-groove">
 					<Histogram
+						histogram={histogram}
+						image={renderer.inputImage}
+						colors={histogramColors}
+						working
+						fillOpacity={0.65}
+						aria-label="input histogram"
 						className="pointer-events-none absolute inset-0 h-full w-full opacity-25"
-						mode="combined"
-						stage="input"
 					/>
 					<Graph onChange={setCurve} points={points} />
 				</div>

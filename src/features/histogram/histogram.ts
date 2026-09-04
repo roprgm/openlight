@@ -1,66 +1,82 @@
-const channels = ["#f25445", "#6bd175", "#5c8ffa"];
-const binCount = 256;
-const kernel = [1, 4, 6, 4, 1];
-const kernelWeight = 16;
+import { compute, frameLoop, type Gpu, type Target } from "vgpu";
+import shader from "./histogram.wgsl";
 
-export type HistogramMode = "rgb" | "combined";
-
-/** Applies the binomial kernel over one channel's soft-binned counts. */
-function smooth(bins: Uint32Array, channel: number) {
-	return Array.from({ length: binCount }, (_, bin) => {
-		let sum = 0;
-		for (let k = 0; k < kernel.length; k++) {
-			const i = bin + k - 2;
-			if (i >= 0 && i < binCount) {
-				sum += bins[channel * binCount + i] * kernel[k];
-			}
-		}
-		return sum / kernelWeight;
+export function createHistogram(gpu: Gpu) {
+	const bins = gpu.device.createBuffer({
+		size: 3072,
+		usage: ["storage", "copy_dst"],
 	});
-}
-
-/** RGB polyline points on a 255×100 box: smoothed, then square-root scaled to the shared peak. */
-function curves(bins: Uint32Array, mode: HistogramMode) {
-	let counts = channels.map((_, channel) => smooth(bins, channel));
-	if (mode === "combined") {
-		counts = [
-			counts[0].map((count, bin) => count + counts[1][bin] + counts[2][bin]),
-		];
+	const heights = gpu.device.createBuffer({
+		size: 3072,
+		usage: ["storage", "copy_src"],
+	});
+	const count = compute(gpu, shader, { entry: "count", set: { bins } });
+	const finish = compute(gpu, shader, {
+		entry: "finish",
+		set: { bins, heights },
+	});
+	const empty = new Uint32Array(768);
+	async function read(image: Target, working = false, channels: 1 | 3 = 3) {
+		const params = { working: Number(working), channels };
+		bins.write(empty);
+		count.set({ source: image.color, params }).dispatch(32, 20);
+		finish.set({ params }).dispatch(1);
+		return new Float32Array(await heights.read(channels * 1024));
 	}
-	const peak = Math.max(1, ...counts.flat());
-	return counts.map((channel) =>
-		channel
-			.map((count, bin) => {
-				const height = Math.sqrt(Math.min(1, count / peak));
-				return `${bin},${(100 - 100 * height).toFixed(1)}`;
-			})
-			.join(" "),
-	);
-}
-
-/** Binds a histogram output once; subsequent updates write directly to its SVG. */
-export function histogramChart(
-	svg: SVGSVGElement,
-	mode: HistogramMode = "rgb",
-) {
-	let colors = channels;
-	let opacity = 0.2;
-	if (mode === "combined") {
-		colors = ["#a3a3a3"];
-		opacity = 0.65;
-	}
-	svg.innerHTML = `<title>Histogram</title>${colors
-		.map(
-			(color) =>
-				`<g><polygon fill="${color}" fill-opacity="${opacity}"/><polyline fill="none" stroke="${color}" vector-effect="non-scaling-stroke"/></g>`,
-		)
-		.join("")}`;
-	const polygons = svg.querySelectorAll("polygon");
-	const lines = svg.querySelectorAll("polyline");
-	return (bins: Uint32Array) => {
-		curves(bins, mode).forEach((points, channel) => {
-			polygons[channel].setAttribute("points", `0,100 ${points} 255,100`);
-			lines[channel].setAttribute("points", points);
-		});
+	return {
+		read,
+		attach(
+			svg: SVGSVGElement,
+			image: () => Target,
+			colors: readonly [string] | readonly [string, string, string],
+			working = false,
+		) {
+			const namespace = "http://www.w3.org/2000/svg";
+			const plot = document.createElementNS(namespace, "g");
+			const curves = colors.map((color) => {
+				const polygon = document.createElementNS(namespace, "polygon");
+				const polyline = document.createElementNS(namespace, "polyline");
+				polygon.setAttribute("fill", color);
+				polygon.setAttribute("stroke", "none");
+				polyline.setAttribute("fill", "none");
+				polyline.setAttribute("stroke", color);
+				polyline.setAttribute("vector-effect", "non-scaling-stroke");
+				plot.append(polygon, polyline);
+				return { polygon, polyline };
+			});
+			svg.append(plot);
+			let pending = false;
+			const loop = frameLoop(gpu, async () => {
+				if (pending) {
+					return;
+				}
+				pending = true;
+				try {
+					const values = await read(image(), working, colors.length);
+					curves.forEach(({ polygon, polyline }, channel) => {
+						const points = Array.from(
+							values.subarray(channel * 256, (channel + 1) * 256),
+							(y, x) => `${x},${y.toFixed(1)}`,
+						).join(" ");
+						polygon.setAttribute("points", `0,100 ${points} 255,100`);
+						polyline.setAttribute("points", points);
+					});
+				} catch (error) {
+					if (plot.isConnected) {
+						console.error(error);
+					}
+				} finally {
+					pending = false;
+				}
+			});
+			return () => {
+				loop.stop();
+				plot.remove();
+			};
+		},
+		dispose() {
+			bins.dispose();
+			heights.dispose();
+		},
 	};
 }
