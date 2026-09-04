@@ -32,8 +32,10 @@ export async function exportImage(
 	const output = surface(gpu, canvas, { size: [width, height], dpr: 1 });
 	const renderer = createRenderer(gpu, source.image);
 	try {
-		renderer.attachCanvas(output, { zoom: 1, pan: [0, 0], percent: 100 });
-		frame(gpu, (frame) => renderer.render(frame, scene));
+		renderer.update(scene);
+		frame(gpu, (frame) =>
+			renderer.draw(frame, output, { zoom: 1, pan: [0, 0] }),
+		);
 		const blob = await canvas.convertToBlob({
 			type: `image/${options.format}`,
 			quality: options.format === "jpeg" ? options.quality / 100 : undefined,

@@ -1,6 +1,9 @@
 import { useEffect, useMemo } from "react";
 import { useGpu } from "vgpu-react";
-import { type ExportOptions, exportImage } from "@/app/export-image";
+import {
+	type ExportOptions,
+	exportImage,
+} from "@/app/editor/export/export-image";
 import { useScene } from ".";
 
 function getState() {

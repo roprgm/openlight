@@ -4,26 +4,32 @@ import ResizablePanel from "@/components/ui/resizable-panel";
 import Spinner from "@/components/ui/spinner";
 import { usePanZoom } from "@/hooks/use-pan-zoom";
 import type { Target } from "@/lib/decode";
-import CanvasRenderer from "./renderer";
+import { CanvasRenderer } from "./renderer";
 import { RendererProvider } from "./renderer/provider";
 import { Sidebar } from "./sidebar";
 
 type WorkspaceProps = { image: Target };
 
-function Workspace({ image }: WorkspaceProps) {
+function ImageCanvas({ image }: WorkspaceProps) {
 	const { ref, view, handlers } = usePanZoom(image.size);
 
 	return (
+		<div
+			className="grid min-h-0 min-w-0 flex-1 cursor-grab touch-none place-items-center active:cursor-grabbing"
+			ref={ref}
+			{...handlers}
+		>
+			<Canvas className="size-full min-h-0">
+				<CanvasRenderer view={view} />
+			</Canvas>
+		</div>
+	);
+}
+
+function Workspace({ image }: WorkspaceProps) {
+	return (
 		<RendererProvider source={image}>
-			<div
-				className="grid min-h-0 min-w-0 flex-1 cursor-grab touch-none place-items-center active:cursor-grabbing"
-				ref={ref}
-				{...handlers}
-			>
-				<Canvas className="size-full min-h-0">
-					<CanvasRenderer view={view} />
-				</Canvas>
-			</div>
+			<ImageCanvas image={image} />
 			<Sidebar />
 		</RendererProvider>
 	);

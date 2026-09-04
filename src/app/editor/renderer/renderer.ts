@@ -1,6 +1,7 @@
 import {
 	effect,
 	type Frame,
+	frame,
 	type Gpu,
 	sampler,
 	type Target,
@@ -25,41 +26,53 @@ export function createRenderer(gpu: Gpu, source: Target) {
 		},
 	});
 
-	const canvases = new Set<{ canvas: Target & { dpr: number }; view: View }>();
+	const listeners = new Set<() => void>();
+	let rendered = false;
 	let output = adjusted;
 	return {
 		inputImage: () => adjusted,
 		outputImage: () => output,
-		attachCanvas(canvas: Target & { dpr: number }, view: View) {
-			const output = { canvas, view };
-			canvases.add(output);
+		subscribe(listener: () => void) {
+			listeners.add(listener);
+			if (rendered) {
+				listener();
+			}
 			return () => {
-				canvases.delete(output);
+				listeners.delete(listener);
 			};
 		},
-		render(frame: Frame, scene: Scene) {
-			frame.pass(
-				adjusted,
-				adjust.set({ source: source.color, adjustments: scene.adjustments }),
-			);
-			output = toneCurves.render(frame, scene.curve);
-			for (const { canvas, view } of canvases) {
+		update(scene: Scene) {
+			frame(gpu, (frame) => {
 				frame.pass(
-					canvas,
-					display.set({
-						source: output.color,
-						params: {
-							size: canvas.size,
-							sourceSize: output.size,
-							pan: view.pan.map((p) => p * canvas.dpr),
-							zoom: view.zoom,
-						},
-					}),
+					adjusted,
+					adjust.set({ source: source.color, adjustments: scene.adjustments }),
 				);
+				output = toneCurves.render(frame, scene.curve);
+			});
+			rendered = true;
+			for (const listener of listeners) {
+				listener();
 			}
 		},
+		draw(frame: Frame, canvas: Target & { dpr: number }, view: View) {
+			if (!rendered) {
+				return;
+			}
+			frame.pass(
+				canvas,
+				display.set({
+					source: output.color,
+					params: {
+						size: canvas.size,
+						sourceSize: output.size,
+						pan: view.pan.map((p) => p * canvas.dpr),
+						zoom: view.zoom,
+					},
+				}),
+			);
+		},
 		dispose() {
-			canvases.clear();
+			listeners.clear();
 			adjusted.color.dispose();
 			toneCurves.dispose();
 		},

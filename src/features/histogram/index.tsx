@@ -5,6 +5,7 @@ import type { createHistogram } from "./histogram";
 type Props = ComponentProps<"svg"> & {
 	histogram: ReturnType<typeof createHistogram>;
 	image: () => Target;
+	subscribe: (listener: () => void) => () => void;
 	colors: readonly [string] | readonly [string, string, string];
 	working?: boolean;
 };
@@ -12,6 +13,7 @@ type Props = ComponentProps<"svg"> & {
 export function Histogram({
 	histogram,
 	image,
+	subscribe,
 	colors,
 	working,
 	...props
@@ -19,10 +21,15 @@ export function Histogram({
 	const attach = useCallback(
 		(svg: SVGSVGElement | null) => {
 			if (svg) {
-				return histogram.attach(svg, image, colors, working);
+				const plot = histogram.attach(svg, image, colors, working);
+				const unsubscribe = subscribe(plot.update);
+				return () => {
+					unsubscribe();
+					plot.dispose();
+				};
 			}
 		},
-		[histogram, image, colors, working],
+		[histogram, image, subscribe, colors, working],
 	);
 	return (
 		<svg

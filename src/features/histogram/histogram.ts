@@ -1,4 +1,4 @@
-import { compute, frameLoop, type Gpu, type Target } from "vgpu";
+import { compute, type Gpu, type Target } from "vgpu";
 import shader from "./histogram.wgsl";
 
 export function createHistogram(gpu: Gpu) {
@@ -46,21 +46,29 @@ export function createHistogram(gpu: Gpu) {
 			});
 			svg.append(plot);
 			let pending = false;
-			const loop = frameLoop(gpu, async () => {
+			let requested = false;
+			async function update() {
+				requested = true;
 				if (pending) {
 					return;
 				}
 				pending = true;
 				try {
-					const values = await read(image(), working, colors.length);
-					curves.forEach(({ polygon, polyline }, channel) => {
-						const points = Array.from(
-							values.subarray(channel * 256, (channel + 1) * 256),
-							(y, x) => `${x},${y.toFixed(1)}`,
-						).join(" ");
-						polygon.setAttribute("points", `0,100 ${points} 255,100`);
-						polyline.setAttribute("points", points);
-					});
+					do {
+						requested = false;
+						const values = await read(image(), working, colors.length);
+						if (!plot.isConnected) {
+							return;
+						}
+						curves.forEach(({ polygon, polyline }, channel) => {
+							const points = Array.from(
+								values.subarray(channel * 256, (channel + 1) * 256),
+								(y, x) => `${x},${y.toFixed(1)}`,
+							).join(" ");
+							polygon.setAttribute("points", `0,100 ${points} 255,100`);
+							polyline.setAttribute("points", points);
+						});
+					} while (requested);
 				} catch (error) {
 					if (plot.isConnected) {
 						console.error(error);
@@ -68,10 +76,10 @@ export function createHistogram(gpu: Gpu) {
 				} finally {
 					pending = false;
 				}
-			});
-			return () => {
-				loop.stop();
-				plot.remove();
+			}
+			return {
+				update,
+				dispose: () => plot.remove(),
 			};
 		},
 		dispose() {

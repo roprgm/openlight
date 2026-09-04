@@ -1,8 +1,8 @@
 import { useRef } from "react";
 import Button from "@/components/ui/button";
-import ExportSettings from "./export-settings";
+import { ExportSettings } from "./export-settings";
 
-export default function ExportButton() {
+export function ExportButton() {
 	const dialog = useRef<HTMLDialogElement>(null);
 	return (
 		<section className="shrink-0 p-4">

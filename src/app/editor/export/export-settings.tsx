@@ -1,6 +1,6 @@
 import { useRef, useState } from "react";
 import { useGpu } from "vgpu-react";
-import { exportImage } from "@/app/export-image";
+import { exportImage } from "@/app/editor/export/export-image";
 import Button from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 
@@ -9,7 +9,7 @@ const formats = [
 	{ value: "jpeg", description: "Smaller files" },
 ] as const;
 
-export default function ExportSettings({ onClose }: { onClose: () => void }) {
+export function ExportSettings({ onClose }: { onClose: () => void }) {
 	const gpu = useGpu();
 	const [format, setFormat] = useState<"png" | "jpeg">("png");
 	const [quality, setQuality] = useState(90);

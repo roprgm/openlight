@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-test("loading an image renders the RGB histogram", async ({ page }) => {
+test("the RGB histogram follows image edits and resets", async ({ page }) => {
 	await page.goto("/");
 	await page.waitForFunction(() => window.openlight);
 	await page.evaluate(() =>
@@ -21,4 +21,14 @@ test("loading an image renders the RGB histogram", async ({ page }) => {
 	for (const curve of await curves.all()) {
 		await expect(curve).toBeVisible();
 	}
+	const original = await curves.first().getAttribute("points");
+	if (!original) throw new Error("Missing histogram points.");
+	await page.evaluate(() => {
+		for (let i = 1; i <= 120; i++) {
+			window.openlight.setAdjustments({ exposure: i / 120 });
+		}
+	});
+	await expect(curves.first()).not.toHaveAttribute("points", original);
+	await page.evaluate(() => window.openlight.setAdjustments({ exposure: 0 }));
+	await expect(curves.first()).toHaveAttribute("points", original);
 });

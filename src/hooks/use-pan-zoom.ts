@@ -8,10 +8,9 @@ import {
 
 type Size = readonly [number, number, ...unknown[]];
 type Point = readonly [number, number];
-/** `percent` is image px per screen px × 100: 100 is real size. */
-export type View = { zoom: number; pan: Point; percent: number };
+export type View = { zoom: number; pan: Point };
 
-const fit: View = { zoom: 1, pan: [0, 0], percent: 0 };
+const fit: View = { zoom: 1, pan: [0, 0] };
 const maxZoom = 8;
 
 function measureGesture(points: Iterable<Point>) {
@@ -50,7 +49,6 @@ function clamp(view: View, content: Size, viewport: Size): View {
 	return {
 		zoom: view.zoom,
 		pan: [axis(0), axis(1)],
-		percent: scale * devicePixelRatio * 100,
 	};
 }
 
