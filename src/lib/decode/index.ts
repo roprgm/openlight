@@ -1,5 +1,5 @@
 import type { Gpu, Target } from "vgpu";
-import decodeHeic from "./heic";
+import { decodeHeic } from "./heic";
 import linearize from "./linearize";
 import decodeSvg from "./svg";
 import type { Decoder, Pixels } from "./types";

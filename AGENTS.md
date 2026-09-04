@@ -57,7 +57,7 @@ All React bindings come from `vgpu-react`; everything else comes from `vgpu`.
 
 ## Testing
 
-Prefer a small number of browser-level tests for real application features. Each test should exercise a complete user-visible behavior and cover as much relevant code as practical. Avoid narrow unit tests for simple implementation details and do not add tests only to increase coverage.
+Prefer a few broad end-to-end tests over many granular tests. A typical editing test loads a known image, applies several adjustments through the control API, and compares the final rendered or exported pixels with a reference, using a small tolerance when needed. Favor coverage of the complete processing chain over pinpointing failures by test name. Extend an existing workflow before adding a test; split when workflows are independent or execution becomes too long. Format-specific tests should load a real file of that format. Add narrow tests only when a broad workflow cannot meaningfully exercise the behavior.
 
 Maintain a browser-side control API for agents and browser tests. Expose stable, semantic commands for real workflows such as loading an image, changing an adjustment, and reading application state. Use DOM interaction only when the UI interaction itself is under test. Tests wait for visible results without adding production completion tracking.
 

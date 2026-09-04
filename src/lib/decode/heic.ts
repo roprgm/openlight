@@ -1,56 +1,71 @@
 /**
  * HEIC through the browser's HEVC decoder (WebCodecs). Reads just enough HEIF to find the primary
- * image — one hvc1 item or a grid of hvc1 tiles — and composes the decoded frames on a canvas.
+ * image, one hvc1 item or a grid of hvc1 tiles. Parsing is independent of WebCodecs.
  */
 
 type Box = { type: string; start: number; end: number };
 
+function check(condition: unknown): asserts condition {
+	if (!condition) {
+		throw new Error("HEIF: invalid or unsupported image");
+	}
+}
+
 class Reader {
 	at = 0;
-	readonly view: DataView;
+	end: number;
 
 	constructor(readonly bytes: Uint8Array) {
-		this.view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+		this.end = bytes.length;
 	}
 
 	/** Big-endian unsigned integer of `size` bytes (0, 1, 2, 4 or 8). */
 	uint(size: number) {
-		const at = this.at;
-		this.at += size;
-		switch (size) {
-			case 1:
-				return this.view.getUint8(at);
-			case 2:
-				return this.view.getUint16(at);
-			case 4:
-				return this.view.getUint32(at);
-			case 8:
-				return Number(this.view.getBigUint64(at));
-			default:
-				return 0;
+		check([0, 1, 2, 4, 8].includes(size));
+		let value = 0;
+		for (const byte of this.slice(this.at, this.at + size, this.end)) {
+			value = value * 256 + byte;
 		}
+		this.at += size;
+		check(Number.isSafeInteger(value));
+		return value;
+	}
+
+	slice(start: number, end: number, limit = this.bytes.length) {
+		check(
+			Number.isSafeInteger(start) &&
+				Number.isSafeInteger(end) &&
+				start >= 0 &&
+				end >= start &&
+				end <= limit,
+		);
+		return this.bytes.subarray(start, end);
 	}
 
 	fourcc() {
 		const start = this.at;
-		this.at += 4;
+		this.uint(4);
 		return String.fromCharCode(...this.bytes.subarray(start, this.at));
 	}
 
 	/** Positions at a full box's content and returns its version byte. */
 	open(box: Box) {
 		this.at = box.start;
+		this.end = box.end;
 		return this.uint(4) >>> 24;
 	}
 
 	/** Boxes in [start, end), each spanning its content. */
 	boxes(start: number, end: number) {
+		this.slice(start, end);
+		this.end = end;
 		const list: Box[] = [];
-		for (this.at = start; this.at + 8 <= end; ) {
+		for (this.at = start; this.at < end; ) {
 			const head = this.at;
 			const size = this.uint(4);
 			const type = this.fourcc();
 			const length = size === 1 ? this.uint(8) : size === 0 ? end - head : size;
+			check(length >= this.at - head && length <= end - head);
 			list.push({ type, start: this.at, end: head + length });
 			this.at = head + length;
 		}
@@ -58,7 +73,7 @@ class Reader {
 	}
 
 	content(box: Box) {
-		return this.bytes.subarray(box.start, box.end);
+		return this.slice(box.start, box.end);
 	}
 }
 
@@ -97,13 +112,17 @@ function itemData(reader: Reader, iloc: Box, idat?: Box) {
 	for (let count = reader.uint(idSize); count > 0; count--) {
 		const id = reader.uint(idSize);
 		const method = version === 0 ? 0 : reader.uint(2) & 15;
-		reader.at += 2;
+		check(method <= 1 && (method === 0 || idat) && reader.uint(2) === 0);
 		const base =
 			reader.uint(baseSize) + (method === 1 ? (idat?.start ?? 0) : 0);
 		const extents = Array.from({ length: reader.uint(2) }, () => {
-			reader.at += indexSize;
+			reader.uint(indexSize);
 			const start = base + reader.uint(offsetSize);
-			return reader.bytes.subarray(start, start + reader.uint(lengthSize));
+			return reader.slice(
+				start,
+				start + reader.uint(lengthSize),
+				method === 1 ? idat?.end : reader.bytes.length,
+			);
 		});
 		const joined = new Uint8Array(
 			extents.reduce((n, e) => n + e.byteLength, 0),
@@ -126,12 +145,14 @@ function itemProperties(reader: Reader, iprp: Box) {
 	const associations = new Map<number, Box[]>();
 	for (const ipma of children.filter((b) => b.type === "ipma")) {
 		reader.at = ipma.start;
+		reader.end = ipma.end;
 		const versionFlags = reader.uint(4);
 		const wide = versionFlags & 1;
 		for (let count = reader.uint(4); count > 0; count--) {
 			const id = reader.uint(versionFlags >>> 24 === 0 ? 2 : 4);
 			const boxes = Array.from({ length: reader.uint(1) }, () => {
 				const index = reader.uint(wide ? 2 : 1) & (wide ? 0x7fff : 0x7f);
+				check(index <= properties.length);
 				return properties[index - 1];
 			});
 			associations.set(
@@ -150,6 +171,7 @@ function itemSources(reader: Reader, iref?: Box) {
 		const idSize = reader.open(iref) === 0 ? 2 : 4;
 		for (const ref of reader.boxes(reader.at, iref.end)) {
 			reader.at = ref.start;
+			reader.end = ref.end;
 			const from = reader.uint(idSize);
 			const to = Array.from({ length: reader.uint(2) }, () =>
 				reader.uint(idSize),
@@ -164,8 +186,9 @@ function itemSources(reader: Reader, iref?: Box) {
 
 /** WebCodecs codec string for an HEVC decoder configuration record (hvcC). */
 function codecOf(hvcC: Uint8Array) {
+	check(hvcC.length >= 23 && hvcC[0] === 1);
 	const profile = hvcC[1] ?? 0;
-	const view = new DataView(hvcC.buffer, hvcC.byteOffset);
+	const view = new DataView(hvcC.buffer, hvcC.byteOffset, hvcC.byteLength);
 	let compatibility = 0;
 	for (let i = 0; i < 32; i++) {
 		compatibility =
@@ -189,12 +212,13 @@ function codecOf(hvcC: Uint8Array) {
 
 /** ispe: [width, height]. */
 function sizeOf(ispe: Uint8Array) {
-	const view = new DataView(ispe.buffer, ispe.byteOffset);
+	check(ispe.length >= 12);
+	const view = new DataView(ispe.buffer, ispe.byteOffset, ispe.byteLength);
 	return [view.getUint32(4), view.getUint32(8)] as const;
 }
 
-export default async function decodeHeic(file: Blob) {
-	const reader = new Reader(new Uint8Array(await file.arrayBuffer()));
+export function parseHeic(bytes: Uint8Array) {
+	const reader = new Reader(bytes);
 	const meta = find(reader.boxes(0, reader.bytes.byteLength), "meta");
 	const boxes = reader.boxes(meta.start + 4, meta.end);
 	const primary = reader.uint(reader.open(find(boxes, "pitm")) === 0 ? 2 : 4);
@@ -222,41 +246,57 @@ export default async function decodeHeic(file: Blob) {
 		throw new Error("HEIF: primary item is not an HEVC image");
 	}
 	const [width, height] = sizeOf(ispe);
-
-	const tiles: VideoFrame[] = [];
-	await new Promise<void>((resolve, reject) => {
-		const decoder = new VideoDecoder({
-			output: (frame) => {
-				tiles[frame.timestamp] = frame;
-			},
-			error: (error) => {
-				for (const frame of tiles) {
-					frame?.close();
-				}
-				reject(error);
-			},
-		});
-		decoder.configure({ codec: codecOf(hvcC), description: hvcC });
-		items.forEach((id, timestamp) => {
-			decoder.decode(
-				new EncodedVideoChunk({
-					type: "key",
-					timestamp,
-					data: data.get(id) ?? new Uint8Array(),
-				}),
-			);
-		});
-		decoder.flush().then(() => {
-			decoder.close();
-			resolve();
-		}, reject);
+	const columns = grid ? (grid[3] ?? 0) + 1 : 1;
+	check(width > 0 && height > 0 && items.length > 0);
+	check(
+		!grid || (grid.length >= 8 && items.length === (grid[2] + 1) * columns),
+	);
+	const chunks = items.map((id) => {
+		const bytes = data.get(id);
+		check(types.get(id) === "hvc1" && bytes?.length);
+		return bytes;
 	});
-
 	return {
 		width,
 		height,
-		tiles,
-		columns: grid ? (grid[3] ?? 0) + 1 : 1,
+		columns,
 		rotation: (property(primary, "irot")?.[0] ?? 0) & 3,
+		codec: codecOf(hvcC),
+		description: hvcC,
+		chunks,
 	};
+}
+
+export async function decodeHeic(file: Blob) {
+	const { chunks, codec, description, ...image } = parseHeic(
+		new Uint8Array(await file.arrayBuffer()),
+	);
+	const tiles: VideoFrame[] = [];
+	let failure: DOMException | undefined;
+	const decoder = new VideoDecoder({
+		output: (frame) => {
+			tiles[frame.timestamp] = frame;
+		},
+		error: (error) => {
+			failure = error;
+		},
+	});
+	try {
+		decoder.configure({ codec, description });
+		for (const [timestamp, data] of chunks.entries()) {
+			decoder.decode(new EncodedVideoChunk({ type: "key", timestamp, data }));
+		}
+		await decoder.flush();
+		check(chunks.every((_, index) => tiles[index]));
+		return { ...image, tiles };
+	} catch (error) {
+		for (const frame of tiles) {
+			frame?.close();
+		}
+		throw failure ?? error;
+	} finally {
+		if (decoder.state !== "closed") {
+			decoder.close();
+		}
+	}
 }
