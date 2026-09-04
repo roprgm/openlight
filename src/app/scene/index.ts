@@ -1,6 +1,10 @@
 import type { Gpu, Target } from "vgpu";
 import { create } from "zustand";
-import type { Curve } from "@/lib/curves";
+import {
+	type Curve,
+	defaultCurve,
+	validateCurve,
+} from "@/features/tone-curves/curve";
 import decode from "@/lib/decode";
 
 /** Non-destructive edits: exposure in stops, the rest -100..100. */
@@ -30,11 +34,6 @@ export const adjustmentLimits: Adjustments = {
 	vibrance: 100,
 	saturation: 100,
 };
-
-export const defaultCurve: Curve = [
-	{ x: 0, y: 0 },
-	{ x: 1, y: 1 },
-];
 
 export type Source = { file: File; image?: Target; error?: string };
 export type Scene = { source?: Source; adjustments: Adjustments; curve: Curve };
@@ -83,6 +82,7 @@ export const useScene = create<SceneStore>((set, get) => ({
 		if (!get().source) {
 			throw new Error("Load an image before changing the curve.");
 		}
+		validateCurve(curve);
 		set({ curve: curve.map((point) => ({ ...point })) });
 	},
 }));

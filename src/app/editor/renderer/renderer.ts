@@ -7,28 +7,18 @@ import {
 	target,
 } from "vgpu";
 import type { Scene } from "@/app/scene";
+import { createToneCurves } from "@/features/tone-curves/pass";
 import type { View } from "@/hooks/use-pan-zoom";
 import adjustmentsShader from "@/lib/adjustments/adjustments.wgsl";
-import { sampleCurve } from "@/lib/curves";
-import curvesShader from "@/lib/curves/curves.wgsl";
 import shader from "./renderer.wgsl";
-
-const curveSize = 1024;
 
 /** Owns scene passes and intermediate textures for one decoded source. */
 export function createRenderer(gpu: Gpu, source: Target) {
 	const adjusted = target(gpu, { size: source.size, format: source.format });
-	const curved = target(gpu, { size: source.size, format: source.format });
 	const adjust = effect(gpu, adjustmentsShader, {
 		set: { sourceSampler: sampler(gpu) },
 	});
-	const curve = gpu.device.createBuffer({
-		size: curveSize * Float32Array.BYTES_PER_ELEMENT,
-		usage: ["storage", "copy_dst"],
-	});
-	const applyCurve = effect(gpu, curvesShader, {
-		set: { source: adjusted.color, curve },
-	});
+	const toneCurves = createToneCurves(gpu, adjusted);
 	const display = effect(gpu, shader, {
 		set: {
 			sourceSampler: sampler(gpu, { magFilter: "linear", minFilter: "linear" }),
@@ -52,12 +42,7 @@ export function createRenderer(gpu: Gpu, source: Target) {
 				adjusted,
 				adjust.set({ source: source.color, adjustments: scene.adjustments }),
 			);
-			output = adjusted;
-			if (scene.curve.some((point) => point.x !== point.y)) {
-				curve.write(sampleCurve(scene.curve, curveSize));
-				frame.pass(curved, applyCurve);
-				output = curved;
-			}
+			output = toneCurves.render(frame, scene.curve);
 			for (const { canvas, view } of canvases) {
 				frame.pass(
 					canvas,
@@ -76,8 +61,7 @@ export function createRenderer(gpu: Gpu, source: Target) {
 		dispose() {
 			canvases.clear();
 			adjusted.color.dispose();
-			curved.color.dispose();
-			curve.dispose();
+			toneCurves.dispose();
 		},
 	};
 }

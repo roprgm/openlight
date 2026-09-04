@@ -1,5 +1,5 @@
 import { expect, type Page, test } from "@playwright/test";
-import { interpolateCurve } from "@/lib/curves";
+import { interpolatePchip } from "@/lib/math";
 
 async function centerPixel(page: Page) {
 	const screenshot = await page.locator("canvas").screenshot();
@@ -49,7 +49,7 @@ test("a master curve maps colors beyond its white endpoint to white", async ({
 	await expect.poll(() => centerPixel(page)).toEqual([255, 255, 255, 255]);
 });
 
-test("curve commands update the scene, reset, and start fresh for another image", async ({
+test("curve commands reject invalid edits, reset, and start fresh for another image", async ({
 	page,
 }) => {
 	await page.goto("/");
@@ -75,6 +75,47 @@ test("curve commands update the scene, reset, and start fresh for another image"
 		const snapshot = window.openlight.getState();
 		snapshot.curve[1].y = 0;
 		const afterSnapshotChange = window.openlight.getState().curve;
+		const rejected = [
+			[],
+			[{ x: 0, y: 0 }],
+			[
+				{ x: 0, y: 0 },
+				{ x: 0, y: 1 },
+			],
+			[
+				{ x: 0, y: 0 },
+				{ x: 1 / 2048, y: 1 },
+			],
+			[
+				{ x: 0, y: 0 },
+				{ x: 0.8, y: 0.5 },
+				{ x: 0.5, y: 1 },
+			],
+			[
+				{ x: 0, y: 0 },
+				{ x: 1, y: Number.NaN },
+			],
+			[
+				{ x: 0, y: -1 },
+				{ x: 1, y: 1 },
+			],
+			[
+				{ x: 0.1, y: 0.1 },
+				{ x: 1, y: 1 },
+			],
+			[
+				{ x: 0, y: 0 },
+				{ x: 0.9, y: 0.9 },
+			],
+		].map((curve) => {
+			try {
+				window.openlight.setCurve(curve);
+				return false;
+			} catch (error) {
+				return error instanceof Error && error.message.length > 0;
+			}
+		});
+		const afterRejected = window.openlight.getState().curve;
 		window.openlight.setCurve();
 		const reset = window.openlight.getState().curve;
 		window.openlight.setCurve(edited);
@@ -91,6 +132,8 @@ test("curve commands update the scene, reset, and start fresh for another image"
 			initial,
 			edited,
 			afterSnapshotChange,
+			rejected,
+			afterRejected,
 			reset,
 			reloaded: window.openlight.getState().curve,
 			file: window.openlight.getState().file,
@@ -107,6 +150,8 @@ test("curve commands update the scene, reset, and start fresh for another image"
 		{ x: 1, y: 1 },
 	]);
 	expect(result.afterSnapshotChange).toEqual(result.edited);
+	expect(result.rejected).toEqual(Array(9).fill(true));
+	expect(result.afterRejected).toEqual(result.edited);
 	expect(result.reset).toEqual(identity);
 	expect(result.reloaded).toEqual(identity);
 	expect(result.file).toBe("another.svg");
@@ -156,7 +201,7 @@ test("curves render after adjustments and resetting restores the preview", async
 	const adjusted = await centerPixel(page);
 	const adjustedPreview = await page.locator("canvas").screenshot();
 	await page.evaluate((curve) => window.openlight.setCurve(curve), points);
-	const expected = interpolateCurve(points)(adjusted[0] / 255) * 255;
+	const expected = interpolatePchip(points)(adjusted[0] / 255) * 255;
 	await expect
 		.poll(async () => Math.abs((await centerPixel(page))[0] - expected))
 		.toBeLessThan(2);

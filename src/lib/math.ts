@@ -1,5 +1,8 @@
-export type CurvePoint = { readonly x: number; readonly y: number };
-export type Curve = readonly CurvePoint[];
+type Point = { readonly x: number; readonly y: number };
+
+export function clamp(value: number, min = 0, max = 1) {
+	return Math.min(max, Math.max(min, value));
+}
 
 /** One-sided PCHIP endpoint slope, limited to preserve the segment's shape. */
 function endpointSlope(
@@ -23,7 +26,7 @@ function endpointSlope(
 }
 
 /** Shape-preserving cubic interpolation of at least two points with strictly increasing x. */
-export function interpolateCurve(points: Curve) {
+export function interpolatePchip(points: readonly Point[]) {
 	const widths = points.slice(1).map((point, i) => point.x - points[i].x);
 	const slopes = widths.map(
 		(width, i) => (points[i + 1].y - points[i].y) / width,
@@ -76,12 +79,4 @@ export function interpolateCurve(points: Curve) {
 			(t3 - t2) * widths[i] * tangents[i + 1]
 		);
 	};
-}
-
-/** Uniform samples over 0..1, including both endpoints; size must be at least two. */
-export function sampleCurve(points: Curve, size = 1024) {
-	const evaluate = interpolateCurve(points);
-	return Float32Array.from({ length: size }, (_, i) =>
-		evaluate(i / (size - 1)),
-	);
 }

@@ -2,27 +2,23 @@ import {
 	type KeyboardEvent,
 	type MouseEvent,
 	type PointerEvent,
-	useRef,
 	useState,
 } from "react";
+import { clamp } from "@/lib/math";
 import {
 	type Curve,
 	type CurvePoint,
-	interpolateCurve,
+	insertCurvePoint,
+	moveCurvePoint,
+	removeCurvePoint,
 	sampleCurve,
-} from "@/lib/curves";
-
-const gap = 1 / 1024;
+} from "./curve";
 
 function gridLines(spacing: number) {
 	return Array.from({ length: 256 / spacing - 1 }, (_, index) => {
 		const position = (index + 1) * spacing;
 		return `M${position} 0V256 M0 ${position}H256`;
 	}).join(" ");
-}
-
-function clamp(value: number, min = 0, max = 1) {
-	return Math.min(max, Math.max(min, value));
 }
 
 function position(event: MouseEvent<SVGSVGElement>): CurvePoint {
@@ -35,41 +31,19 @@ function position(event: MouseEvent<SVGSVGElement>): CurvePoint {
 
 type GraphProps = { points: Curve; onChange: (points: Curve) => void };
 
-export default function Graph({ points, onChange }: GraphProps) {
+export function Graph({ points, onChange }: GraphProps) {
 	const [selected, select] = useState<number | null>(null);
-	const dragging = useRef<number | null>(null);
 	const line = Array.from(
 		sampleCurve(points, 257),
 		(y, x) => `${x},${256 * (1 - y)}`,
 	).join(" ");
 	function move(index: number, point: CurvePoint) {
-		if (!points[index]) {
-			return;
-		}
-		let x = clamp(point.x);
-		let y = clamp(point.y);
-		if (index === 0) {
-			x = Math.min(x, points[1].x - gap);
-			if (x < y) {
-				x = 0;
-			} else {
-				y = 0;
-			}
-		} else if (index === points.length - 1) {
-			x = Math.max(x, points[index - 1].x + gap);
-			if (x > y) {
-				x = 1;
-			} else {
-				y = 1;
-			}
-		} else {
-			x = clamp(x, points[index - 1].x + gap, points[index + 1].x - gap);
-		}
-		onChange(points.with(index, { x, y }));
+		onChange(moveCurvePoint(points, index, point));
 	}
 	function remove(index: number) {
-		if (index > 0 && index < points.length - 1) {
-			onChange(points.toSpliced(index, 1));
+		const curve = removeCurvePoint(points, index);
+		if (curve !== points) {
+			onChange(curve);
 			select(null);
 		}
 	}
@@ -91,18 +65,14 @@ export default function Graph({ points, onChange }: GraphProps) {
 			remove(index);
 		}
 	}
-	function insert(point: CurvePoint) {
-		const index = points.findIndex((next) => next.x > point.x);
-		if (
-			index <= 0 ||
-			point.x - points[index - 1].x < gap ||
-			points[index].x - point.x < gap
-		) {
+	function insert(point?: CurvePoint) {
+		const inserted = insertCurvePoint(points, point);
+		if (!inserted) {
 			return null;
 		}
-		onChange(points.toSpliced(index, 0, point));
-		select(index);
-		return index;
+		onChange(inserted.curve);
+		select(inserted.index);
+		return inserted.index;
 	}
 	function start(event: PointerEvent<SVGSVGElement>) {
 		if (event.button !== 0) {
@@ -120,23 +90,12 @@ export default function Graph({ points, onChange }: GraphProps) {
 			index = added;
 		}
 		select(index);
-		dragging.current = index;
 		event.currentTarget.setPointerCapture(event.pointerId);
 	}
 	function keyDown(event: KeyboardEvent<SVGSVGElement>) {
 		if (event.key === "Enter") {
 			event.preventDefault();
-			let widest = 0;
-			for (let i = 1; i < points.length - 1; i++) {
-				if (
-					points[i + 1].x - points[i].x >
-					points[widest + 1].x - points[widest].x
-				) {
-					widest = i;
-				}
-			}
-			const x = (points[widest].x + points[widest + 1].x) / 2;
-			insert({ x, y: interpolateCurve(points)(x) });
+			insert();
 			return;
 		}
 		if (selected === null || !points[selected]) {
@@ -173,13 +132,13 @@ export default function Graph({ points, onChange }: GraphProps) {
 			className="absolute inset-0 h-full w-full cursor-crosshair touch-none overflow-visible outline-none"
 			onDoubleClick={doubleClick}
 			onKeyDown={keyDown}
-			onLostPointerCapture={() => {
-				dragging.current = null;
-			}}
 			onPointerDown={start}
 			onPointerMove={(event) => {
-				if (dragging.current !== null) {
-					move(dragging.current, position(event));
+				if (
+					selected !== null &&
+					event.currentTarget.hasPointerCapture(event.pointerId)
+				) {
+					move(selected, position(event));
 				}
 			}}
 			role="application"

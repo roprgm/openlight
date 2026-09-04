@@ -1,5 +1,6 @@
 import { expect, test } from "@playwright/test";
-import { interpolateCurve, sampleCurve } from "@/lib/curves";
+import { sampleCurve } from "@/features/tone-curves/curve";
+import { interpolatePchip } from "@/lib/math";
 
 test("the diagonal samples to identity, including black and white", () => {
 	const points = [
@@ -14,7 +15,7 @@ test("the diagonal samples to identity, including black and white", () => {
 });
 
 test("a midtone lift interpolates the handles with a smooth cubic", () => {
-	const evaluate = interpolateCurve([
+	const evaluate = interpolatePchip([
 		{ x: 0, y: 0 },
 		{ x: 0.5, y: 0.75 },
 		{ x: 1, y: 1 },
@@ -38,7 +39,7 @@ test("unevenly spaced points, plateaus, and reversals do not overshoot", () => {
 		{ x: 0.99, y: 0.95 },
 		{ x: 1, y: 1 },
 	];
-	const evaluate = interpolateCurve(points);
+	const evaluate = interpolatePchip(points);
 	for (let i = 0; i < points.length - 1; i++) {
 		const start = points[i];
 		const end = points[i + 1];
