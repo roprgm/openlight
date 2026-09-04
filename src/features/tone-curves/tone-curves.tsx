@@ -1,10 +1,10 @@
 import type { ReactNode } from "react";
-import { type Curve, defaultCurve } from "./curve";
+import { defaultCurve, type ToneCurve } from "./curve";
 import { Graph } from "./graph";
 
 type ToneCurvesProps = {
-	points: Curve;
-	onChange: (points: Curve) => void;
+	points: ToneCurve;
+	onChange: (points: ToneCurve) => void;
 	children?: ReactNode;
 };
 

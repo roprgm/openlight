@@ -6,12 +6,12 @@ import {
 } from "react";
 import { clamp } from "@/lib/math";
 import {
-	type Curve,
 	type CurvePoint,
 	insertCurvePoint,
 	moveCurvePoint,
 	removeCurvePoint,
 	sampleCurve,
+	type ToneCurve,
 } from "./curve";
 
 function gridLines(spacing: number) {
@@ -29,7 +29,10 @@ function position(event: MouseEvent<SVGSVGElement>): CurvePoint {
 	};
 }
 
-type GraphProps = { points: Curve; onChange: (points: Curve) => void };
+type GraphProps = {
+	points: ToneCurve;
+	onChange: (points: ToneCurve) => void;
+};
 
 export function Graph({ points, onChange }: GraphProps) {
 	const [selected, select] = useState<number | null>(null);

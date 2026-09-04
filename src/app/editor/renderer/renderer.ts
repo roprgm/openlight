@@ -47,7 +47,7 @@ export function createRenderer(gpu: Gpu, source: Target) {
 					adjusted,
 					adjust.set({ source: source.color, adjustments: scene.adjustments }),
 				);
-				output = toneCurves.render(frame, scene.curve);
+				output = toneCurves.render(frame, scene.toneCurve);
 			});
 			rendered = true;
 			for (const listener of listeners) {

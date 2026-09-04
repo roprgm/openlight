@@ -18,10 +18,10 @@ function ToneCurvesPanel({
 	histogram: ReturnType<typeof createHistogram>;
 }) {
 	const renderer = useRenderer();
-	const curve = useScene((scene) => scene.curve);
-	const setCurve = useScene((scene) => scene.setCurve);
+	const toneCurve = useScene((scene) => scene.toneCurve);
+	const setToneCurve = useScene((scene) => scene.setToneCurve);
 	return (
-		<ToneCurves points={curve} onChange={setCurve}>
+		<ToneCurves points={toneCurve} onChange={setToneCurve}>
 			<Histogram
 				histogram={histogram}
 				image={renderer.inputImage}

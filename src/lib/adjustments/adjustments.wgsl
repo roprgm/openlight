@@ -1,7 +1,7 @@
 struct Adjustments {
   exposure: f32,
-  temp: f32,
-  tint: f32,
+  incrementalTemperature: f32,
+  incrementalTint: f32,
   contrast: f32,
   vibrance: f32,
   saturation: f32,
@@ -60,7 +60,7 @@ fn fs_main(@location(0) uv: vec2f) -> @location(0) vec4f {
   let input = textureSample(source, sourceSampler, uv);
   var color = input.rgb;
   color = adjustExposure(color, adjustments.exposure);
-  color = adjustWhiteBalance(color, adjustments.temp / 100.0, adjustments.tint / 100.0);
+  color = adjustWhiteBalance(color, adjustments.incrementalTemperature / 100.0, adjustments.incrementalTint / 100.0);
   color = adjustContrast(color, 1.0 + adjustments.contrast / 100.0);
   color = adjustVibrance(color, adjustments.vibrance / 100.0);
   color = adjustSaturation(color, 1.0 + adjustments.saturation / 100.0);

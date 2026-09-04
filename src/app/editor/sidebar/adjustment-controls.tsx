@@ -8,8 +8,8 @@ import {
 import { Slider } from "@/components/ui/slider";
 
 const stops = {
-	temp: ["#4a6fc3", "#c3b84a"],
-	tint: ["#5ab34a", "#b34ab3"],
+	incrementalTemperature: ["#4a6fc3", "#c3b84a"],
+	incrementalTint: ["#5ab34a", "#b34ab3"],
 	saturation: [
 		"#7b7d85",
 		"#868686 50%",
@@ -45,8 +45,16 @@ export default function AdjustmentControls() {
 	return (
 		<section className="flex flex-col gap-3 p-4 shadow-ridge">
 			<AdjustmentSlider name="exposure" label="Exposure" step={0.01} />
-			<AdjustmentSlider name="temp" label="Temp" stops={stops.temp} />
-			<AdjustmentSlider name="tint" label="Tint" stops={stops.tint} />
+			<AdjustmentSlider
+				name="incrementalTemperature"
+				label="Temp"
+				stops={stops.incrementalTemperature}
+			/>
+			<AdjustmentSlider
+				name="incrementalTint"
+				label="Tint"
+				stops={stops.incrementalTint}
+			/>
 			<AdjustmentSlider name="contrast" label="Contrast" />
 			<AdjustmentSlider
 				name="vibrance"

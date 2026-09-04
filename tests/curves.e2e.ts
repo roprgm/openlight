@@ -41,7 +41,7 @@ test("a master curve maps colors beyond its white endpoint to white", async ({
 	);
 	await expect.poll(() => centerPixel(page)).toEqual([48, 80, 128, 255]);
 	await page.evaluate(() =>
-		window.openlight.setCurve([
+		window.openlight.setToneCurve([
 			{ x: 0, y: 0 },
 			{ x: 0.1, y: 1 },
 		]),
@@ -63,18 +63,18 @@ test("curve commands reject invalid edits, reset, and start fresh for another im
 			{ type: "image/svg+xml" },
 		);
 		await window.openlight.loadImage(image);
-		const initial = window.openlight.getState().curve;
+		const initial = window.openlight.getState().toneCurve;
 		const points = [
 			{ x: 0, y: 0 },
 			{ x: 0.5, y: 0.75 },
 			{ x: 1, y: 1 },
 		];
-		window.openlight.setCurve(points);
+		window.openlight.setToneCurve(points);
 		points[1].y = 0.25;
-		const edited = window.openlight.getState().curve;
+		const edited = window.openlight.getState().toneCurve;
 		const snapshot = window.openlight.getState();
-		snapshot.curve[1].y = 0;
-		const afterSnapshotChange = window.openlight.getState().curve;
+		snapshot.toneCurve[1].y = 0;
+		const afterSnapshotChange = window.openlight.getState().toneCurve;
 		const rejected = [
 			[],
 			[{ x: 0, y: 0 }],
@@ -109,16 +109,16 @@ test("curve commands reject invalid edits, reset, and start fresh for another im
 			],
 		].map((curve) => {
 			try {
-				window.openlight.setCurve(curve);
+				window.openlight.setToneCurve(curve);
 				return false;
 			} catch (error) {
 				return error instanceof Error && error.message.length > 0;
 			}
 		});
-		const afterRejected = window.openlight.getState().curve;
-		window.openlight.setCurve();
-		const reset = window.openlight.getState().curve;
-		window.openlight.setCurve(edited);
+		const afterRejected = window.openlight.getState().toneCurve;
+		window.openlight.setToneCurve();
+		const reset = window.openlight.getState().toneCurve;
+		window.openlight.setToneCurve(edited);
 		await window.openlight.loadImage(
 			new File(
 				[
@@ -135,7 +135,7 @@ test("curve commands reject invalid edits, reset, and start fresh for another im
 			rejected,
 			afterRejected,
 			reset,
-			reloaded: window.openlight.getState().curve,
+			reloaded: window.openlight.getState().toneCurve,
 			file: window.openlight.getState().file,
 		};
 	});
@@ -188,11 +188,11 @@ test("curves render after adjustments and resetting restores the preview", async
 		{ x: 0.5, y: 0.75 },
 		{ x: 1, y: 1 },
 	];
-	await page.evaluate((curve) => window.openlight.setCurve(curve), points);
+	await page.evaluate((curve) => window.openlight.setToneCurve(curve), points);
 	await expect
 		.poll(async () => (await centerPixel(page))[0])
 		.toBeCloseTo(192, -1);
-	await page.evaluate(() => window.openlight.setCurve());
+	await page.evaluate(() => window.openlight.setToneCurve());
 	await expect
 		.poll(() => page.locator("canvas").screenshot())
 		.toEqual(original);
@@ -200,12 +200,12 @@ test("curves render after adjustments and resetting restores the preview", async
 	await expect.poll(async () => (await centerPixel(page))[0]).toBeLessThan(120);
 	const adjusted = await centerPixel(page);
 	const adjustedPreview = await page.locator("canvas").screenshot();
-	await page.evaluate((curve) => window.openlight.setCurve(curve), points);
+	await page.evaluate((curve) => window.openlight.setToneCurve(curve), points);
 	const expected = interpolatePchip(points)(adjusted[0] / 255) * 255;
 	await expect
 		.poll(async () => Math.abs((await centerPixel(page))[0] - expected))
 		.toBeLessThan(2);
-	await page.evaluate(() => window.openlight.setCurve());
+	await page.evaluate(() => window.openlight.setToneCurve());
 	await expect
 		.poll(() => page.locator("canvas").screenshot())
 		.toEqual(adjustedPreview);
@@ -271,7 +271,7 @@ test("the curve panel edits points over a combined input histogram", async ({
 	);
 	await page.mouse.up();
 	const edited = await page.evaluate(
-		() => window.openlight.getState().curve[1],
+		() => window.openlight.getState().toneCurve[1],
 	);
 	expect(edited.x).toBeCloseTo(0.5, 2);
 	expect(edited.y).toBeCloseTo(0.75, 2);
@@ -283,7 +283,7 @@ test("the curve panel edits points over a combined input histogram", async ({
 		.toBeGreaterThan(185);
 	await graph.press("Shift+ArrowDown");
 	expect(
-		(await page.evaluate(() => window.openlight.getState().curve[1])).y,
+		(await page.evaluate(() => window.openlight.getState().toneCurve[1])).y,
 	).toBeCloseTo(edited.y - 0.01, 5);
 	await graph.press("Delete");
 	await expect(graph.locator("circle")).toHaveCount(2);
@@ -292,14 +292,14 @@ test("the curve panel edits points over a combined input histogram", async ({
 	await expect(graph.locator("circle")).toHaveCount(3);
 	await graph.press("ArrowUp");
 	expect(
-		(await page.evaluate(() => window.openlight.getState().curve[1])).y,
+		(await page.evaluate(() => window.openlight.getState().toneCurve[1])).y,
 	).toBeCloseTo(0.501, 5);
 	await graph.dblclick({
 		position: { x: bounds.width / 2, y: bounds.height * 0.499 },
 	});
 	await expect(graph.locator("circle")).toHaveCount(2);
 	await page.evaluate(() =>
-		window.openlight.setCurve([
+		window.openlight.setToneCurve([
 			{ x: 0, y: 0 },
 			{ x: 0.3, y: 0.4 },
 			{ x: 0.7, y: 0.6 },
@@ -317,7 +317,7 @@ test("the curve panel edits points over a combined input histogram", async ({
 	});
 	await page.mouse.up();
 	const constrained = await page.evaluate(
-		() => window.openlight.getState().curve,
+		() => window.openlight.getState().toneCurve,
 	);
 	expect(constrained[1].x).toBeLessThan(constrained[2].x);
 	expect(constrained[1].y).toBe(1);
@@ -325,12 +325,14 @@ test("the curve panel edits points over a combined input histogram", async ({
 		bounds.x + bounds.width / 2,
 		bounds.y + bounds.height / 2,
 	);
-	expect(await page.evaluate(() => window.openlight.getState().curve)).toEqual(
-		constrained,
-	);
+	expect(
+		await page.evaluate(() => window.openlight.getState().toneCurve),
+	).toEqual(constrained);
 	await page.getByRole("button", { name: "Reset curve" }).click();
 	await expect(graph.locator("circle")).toHaveCount(2);
-	expect(await page.evaluate(() => window.openlight.getState().curve)).toEqual([
+	expect(
+		await page.evaluate(() => window.openlight.getState().toneCurve),
+	).toEqual([
 		{ x: 0, y: 0 },
 		{ x: 1, y: 1 },
 	]);
@@ -396,7 +398,7 @@ test("endpoints follow the edges, remap black and white, and reset on double-cli
 		await page.mouse.move(vertical.x, vertical.y, { steps: 5 });
 		await page.mouse.up();
 		const moved = await page.evaluate(
-			(index) => window.openlight.getState().curve[index],
+			(index) => window.openlight.getState().toneCurve[index],
 			example.index,
 		);
 		expect(moved.x).toBeCloseTo(example.vertical.x, 2);
@@ -419,7 +421,7 @@ test("endpoints follow the edges, remap black and white, and reset on double-cli
 		await expect(graph.locator("circle")).toHaveCount(2);
 		expect(
 			await page.evaluate(
-				(index) => window.openlight.getState().curve[index],
+				(index) => window.openlight.getState().toneCurve[index],
 				example.index,
 			),
 		).toEqual(example.start);
@@ -428,7 +430,7 @@ test("endpoints follow the edges, remap black and white, and reset on double-cli
 		await page.mouse.move(horizontal.x, horizontal.y, { steps: 5 });
 		await page.mouse.up();
 		const shifted = await page.evaluate(
-			(index) => window.openlight.getState().curve[index],
+			(index) => window.openlight.getState().toneCurve[index],
 			example.index,
 		);
 		expect(shifted.x).toBeCloseTo(example.horizontal.x, 2);
@@ -440,7 +442,7 @@ test("endpoints follow the edges, remap black and white, and reset on double-cli
 			},
 		});
 		expect(
-			await page.evaluate(() => window.openlight.getState().curve),
+			await page.evaluate(() => window.openlight.getState().toneCurve),
 		).toEqual([
 			{ x: 0, y: 0 },
 			{ x: 1, y: 1 },

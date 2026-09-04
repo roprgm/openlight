@@ -1,5 +1,5 @@
 import { effect, type Frame, type Gpu, type Target, target } from "vgpu";
-import { type Curve, sampleCurve } from "./curve";
+import { sampleCurve, type ToneCurve } from "./curve";
 import shader from "./curves.wgsl";
 
 const curveSize = 1024;
@@ -12,7 +12,7 @@ export function createToneCurves(gpu: Gpu, source: Target) {
 	});
 	const apply = effect(gpu, shader, { set: { source: source.color, curve } });
 	return {
-		render(frame: Frame, points: Curve) {
+		render(frame: Frame, points: ToneCurve) {
 			if (points.every((point) => point.x === point.y)) {
 				return source;
 			}

@@ -1,16 +1,16 @@
 import { clamp, interpolatePchip } from "@/lib/math";
 
 export type CurvePoint = { readonly x: number; readonly y: number };
-export type Curve = readonly CurvePoint[];
+export type ToneCurve = readonly CurvePoint[];
 
-export const defaultCurve: Curve = [
+export const defaultCurve: ToneCurve = [
 	{ x: 0, y: 0 },
 	{ x: 1, y: 1 },
 ];
 
 const gap = 1 / 1024;
 
-export function validateCurve(points: Curve) {
+export function validateCurve(points: ToneCurve) {
 	if (!Array.isArray(points) || points.length < 2) {
 		throw new Error("A curve needs at least two points.");
 	}
@@ -44,10 +44,10 @@ export function validateCurve(points: Curve) {
 }
 
 export function moveCurvePoint(
-	points: Curve,
+	points: ToneCurve,
 	index: number,
 	point: CurvePoint,
-): Curve {
+): ToneCurve {
 	if (!points[index]) {
 		return points;
 	}
@@ -73,7 +73,7 @@ export function moveCurvePoint(
 	return points.with(index, { x, y });
 }
 
-export function removeCurvePoint(points: Curve, index: number): Curve {
+export function removeCurvePoint(points: ToneCurve, index: number): ToneCurve {
 	if (index <= 0 || index >= points.length - 1) {
 		return points;
 	}
@@ -81,14 +81,14 @@ export function removeCurvePoint(points: Curve, index: number): Curve {
 }
 
 /** Uniform samples over 0..1, including both endpoints; size must be at least two. */
-export function sampleCurve(points: Curve, size = 1024) {
+export function sampleCurve(points: ToneCurve, size = 1024) {
 	const evaluate = interpolatePchip(points);
 	return Float32Array.from({ length: size }, (_, i) =>
 		evaluate(i / (size - 1)),
 	);
 }
 
-function midpoint(points: Curve): CurvePoint {
+function midpoint(points: ToneCurve): CurvePoint {
 	let widest = 0;
 	for (let i = 1; i < points.length - 1; i++) {
 		if (
@@ -103,7 +103,7 @@ function midpoint(points: Curve): CurvePoint {
 }
 
 /** Without a position, insert on the curve in its widest interval. */
-export function insertCurvePoint(points: Curve, point = midpoint(points)) {
+export function insertCurvePoint(points: ToneCurve, point = midpoint(points)) {
 	const index = points.findIndex((next) => next.x > point.x);
 	if (
 		index <= 0 ||
