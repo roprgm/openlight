@@ -1,11 +1,10 @@
-import type { Gpu, Target } from "vgpu";
+import type { Target } from "vgpu";
 import { create } from "zustand";
 import {
 	defaultCurve,
 	type ToneCurve,
 	validateCurve,
 } from "@/features/tone-curves/curve";
-import decode from "@/lib/decode";
 
 /** Non-destructive edits: exposure in stops, the rest -100..100. */
 export type Adjustments = {
@@ -42,7 +41,6 @@ export type Scene = {
 	toneCurve: ToneCurve;
 };
 type SceneStore = Scene & {
-	loadImage: (gpu: Gpu, file: File) => Promise<void>;
 	setAdjustments: (change: Partial<Adjustments>) => void;
 	/** Ordered points in 0..1; endpoints follow the lower-left and upper-right edges. Omit to reset. */
 	setToneCurve: (toneCurve?: ToneCurve) => void;
@@ -51,30 +49,6 @@ type SceneStore = Scene & {
 export const useScene = create<SceneStore>((set, get) => ({
 	adjustments: { ...defaultAdjustments },
 	toneCurve: defaultCurve,
-	loadImage: async (gpu, file) => {
-		if (!(file instanceof File)) {
-			throw new Error("loadImage requires a File.");
-		}
-		const source = { file };
-		get().source?.image?.color.dispose();
-		set({
-			source,
-			adjustments: { ...defaultAdjustments },
-			toneCurve: defaultCurve,
-		});
-		try {
-			const image = await decode(gpu, file);
-			if (get().source !== source) {
-				image.color.dispose();
-				return;
-			}
-			set({ source: { file, image } });
-		} catch (error) {
-			if (get().source === source) {
-				set({ source: { file, error: String(error) } });
-			}
-		}
-	},
 	setAdjustments: (change) => {
 		const { source, adjustments } = get();
 		if (!source) {

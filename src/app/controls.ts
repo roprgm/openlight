@@ -4,7 +4,10 @@ import {
 	type ExportOptions,
 	exportImage,
 } from "@/app/editor/export/export-image";
-import { useScene } from ".";
+import { cameraRawXmpLoader } from "@/app/loaders/camera-raw-xmp";
+import { createImageLoader } from "@/app/loaders/image";
+import { createLoaderRegistry } from "@/app/loaders/registry";
+import { useScene } from "@/app/scene";
 
 function getState() {
 	const scene = useScene.getState();
@@ -23,16 +26,20 @@ declare global {
 
 export function useControls() {
 	const gpu = useGpu();
-	const controls = useMemo(
-		() => ({
-			loadImage: (file: File) => useScene.getState().loadImage(gpu, file),
+	const controls = useMemo(() => {
+		const image = createImageLoader(gpu);
+		const files = createLoaderRegistry([cameraRawXmpLoader, image]);
+		return {
+			openFiles: files.openFiles,
+			openFile: (file: File) => files.openFiles([file]),
+			loadImage: (file: File) => files.loadFile(image, file),
+			importXmp: (file: File) => files.loadFile(cameraRawXmpLoader, file),
 			setAdjustments: useScene.getState().setAdjustments,
 			setToneCurve: useScene.getState().setToneCurve,
 			exportImage: (options?: ExportOptions) => exportImage(gpu, options),
 			getState,
-		}),
-		[gpu],
-	);
+		};
+	}, [gpu]);
 	useEffect(() => {
 		window.openlight = controls;
 		return () => {

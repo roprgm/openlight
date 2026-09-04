@@ -40,7 +40,7 @@ test("browser actions load, adjust, reset, and report failures", async ({
 			"gray.svg",
 			{ type: "image/svg+xml" },
 		);
-		window.openlight.loadImage(image);
+		window.openlight.openFile(image);
 		return window.openlight.getState();
 	});
 	await expect(page.locator("polyline").first()).toHaveAttribute(
@@ -75,14 +75,14 @@ test("browser actions load, adjust, reset, and report failures", async ({
 	});
 	await expect.poll(() => canvas.screenshot()).toEqual(before);
 	await page.evaluate(async () => {
-		const superseded = window.openlight.loadImage(
+		const superseded = window.openlight.openFile(
 			new File(
 				['<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32"/>'],
 				"superseded.svg",
 				{ type: "image/svg+xml" },
 			),
 		);
-		const latest = window.openlight.loadImage(
+		const latest = window.openlight.openFile(
 			new File(["invalid"], "broken.png", { type: "image/png" }),
 		);
 		await Promise.all([superseded, latest]);
@@ -91,7 +91,7 @@ test("browser actions load, adjust, reset, and report failures", async ({
 		page.getByText("Couldn't open broken.png:", { exact: false }),
 	).toBeVisible();
 	const recovered = await page.evaluate(async () => {
-		await window.openlight.loadImage(
+		await window.openlight.openFile(
 			new File(
 				[
 					'<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32"><rect width="32" height="32" fill="#808080"/></svg>',
