@@ -4,9 +4,13 @@ import type { Geometry } from "@/features/crop/geometry";
 
 export function beginCrop(document: EditorDocument) {
 	document.history.commit();
+	const scene = document.scene.getState();
 	document.preview.setState({
 		comparison: "edited",
-		crop: { geometry: { ...document.scene.getState().geometry }, aspect: null },
+		crop: {
+			geometry: { ...scene.geometry },
+			aspect: scene.size[0] / scene.size[1],
+		},
 	});
 }
 

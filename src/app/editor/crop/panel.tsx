@@ -14,6 +14,15 @@ import {
 } from "@/features/crop/geometry";
 import { applyCrop, cancelCrop, updateCrop } from "./actions";
 
+const rotations = [
+	{ direction: -1, label: "Rotate counterclockwise", transform: "" },
+	{
+		direction: 1,
+		label: "Rotate clockwise",
+		transform: "translate(20 0) scale(-1 1)",
+	},
+] as const;
+
 export function CropPanel() {
 	const document = useDocument();
 	const crop = useStore(document.preview, (state) => state.crop);
@@ -44,6 +53,20 @@ export function CropPanel() {
 	const source = document.resources.get(document.scene.getState().source).image;
 	const [width, height] = orientedSize(source.size, geometry.rotation);
 	const [outputWidth, outputHeight] = cropSize(source.size, geometry);
+	const customAspect =
+		aspect !== null &&
+		![
+			width / height,
+			1,
+			4 / 3,
+			3 / 2,
+			16 / 9,
+			4 / 5,
+			9 / 16,
+			3 / 4,
+			2 / 3,
+			5 / 4,
+		].includes(aspect);
 	function changeAspect(value: string) {
 		const ratio = value === "free" ? null : Number(value);
 		const rect = ratio
@@ -62,7 +85,13 @@ export function CropPanel() {
 					<Button
 						variant="ghost"
 						className="px-2 py-1 text-xs"
-						onClick={() => updateCrop(document, defaultGeometry, null)}
+						onClick={() =>
+							updateCrop(
+								document,
+								defaultGeometry,
+								source.size[0] / source.size[1],
+							)
+						}
 					>
 						Reset
 					</Button>
@@ -77,6 +106,7 @@ export function CropPanel() {
 							className="w-full cursor-pointer appearance-none bg-transparent pl-1 pr-5 text-neutral-100 outline-none [color-scheme:dark]"
 						>
 							<option value="free">Free</option>
+							{customAspect && <option value={aspect ?? ""}>Current</option>}
 							<option value={width / height}>Original</option>
 							<option value={1}>Square</option>
 							<option value={4 / 3}>4:3</option>
@@ -103,18 +133,39 @@ export function CropPanel() {
 					</Field>
 				</label>
 				<div className="flex gap-2">
-					<Button
-						className="flex-1 py-1.5 text-xs"
-						onClick={() =>
-							updateCrop(document, rotateCrop(geometry), aspect && 1 / aspect)
-						}
-					>
-						Rotate 90°
-					</Button>
+					{rotations.map(({ direction, label, transform }) => (
+						<Button
+							key={direction}
+							variant="ghost"
+							aria-label={label}
+							title={`${label} (90°)`}
+							className="flex size-8 items-center justify-center rounded-md p-0"
+							onClick={() =>
+								updateCrop(
+									document,
+									rotateCrop(geometry, direction),
+									aspect && 1 / aspect,
+								)
+							}
+						>
+							<svg
+								aria-hidden="true"
+								viewBox="0 0 20 20"
+								className="size-4"
+								fill="none"
+								stroke="currentColor"
+								strokeWidth="1.5"
+								strokeLinecap="round"
+								strokeLinejoin="round"
+							>
+								<path transform={transform} d="M3 3v5h5M3 8a7 7 0 1 1 0 4" />
+							</svg>
+						</Button>
+					))}
 					<Button
 						variant="ghost"
-						className="py-1.5 text-xs"
-						onClick={() => updateCrop(document, fullRect, null)}
+						className="ml-auto py-1.5 text-xs"
+						onClick={() => updateCrop(document, fullRect, width / height)}
 					>
 						Uncrop
 					</Button>
@@ -129,7 +180,8 @@ export function CropPanel() {
 					onChange={(angle) => updateCrop(document, { angle })}
 				/>
 				<p className="text-xs text-neutral-500">
-					Drag corners to crop. Drag inside to reposition.
+					Drag corners to crop. Drag inside to reposition. Scroll to pan; Ctrl/⌘
+					+ scroll to zoom.
 				</p>
 				<p className="text-xs tabular-nums text-neutral-400">
 					{outputWidth} × {outputHeight} px
