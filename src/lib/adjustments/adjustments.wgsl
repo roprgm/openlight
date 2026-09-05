@@ -8,6 +8,8 @@ import { Adjustments, prepareColor } from "./prepare.wgsl";
 @group(0) @binding(0) var source: texture_2d<f32>;
 @group(0) @binding(1) var sourceSampler: sampler;
 @group(0) @binding(2) var<uniform> adjustments: Adjustments;
+struct Params { size: vec2f, imageSize: vec2f }
+@group(0) @binding(3) var<uniform> params: Params;
 
 fn interpolateGain(amount: f32, half: vec3f, full: vec3f) -> vec3f {
   let strength = 2.0 * abs(amount);
@@ -36,7 +38,9 @@ fn adjustVibrance(color: vec3f, amount: f32) -> vec3f {
 
 @fragment
 fn fs_main(@location(0) uv: vec2f) -> @location(0) vec4f {
-  let input = textureSample(source, sourceSampler, uv);
+  let p = (uv - 0.5) * params.size / params.imageSize + 0.5;
+  let inside = all(p >= vec2f(0.0)) && all(p <= vec2f(1.0));
+  let input = textureSampleLevel(source, sourceSampler, p, 0.0);
   let prepared = prepareColor(input.rgb, adjustments);
   var color = adjustHighlights(prepared, adjustments.highlights);
   color = adjustShadows(color, adjustments.shadows);
@@ -45,5 +49,5 @@ fn fs_main(@location(0) uv: vec2f) -> @location(0) vec4f {
   color = adjustContrast(color, 1.0 + adjustments.contrast / 100.0);
   color = adjustVibrance(color, adjustments.vibrance / 100.0);
   color = adjustSaturation(color, 1.0 + adjustments.saturation / 100.0);
-  return vec4f(color, input.a);
+  return select(vec4f(0.0), vec4f(color, input.a), inside);
 }

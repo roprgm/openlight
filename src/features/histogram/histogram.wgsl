@@ -4,6 +4,7 @@ import { linearToSrgb3 } from "@vgpu/wgsl-std/color";
 struct Params {
   working: u32,
   channels: u32,
+  premultiplied: u32,
 }
 
 @group(0) @binding(0) var source: texture_2d<f32>;
@@ -29,7 +30,9 @@ fn softBin(channel: u32, position: f32) {
   if (any(id.xy >= samples)) {
     return;
   }
-  let texel = textureLoad(source, id.xy * textureDimensions(source) / samples, 0).rgb;
+  let sample = textureLoad(source, id.xy * textureDimensions(source) / samples, 0);
+  if (sample.a == 0.0) { return; }
+  let texel = sample.rgb / select(1.0, sample.a, params.premultiplied != 0u);
   var encoded = display(texel);
   if (params.working != 0u) {
     encoded = linearToSrgb3(clamp(texel, vec3f(0.0), vec3f(1.0)));

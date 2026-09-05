@@ -11,7 +11,7 @@ test("edit a photo, inspect the preview and histograms, undo changes, and export
 	await page
 		.locator('input[type="file"]')
 		.setInputFiles("tests/fixtures/photo.svg");
-	const canvas = page.locator("canvas");
+	const canvas = page.getByLabel("Document canvas", { exact: true });
 	const output = page
 		.getByLabel("output histogram", { exact: true })
 		.locator("polyline")
@@ -248,5 +248,191 @@ test("edit a photo, inspect the preview and histograms, undo changes, and export
 		);
 		await page.keyboard.press("Escape");
 		await expect(dialog).toBeHidden();
+	});
+	await test.step("compose image layers, edit them independently, and undo structural changes", async () => {
+		await page.evaluate((adjustments) => {
+			window.openlight.setAdjustments(adjustments);
+			window.openlight.setToneCurve();
+		}, initial.adjustments);
+		const bottom = await page.evaluate(
+			() => window.openlight.getState().layers[0].id,
+		);
+		await page
+			.getByLabel("Add image layer", { exact: true })
+			.setInputFiles("tests/fixtures/overlay.svg");
+		await expect(
+			page.getByRole("button", { name: "Select overlay.svg", exact: true }),
+		).toHaveAttribute("aria-pressed", "true");
+		const top = await page.evaluate(
+			() => window.openlight.getState().selectedLayerId,
+		);
+		if (!top) {
+			throw new Error("Added layer was not selected.");
+		}
+		expect(
+			(await page.evaluate(() => window.openlight.getState())).documentId,
+		).toBe(initial.documentId);
+		const layered = await readImage(page);
+		expect(layered.size).toEqual([1200, 800]);
+		expect(layered.corner).toEqual([0, 0, 0, 255]);
+		expect(Math.abs(layered.center[0] - 205)).toBeLessThanOrEqual(1);
+		const before = await page.evaluate(
+			() => window.openlight.getState().history.undoCount,
+		);
+		const opacity = page.getByRole("textbox", { name: "Opacity", exact: true });
+		await opacity.scrollIntoViewIfNeeded();
+		const opacityBounds = await opacity.boundingBox();
+		if (!opacityBounds) {
+			throw new Error("Opacity control is missing.");
+		}
+		await page.mouse.move(
+			opacityBounds.x + opacityBounds.width / 2,
+			opacityBounds.y + opacityBounds.height / 2,
+		);
+		await page.mouse.down();
+		await page.mouse.move(
+			opacityBounds.x + opacityBounds.width / 2 - 30,
+			opacityBounds.y + opacityBounds.height / 2,
+			{ steps: 6 },
+		);
+		await page.mouse.up();
+		expect(
+			(await page.evaluate(() => window.openlight.getState())).history
+				.undoCount,
+		).toBe(before + 1);
+		await page.getByRole("button", { name: "Undo", exact: true }).click();
+		expect(await readImage(page)).toEqual(layered);
+		const opacityField = page.getByRole("textbox", {
+			name: "Opacity",
+			exact: true,
+		});
+		await opacityField.fill("50");
+		await opacityField.press("Enter");
+		expect(
+			Math.abs((await readImage(page)).center[0] - 172),
+		).toBeLessThanOrEqual(1);
+		await page.evaluate((id) => {
+			window.openlight.setLayer(id, { opacity: 1 });
+			window.openlight.setAdjustments({ exposure: -1 }, id);
+		}, top);
+		expect(
+			Math.abs((await readImage(page)).center[0] - 158),
+		).toBeLessThanOrEqual(2);
+		await page
+			.getByRole("button", { name: "Select photo.svg", exact: true })
+			.click();
+		await expect(
+			page.getByRole("slider", { name: "Exposure", exact: true }),
+		).toHaveValue("0");
+		const history = await page.evaluate(
+			() => window.openlight.getState().history,
+		);
+		await page
+			.getByRole("button", { name: "Select overlay.svg", exact: true })
+			.click();
+		await expect(
+			page.getByRole("slider", { name: "Exposure", exact: true }),
+		).toHaveValue("-1");
+		expect(
+			(await page.evaluate(() => window.openlight.getState())).history,
+		).toEqual(history);
+		// Distinct constant curves also catch accidentally sharing the last layer's GPU curve buffer.
+		await page.evaluate(
+			({ bottom, top }) => {
+				window.openlight.setToneCurve(
+					[
+						{ x: 0, y: 0.75 },
+						{ x: 1, y: 0.75 },
+					],
+					bottom,
+				);
+				window.openlight.setToneCurve(
+					[
+						{ x: 0, y: 0.25 },
+						{ x: 1, y: 0.25 },
+					],
+					top,
+				);
+			},
+			{ bottom, top },
+		);
+		expect(
+			Math.abs((await readImage(page)).center[0] - 146),
+		).toBeLessThanOrEqual(2);
+		await page.evaluate(
+			({ bottom, top }) => {
+				window.openlight.setToneCurve(undefined, bottom);
+				window.openlight.setToneCurve(undefined, top);
+				window.openlight.setAdjustments({ exposure: 0 }, top);
+			},
+			{ bottom, top },
+		);
+		const topRow = page.getByRole("listitem").filter({
+			has: page.getByRole("button", {
+				name: "Select overlay.svg",
+				exact: true,
+			}),
+		});
+		const bottomRow = page.getByRole("listitem").filter({
+			has: page.getByRole("button", {
+				name: "Select photo.svg",
+				exact: true,
+			}),
+		});
+		const bounds = await bottomRow.boundingBox();
+		if (!bounds) {
+			throw new Error("Bottom layer is missing.");
+		}
+		await topRow.dragTo(bottomRow, {
+			targetPosition: { x: bounds.width / 2, y: bounds.height - 2 },
+		});
+		expect((await readImage(page)).center).toEqual([128, 128, 128, 255]);
+		await page.getByRole("button", { name: "Undo", exact: true }).click();
+		expect(await readImage(page)).toEqual(layered);
+		await page
+			.getByRole("button", { name: "Hide overlay.svg", exact: true })
+			.click();
+		expect((await readImage(page)).center).toEqual([128, 128, 128, 255]);
+		await page.getByRole("button", { name: "Undo", exact: true }).click();
+		await page
+			.getByRole("button", { name: "Select overlay.svg", exact: true })
+			.dblclick();
+		const name = page.getByRole("textbox", { name: "Layer name", exact: true });
+		await name.fill("");
+		await name.pressSequentially("Overlay");
+		await name.press("Enter");
+		await page
+			.getByRole("button", { name: "Delete Overlay", exact: true })
+			.click();
+		expect((await readImage(page)).center).toEqual([128, 128, 128, 255]);
+		await page.getByRole("button", { name: "Undo", exact: true }).click();
+		expect(await readImage(page)).toEqual(layered);
+		await page.evaluate((id) => window.openlight.removeLayer(id), bottom);
+		const transparent = await readImage(page);
+		expect(transparent.corner).toEqual([0, 0, 0, 0]);
+		expect(transparent.center).toEqual([255, 255, 255, 128]);
+		await page.evaluate(() =>
+			window.openlight.setAdjustments({ exposure: -1 }),
+		);
+		expect(
+			Math.abs((await readImage(page)).center[0] - 182),
+		).toBeLessThanOrEqual(1);
+		const jpeg = await page.evaluate(async () => [
+			...new Uint8Array(
+				await (
+					await window.openlight.exportImage({ format: "jpeg", quality: 100 })
+				).arrayBuffer(),
+			),
+		]);
+		const flattened = await readImage(page, new Uint8Array(jpeg));
+		expect(flattened.corner).toEqual([255, 255, 255, 255]);
+		expect(Math.abs(flattened.center[0] - 219)).toBeLessThanOrEqual(2);
+		await page.evaluate((id) => window.openlight.removeLayer(id), top);
+		await expect(
+			page.getByText("Add an image to this canvas.", { exact: true }),
+		).toBeVisible();
+		expect((await readImage(page)).center).toEqual([0, 0, 0, 0]);
+		await page.getByRole("button", { name: "Undo", exact: true }).click();
+		expect((await readImage(page)).center[3]).toBe(128);
 	});
 });

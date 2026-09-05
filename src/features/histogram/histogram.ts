@@ -16,8 +16,17 @@ export function createHistogram(gpu: Gpu) {
 		set: { bins, heights },
 	});
 	const empty = new Uint32Array(768);
-	async function read(image: Target, working = false, channels: 1 | 3 = 3) {
-		const params = { working: Number(working), channels };
+	async function read(
+		image: Target,
+		working = false,
+		channels: 1 | 3 = 3,
+		premultiplied = false,
+	) {
+		const params = {
+			working: Number(working),
+			channels,
+			premultiplied: Number(premultiplied),
+		};
 		bins.write(empty);
 		count.set({ source: image.color, params }).dispatch(32, 20);
 		finish.set({ params }).dispatch(1);
@@ -30,6 +39,7 @@ export function createHistogram(gpu: Gpu) {
 			image: () => Target,
 			colors: readonly [string] | readonly [string, string, string],
 			working = false,
+			premultiplied = false,
 		) {
 			const namespace = "http://www.w3.org/2000/svg";
 			const plot = document.createElementNS(namespace, "g");
@@ -56,7 +66,12 @@ export function createHistogram(gpu: Gpu) {
 				try {
 					do {
 						requested = false;
-						const values = await read(image(), working, colors.length);
+						const values = await read(
+							image(),
+							working,
+							colors.length,
+							premultiplied,
+						);
 						if (!plot.isConnected) {
 							return;
 						}

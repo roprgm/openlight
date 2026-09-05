@@ -33,10 +33,14 @@ export function createCameraRawXmpLoader(workspace: Workspace): FileLoader {
 				throw new Error("importXmp requires a File.");
 			}
 			const document = workspace.getDocument();
+			const layerId = document.selection.getState().layerId;
 			const adjustments = toAdjustments(readCameraRawXmp(await file.text()));
-			if (workspace.state.getState().document === document) {
+			if (
+				workspace.state.getState().document === document &&
+				document.scene.getState().layers.some((layer) => layer.id === layerId)
+			) {
 				document.history.commit();
-				setAdjustments(document, adjustments);
+				setAdjustments(document, adjustments, layerId);
 			}
 		},
 	};

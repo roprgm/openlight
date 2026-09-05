@@ -8,6 +8,7 @@ type Props = ComponentProps<"svg"> & {
 	subscribe: (listener: () => void) => () => void;
 	colors: readonly [string] | readonly [string, string, string];
 	working?: boolean;
+	premultiplied?: boolean;
 };
 
 export function Histogram({
@@ -16,12 +17,19 @@ export function Histogram({
 	subscribe,
 	colors,
 	working,
+	premultiplied,
 	...props
 }: Props) {
 	const attach = useCallback(
 		(svg: SVGSVGElement | null) => {
 			if (svg) {
-				const plot = histogram.attach(svg, image, colors, working);
+				const plot = histogram.attach(
+					svg,
+					image,
+					colors,
+					working,
+					premultiplied,
+				);
 				const unsubscribe = subscribe(plot.update);
 				return () => {
 					unsubscribe();
@@ -29,7 +37,7 @@ export function Histogram({
 				};
 			}
 		},
-		[histogram, image, subscribe, colors, working],
+		[histogram, image, subscribe, colors, working, premultiplied],
 	);
 	return (
 		<svg

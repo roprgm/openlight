@@ -74,4 +74,41 @@ test("decode an image, apply XMP, recover from failure, and replace a document d
 	expect(replaced.documentId).not.toBe(before.documentId);
 	expect(replaced.history).toEqual({ undoCount: 0, redoCount: 0 });
 	expect(replaced.adjustments.exposure).toBe(0);
+	await test.step("failed layer imports preserve content and panel drops add to the document", async () => {
+		const before = await page.evaluate(() => window.openlight.getState());
+		const failed = await page.evaluate(async () => {
+			try {
+				await window.openlight.addImageLayer(
+					new File(["broken"], "broken.png", { type: "image/png" }),
+				);
+			} catch {
+				return true;
+			}
+			return false;
+		});
+		expect(failed).toBe(true);
+		expect(await page.evaluate(() => window.openlight.getState())).toEqual(
+			before,
+		);
+		const transfer = await page.evaluateHandle(
+			(text) => {
+				const data = new DataTransfer();
+				data.items.add(
+					new File([text], "dropped.svg", { type: "image/svg+xml" }),
+				);
+				return data;
+			},
+			await readFile("tests/fixtures/overlay.svg", "utf8"),
+		);
+		await page
+			.getByRole("region", { name: "Layers", exact: true })
+			.dispatchEvent("drop", { dataTransfer: transfer });
+		await expect(
+			page.getByRole("button", { name: "Select dropped.svg", exact: true }),
+		).toBeVisible();
+		const after = await page.evaluate(() => window.openlight.getState());
+		expect(after.documentId).toBe(before.documentId);
+		expect(after.layers).toHaveLength(2);
+		await transfer.dispose();
+	});
 });
