@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { useStore } from "zustand";
 import { useDocument } from "@/app/document/provider";
 import Button from "@/components/ui/button";
+import { Field } from "@/components/ui/field";
 import { Slider } from "@/components/ui/slider";
 import {
 	cropSize,
@@ -68,24 +69,38 @@ export function CropPanel() {
 				</div>
 				<label className="flex items-center justify-between text-sm text-neutral-400">
 					Aspect ratio
-					<select
-						aria-label="Aspect ratio"
-						value={aspect ?? "free"}
-						onChange={(event) => changeAspect(event.currentTarget.value)}
-						className="rounded border border-neutral-700 bg-neutral-800 px-2 py-1 text-neutral-100"
-					>
-						<option value="free">Free</option>
-						<option value={width / height}>Original</option>
-						<option value={1}>Square</option>
-						<option value={4 / 3}>4:3</option>
-						<option value={3 / 2}>3:2</option>
-						<option value={16 / 9}>16:9</option>
-						<option value={4 / 5}>4:5</option>
-						<option value={9 / 16}>9:16</option>
-						<option value={3 / 4}>3:4</option>
-						<option value={2 / 3}>2:3</option>
-						<option value={5 / 4}>5:4</option>
-					</select>
+					<Field className="relative w-24">
+						<select
+							aria-label="Aspect ratio"
+							value={aspect ?? "free"}
+							onChange={(event) => changeAspect(event.currentTarget.value)}
+							className="w-full cursor-pointer appearance-none bg-transparent pl-1 pr-5 text-neutral-100 outline-none [color-scheme:dark]"
+						>
+							<option value="free">Free</option>
+							<option value={width / height}>Original</option>
+							<option value={1}>Square</option>
+							<option value={4 / 3}>4:3</option>
+							<option value={3 / 2}>3:2</option>
+							<option value={16 / 9}>16:9</option>
+							<option value={4 / 5}>4:5</option>
+							<option value={9 / 16}>9:16</option>
+							<option value={3 / 4}>3:4</option>
+							<option value={2 / 3}>2:3</option>
+							<option value={5 / 4}>5:4</option>
+						</select>
+						<svg
+							aria-hidden="true"
+							viewBox="0 0 12 12"
+							className="pointer-events-none absolute top-1/2 right-1.5 size-3 -translate-y-1/2 text-neutral-400"
+							fill="none"
+							stroke="currentColor"
+							strokeWidth="1.5"
+							strokeLinecap="round"
+							strokeLinejoin="round"
+						>
+							<path d="m3 4.5 3 3 3-3" />
+						</svg>
+					</Field>
 				</label>
 				<div className="flex gap-2">
 					<Button

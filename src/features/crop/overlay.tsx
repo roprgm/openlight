@@ -59,10 +59,7 @@ export function CropOverlay({ size, rect, ratio, onChange }: CropOverlayProps) {
 		}
 	}
 	return (
-		<div
-			ref={ref}
-			className="pointer-events-none absolute inset-0 overflow-hidden"
-		>
+		<div ref={ref} className="pointer-events-none absolute inset-0">
 			<div
 				className="absolute top-1/2 left-1/2 -translate-1/2"
 				style={{ width: box[0], height: box[1] }}
@@ -145,14 +142,14 @@ export function CropOverlay({ size, rect, ratio, onChange }: CropOverlayProps) {
 							key={handle}
 							data-handle={handle}
 							aria-label={`Resize crop ${label}`}
-							className="absolute flex size-8 -translate-1/2 items-center justify-center focus-visible:outline-2 focus-visible:outline-white"
+							className="group absolute flex size-8 -translate-1/2 items-center justify-center outline-none"
 							style={{
 								left: `${x * 100}%`,
 								top: `${y * 100}%`,
 								cursor: x === y ? "nwse-resize" : "nesw-resize",
 							}}
 						>
-							<span className="pointer-events-none size-2.5 border border-neutral-900 bg-white" />
+							<span className="pointer-events-none size-2.5 border border-neutral-900 bg-white group-focus-visible:ring-2 group-focus-visible:ring-neutral-400/50" />
 						</button>
 					))}
 				</div>
