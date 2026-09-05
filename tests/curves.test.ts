@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "bun:test";
 import { sampleCurve } from "@/features/tone-curves/curve";
 import { interpolatePchip } from "@/lib/math";
 
