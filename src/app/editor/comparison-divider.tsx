@@ -69,7 +69,7 @@ export function ComparisonDivider() {
 			<span className="absolute top-4 left-6 rounded bg-black/50 px-2 py-1 text-[10px] text-white">
 				After
 			</span>
-			<span className="relative flex size-7 items-center justify-center rounded-full border border-white/80 bg-neutral-900/80 text-white shadow-md group-focus-visible:ring-2 group-focus-visible:ring-white">
+			<span className="relative flex size-7 items-center justify-center rounded-full border border-white/80 bg-neutral-900 text-white shadow-md group-focus-visible:ring-2 group-focus-visible:ring-white">
 				<svg
 					aria-hidden="true"
 					viewBox="0 0 20 20"
