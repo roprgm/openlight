@@ -21,6 +21,10 @@ function measureGesture(points: Iterable<Point>) {
 	};
 }
 
+function pan(view: View, x: number, y: number): View {
+	return { ...view, pan: [view.pan[0] + x, view.pan[1] + y] };
+}
+
 /** Keeps the content point under `focal` fixed while changing zoom. */
 function zoomAt(view: View, focal: Point, zoom: number, minimum = 1): View {
 	const ratio = Math.min(Math.max(zoom, minimum), maxZoom) / view.zoom;
@@ -69,49 +73,40 @@ export function usePanZoom(content?: Size, { constrain = true } = {}) {
 	useEffect(() => {
 		const controller = new AbortController();
 		const { signal } = controller;
-		window.addEventListener(
-			"keydown",
-			(event) => {
-				if (
-					event.code !== "Space" ||
-					event.ctrlKey ||
-					event.metaKey ||
-					event.altKey
-				) {
-					return;
-				}
-				const target = event.target;
-				if (
-					target instanceof HTMLElement &&
-					(target.isContentEditable ||
-						target.closest(
-							'input:not([type="range"]), textarea, select, dialog, [role="dialog"]',
-						))
-				) {
-					return;
-				}
-				event.preventDefault();
-				setPanMode(true);
-			},
-			{ signal },
-		);
-		window.addEventListener(
-			"keyup",
-			(event) => {
-				if (event.code === "Space") {
-					setPanMode(false);
-				}
-			},
-			{ signal },
-		);
-		window.addEventListener(
-			"blur",
-			() => {
+		function keyDown(event: KeyboardEvent) {
+			if (
+				event.code !== "Space" ||
+				event.ctrlKey ||
+				event.metaKey ||
+				event.altKey
+			) {
+				return;
+			}
+			const target = event.target;
+			if (
+				target instanceof HTMLElement &&
+				(target.isContentEditable ||
+					target.closest(
+						'input:not([type="range"]), textarea, select, dialog, [role="dialog"]',
+					))
+			) {
+				return;
+			}
+			event.preventDefault();
+			setPanMode(true);
+		}
+		function keyUp(event: KeyboardEvent) {
+			if (event.code === "Space") {
 				setPanMode(false);
-				pointers.current.clear();
-			},
-			{ signal },
-		);
+			}
+		}
+		function blur() {
+			setPanMode(false);
+			pointers.current.clear();
+		}
+		window.addEventListener("keydown", keyDown, { signal });
+		window.addEventListener("keyup", keyUp, { signal });
+		window.addEventListener("blur", blur, { signal });
 		return () => controller.abort();
 	}, []);
 
@@ -155,10 +150,7 @@ export function usePanZoom(content?: Size, { constrain = true } = {}) {
 						constrain ? 1 : fitZoom.current * 0.1,
 					);
 				}
-				return {
-					...view,
-					pan: [view.pan[0] - event.deltaX, view.pan[1] - event.deltaY],
-				};
+				return pan(view, -event.deltaX, -event.deltaY);
 			});
 		};
 		element.addEventListener("wheel", wheel, { passive: false });
@@ -174,24 +166,25 @@ export function usePanZoom(content?: Size, { constrain = true } = {}) {
 		fitZoom.current = next.zoom;
 		setView(next);
 	};
+	function startDrag(event: PointerEvent<HTMLElement>) {
+		if (event.button !== 0 || pointers.current.size === 2) {
+			return;
+		}
+		if (pointers.current.size === 0) {
+			boundedDrag.current = constrain && !panMode;
+		}
+		pointers.current.set(event.pointerId, [event.clientX, event.clientY]);
+		event.currentTarget.setPointerCapture(event.pointerId);
+	}
 	const handlers = {
 		onPointerDownCapture: (event: PointerEvent<HTMLElement>) => {
 			if (panMode && event.button === 0) {
 				event.preventDefault();
 				event.stopPropagation();
-				handlers.onPointerDown(event);
+				startDrag(event);
 			}
 		},
-		onPointerDown: (event: PointerEvent<HTMLElement>) => {
-			if (event.button !== 0 || pointers.current.size === 2) {
-				return;
-			}
-			if (pointers.current.size === 0) {
-				boundedDrag.current = constrain && !panMode;
-			}
-			pointers.current.set(event.pointerId, [event.clientX, event.clientY]);
-			event.currentTarget.setPointerCapture(event.pointerId);
-		},
+		onPointerDown: startDrag,
 		onPointerMove: (event: PointerEvent<HTMLElement>) => {
 			const points = pointers.current;
 			if (!points.has(event.pointerId)) {
@@ -215,13 +208,11 @@ export function usePanZoom(content?: Size, { constrain = true } = {}) {
 					view.zoom * ratio,
 					constrain ? 1 : fitZoom.current * 0.1,
 				);
-				return {
-					...zoomed,
-					pan: [
-						zoomed.pan[0] + next.center[0] - previous.center[0],
-						zoomed.pan[1] + next.center[1] - previous.center[1],
-					],
-				};
+				return pan(
+					zoomed,
+					next.center[0] - previous.center[0],
+					next.center[1] - previous.center[1],
+				);
 			}, boundedDrag.current);
 		},
 		onPointerUp: release,
@@ -231,9 +222,6 @@ export function usePanZoom(content?: Size, { constrain = true } = {}) {
 	};
 
 	const panBy = (delta: Point) =>
-		update((view) => ({
-			...view,
-			pan: [view.pan[0] + delta[0], view.pan[1] + delta[1]],
-		}));
+		update((view) => pan(view, delta[0], delta[1]));
 	return { ref, view, viewport, handlers, panBy, resetView, panMode };
 }
