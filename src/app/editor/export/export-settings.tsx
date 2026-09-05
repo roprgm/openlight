@@ -1,5 +1,6 @@
 import { useRef, useState } from "react";
 import { useGpu } from "vgpu-react";
+import { useDocument } from "@/app/document/provider";
 import { exportImage } from "@/app/editor/export/export-image";
 import Button from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
@@ -11,6 +12,7 @@ const formats = [
 
 export function ExportSettings({ onClose }: { onClose: () => void }) {
 	const gpu = useGpu();
+	const editorDocument = useDocument();
 	const [format, setFormat] = useState<"png" | "jpeg">("png");
 	const [quality, setQuality] = useState(90);
 	const [error, setError] = useState("");
@@ -23,7 +25,7 @@ export function ExportSettings({ onClose }: { onClose: () => void }) {
 		setError("");
 		try {
 			const options = format === "png" ? { format } : { format, quality };
-			const file = await exportImage(gpu, options);
+			const file = await exportImage(gpu, editorDocument, options);
 			const url = URL.createObjectURL(file);
 			const link = document.createElement("a");
 			link.href = url;

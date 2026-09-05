@@ -1,4 +1,6 @@
-import { type Adjustments, useScene } from "@/app/scene";
+import { setAdjustments } from "@/app/document/edits";
+import type { Adjustments } from "@/app/scene";
+import type { Workspace } from "@/app/workspace";
 import {
 	type CameraRawXmp,
 	isCameraRawXmp,
@@ -22,22 +24,20 @@ function toAdjustments(xmp: CameraRawXmp): Partial<Adjustments> {
 	);
 }
 
-async function importCameraRawXmp(file: File) {
-	if (!(file instanceof File)) {
-		throw new Error("importCameraRawXmp requires a File.");
-	}
-	const source = useScene.getState().source;
-	if (!source) {
-		throw new Error("Load an image before importing adjustments.");
-	}
-	const adjustments = toAdjustments(readCameraRawXmp(await file.text()));
-	if (useScene.getState().source === source) {
-		useScene.getState().setAdjustments(adjustments);
-	}
+export function createCameraRawXmpLoader(workspace: Workspace): FileLoader {
+	return {
+		kind: "settings",
+		accepts: isCameraRawXmp,
+		async load(file) {
+			if (!(file instanceof File)) {
+				throw new Error("importXmp requires a File.");
+			}
+			const document = workspace.getDocument();
+			const adjustments = toAdjustments(readCameraRawXmp(await file.text()));
+			if (workspace.state.getState().document === document) {
+				document.history.commit();
+				setAdjustments(document, adjustments);
+			}
+		},
+	};
 }
-
-export const cameraRawXmpLoader: FileLoader = {
-	kind: "settings",
-	accepts: isCameraRawXmp,
-	load: importCameraRawXmp,
-};

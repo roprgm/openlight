@@ -25,11 +25,13 @@ bun run build   # typecheck + bundle
 ## Browser controls
 
 `window.openlight` is available after the app mounts, including production builds.
-The UI, renderer, and browser API share the Zustand scene store in
-`src/app/scene/index.ts`. The scene currently contains a source image and
-adjustments. `app/editor/renderer/renderer.ts` executes the adjustment and display passes imperatively through
-vgpu. `RendererProvider` owns the engine and frame loop; canvas and histogram
-components attach their outputs through `useRenderer`. The API exposes application commands and scene actions:
+`createControls(gpu, workspace)` exposes the same commands without React. Each
+document owns a vanilla Zustand scene store, an in-memory history, and image
+resources. The scene contains canvas dimensions, a source ID, adjustments, and a
+tone curve. Files and GPU targets stay outside scene snapshots. The workspace
+currently opens one document at a time and replaces it when another image opens.
+React hooks and context bind these instances to the UI; the renderer subscribes to its
+explicit document.
 
 ```js
 await openlight.openFiles([
@@ -38,7 +40,9 @@ await openlight.openFiles([
 ]);
 openlight.setAdjustments({ exposure: 1, saturation: -25 });
 openlight.setAdjustments({ highlights: -50, shadows: 50, whites: 10, blacks: -10 });
-const state = // Or read immediately: openlight.getState()
+openlight.undo();
+openlight.redo();
+const state = openlight.getState();
 ```
 
 `openFiles` is shared by the app-wide drop handler, image picker, and browser
@@ -50,10 +54,18 @@ a loaded image are ignored; a failed image load skips that batch's settings.
 Batches run sequentially, including calls through `openFile`, `loadImage`, and
 `importXmp`, so settings cannot spill onto an image from a later batch.
 
-`app/loaders/registry.ts` owns matching, batch ordering, and the single-document
-policy. Each loader declares `kind`, `accepts`, and `load`; register new loaders in
-`app/controls.ts`. Image decoding and XMP import live in their own loaders. The
-scene store owns document state and generic editing actions, without file loaders.
+`app/loaders/registry.ts` owns matching and batch ordering. Each loader declares
+`kind`, `accepts`, and `load`; register loaders in `app/controls.ts`. The workspace
+owns document replacement. Image decoding and XMP import remain separate from
+scene state and history.
+
+`beginEdit()`, `commitEdit()`, and `cancelEdit()` group synchronous editing commands.
+Sliders and curve drags use the same grouping. Each text-field commit and XMP
+import is one edit. Undo and redo restore content; a new edit discards redo.
+History retains at most 100 small immutable scene snapshots in memory, sharing
+unchanged data and excluding binary resources. It resets with a new document.
+Undo/redo buttons and Ctrl/Cmd+Z, Ctrl/Cmd+Shift+Z, and Ctrl/Cmd+Y are available;
+text inputs keep native text undo. History is not persisted across reloads.
 
 `setAdjustments` merges a partial update. Exposure accepts -5 to 5; other
 adjustments accept -100 to 100. Loading another image resets adjustments.
@@ -63,5 +75,6 @@ Whites and blacks move their endpoints along monotone cubic curves in perceptual
 space, leaving middle gray fixed. At full strength the endpoint moves by 0.1.
 Highlights and shadows use pointwise curves fitted against Lightroom exports;
 they do not yet model Lightroom's spatial processing.
-State includes the file name and adjustments. Loading commands resolve when their
-batch finishes; image decoding failures appear in the editor. The renderer runs every frame.
+State includes the file name, document ID, canvas size, adjustments, tone curve,
+and undo/redo counts. Loading commands resolve when their batch finishes; image
+decoding failures appear in the editor. The renderer updates when the scene changes.

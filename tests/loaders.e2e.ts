@@ -1,4 +1,6 @@
-import { expect, type Page, test } from "@playwright/test";
+import type { Page } from "@playwright/test";
+import { expect, test } from "./fixtures";
+import { readImage } from "./images";
 
 type InputFile = { name: string; content: string; type?: string };
 
@@ -29,7 +31,7 @@ async function openFiles(page: Page, files: InputFile[]) {
 	}, files);
 }
 
-test("file batches load one image before its settings, regardless of file order", async ({
+test("open image and XMP batches, recover from failures, and replace a document during export", async ({
 	page,
 }) => {
 	await page.goto("/");
@@ -98,13 +100,6 @@ test("file batches load one image before its settings, regardless of file order"
 			blacks: 0,
 		});
 	}
-});
-
-test("consecutive batches keep settings with their image and recover from a failed image", async ({
-	page,
-}) => {
-	await page.goto("/");
-	await page.waitForFunction(() => window.openlight);
 	const state = await page.evaluate(
 		async (batches) => {
 			await Promise.all(
@@ -149,4 +144,87 @@ test("consecutive batches keep settings with their image and recover from a fail
 	await expect(
 		page.getByRole("textbox", { name: "Exposure", exact: true }),
 	).toHaveValue("-1.00");
+
+	const baseline = await readImage(page);
+	const before = await page.evaluate(() => window.openlight.getState());
+	await page.evaluate(() => {
+		window.openlight.beginEdit();
+		window.openlight.setAdjustments({ exposure: 0.5 });
+		window.openlight.setAdjustments({ exposure: 1, shadows: 20 });
+		window.openlight.setToneCurve([
+			{ x: 0, y: 0 },
+			{ x: 0.5, y: 0.7 },
+			{ x: 1, y: 1 },
+		]);
+		window.openlight.commitEdit();
+	});
+	const edited = await readImage(page);
+	expect(edited).not.toEqual(baseline);
+	expect(
+		(await page.evaluate(() => window.openlight.getState())).history.undoCount,
+	).toBe(before.history.undoCount + 1);
+	await page.evaluate(() => window.openlight.undo());
+	expect(await readImage(page)).toEqual(baseline);
+	await page.evaluate(() => window.openlight.redo());
+	expect(await readImage(page)).toEqual(edited);
+	await page.evaluate(() => {
+		window.openlight.setAdjustments({ exposure: 1 });
+		window.openlight.beginEdit();
+		window.openlight.setAdjustments({ exposure: -1 });
+		window.openlight.cancelEdit();
+	});
+	expect(await readImage(page)).toEqual(edited);
+	expect(
+		(await page.evaluate(() => window.openlight.getState())).history.undoCount,
+	).toBe(before.history.undoCount + 1);
+	await page.evaluate(() => {
+		window.openlight.undo();
+		window.openlight.beginEdit();
+		window.openlight.setAdjustments({ contrast: 20 });
+	});
+	const imported = await openFiles(page, [
+		settings('crs:Highlights2012="-50"'),
+	]);
+	expect(imported.history).toEqual({
+		undoCount: before.history.undoCount + 2,
+		redoCount: 0,
+	});
+	await page.evaluate(() => window.openlight.undo());
+	expect(
+		(await page.evaluate(() => window.openlight.getState())).adjustments,
+	).toMatchObject({ highlights: 0, contrast: 20 });
+
+	const expected = await readImage(page);
+	const exported = await page.evaluate(async () => {
+		const api = window.openlight;
+		const convert = OffscreenCanvas.prototype.convertToBlob;
+		let release = () => {};
+		const gate = new Promise<void>((resolve) => {
+			release = resolve;
+		});
+		OffscreenCanvas.prototype.convertToBlob = async function (options) {
+			await gate;
+			return convert.call(this, options);
+		};
+		try {
+			const pending = api.exportImage();
+			await api.loadImage(
+				new File(
+					['<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32"/>'],
+					"replacement.svg",
+					{ type: "image/svg+xml" },
+				),
+			);
+			release();
+			return [...new Uint8Array(await (await pending).arrayBuffer())];
+		} finally {
+			release();
+			OffscreenCanvas.prototype.convertToBlob = convert;
+		}
+	});
+	expect(await readImage(page, new Uint8Array(exported))).toEqual(expected);
+	const replaced = await page.evaluate(() => window.openlight.getState());
+	expect(replaced.documentId).not.toBe(before.documentId);
+	expect(replaced.history).toEqual({ undoCount: 0, redoCount: 0 });
+	expect(replaced.toneCurve).toEqual(before.toneCurve);
 });

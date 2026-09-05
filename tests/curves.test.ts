@@ -2,35 +2,30 @@ import { expect, test } from "@playwright/test";
 import { sampleCurve } from "@/features/tone-curves/curve";
 import { interpolatePchip } from "@/lib/math";
 
-test("the diagonal samples to identity, including black and white", () => {
-	const points = [
+test("curves interpolate smoothly through their handles without overshoot", () => {
+	const identity = [
 		{ x: 0, y: 0 },
 		{ x: 1, y: 1 },
 	];
-	const samples = sampleCurve(points, 257);
+	const samples = sampleCurve(identity, 257);
 	expect(samples).toBeInstanceOf(Float32Array);
 	for (let i = 0; i < samples.length; i++) {
 		expect(samples[i]).toBeCloseTo(i / 256, 7);
 	}
-});
 
-test("a midtone lift interpolates the handles with a smooth cubic", () => {
-	const evaluate = interpolatePchip([
+	const lift = interpolatePchip([
 		{ x: 0, y: 0 },
 		{ x: 0.5, y: 0.75 },
 		{ x: 1, y: 1 },
 	]);
-	expect(evaluate(0.25)).toBeCloseTo(0.453125, 7);
-	expect(evaluate(0.5)).toBe(0.75);
-	expect(evaluate(0.75)).toBeCloseTo(0.921875, 7);
-	expect(evaluate(-1)).toBe(0);
-	expect(evaluate(2)).toBe(1);
-	const leftSlope = (evaluate(0.5) - evaluate(0.5 - 0.00001)) / 0.00001;
-	const rightSlope = (evaluate(0.5 + 0.00001) - evaluate(0.5)) / 0.00001;
+	expect(lift(0.25)).toBeCloseTo(0.453125, 7);
+	expect(lift(0.5)).toBe(0.75);
+	expect(lift(0.75)).toBeCloseTo(0.921875, 7);
+	expect(lift(-1)).toBe(0);
+	expect(lift(2)).toBe(1);
+	const leftSlope = (lift(0.5) - lift(0.5 - 0.00001)) / 0.00001;
+	const rightSlope = (lift(0.5 + 0.00001) - lift(0.5)) / 0.00001;
 	expect(leftSlope).toBeCloseTo(rightSlope, 3);
-});
-
-test("unevenly spaced points, plateaus, and reversals do not overshoot", () => {
 	const points = [
 		{ x: 0, y: 0 },
 		{ x: 0.02, y: 0.4 },

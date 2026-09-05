@@ -1,15 +1,15 @@
+import { useStore } from "zustand";
 import { useFileDrop } from "@/hooks/use-file-drop";
-import { useControls } from "./controls";
 import Editor from "./editor";
 import Landing from "./landing";
-import { useScene } from "./scene";
+import { useWorkspace } from "./workspace/use-workspace";
 
 export default function App() {
-	const { openFiles } = useControls();
-	useFileDrop(openFiles);
-	const source = useScene((scene) => scene.source);
-	if (!source) {
-		return <Landing onOpen={openFiles} />;
+	const { workspace, controls } = useWorkspace();
+	useFileDrop(controls.openFiles);
+	const state = useStore(workspace.state);
+	if (state.status === "empty") {
+		return <Landing onOpen={controls.openFiles} />;
 	}
-	return <Editor source={source} />;
+	return <Editor state={state} />;
 }

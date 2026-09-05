@@ -6,21 +6,24 @@ Demonstrate a professional photo editor with little, readable code.
 
 `src/main.tsx` owns runtime and provider composition.
 
+Write committed code, comments, documentation, and UI text in English. Research drafts may use another language while uncommitted.
+Use `CONTEXT.md` for document, scene, and image-source terminology.
+
 ## Size
 
 Keep each file focused on one responsibility and one abstraction level. Entry points compose; providers, hooks, and domain modules own lifecycles and policy.
-Prefer the smallest complete implementation that preserves clear ownership. Evaluate simplicity across the whole feature, including lifecycle glue and consumers; moving lines into helpers is not a reduction.
-Start with a direct function and thin UI composition. Add a layer only when it hides a real responsibility or removes duplication; keep cohesive work together when splitting it would only add forwarding.
+Start with direct functions and thin UI composition. Add a layer only when it owns a distinct responsibility or removes duplication.
+Evaluate simplicity across the whole feature, including lifecycle code and consumers. Keep cohesive work together; moving lines into forwarding helpers is not a reduction.
 Prefer direct vgpu operations. Add wrappers, validation, scheduling, or caching only for a current requirement.
 One component per responsibility: when a component holds state or refs that only part of its markup uses, extract that part into its own component. Within a file, define a function above the function that uses it.
 
 ## Engine and React
 
-React owns UI composition, controls, and mounting engine outputs. Scene actions perform decoding and other processing imperatively. The engine owns GPU resources, rendering, and derived data such as histogram bins; frame data stays outside React state and props.
+React owns UI composition, controls, and mounting engine outputs. Commands perform decoding and other processing imperatively, with explicit workspace or document dependencies. The engine owns GPU resources, rendering, and derived data such as histogram bins; frame data stays outside React state and props.
 
-Providers expose stable engine instances and connect their lifetime to mounting and cleanup. The engine creates and disposes its resources. Canvas and histogram components attach their outputs through the provider.
+Hooks and providers connect stable imperative instances to mounting and cleanup. Each resource owner disposes what it creates. Canvas and histogram components attach engine outputs to the UI.
 
-The Zustand scene store owns document state. UI interactions and browser commands call the same actions; the renderer reads the scene directly.
+Each document owns a vanilla Zustand scene store, history, and image resources. The scene contains serializable data and refers to image sources by ID; files and GPU targets stay outside history. The workspace owns document replacement and loading state. UI interactions and browser commands use the same imperative edits; history groups them without knowing loaders or tools.
 
 ## Structure
 
@@ -57,11 +60,9 @@ All React bindings come from `vgpu-react`; everything else comes from `vgpu`.
 
 ## Testing
 
-Prefer a few broad end-to-end tests over many granular tests. A typical editing test loads a known image, applies several adjustments through the control API, and compares the final rendered or exported pixels with a reference, using a small tolerance when needed. Favor coverage of the complete processing chain over pinpointing failures by test name. Extend an existing workflow before adding a test; split when workflows are independent or execution becomes too long. Format-specific tests should load a real file of that format. Add narrow tests only when a broad workflow cannot meaningfully exercise the behavior.
+Prefer a few broad end-to-end tests over many granular tests. Keep one main editing session that opens a fixture, changes controls, checks the preview and histogram, edits curves, uses undo/redo, and exports. Extend that session with named steps instead of adding a test per control. Check actual pixels against known values, with a small tolerance when needed; changed state or a changed screenshot alone does not prove correct rendering. Keep independent loading and rendering checks separate, and load real files for format coverage. Use browser-free tests for invariants that the editing session cannot meaningfully exercise.
 
-Maintain a browser-side control API for agents and browser tests. Expose stable, semantic commands for real workflows such as loading an image, changing an adjustment, and reading application state. Use DOM interaction only when the UI interaction itself is under test. Tests wait for visible results without adding production completion tracking.
-
-Extend the control API whenever a feature adds a workflow that agents need to exercise. It may require an explicit test mode, but it must work in local browsers, CI, and remote browser sessions.
+Maintain a browser-side control API with semantic commands for loading, editing, and reading state. Extend it with new workflows; it must work in local browsers, CI, and remote sessions. Use DOM interaction when testing the UI itself. Wait for visible results without adding production completion tracking.
 
 ## Done
 

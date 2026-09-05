@@ -1,5 +1,3 @@
-import { useScene } from "@/app/scene";
-
 export type FileLoader = {
 	kind: "document" | "settings";
 	accepts: (file: File) => boolean;
@@ -8,12 +6,12 @@ export type FileLoader = {
 
 type Job = { file: File; loader: FileLoader };
 
-async function loadBatch(jobs: Job[]) {
+async function loadBatch(jobs: Job[], ready: () => boolean) {
 	const document = jobs.find(({ loader }) => loader.kind === "document");
 	if (document) {
 		await document.loader.load(document.file);
 	}
-	if (!useScene.getState().source?.image) {
+	if (!ready()) {
 		return;
 	}
 	for (const { file, loader } of jobs) {
@@ -23,11 +21,14 @@ async function loadBatch(jobs: Job[]) {
 	}
 }
 
-export function createLoaderRegistry(loaders: readonly FileLoader[]) {
+export function createLoaderRegistry(
+	loaders: readonly FileLoader[],
+	ready: () => boolean,
+) {
 	let pending = Promise.resolve();
 
 	function enqueue(jobs: Job[]) {
-		const result = pending.then(() => loadBatch(jobs));
+		const result = pending.then(() => loadBatch(jobs, ready));
 		// Return the failure to the caller while allowing later batches to run.
 		pending = result.catch(() => {});
 		return result;

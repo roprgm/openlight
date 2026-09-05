@@ -1,9 +1,10 @@
 import type { ComponentProps } from "react";
+import { setAdjustments } from "@/app/document/edits";
+import { useDocument, useScene } from "@/app/document/provider";
 import {
 	type Adjustments,
 	adjustmentLimits,
 	defaultAdjustments,
-	useScene,
 } from "@/app/scene";
 import { Slider } from "@/components/ui/slider";
 
@@ -28,12 +29,12 @@ type AdjustmentSliderProps = Pick<
 
 function AdjustmentSlider({ name, ...props }: AdjustmentSliderProps) {
 	const value = useScene((scene) => scene.adjustments[name]);
-	const onChange = useScene((scene) => scene.setAdjustments);
+	const document = useDocument();
 	return (
 		<Slider
 			{...props}
 			value={value}
-			onChange={(value) => onChange({ [name]: value })}
+			onChange={(value) => setAdjustments(document, { [name]: value })}
 			defaultValue={defaultAdjustments[name]}
 			min={-adjustmentLimits[name]}
 			max={adjustmentLimits[name]}

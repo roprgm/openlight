@@ -1,0 +1,27 @@
+import type { Page } from "@playwright/test";
+
+/** Read actual exported or downloaded pixels, independently of the renderer. */
+export async function readImage(page: Page, bytes?: Uint8Array) {
+	return page.evaluate(
+		async (bytes) => {
+			const file = bytes
+				? new Blob([new Uint8Array(bytes)])
+				: await window.openlight.exportImage();
+			const image = await createImageBitmap(file);
+			const canvas = new OffscreenCanvas(image.width, image.height);
+			const context = canvas.getContext("2d");
+			if (!context) throw new Error("Cannot read image pixels.");
+			context.drawImage(image, 0, 0);
+			image.close();
+			return {
+				size: [canvas.width, canvas.height],
+				center: [
+					...context.getImageData(canvas.width / 2, canvas.height / 2, 1, 1)
+						.data,
+				],
+				corner: [...context.getImageData(10, 10, 1, 1).data],
+			};
+		},
+		bytes ? [...bytes] : null,
+	);
+}

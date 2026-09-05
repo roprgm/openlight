@@ -1,12 +1,15 @@
 import { useEffect, useMemo } from "react";
 import { useGpu } from "vgpu-react";
+import { setToneCurve } from "@/app/document/edits";
+import { useDocument, useScene } from "@/app/document/provider";
 import { ExportButton } from "@/app/editor/export/export-button";
+import { HistoryControls } from "@/app/editor/history";
 import { useRenderer } from "@/app/editor/renderer/provider";
-import { useScene } from "@/app/scene";
 import ResizablePanel from "@/components/ui/resizable-panel";
 import { Histogram } from "@/features/histogram";
 import { createHistogram } from "@/features/histogram/histogram";
 import { ToneCurves } from "@/features/tone-curves/tone-curves";
+import { useEditGesture } from "@/hooks/use-edit-gesture";
 import AdjustmentControls from "./adjustment-controls";
 
 const histogramColors = ["#f25445", "#6bd175", "#5c8ffa"] as const;
@@ -19,9 +22,12 @@ function ToneCurvesPanel({
 }) {
 	const renderer = useRenderer();
 	const toneCurve = useScene((scene) => scene.toneCurve);
-	const setToneCurve = useScene((scene) => scene.setToneCurve);
+	const document = useDocument();
 	return (
-		<ToneCurves points={toneCurve} onChange={setToneCurve}>
+		<ToneCurves
+			points={toneCurve}
+			onChange={(points) => setToneCurve(document, points)}
+		>
 			<Histogram
 				histogram={histogram}
 				image={renderer.inputImage}
@@ -38,13 +44,17 @@ function ToneCurvesPanel({
 
 export function Sidebar() {
 	const gpu = useGpu();
+	const gesture = useEditGesture(useDocument().history);
 	const renderer = useRenderer();
 	const histogram = useMemo(() => createHistogram(gpu), [gpu]);
 	useEffect(() => () => histogram.dispose(), [histogram]);
 	return (
 		<ResizablePanel>
 			<div className="flex h-full flex-col divide-y divide-black">
-				<div className="min-h-0 flex-1 divide-y divide-black overflow-y-auto">
+				<div
+					{...gesture}
+					className="min-h-0 flex-1 divide-y divide-black overflow-y-auto"
+				>
 					<section className="bg-neutral-900 p-0.5 pb-0">
 						<Histogram
 							histogram={histogram}
@@ -59,6 +69,7 @@ export function Sidebar() {
 					<AdjustmentControls />
 					<ToneCurvesPanel histogram={histogram} />
 				</div>
+				<HistoryControls />
 				<ExportButton />
 			</div>
 		</ResizablePanel>

@@ -7,7 +7,8 @@ import {
 } from "react";
 import type { Target } from "vgpu";
 import { useGpu } from "vgpu-react";
-import { type Scene, useScene } from "@/app/scene";
+import { useDocument } from "@/app/document/provider";
+import type { Scene } from "@/app/scene";
 import { createRenderer } from "./renderer";
 
 const RendererContext = createContext<ReturnType<typeof createRenderer> | null>(
@@ -26,20 +27,18 @@ type RendererProviderProps = { source: Target; children: ReactNode };
 
 export function RendererProvider({ source, children }: RendererProviderProps) {
 	const gpu = useGpu();
+	const document = useDocument();
 	const renderer = useMemo(() => createRenderer(gpu, source), [gpu, source]);
 	useEffect(() => {
 		const render = (scene: Scene) => {
-			if (scene.source?.image !== source) {
-				return;
-			}
 			renderer.update(scene);
 		};
-		const unsubscribe = useScene.subscribe(render);
-		render(useScene.getState());
+		const unsubscribe = document.scene.subscribe(render);
+		render(document.scene.getState());
 		return () => {
 			unsubscribe();
 			renderer.dispose();
 		};
-	}, [renderer, source]);
+	}, [renderer, document]);
 	return <RendererContext value={renderer}>{children}</RendererContext>;
 }

@@ -1,11 +1,4 @@
-import type { Target } from "vgpu";
-import { create } from "zustand";
-import {
-	defaultCurve,
-	type ToneCurve,
-	validateCurve,
-} from "@/features/tone-curves/curve";
-
+import type { ToneCurve } from "@/features/tone-curves/curve";
 import type { Adjustments } from "@/lib/adjustments";
 
 export type { Adjustments } from "@/lib/adjustments";
@@ -36,33 +29,10 @@ export const adjustmentLimits: Adjustments = {
 	saturation: 100,
 };
 
-export type Source = { file: File; image?: Target; error?: string };
+/** Serializable document content. Image bytes and GPU resources live elsewhere. */
 export type Scene = {
-	source?: Source;
-	adjustments: Adjustments;
-	toneCurve: ToneCurve;
+	readonly size: readonly [number, number];
+	readonly source: string;
+	readonly adjustments: Readonly<Adjustments>;
+	readonly toneCurve: ToneCurve;
 };
-type SceneStore = Scene & {
-	setAdjustments: (change: Partial<Adjustments>) => void;
-	/** Ordered points in 0..1; endpoints follow the lower-left and upper-right edges. Omit to reset. */
-	setToneCurve: (toneCurve?: ToneCurve) => void;
-};
-
-export const useScene = create<SceneStore>((set, get) => ({
-	adjustments: { ...defaultAdjustments },
-	toneCurve: defaultCurve,
-	setAdjustments: (change) => {
-		const { source, adjustments } = get();
-		if (!source) {
-			throw new Error("Load an image before changing adjustments.");
-		}
-		set({ adjustments: { ...adjustments, ...change } });
-	},
-	setToneCurve: (toneCurve = defaultCurve) => {
-		if (!get().source) {
-			throw new Error("Load an image before changing the tone curve.");
-		}
-		validateCurve(toneCurve);
-		set({ toneCurve: toneCurve.map((point) => ({ ...point })) });
-	},
-}));

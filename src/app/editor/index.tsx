@@ -1,5 +1,6 @@
 import { Canvas } from "vgpu-react";
-import type { Source } from "@/app/scene";
+import { DocumentProvider } from "@/app/document/provider";
+import type { Workspace } from "@/app/workspace";
 import ResizablePanel from "@/components/ui/resizable-panel";
 import Spinner from "@/components/ui/spinner";
 import { usePanZoom } from "@/hooks/use-pan-zoom";
@@ -26,42 +27,48 @@ function ImageCanvas({ image }: WorkspaceProps) {
 	);
 }
 
-type EditorProps = { source: Source };
+type EditorProps = { state: ReturnType<Workspace["state"]["getState"]> };
 
-function LoadingStatus({ source }: EditorProps) {
-	if (!source.error) {
+function LoadingStatus({ state }: EditorProps) {
+	if (state.status !== "error") {
 		return <Spinner />;
 	}
 	return (
 		<p className="max-w-md text-center text-neutral-400">
-			Couldn't open {source.file.name}: {source.error}
+			Couldn't open {state.file}: {state.error}
 		</p>
 	);
 }
 
-function EditorContent({ source }: EditorProps) {
-	if (source.image) {
+function EditorContent({ state }: EditorProps) {
+	if (state.status === "ready") {
+		const { document } = state;
+		const image = document.resources.get(
+			document.scene.getState().source,
+		).image;
 		return (
-			<RendererProvider source={source.image}>
-				<ImageCanvas image={source.image} />
-				<Sidebar />
-			</RendererProvider>
+			<DocumentProvider value={document}>
+				<RendererProvider source={image}>
+					<ImageCanvas image={image} />
+					<Sidebar />
+				</RendererProvider>
+			</DocumentProvider>
 		);
 	}
 	return (
 		<>
 			<div className="grid flex-1 place-items-center">
-				<LoadingStatus source={source} />
+				<LoadingStatus state={state} />
 			</div>
 			<ResizablePanel />
 		</>
 	);
 }
 
-export default function Editor({ source }: EditorProps) {
+export default function Editor({ state }: EditorProps) {
 	return (
 		<main className="flex h-dvh flex-col md:flex-row">
-			<EditorContent source={source} />
+			<EditorContent state={state} />
 		</main>
 	);
 }
