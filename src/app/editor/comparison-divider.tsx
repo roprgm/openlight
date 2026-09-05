@@ -78,7 +78,7 @@ export function ComparisonDivider() {
 					stroke="currentColor"
 					strokeWidth="1.5"
 				>
-					<path d="m7 6-4 4 3 4m6-8 3 4-3 4" />
+					<path d="M8 6 4 10 8 14M12 6 16 10 12 14" />
 				</svg>
 			</span>
 		</div>
