@@ -7,7 +7,7 @@ export function ExportButton() {
 	return (
 		<div className="ml-auto">
 			<Button
-				className="flex h-8 items-center gap-2 rounded-md px-3 py-0 text-xs"
+				className="flex items-center gap-2"
 				onClick={() => dialog.current?.showModal()}
 			>
 				<svg

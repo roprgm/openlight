@@ -1,6 +1,6 @@
 import type { EditorDocument } from "@/app/document";
 import { setGeometry } from "@/app/document/edits";
-import type { Geometry } from "@/features/crop/geometry";
+import { changeGeometry, type Geometry } from "@/features/crop/geometry";
 
 export function beginCrop(document: EditorDocument) {
 	document.history.commit();
@@ -21,8 +21,12 @@ export function updateCrop(
 ) {
 	const crop = document.preview.getState().crop;
 	if (crop) {
+		const { image } = document.resources.get(document.scene.getState().source);
 		document.preview.setState({
-			crop: { geometry: { ...crop.geometry, ...change }, aspect },
+			crop: {
+				geometry: changeGeometry(crop.geometry, change, image.size),
+				aspect,
+			},
 		});
 	}
 }

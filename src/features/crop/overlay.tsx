@@ -1,13 +1,16 @@
-import { type PointerEvent, useEffect, useRef, useState } from "react";
+import { type PointerEvent, useRef } from "react";
 import type { View } from "@/hooks/use-pan-zoom";
-import { dragRect, type Rect } from "./geometry";
+import { dragRect, type Geometry, type Rect } from "./geometry";
+import { RotationArea } from "./rotation-area";
 
 type CropOverlayProps = {
 	size: readonly [number, number];
+	viewport: readonly [number, number];
 	view: View;
-	rect: Rect;
+	geometry: Geometry;
 	ratio: number | null;
-	onChange: (rect: Rect) => void;
+	onChange: (change: Partial<Geometry>) => void;
+	onPan: (delta: readonly [number, number]) => void;
 };
 const corners = [
 	{ handle: "nw", label: "top left", x: 0, y: 0 },
@@ -18,36 +21,30 @@ const corners = [
 
 export function CropOverlay({
 	size,
+	viewport,
 	view,
-	rect,
+	geometry,
 	ratio,
 	onChange,
+	onPan,
 }: CropOverlayProps) {
-	const ref = useRef<HTMLDivElement>(null);
+	const selection = useRef<HTMLDivElement>(null);
 	const drag = useRef<{
 		rect: Rect;
+		previous: Rect;
 		handle: string;
 		x: number;
 		y: number;
 	} | null>(null);
-	const [box, setBox] = useState([0, 0]);
 	const [width, height] = size;
-	useEffect(() => {
-		const element = ref.current;
-		if (!element) {
-			return;
-		}
-		const observer = new ResizeObserver(() => {
-			const scale = Math.min(
-				element.clientWidth / width,
-				element.clientHeight / height,
-				1 / devicePixelRatio,
-			);
-			setBox([width * scale, height * scale]);
-		});
-		observer.observe(element);
-		return () => observer.disconnect();
-	}, [width, height]);
+	const scale =
+		Math.min(viewport[0] / width, viewport[1] / height, 2 / devicePixelRatio) *
+		view.zoom;
+	const box = [width * scale, height * scale];
+	function move(next: Rect, previous: Rect) {
+		onPan([(previous.x - next.x) * box[0], (previous.y - next.y) * box[1]]);
+		onChange(next);
+	}
 	function handle(event: PointerEvent<HTMLDivElement>) {
 		if (event.button !== 0) {
 			return;
@@ -56,7 +53,8 @@ export function CropOverlay({
 		const corner =
 			event.target instanceof Element && event.target.closest("[data-handle]");
 		drag.current = {
-			rect,
+			rect: geometry,
+			previous: geometry,
 			handle: corner ? (corner.getAttribute("data-handle") ?? "move") : "move",
 			x: event.clientX,
 			y: event.clientY,
@@ -68,39 +66,50 @@ export function CropOverlay({
 		}
 	}
 	return (
-		<div ref={ref} className="pointer-events-none absolute inset-0">
+		<div className="pointer-events-none absolute inset-0">
+			<RotationArea
+				selection={selection}
+				angle={geometry.angle}
+				onChange={(angle) => onChange({ angle })}
+			/>
 			<div
 				className="absolute top-1/2 left-1/2 -translate-1/2"
 				style={{
-					width: box[0] * view.zoom,
-					height: box[1] * view.zoom,
+					width: box[0],
+					height: box[1],
 					marginLeft: view.pan[0],
 					marginTop: view.pan[1],
 				}}
 			>
 				<div
+					ref={selection}
 					role="application"
 					aria-label="Crop selection"
 					className="pointer-events-auto absolute cursor-move touch-none border border-white shadow-[0_0_0_9999px_#0009] outline-none focus-visible:ring-2 focus-visible:ring-white/50"
 					style={{
-						left: `${rect.x * 100}%`,
-						top: `${rect.y * 100}%`,
-						width: `${rect.width * 100}%`,
-						height: `${rect.height * 100}%`,
+						left: `${geometry.x * 100}%`,
+						top: `${geometry.y * 100}%`,
+						width: `${geometry.width * 100}%`,
+						height: `${geometry.height * 100}%`,
 					}}
 					onPointerDown={handle}
 					onPointerMove={(event) => {
 						const current = drag.current;
 						if (current) {
-							onChange(
-								dragRect(
-									current.rect,
-									current.handle,
-									(event.clientX - current.x) / (box[0] * view.zoom),
-									(event.clientY - current.y) / (box[1] * view.zoom),
-									ratio,
-								),
+							const sign = current.handle === "move" ? -1 : 1;
+							const next = dragRect(
+								current.rect,
+								current.handle,
+								(sign * (event.clientX - current.x)) / box[0],
+								(sign * (event.clientY - current.y)) / box[1],
+								ratio,
 							);
+							if (current.handle === "move") {
+								move(next, current.previous);
+							} else {
+								onChange(next);
+							}
+							current.previous = next;
 						}
 					}}
 					onPointerUp={() => {
@@ -128,16 +137,20 @@ export function CropOverlay({
 							event.target instanceof HTMLElement
 								? (event.target.dataset.handle ?? "move")
 								: "move";
-						const step = event.shiftKey ? 0.05 : 0.005;
-						onChange(
-							dragRect(
-								rect,
-								corner,
-								direction[0] * step,
-								direction[1] * step,
-								ratio,
-							),
+						const sign = corner === "move" ? -1 : 1;
+						const step = (event.shiftKey ? 0.05 : 0.005) * sign;
+						const next = dragRect(
+							geometry,
+							corner,
+							direction[0] * step,
+							direction[1] * step,
+							ratio,
 						);
+						if (corner === "move") {
+							move(next, geometry);
+						} else {
+							onChange(next);
+						}
 					}}
 				>
 					<button

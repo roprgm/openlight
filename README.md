@@ -96,18 +96,25 @@ Scripts can use `openlight.setPreview({ comparison: "split", split: 0.5 })` and
 
 ## Crop and rotate
 
-Use the crop icon or press **C**. Drag the corners to resize the crop, drag inside
-to move it, or use arrow keys on the focused selection or corner. The aspect selector
-starts locked to the current image ratio and offers common ratios or Free.
-The two rotation icons turn 90° left or right; Straighten adjusts from -45°
-to 45° and fills the frame automatically. Scroll to pan and use Ctrl/⌘ + scroll
-to zoom while cropping. Uncrop restores the full frame while
-keeping rotation; Reset restores the original geometry.
+Use the crop icon or press **C**. Drag corners to resize the crop or drag inside
+to move the image beneath the fixed frame. Arrow keys work on the focused frame
+or corner. The aspect selector starts locked to the current image ratio and
+offers common ratios or Free.
 
-Apply commits the entire crop session as one undo step. Escape or Cancel discards
-the draft. Enter applies when focus is on the canvas. The source image stays intact,
-so reopening the tool can recover cropped areas. Preview, comparison, histograms,
-and export use the same geometry; exported dimensions follow the applied crop.
+The rotation icons turn 90° left or right. Straighten adjusts from -45° to 45°
+around the crop center and fills the frame automatically. Drag at least 50 screen
+pixels outside the crop border to straighten directly. Scroll to pan and use
+Ctrl/⌘ + scroll to zoom.
+
+Reopening a crop keeps its scale and position, revealing the surrounding source.
+Loading an image or applying a crop fits the result in the canvas, up to 200%.
+Uncrop restores the full frame while keeping rotation; Reset restores the original
+geometry.
+
+Apply or Enter commits the session as one undo step, including any typed value.
+Escape or Cancel discards the draft. The source stays intact so reopening the tool
+can recover cropped areas. Preview, comparison, histograms, and export use the same
+geometry; exported dimensions follow the applied crop.
 
 `openlight.setGeometry({ x: 0.1, y: 0.1, width: 0.8, height: 0.8, rotation: 90, angle: 2 })`
 applies geometry imperatively. Rectangle coordinates are fractions of the oriented

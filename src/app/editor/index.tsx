@@ -1,46 +1,14 @@
-import { Canvas } from "vgpu-react";
-import { useStore } from "zustand";
-import {
-	DocumentProvider,
-	useDocument,
-	useScene,
-} from "@/app/document/provider";
+import { DocumentProvider, useScene } from "@/app/document/provider";
 import type { Workspace } from "@/app/workspace";
 import ResizablePanel from "@/components/ui/resizable-panel";
 import Spinner from "@/components/ui/spinner";
-import { usePanZoom } from "@/hooks/use-pan-zoom";
-import { ComparisonDivider } from "./comparison-divider";
-import { CropCanvas } from "./crop/canvas";
-import { CanvasRenderer } from "./renderer";
+import { EditorCanvas } from "./canvas";
 import { RendererProvider } from "./renderer/provider";
 import { Sidebar } from "./sidebar";
 
-type WorkspaceProps = { size: readonly [number, number] };
-
-function ImageCanvas({ size }: WorkspaceProps) {
-	const { ref, view, handlers } = usePanZoom(size);
-
-	return (
-		<div
-			className="relative grid min-h-0 min-w-0 flex-1 overflow-hidden cursor-grab touch-none place-items-center active:cursor-grabbing"
-			ref={ref}
-			{...handlers}
-		>
-			<Canvas className="size-full min-h-0">
-				<CanvasRenderer view={view} />
-			</Canvas>
-			<ComparisonDivider />
-		</div>
-	);
-}
-
 function DocumentCanvas() {
-	const crop = useStore(useDocument().preview, (state) => state.crop);
 	const size = useScene((scene) => scene.size);
-	if (crop) {
-		return <CropCanvas />;
-	}
-	return <ImageCanvas key={size.join("x")} size={size} />;
+	return <EditorCanvas key={size.join("x")} size={size} />;
 }
 
 type EditorProps = { state: ReturnType<Workspace["state"]["getState"]> };
@@ -63,7 +31,7 @@ function EditorContent({ state }: EditorProps) {
 			document.scene.getState().source,
 		).image;
 		return (
-			<DocumentProvider value={document}>
+			<DocumentProvider key={document.id} value={document}>
 				<RendererProvider source={image}>
 					<DocumentCanvas />
 					<Sidebar />

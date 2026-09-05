@@ -5,6 +5,7 @@ struct Params {
   cosine: f32,
   sine: f32,
   scale: f32,
+  offset: vec2f,
 }
 @group(0) @binding(0) var<uniform> params: Params;
 @group(0) @binding(1) var source: texture_2d<f32>;
@@ -14,7 +15,7 @@ struct Params {
   let position = (params.rect.xy + uv * params.rect.zw - 0.5) * params.size / params.scale;
   // Inverse rotation maps output pixels back into the unmodified source.
   var p = vec2f(params.cosine * position.x + params.sine * position.y,
-                -params.sine * position.x + params.cosine * position.y) / params.size + 0.5;
+                -params.sine * position.x + params.cosine * position.y) / params.size + 0.5 + params.offset;
   switch params.rotation {
     case 1u: { p = vec2f(p.y, 1.0 - p.x); }
     case 2u: { p = 1.0 - p; }

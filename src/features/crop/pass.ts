@@ -35,22 +35,21 @@ export function createCrop(gpu: Gpu) {
 			output ??= target(gpu, { size, format: source.format });
 			output.resize(size);
 			const angle = (geometry.angle * Math.PI) / 180;
-			const [width, height] = orientedSize(source.size, geometry.rotation);
+			const fullSize = orientedSize(source.size, geometry.rotation);
 			const cosine = Math.cos(angle);
 			const sine = Math.sin(angle);
-			const scale =
-				cosine + Math.abs(sine) * Math.max(width / height, height / width);
 			frame.pass(
 				output,
 				apply.set({
 					source: source.color,
 					params: {
 						rect: [geometry.x, geometry.y, geometry.width, geometry.height],
-						size: [width, height],
+						size: fullSize,
 						rotation: geometry.rotation / 90,
 						cosine,
 						sine,
-						scale,
+						scale: geometry.scale,
+						offset: [geometry.offsetX, geometry.offsetY],
 					},
 				}),
 			);

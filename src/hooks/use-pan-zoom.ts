@@ -22,8 +22,8 @@ function measureGesture(points: Iterable<Point>) {
 }
 
 /** Keeps the content point under `focal` fixed while changing zoom. */
-function zoomAt(view: View, focal: Point, zoom: number): View {
-	const ratio = Math.min(Math.max(zoom, 1), maxZoom) / view.zoom;
+function zoomAt(view: View, focal: Point, zoom: number, minimum = 1): View {
+	const ratio = Math.min(Math.max(zoom, minimum), maxZoom) / view.zoom;
 	return {
 		...view,
 		zoom: view.zoom * ratio,
@@ -40,7 +40,7 @@ function clamp(view: View, content: Size, viewport: Size): View {
 		Math.min(
 			viewport[0] / content[0],
 			viewport[1] / content[1],
-			1 / devicePixelRatio,
+			2 / devicePixelRatio,
 		) * view.zoom;
 	const axis = (i: 0 | 1) => {
 		const room = Math.max(0, (content[i] * scale - viewport[i]) / 2);
@@ -54,23 +54,27 @@ function clamp(view: View, content: Size, viewport: Size): View {
 
 /**
  * Pan and zoom over `content` inside the element given `ref`.
- * Zoom 1 is the initial fit: contain, but no larger than real size. `pan` is in CSS px from the viewport center.
+ * Zoom 1 is the initial fit: contain, but capped at 200%. `pan` is in CSS px from the viewport center.
  * Wheel/drag pans, ctrl/cmd+wheel zooms at the cursor, two pointers pinch and pan, double-click resets.
  */
-export function usePanZoom(content?: Size) {
+export function usePanZoom(content?: Size, { constrain = true } = {}) {
 	const ref = useRef<HTMLDivElement>(null);
 	const pointers = useRef(new Map<number, Point>());
 	const [view, setView] = useState(fit);
+	const [viewport, setViewport] = useState<Point>([0, 0]);
 
 	const update = useCallback(
 		(next: (view: View) => View) => {
 			const element = ref.current;
 			if (element && content) {
 				const viewport: Size = [element.clientWidth, element.clientHeight];
-				setView((view) => clamp(next(view), content, viewport));
+				setView((view) => {
+					const result = next(view);
+					return constrain ? clamp(result, content, viewport) : result;
+				});
 			}
 		},
-		[content],
+		[content, constrain],
 	);
 
 	useEffect(() => {
@@ -78,7 +82,10 @@ export function usePanZoom(content?: Size) {
 		if (!element) {
 			return;
 		}
-		const observer = new ResizeObserver(() => update((view) => view));
+		const observer = new ResizeObserver(() => {
+			setViewport([element.clientWidth, element.clientHeight]);
+			update((view) => view);
+		});
 		observer.observe(element);
 		const wheel = (event: WheelEvent) => {
 			event.preventDefault();
@@ -89,7 +96,12 @@ export function usePanZoom(content?: Size) {
 			];
 			update((view) => {
 				if (event.ctrlKey || event.metaKey) {
-					return zoomAt(view, focal, view.zoom * Math.exp(-event.deltaY / 100));
+					return zoomAt(
+						view,
+						focal,
+						view.zoom * Math.exp(-event.deltaY / 100),
+						constrain ? 1 : 0.1,
+					);
 				}
 				return {
 					...view,
@@ -102,7 +114,7 @@ export function usePanZoom(content?: Size) {
 			observer.disconnect();
 			element.removeEventListener("wheel", wheel);
 		};
-	}, [update]);
+	}, [update, constrain]);
 
 	const release = (event: PointerEvent<HTMLElement>) =>
 		pointers.current.delete(event.pointerId);
@@ -131,7 +143,12 @@ export function usePanZoom(content?: Size) {
 			const ratio =
 				previous.distance > 0 ? next.distance / previous.distance : 1;
 			update((view) => {
-				const zoomed = zoomAt(view, focal, view.zoom * ratio);
+				const zoomed = zoomAt(
+					view,
+					focal,
+					view.zoom * ratio,
+					constrain ? 1 : 0.1,
+				);
 				return {
 					...zoomed,
 					pan: [
@@ -147,5 +164,10 @@ export function usePanZoom(content?: Size) {
 		onDoubleClick: () => setView(fit),
 	};
 
-	return { ref, view, handlers };
+	const panBy = (delta: Point) =>
+		update((view) => ({
+			...view,
+			pan: [view.pan[0] + delta[0], view.pan[1] + delta[1]],
+		}));
+	return { ref, view, viewport, handlers, panBy };
 }

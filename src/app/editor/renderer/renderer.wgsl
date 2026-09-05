@@ -17,8 +17,8 @@ struct Params {
 const background = vec3f(0.09);
 
 @fragment fn fs_main(@location(0) uv: vec2f) -> @location(0) vec4f {
-  // Zoom 1 fits the image (contain, capped at 1:1), scaled about the center, then shifted by pan.
-  let scale = min(min(params.size.x / params.sourceSize.x, params.size.y / params.sourceSize.y), 1.0) * params.zoom;
+  // Zoom 1 fits the image (contain, capped at 200%), scaled about the center, then shifted by pan.
+  let scale = min(min(params.size.x / params.sourceSize.x, params.size.y / params.sourceSize.y), 2.0) * params.zoom;
   let p = ((uv - 0.5) * params.size - params.pan) / (params.sourceSize * scale) + 0.5;
   let inside = all(p >= vec2f(0.0)) && all(p <= vec2f(1.0));
   var sample = textureSampleLevel(source, sourceSampler, p, 0.0);

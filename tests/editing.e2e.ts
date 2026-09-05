@@ -372,6 +372,28 @@ test("edit a photo, inspect the preview and histograms, undo changes, and export
 		await page
 			.getByRole("button", { name: "Move crop" })
 			.press("Shift+ArrowRight");
+		for (const gap of [49, 51]) {
+			const frame = await selection.boundingBox();
+			if (!frame) throw new Error("Missing crop frame.");
+			const x = frame.x + frame.width + gap;
+			const y = frame.y + frame.height / 2;
+			await page.mouse.move(x, y);
+			await page.mouse.down();
+			await page.mouse.move(
+				x,
+				y + (frame.width / 2 + gap) * Math.tan(Math.PI / 6),
+				{ steps: 8 },
+			);
+			await page.mouse.up();
+			const geometry = (await page.evaluate(() => window.openlight.getState()))
+				.preview?.crop?.geometry;
+			expect(geometry?.angle).toBeCloseTo(gap < 50 ? 0 : 30, 0);
+			await page.mouse.move(x + 20, y);
+			expect(
+				(await page.evaluate(() => window.openlight.getState())).preview?.crop
+					?.geometry,
+			).toEqual(geometry);
+		}
 		expect((await readImage(page)).size).toEqual([1200, 800]);
 		await page.keyboard.press("Escape");
 		expect(
@@ -385,7 +407,8 @@ test("edit a photo, inspect the preview and histograms, undo changes, and export
 		await panel
 			.getByRole("combobox", { name: "Aspect ratio" })
 			.selectOption({ label: "Square" });
-		await panel.getByRole("button", { name: "Apply crop" }).click();
+		await corner.press("Enter");
+		await expect(panel).toBeHidden();
 		expect(await readImage(page)).toEqual({
 			size: [800, 800],
 			center: [128, 128, 128, 255],
@@ -405,7 +428,7 @@ test("edit a photo, inspect the preview and histograms, undo changes, and export
 		await panel
 			.getByRole("button", { name: "Rotate counterclockwise" })
 			.click();
-		await panel.getByRole("button", { name: "Apply crop" }).click();
+		await page.keyboard.press("Enter");
 		expect(await readImage(page)).toEqual({
 			size: [800, 1200],
 			center: [128, 128, 128, 255],
@@ -428,8 +451,7 @@ test("edit a photo, inspect the preview and histograms, undo changes, and export
 		});
 		await angle.fill("30");
 		await angle.press("Enter");
-		await expect(panel).toBeVisible();
-		await panel.getByRole("button", { name: "Apply crop" }).click();
+		await expect(panel).toBeHidden();
 		expect(await readImage(page)).toEqual({
 			size: [1200, 800],
 			center: [128, 128, 128, 255],
@@ -439,6 +461,87 @@ test("edit a photo, inspect the preview and histograms, undo changes, and export
 		await panel.getByRole("button", { name: "Reset", exact: true }).click();
 		await panel.getByRole("button", { name: "Apply crop" }).click();
 		await expect.poll(() => canvas.screenshot()).toEqual(original);
+	});
+
+	await test.step("cropping preserves framing, moves the image, and rotates around the crop center", async () => {
+		await page.evaluate(() =>
+			window.openlight.setGeometry({ x: 0.2, y: 0.1, width: 0.2, height: 0.3 }),
+		);
+		const viewport = await canvas.boundingBox();
+		if (!viewport) throw new Error("Missing canvas.");
+		const open = page.getByRole("button", { name: "Crop and rotate" });
+		await open.click();
+		const selection = page.getByRole("application", { name: "Crop selection" });
+		const bounds = await selection.boundingBox();
+		if (!bounds) throw new Error("Missing crop selection.");
+		// A 240px crop starts at 200%, centered exactly where it was before opening the tool.
+		expect(bounds.width).toBeCloseTo(480, 0);
+		expect(bounds.height).toBeCloseTo(480, 0);
+		expect(bounds.x).toBeCloseTo(viewport.x + (viewport.width - 480) / 2, 0);
+		expect(bounds.y).toBeCloseTo(viewport.y + (viewport.height - 480) / 2, 0);
+		const sample = {
+			x: bounds.x + 40,
+			y: bounds.y + bounds.height / 2,
+			width: 1,
+			height: 1,
+		};
+		expect(
+			(await readImage(page, await page.screenshot({ clip: sample }))).center,
+		).toEqual([48, 80, 128, 255]);
+		const x = bounds.x + bounds.width / 2;
+		const y = bounds.y + bounds.height / 2;
+		await page.mouse.move(x, y);
+		await page.mouse.down();
+		await page.mouse.move(x + 80, y + 30, { steps: 8 });
+		await page.mouse.up();
+		expect(await selection.boundingBox()).toEqual(bounds);
+		expect(
+			(await readImage(page, await page.screenshot({ clip: sample }))).center,
+		).toEqual([128, 128, 128, 255]);
+		await page.mouse.move(bounds.x + bounds.width + 60, y);
+		await page.mouse.down();
+		await page.mouse.move(
+			bounds.x + bounds.width + 60,
+			y + (bounds.width / 2 + 60) * Math.tan(Math.PI / 6),
+			{ steps: 8 },
+		);
+		await page.mouse.up();
+		expect(await selection.boundingBox()).toEqual(bounds);
+		expect(
+			(await page.evaluate(() => window.openlight.getState())).preview?.crop
+				?.geometry.angle,
+		).toBeCloseTo(30, 0);
+		const center = { x, y, width: 1, height: 1 };
+		expect(
+			(await readImage(page, await page.screenshot({ clip: center }))).center,
+		).toEqual([48, 80, 128, 255]);
+		await page.keyboard.press("Enter");
+		expect((await readImage(page)).center).toEqual([48, 80, 128, 255]);
+		await canvas.hover();
+		await page.keyboard.down("Control");
+		await page.mouse.wheel(0, -Math.log(2.5) * 100);
+		await page.keyboard.up("Control");
+		await page.mouse.wheel(30, 20);
+		const before = (
+			await readImage(page, await page.screenshot({ clip: center }))
+		).center;
+		await open.click();
+		const zoomed = await selection.boundingBox();
+		if (!zoomed) throw new Error("Missing zoomed selection.");
+		expect(zoomed.width).toBeCloseTo(1200, 0);
+		expect(zoomed.x).toBeCloseTo(
+			viewport.x + (viewport.width - 1200) / 2 - 30,
+			0,
+		);
+		expect(zoomed.y).toBeCloseTo(
+			viewport.y + (viewport.height - 1200) / 2 - 20,
+			0,
+		);
+		expect(
+			(await readImage(page, await page.screenshot({ clip: center }))).center,
+		).toEqual(before);
+		await page.keyboard.press("Escape");
+		await page.evaluate(() => window.openlight.setGeometry());
 	});
 
 	await test.step("export retains edits and original dimensions independently of viewport zoom", async () => {

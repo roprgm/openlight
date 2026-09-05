@@ -101,7 +101,7 @@ export function ExportSettings({ onClose }: { onClose: () => void }) {
 					</p>
 				)}
 			</div>
-			<footer className="flex justify-end gap-2 bg-neutral-900/40 px-4 py-3">
+			<footer className="flex justify-end gap-2 bg-neutral-900/40 p-3">
 				<Button variant="ghost" onClick={onClose}>
 					Cancel
 				</Button>

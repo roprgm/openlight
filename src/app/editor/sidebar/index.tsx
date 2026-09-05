@@ -3,12 +3,18 @@ import { useGpu } from "vgpu-react";
 import { useStore } from "zustand";
 import { setToneCurve } from "@/app/document/edits";
 import { useDocument, useScene } from "@/app/document/provider";
-import { CropButton } from "@/app/editor/crop/button";
-import { CropPanel } from "@/app/editor/crop/panel";
+import {
+	applyCrop,
+	beginCrop,
+	cancelCrop,
+	updateCrop,
+} from "@/app/editor/crop";
 import { ExportButton } from "@/app/editor/export/export-button";
 import { HistoryControls } from "@/app/editor/history";
 import { useRenderer } from "@/app/editor/renderer/provider";
 import ResizablePanel from "@/components/ui/resizable-panel";
+import { CropButton } from "@/features/crop/button";
+import { CropPanel } from "@/features/crop/panel";
 import { Histogram } from "@/features/histogram";
 import { createHistogram } from "@/features/histogram/histogram";
 import { ToneCurves } from "@/features/tone-curves/tone-curves";
@@ -58,7 +64,15 @@ export function Sidebar() {
 	if (crop) {
 		return (
 			<ResizablePanel>
-				<CropPanel />
+				<CropPanel
+					crop={crop}
+					size={
+						document.resources.get(document.scene.getState().source).image.size
+					}
+					onChange={(change, aspect) => updateCrop(document, change, aspect)}
+					onApply={() => applyCrop(document)}
+					onCancel={() => cancelCrop(document)}
+				/>
 			</ResizablePanel>
 		);
 	}
@@ -84,10 +98,10 @@ export function Sidebar() {
 					<AdjustmentControls />
 					<ToneCurvesPanel histogram={histogram} />
 				</div>
-				<div className="flex shrink-0 items-center gap-2 bg-neutral-900 px-2 py-1.5">
+				<div className="flex shrink-0 items-center gap-2 bg-neutral-900 p-3">
 					<HistoryControls />
 					<ComparisonControl />
-					<CropButton />
+					<CropButton onClick={() => beginCrop(document)} />
 					<ExportButton />
 				</div>
 			</div>

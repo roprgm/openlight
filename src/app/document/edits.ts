@@ -1,9 +1,9 @@
 import { type Adjustments, adjustmentLimits } from "@/app/scene";
 import {
+	changeGeometry,
 	cropSize,
 	defaultGeometry,
 	type Geometry,
-	validateGeometry,
 } from "@/features/crop/geometry";
 import {
 	defaultCurve,
@@ -47,8 +47,7 @@ export function setGeometry(
 	change: Partial<Geometry> = defaultGeometry,
 ) {
 	const scene = document.scene.getState();
-	const geometry = { ...scene.geometry, ...change };
-	validateGeometry(geometry);
 	const { image } = document.resources.get(scene.source);
+	const geometry = changeGeometry(scene.geometry, change, image.size);
 	document.edit({ ...scene, geometry, size: cropSize(image.size, geometry) });
 }

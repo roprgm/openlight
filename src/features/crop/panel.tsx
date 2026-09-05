@@ -1,18 +1,17 @@
 import { useEffect } from "react";
-import { useStore } from "zustand";
-import { useDocument } from "@/app/document/provider";
 import Button from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
 import { Slider } from "@/components/ui/slider";
 import {
+	type CropDraft,
+	changeGeometry,
 	cropSize,
 	defaultGeometry,
 	fitAspect,
-	fullRect,
+	type Geometry,
 	orientedSize,
 	rotateCrop,
-} from "@/features/crop/geometry";
-import { applyCrop, cancelCrop, updateCrop } from "./actions";
+} from "./geometry";
 
 const rotations = [
 	{ direction: -1, label: "Rotate counterclockwise", transform: "" },
@@ -23,36 +22,41 @@ const rotations = [
 	},
 ] as const;
 
-export function CropPanel() {
-	const document = useDocument();
-	const crop = useStore(document.preview, (state) => state.crop);
+type CropPanelProps = {
+	crop: CropDraft;
+	size: readonly number[];
+	onChange: (change: Partial<Geometry>, aspect?: number | null) => void;
+	onApply: () => void;
+	onCancel: () => void;
+};
+
+export function CropPanel({
+	crop,
+	size,
+	onChange,
+	onApply,
+	onCancel,
+}: CropPanelProps) {
 	useEffect(() => {
 		function keyDown(event: KeyboardEvent) {
+			if (event.isComposing || event.repeat) {
+				return;
+			}
 			if (event.key === "Escape") {
 				event.preventDefault();
-				cancelCrop(document);
+				onCancel();
 			}
-			if (
-				event.key === "Enter" &&
-				!(
-					event.target instanceof HTMLElement &&
-					event.target.closest("input, select, button")
-				)
-			) {
+			if (event.key === "Enter") {
 				event.preventDefault();
-				applyCrop(document);
+				onApply();
 			}
 		}
 		window.addEventListener("keydown", keyDown);
 		return () => window.removeEventListener("keydown", keyDown);
-	}, [document]);
-	if (!crop) {
-		return null;
-	}
+	}, [onApply, onCancel]);
 	const { geometry, aspect } = crop;
-	const source = document.resources.get(document.scene.getState().source).image;
-	const [width, height] = orientedSize(source.size, geometry.rotation);
-	const [outputWidth, outputHeight] = cropSize(source.size, geometry);
+	const [width, height] = orientedSize(size, geometry.rotation);
+	const [outputWidth, outputHeight] = cropSize(size, geometry);
 	const customAspect =
 		aspect !== null &&
 		![
@@ -72,7 +76,7 @@ export function CropPanel() {
 		const rect = ratio
 			? fitAspect(geometry, (ratio * height) / width)
 			: geometry;
-		updateCrop(document, rect, ratio);
+		onChange(rect, ratio);
 	}
 	return (
 		<section
@@ -85,13 +89,7 @@ export function CropPanel() {
 					<Button
 						variant="ghost"
 						className="px-2 py-1 text-xs"
-						onClick={() =>
-							updateCrop(
-								document,
-								defaultGeometry,
-								source.size[0] / source.size[1],
-							)
-						}
+						onClick={() => onChange(defaultGeometry, size[0] / size[1])}
 					>
 						Reset
 					</Button>
@@ -141,11 +139,7 @@ export function CropPanel() {
 							title={`${label} (90°)`}
 							className="flex size-8 items-center justify-center rounded-md p-0"
 							onClick={() =>
-								updateCrop(
-									document,
-									rotateCrop(geometry, direction),
-									aspect && 1 / aspect,
-								)
+								onChange(rotateCrop(geometry, direction), aspect && 1 / aspect)
 							}
 						>
 							<svg
@@ -165,7 +159,16 @@ export function CropPanel() {
 					<Button
 						variant="ghost"
 						className="ml-auto py-1.5 text-xs"
-						onClick={() => updateCrop(document, fullRect, width / height)}
+						onClick={() =>
+							onChange(
+								changeGeometry(
+									{ ...defaultGeometry, rotation: geometry.rotation },
+									{ angle: geometry.angle },
+									size,
+								),
+								width / height,
+							)
+						}
 					>
 						Uncrop
 					</Button>
@@ -177,11 +180,11 @@ export function CropPanel() {
 					step={0.1}
 					value={geometry.angle}
 					defaultValue={0}
-					onChange={(angle) => updateCrop(document, { angle })}
+					onChange={(angle) => onChange({ angle })}
 				/>
 				<p className="text-xs text-neutral-500">
-					Drag corners to crop. Drag inside to reposition. Scroll to pan; Ctrl/⌘
-					+ scroll to zoom.
+					Drag corners to crop, inside to move the image, or well outside to
+					straighten. Scroll to pan; Ctrl/⌘ + scroll to zoom. Enter to apply.
 				</p>
 				<p className="text-xs tabular-nums text-neutral-400">
 					{outputWidth} × {outputHeight} px
@@ -191,16 +194,11 @@ export function CropPanel() {
 				<Button
 					variant="ghost"
 					className="px-3 py-1.5 text-xs"
-					onClick={() => cancelCrop(document)}
+					onClick={onCancel}
 				>
 					Cancel
 				</Button>
-				<Button
-					className="px-4 py-1.5 text-xs"
-					onClick={() => applyCrop(document)}
-				>
-					Apply crop
-				</Button>
+				<Button onClick={onApply}>Apply crop</Button>
 			</div>
 		</section>
 	);

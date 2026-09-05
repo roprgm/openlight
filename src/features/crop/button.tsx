@@ -1,10 +1,7 @@
 import { useEffect } from "react";
-import { useDocument } from "@/app/document/provider";
 import Button from "@/components/ui/button";
-import { beginCrop } from "./actions";
 
-export function CropButton() {
-	const document = useDocument();
+export function CropButton({ onClick }: { onClick: () => void }) {
 	useEffect(() => {
 		function keyDown(event: KeyboardEvent) {
 			if (
@@ -24,18 +21,18 @@ export function CropButton() {
 				return;
 			}
 			event.preventDefault();
-			beginCrop(document);
+			onClick();
 		}
 		window.addEventListener("keydown", keyDown);
 		return () => window.removeEventListener("keydown", keyDown);
-	}, [document]);
+	}, [onClick]);
 	return (
 		<Button
 			variant="ghost"
 			aria-label="Crop and rotate"
 			title="Crop and rotate (C)"
 			className="flex size-8 items-center justify-center rounded-md p-0"
-			onClick={() => beginCrop(document)}
+			onClick={onClick}
 		>
 			<svg
 				aria-hidden="true"

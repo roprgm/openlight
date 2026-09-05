@@ -1,12 +1,16 @@
 import { createStore } from "zustand/vanilla";
 import { shallow } from "zustand/vanilla/shallow";
 import type { Scene } from "@/app/scene";
-import { defaultGeometry, type Geometry } from "@/features/crop/geometry";
+import {
+	type CropDraft,
+	defaultGeometry,
+	type Geometry,
+} from "@/features/crop/geometry";
 import { createHistory } from "@/lib/history";
 import { createResources } from "./resources";
 
 export type Preview = {
-	crop: { geometry: Geometry; aspect: number | null } | null;
+	crop: CropDraft | null;
 	comparison: "edited" | "original" | "split";
 	split: number;
 	shadows: boolean;
