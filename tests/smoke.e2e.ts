@@ -1,14 +1,6 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./fixtures";
 
 test("app opens without crashing", async ({ page }) => {
-	const errors: string[] = [];
-	page.on("pageerror", (error) => errors.push(error.message));
-	page.on("console", (message) => {
-		if (message.type() === "error") {
-			errors.push(message.text());
-		}
-	});
-
 	await page.goto("/");
 	await expect(page.getByRole("button", { name: "Open image" })).toBeVisible();
 	await page.evaluate(
@@ -17,19 +9,11 @@ test("app opens without crashing", async ({ page }) => {
 				requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
 			),
 	);
-	expect(errors, errors.join("\n")).toEqual([]);
 });
 
 test("browser actions load, adjust, reset, and report failures", async ({
 	page,
 }) => {
-	const errors: string[] = [];
-	page.on("pageerror", (error) => errors.push(error.message));
-	page.on("console", (message) => {
-		if (message.type() === "error") {
-			errors.push(message.text());
-		}
-	});
 	await page.goto("/");
 	await page.waitForFunction(() => window.openlight);
 	await page.evaluate(() => {
@@ -156,5 +140,4 @@ test("browser actions load, adjust, reset, and report failures", async ({
 		blacks: 0,
 	});
 	await expect.poll(() => canvas.screenshot()).toEqual(before);
-	expect(errors).toEqual([]);
 });

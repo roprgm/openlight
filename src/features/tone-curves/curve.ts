@@ -17,12 +17,9 @@ export function validateCurve(points: ToneCurve) {
 	for (const [index, point] of points.entries()) {
 		if (
 			!point ||
-			!Number.isFinite(point.x) ||
-			!Number.isFinite(point.y) ||
-			point.x < 0 ||
-			point.x > 1 ||
-			point.y < 0 ||
-			point.y > 1
+			![point.x, point.y].every(
+				(value) => Number.isFinite(value) && value >= 0 && value <= 1,
+			)
 		) {
 			throw new Error(
 				"Curve coordinates must be finite numbers between 0 and 1.",

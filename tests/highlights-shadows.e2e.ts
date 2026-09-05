@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./fixtures";
 
 function linear(value: number) {
 	const encoded = value / 255;
@@ -10,11 +10,6 @@ function linear(value: number) {
 test("highlights preserve ramps, compose with preparation, and reset", async ({
 	page,
 }) => {
-	const errors: string[] = [];
-	page.on("pageerror", (error) => errors.push(error.message));
-	page.on("console", (message) => {
-		if (message.type() === "error") errors.push(message.text());
-	});
 	await page.goto("/");
 	await page.waitForFunction(() => window.openlight);
 	const result = await page.evaluate(async () => {
@@ -163,5 +158,4 @@ test("highlights preserve ramps, compose with preparation, and reset", async ({
 			),
 		).toBeLessThan(0.01);
 	}
-	expect(errors).toEqual([]);
 });

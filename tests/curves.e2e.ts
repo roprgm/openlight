@@ -1,5 +1,6 @@
-import { expect, type Page, test } from "@playwright/test";
+import type { Page } from "@playwright/test";
 import { interpolatePchip } from "@/lib/math";
+import { expect, test } from "./fixtures";
 
 async function centerPixel(page: Page) {
 	const screenshot = await page.locator("canvas").screenshot();
@@ -161,13 +162,6 @@ test("curve commands reject invalid edits, reset, and start fresh for another im
 test("curves render after adjustments and resetting restores the preview", async ({
 	page,
 }) => {
-	const errors: string[] = [];
-	page.on("pageerror", (error) => errors.push(error.message));
-	page.on("console", (message) => {
-		if (message.type() === "error") {
-			errors.push(message.text());
-		}
-	});
 	await page.goto("/");
 	await page.waitForFunction(() => window.openlight);
 	await page.evaluate(() =>
@@ -213,19 +207,11 @@ test("curves render after adjustments and resetting restores the preview", async
 	await expect
 		.poll(() => page.locator("canvas").screenshot())
 		.toEqual(original);
-	expect(errors).toEqual([]);
 });
 
 test("the curve panel edits points over a combined input histogram", async ({
 	page,
 }) => {
-	const errors: string[] = [];
-	page.on("pageerror", (error) => errors.push(error.message));
-	page.on("console", (message) => {
-		if (message.type() === "error") {
-			errors.push(message.text());
-		}
-	});
 	await page.goto("/");
 	await page.waitForFunction(() => window.openlight);
 	await page.evaluate(() =>
@@ -339,7 +325,6 @@ test("the curve panel edits points over a combined input histogram", async ({
 	await expect.poll(() => centerPixel(page)).toEqual([128, 128, 128, 255]);
 	await page.evaluate(() => window.openlight.setAdjustments({ exposure: -1 }));
 	await expect(input).not.toHaveAttribute("points", inputBefore ?? "");
-	expect(errors).toEqual([]);
 });
 
 test("endpoints follow the edges, remap black and white, and reset on double-click", async ({

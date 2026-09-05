@@ -118,10 +118,7 @@ export function Graph({ points, onChange }: GraphProps) {
 		const direction = directions[event.key];
 		if (direction) {
 			event.preventDefault();
-			let step = 0.001;
-			if (event.shiftKey) {
-				step = 0.01;
-			}
+			const step = event.shiftKey ? 0.01 : 0.001;
 			move(selected, {
 				x: points[selected].x + direction.x * step,
 				y: points[selected].y + direction.y * step,

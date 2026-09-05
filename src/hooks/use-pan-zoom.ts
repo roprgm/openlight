@@ -87,14 +87,15 @@ export function usePanZoom(content?: Size) {
 				event.clientX - left - width / 2,
 				event.clientY - top - height / 2,
 			];
-			update((view) =>
-				event.ctrlKey || event.metaKey
-					? zoomAt(view, focal, view.zoom * Math.exp(-event.deltaY / 100))
-					: {
-							...view,
-							pan: [view.pan[0] - event.deltaX, view.pan[1] - event.deltaY],
-						},
-			);
+			update((view) => {
+				if (event.ctrlKey || event.metaKey) {
+					return zoomAt(view, focal, view.zoom * Math.exp(-event.deltaY / 100));
+				}
+				return {
+					...view,
+					pan: [view.pan[0] - event.deltaX, view.pan[1] - event.deltaY],
+				};
+			});
 		};
 		element.addEventListener("wheel", wheel, { passive: false });
 		return () => {

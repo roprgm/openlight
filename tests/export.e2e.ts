@@ -1,14 +1,9 @@
 import { readFile } from "node:fs/promises";
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./fixtures";
 
 test("exports full-resolution PNGs with current edits through the API and button", async ({
 	page,
 }) => {
-	const errors: string[] = [];
-	page.on("pageerror", (error) => errors.push(error.message));
-	page.on("console", (message) => {
-		if (message.type() === "error") errors.push(message.text());
-	});
 	await page.goto("/");
 	await page.waitForFunction(() => window.openlight);
 	await page.evaluate(async () => {
@@ -86,7 +81,6 @@ test("exports full-resolution PNGs with current edits through the API and button
 	expect(pixels.center[0]).toBeLessThan(255);
 	expect(pixels.center[3]).toBe(255);
 	await expect(button).toBeEnabled();
-	expect(errors).toEqual([]);
 });
 
 test("export dialog selects JPEG quality, preserves settings, and dismisses", async ({

@@ -1,13 +1,8 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./fixtures";
 
 test("black and white points preserve midgray, clip or lift endpoints, and reset", async ({
 	page,
 }) => {
-	const errors: string[] = [];
-	page.on("pageerror", (error) => errors.push(error.message));
-	page.on("console", (message) => {
-		if (message.type() === "error") errors.push(message.text());
-	});
 	await page.goto("/");
 	await page.waitForFunction(() => window.openlight);
 	const outputs = await page.evaluate(async () => {
@@ -100,5 +95,4 @@ test("black and white points preserve midgray, clip or lift endpoints, and reset
 		expect(output[255 * 4]).toBeLessThanOrEqual(230);
 	}
 	expect(reset).toEqual(original);
-	expect(errors).toEqual([]);
 });

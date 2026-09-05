@@ -88,9 +88,11 @@ function find(boxes: Box[], type: string) {
 /** iinf: item id → item type. */
 function itemTypes(reader: Reader, iinf: Box) {
 	const types = new Map<number, string>();
-	const count = reader.uint(reader.open(iinf) === 0 ? 2 : 4);
+	const version = reader.open(iinf);
+	const count = reader.uint(version === 0 ? 2 : 4);
 	for (const infe of reader.boxes(reader.at, iinf.end).slice(0, count)) {
-		const id = reader.uint(reader.open(infe) === 2 ? 2 : 4);
+		const version = reader.open(infe);
+		const id = reader.uint(version === 2 ? 2 : 4);
 		reader.at += 2;
 		types.set(id, reader.fourcc());
 	}
@@ -112,15 +114,18 @@ function itemData(reader: Reader, iloc: Box, idat?: Box) {
 	for (let count = reader.uint(idSize); count > 0; count--) {
 		const id = reader.uint(idSize);
 		const method = version === 0 ? 0 : reader.uint(2) & 15;
-		check(method <= 1 && (method === 0 || idat) && reader.uint(2) === 0);
+		check(method <= 1 && (method === 0 || idat));
+		const dataReference = reader.uint(2);
+		check(dataReference === 0);
 		const base =
 			reader.uint(baseSize) + (method === 1 ? (idat?.start ?? 0) : 0);
 		const extents = Array.from({ length: reader.uint(2) }, () => {
 			reader.uint(indexSize);
 			const start = base + reader.uint(offsetSize);
+			const length = reader.uint(lengthSize);
 			return reader.slice(
 				start,
-				start + reader.uint(lengthSize),
+				start + length,
 				method === 1 ? idat?.end : reader.bytes.length,
 			);
 		});
@@ -221,7 +226,8 @@ export function parseHeic(bytes: Uint8Array) {
 	const reader = new Reader(bytes);
 	const meta = find(reader.boxes(0, reader.bytes.byteLength), "meta");
 	const boxes = reader.boxes(meta.start + 4, meta.end);
-	const primary = reader.uint(reader.open(find(boxes, "pitm")) === 0 ? 2 : 4);
+	const version = reader.open(find(boxes, "pitm"));
+	const primary = reader.uint(version === 0 ? 2 : 4);
 	const types = itemTypes(reader, find(boxes, "iinf"));
 	const data = itemData(
 		reader,

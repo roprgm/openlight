@@ -26,38 +26,42 @@ function ImageCanvas({ image }: WorkspaceProps) {
 	);
 }
 
-function Workspace({ image }: WorkspaceProps) {
+type EditorProps = { source: Source };
+
+function LoadingStatus({ source }: EditorProps) {
+	if (!source.error) {
+		return <Spinner />;
+	}
 	return (
-		<RendererProvider source={image}>
-			<ImageCanvas image={image} />
-			<Sidebar />
-		</RendererProvider>
+		<p className="max-w-md text-center text-neutral-400">
+			Couldn't open {source.file.name}: {source.error}
+		</p>
 	);
 }
 
-type EditorProps = { source: Source };
+function EditorContent({ source }: EditorProps) {
+	if (source.image) {
+		return (
+			<RendererProvider source={source.image}>
+				<ImageCanvas image={source.image} />
+				<Sidebar />
+			</RendererProvider>
+		);
+	}
+	return (
+		<>
+			<div className="grid flex-1 place-items-center">
+				<LoadingStatus source={source} />
+			</div>
+			<ResizablePanel />
+		</>
+	);
+}
 
 export default function Editor({ source }: EditorProps) {
-	const { image, error } = source;
-
 	return (
 		<main className="flex h-dvh flex-col md:flex-row">
-			{image ? (
-				<Workspace image={image} />
-			) : (
-				<>
-					<div className="grid flex-1 place-items-center">
-						{error ? (
-							<p className="max-w-md text-center text-neutral-400">
-								Couldn't open {source.file.name}: {error}
-							</p>
-						) : (
-							<Spinner />
-						)}
-					</div>
-					<ResizablePanel />
-				</>
-			)}
+			<EditorContent source={source} />
 		</main>
 	);
 }
