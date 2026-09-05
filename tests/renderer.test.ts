@@ -79,7 +79,23 @@ test("rendering follows grouped edits and undo, reuses pipelines, and releases o
 		detach();
 		setAdjustments(document, { exposure: -1 });
 		expect(notify).toHaveBeenCalledTimes(8);
+		document.edit({
+			...document.scene.getState(),
+			size: [16, 8],
+			geometry: {
+				...document.scene.getState().geometry,
+				width: 0.5,
+				height: 0.5,
+				angle: 10,
+			},
+		});
+		const croppedInput = renderer.inputImage();
+		const croppedOutput = renderer.outputImage();
+		expect(croppedOutput.size).toEqual([16, 8]);
+		expect(croppedInput.size).toEqual([16, 8]);
 		renderer.dispose();
+		expect(() => croppedInput.color.view).toThrow("destroyed");
+		expect(() => croppedOutput.color.view).toThrow("destroyed");
 		expect(() => adjusted.color.view).toThrow("destroyed");
 		expect(() => curved.color.view).toThrow("destroyed");
 		expect(() => source.color.view).not.toThrow();

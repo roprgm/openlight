@@ -1,7 +1,11 @@
 import { expect, test } from "bun:test";
 import { init, target } from "vgpu/mock";
 import { createDocument } from "@/app/document";
-import { setAdjustments, setToneCurve } from "@/app/document/edits";
+import {
+	setAdjustments,
+	setGeometry,
+	setToneCurve,
+} from "@/app/document/edits";
 import { createResources } from "@/app/document/resources";
 import { defaultAdjustments } from "@/app/scene";
 import { createWorkspace } from "@/app/workspace";
@@ -132,6 +136,19 @@ test("documents edit independently without React, retain bounded history, and re
 	}
 	expect(() => resources.get(source)).toThrow("unavailable");
 	expect(resources.get(replacement)).toBeDefined();
+	const geometry = doc.scene.getState().geometry;
+	for (const change of [
+		{ width: 0 },
+		{ x: -0.1 },
+		{ width: 2 },
+		{ rotation: 91 },
+		{ angle: 46 },
+		{ angle: Number.NaN },
+	]) {
+		expect(() => setGeometry(doc, change)).toThrow("Invalid crop");
+	}
+	expect(doc.scene.getState().geometry).toBe(geometry);
+
 	doc.dispose();
 	expect(() => resources.get(replacement)).toThrow("unavailable");
 	gpu.dispose();

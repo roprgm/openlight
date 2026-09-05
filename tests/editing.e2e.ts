@@ -297,6 +297,99 @@ test("edit a photo, inspect the preview and histograms, undo changes, and export
 		}
 	});
 
+	await test.step("crop drafts cancel, apply once, rotate and straighten without losing the source", async () => {
+		const before = await page.evaluate(() => window.openlight.getState());
+		const fullHistogram = await output.getAttribute("points");
+		const open = page.getByRole("button", { name: "Crop and rotate" });
+		await open.click();
+		const panel = page.getByRole("region", { name: "Crop tool" });
+		await panel
+			.getByRole("combobox", { name: "Aspect ratio" })
+			.selectOption({ label: "Square" });
+		const selection = page.getByRole("application", { name: "Crop selection" });
+		const bounds = await selection.boundingBox();
+		if (!bounds) throw new Error("Missing crop selection.");
+		const corner = page.getByRole("button", {
+			name: "Resize crop bottom right",
+		});
+		await corner.hover();
+		await page.mouse.down();
+		await page.mouse.move(
+			bounds.x + bounds.width * 0.8,
+			bounds.y + bounds.height,
+			{ steps: 6 },
+		);
+		await page.mouse.up();
+		const draft = await page.evaluate(
+			() => window.openlight.getState().preview?.crop?.geometry,
+		);
+		expect(draft).toBeDefined();
+		expect(draft?.width).toBeLessThan(2 / 3);
+		expect((draft?.width ?? 0) * 1200).toBeCloseTo(
+			(draft?.height ?? 0) * 800,
+			4,
+		);
+		await page
+			.getByRole("button", { name: "Move crop" })
+			.press("Shift+ArrowRight");
+		expect((await readImage(page)).size).toEqual([1200, 800]);
+		await page.keyboard.press("Escape");
+		expect(
+			(await page.evaluate(() => window.openlight.getState())).geometry,
+		).toEqual(before.geometry);
+		expect(
+			(await page.evaluate(() => window.openlight.getState())).history,
+		).toEqual(before.history);
+		await open.focus();
+		await page.keyboard.press("c");
+		await panel
+			.getByRole("combobox", { name: "Aspect ratio" })
+			.selectOption({ label: "Square" });
+		await panel.getByRole("button", { name: "Apply crop" }).click();
+		expect(await readImage(page)).toEqual({
+			size: [800, 800],
+			center: [128, 128, 128, 255],
+			corner: [128, 128, 128, 255],
+		});
+		await expect(output).not.toHaveAttribute("points", fullHistogram ?? "");
+		expect(
+			(await page.evaluate(() => window.openlight.getState())).history
+				.undoCount,
+		).toBe(before.history.undoCount + 1);
+		await page.getByRole("button", { name: "Undo", exact: true }).click();
+		expect((await readImage(page)).size).toEqual([1200, 800]);
+		await page.getByRole("button", { name: "Redo", exact: true }).click();
+		expect((await readImage(page)).size).toEqual([800, 800]);
+		await open.click();
+		await panel.getByRole("button", { name: "Uncrop" }).click();
+		await panel.getByRole("button", { name: "Rotate 90°" }).click();
+		await panel.getByRole("button", { name: "Apply crop" }).click();
+		expect(await readImage(page)).toEqual({
+			size: [800, 1200],
+			center: [128, 128, 128, 255],
+			corner: [32, 32, 32, 255],
+		});
+		await open.click();
+		await panel.getByRole("button", { name: "Reset", exact: true }).click();
+		const angle = panel.getByRole("textbox", {
+			name: "Straighten",
+			exact: true,
+		});
+		await angle.fill("30");
+		await angle.press("Enter");
+		await expect(panel).toBeVisible();
+		await panel.getByRole("button", { name: "Apply crop" }).click();
+		expect(await readImage(page)).toEqual({
+			size: [1200, 800],
+			center: [128, 128, 128, 255],
+			corner: [32, 32, 32, 255],
+		});
+		await open.click();
+		await panel.getByRole("button", { name: "Reset", exact: true }).click();
+		await panel.getByRole("button", { name: "Apply crop" }).click();
+		await expect.poll(() => canvas.screenshot()).toEqual(original);
+	});
+
 	await test.step("export retains edits and original dimensions independently of viewport zoom", async () => {
 		await page.evaluate(() => {
 			window.openlight.beginEdit();

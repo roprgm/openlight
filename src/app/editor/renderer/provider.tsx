@@ -8,7 +8,7 @@ import {
 import type { Target } from "vgpu";
 import { useGpu } from "vgpu-react";
 import { useDocument } from "@/app/document/provider";
-import type { Scene } from "@/app/scene";
+import { fullRect } from "@/features/crop/geometry";
 import { createRenderer } from "./renderer";
 
 const RendererContext = createContext<ReturnType<typeof createRenderer> | null>(
@@ -30,13 +30,28 @@ export function RendererProvider({ source, children }: RendererProviderProps) {
 	const document = useDocument();
 	const renderer = useMemo(() => createRenderer(gpu, source), [gpu, source]);
 	useEffect(() => {
-		const render = (scene: Scene) => {
-			renderer.update(scene);
+		const render = () => {
+			const scene = document.scene.getState();
+			const crop = document.preview.getState().crop;
+			renderer.update(
+				crop
+					? { ...scene, geometry: { ...crop.geometry, ...fullRect } }
+					: scene,
+			);
 		};
 		const unsubscribe = document.scene.subscribe(render);
-		render(document.scene.getState());
+		const unsubscribePreview = document.preview.subscribe((next, previous) => {
+			if (
+				next.crop?.geometry.angle !== previous.crop?.geometry.angle ||
+				next.crop?.geometry.rotation !== previous.crop?.geometry.rotation
+			) {
+				render();
+			}
+		});
+		render();
 		return () => {
 			unsubscribe();
+			unsubscribePreview();
 			renderer.dispose();
 		};
 	}, [renderer, document]);
