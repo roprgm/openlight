@@ -11,8 +11,8 @@ import { createHistogram } from "@/features/histogram/histogram";
 import { ToneCurves } from "@/features/tone-curves/tone-curves";
 import { useEditGesture } from "@/hooks/use-edit-gesture";
 import AdjustmentControls from "./adjustment-controls";
-import { BeforeControl } from "./before-control";
 import { ClippingControls } from "./clipping-controls";
+import { ComparisonControl } from "./comparison-control";
 
 const histogramColors = ["#f25445", "#6bd175", "#5c8ffa"] as const;
 const curveHistogramColors = ["#a3a3a3"] as const;
@@ -74,7 +74,7 @@ export function Sidebar() {
 				</div>
 				<div className="flex shrink-0 items-center gap-2 bg-neutral-900 px-2 py-1.5">
 					<HistoryControls />
-					<BeforeControl />
+					<ComparisonControl />
 					<ExportButton />
 				</div>
 			</div>

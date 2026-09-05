@@ -80,7 +80,7 @@ test("edit a photo, inspect the preview and histograms, undo changes, and export
 			]);
 		});
 		const before = page.getByRole("button", {
-			name: "Show original",
+			name: "Compare before and after",
 			exact: true,
 		});
 		const shadows = page.getByRole("button", { name: "Show clipped shadows" });
@@ -102,10 +102,40 @@ test("edit a photo, inspect the preview and histograms, undo changes, and export
 			.poll(async () => (await readPreview(page)).center)
 			.toEqual([255, 255, 255, 255]);
 		await before.click();
+		const divider = page.getByRole("slider", {
+			name: "Before and after divider",
+		});
+		await expect(divider).toHaveAttribute("aria-valuenow", "50");
+		const bounds = await canvas.boundingBox();
+		if (!bounds) throw new Error("Preview is missing.");
+		await divider.hover();
+		await page.mouse.down();
+		await page.mouse.move(
+			bounds.x + bounds.width * 0.8,
+			bounds.y + bounds.height / 2,
+			{ steps: 8 },
+		);
+		await page.mouse.up();
+		await expect(divider).toHaveAttribute("aria-valuenow", "80");
 		await expect
 			.poll(async () => (await readPreview(page)).center)
 			.toEqual([128, 128, 128, 255]);
+		await divider.press("Home");
+		await expect
+			.poll(async () => (await readPreview(page)).center)
+			.toEqual([255, 255, 255, 255]);
+		await divider.press("End");
+		await expect
+			.poll(async () => (await readPreview(page)).center)
+			.toEqual([128, 128, 128, 255]);
+		await divider.press("Shift+ArrowLeft");
+		await expect(divider).toHaveAttribute("aria-valuenow", "90");
+		await page.keyboard.down("Backslash");
+		await expect(divider).toBeHidden();
+		await page.keyboard.up("Backslash");
+		await expect(divider).toHaveAttribute("aria-valuenow", "90");
 		await before.click();
+		await expect(divider).toBeHidden();
 		await page.keyboard.down("Backslash");
 		await page.evaluate(() => window.dispatchEvent(new Event("blur")));
 		await expect(before).toHaveAttribute("aria-pressed", "false");
@@ -137,7 +167,7 @@ test("edit a photo, inspect the preview and histograms, undo changes, and export
 		await expect(output).toHaveAttribute("points", bins ?? "");
 		await page.evaluate(() =>
 			window.openlight.setPreview({
-				original: false,
+				comparison: "edited",
 				shadows: false,
 				highlights: false,
 			}),

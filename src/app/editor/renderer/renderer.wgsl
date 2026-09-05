@@ -5,12 +5,14 @@ struct Params {
   sourceSize: vec2f,
   pan: vec2f,
   zoom: f32,
+  split: f32,
   shadows: u32,
   highlights: u32,
 }
 @group(0) @binding(0) var<uniform> params: Params;
 @group(0) @binding(1) var source: texture_2d<f32>;
 @group(0) @binding(2) var sourceSampler: sampler;
+@group(0) @binding(3) var original: texture_2d<f32>;
 
 const background = vec3f(0.09);
 
@@ -19,7 +21,10 @@ const background = vec3f(0.09);
   let scale = min(min(params.size.x / params.sourceSize.x, params.size.y / params.sourceSize.y), 1.0) * params.zoom;
   let p = ((uv - 0.5) * params.size - params.pan) / (params.sourceSize * scale) + 0.5;
   let inside = all(p >= vec2f(0.0)) && all(p <= vec2f(1.0));
-  let sample = textureSampleLevel(source, sourceSampler, p, 0.0);
+  var sample = textureSampleLevel(source, sourceSampler, p, 0.0);
+  if (uv.x < params.split) {
+    sample = textureSampleLevel(original, sourceSampler, p, 0.0);
+  }
   let rgb = rec2020ToSrgb * sample.rgb;
   var color = display(sample.rgb);
   if (sample.a > 0.0) {

@@ -5,7 +5,8 @@ import { createHistory } from "@/lib/history";
 import { createResources } from "./resources";
 
 export type Preview = {
-	original: boolean;
+	comparison: "edited" | "original" | "split";
+	split: number;
 	shadows: boolean;
 	highlights: boolean;
 };
@@ -40,7 +41,8 @@ export function createDocument(initial: Scene, resources = createResources()) {
 			subscribe: scene.subscribe,
 		},
 		preview: createStore<Preview>(() => ({
-			original: false,
+			comparison: "edited",
+			split: 0.5,
 			shadows: false,
 			highlights: false,
 		})),

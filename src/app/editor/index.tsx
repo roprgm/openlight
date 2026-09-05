@@ -5,6 +5,7 @@ import ResizablePanel from "@/components/ui/resizable-panel";
 import Spinner from "@/components/ui/spinner";
 import { usePanZoom } from "@/hooks/use-pan-zoom";
 import type { Target } from "@/lib/decode";
+import { ComparisonDivider } from "./comparison-divider";
 import { CanvasRenderer } from "./renderer";
 import { RendererProvider } from "./renderer/provider";
 import { Sidebar } from "./sidebar";
@@ -16,13 +17,14 @@ function ImageCanvas({ image }: WorkspaceProps) {
 
 	return (
 		<div
-			className="grid min-h-0 min-w-0 flex-1 cursor-grab touch-none place-items-center active:cursor-grabbing"
+			className="relative grid min-h-0 min-w-0 flex-1 overflow-hidden cursor-grab touch-none place-items-center active:cursor-grabbing"
 			ref={ref}
 			{...handlers}
 		>
 			<Canvas className="size-full min-h-0">
 				<CanvasRenderer view={view} />
 			</Canvas>
+			<ComparisonDivider />
 		</div>
 	);
 }

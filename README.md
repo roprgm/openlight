@@ -83,10 +83,14 @@ decoding failures appear in the editor. The renderer updates when the scene chan
 
 ## Preview aids
 
-Click **Before** to toggle the original image, or hold backslash to compare and
-release to return. Text fields keep normal keyboard input. The histogram's left
-and right triangles toggle clipping overlays: blue for pixels with all sRGB
-channels at or below zero, red for any channel at or above one. Transparent pixels
-are excluded. These controls affect only the canvas; histograms and exports keep
-the edited result. Preview settings reset when another image opens and never enter
-undo history. Scripts can use `openlight.setPreview({ original, shadows, highlights })`.
+Click the split-view icon to compare the original on the left with the edit on the
+right. Drag the vertical divider, use arrow keys, or double-click it to recenter.
+Hold backslash for the full original; releasing restores the previous view.
+Text fields keep normal keyboard input. The histogram's left and right triangles
+toggle clipping overlays: blue for pixels with all sRGB channels at or below zero,
+red for any channel at or above one. Transparent pixels are excluded.
+These controls affect only the canvas; histograms and exports keep the edited result.
+Preview settings reset when another image opens and never enter undo history.
+Scripts can use `openlight.setPreview({ comparison: "split", split: 0.5 })` and
+`openlight.setPreview({ shadows: true, highlights: true })`. Comparison accepts
+`"edited"`, `"original"`, or `"split"`; the split position is a fraction from 0 to 1.

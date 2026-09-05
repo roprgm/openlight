@@ -1,18 +1,19 @@
 import { useEffect } from "react";
 import { useStore } from "zustand";
+import type { Preview } from "@/app/document";
 import { useDocument } from "@/app/document/provider";
 import Button from "@/components/ui/button";
 
-export function BeforeControl() {
+export function ComparisonControl() {
 	const { preview } = useDocument();
-	const original = useStore(preview, (state) => state.original);
+	const comparison = useStore(preview, (state) => state.comparison);
 	useEffect(() => {
-		let restore: boolean | undefined;
+		let restore: Preview["comparison"] | undefined;
 		function release() {
 			if (restore === undefined) {
 				return;
 			}
-			preview.setState({ original: restore });
+			preview.setState({ comparison: restore });
 			restore = undefined;
 		}
 		function keyDown(event: KeyboardEvent) {
@@ -36,8 +37,8 @@ export function BeforeControl() {
 				return;
 			}
 			event.preventDefault();
-			restore = preview.getState().original;
-			preview.setState({ original: true });
+			restore = preview.getState().comparison;
+			preview.setState({ comparison: "original" });
 		}
 		function keyUp(event: KeyboardEvent) {
 			if (event.code === "Backslash") {
@@ -57,13 +58,26 @@ export function BeforeControl() {
 	return (
 		<Button
 			variant="ghost"
-			aria-label="Show original"
-			aria-pressed={original}
-			title="Show original (hold backslash to compare)"
-			className="h-8 rounded-md px-2 py-0 text-xs aria-pressed:bg-neutral-700 aria-pressed:text-neutral-100"
-			onClick={() => preview.setState({ original: !original })}
+			aria-label="Compare before and after"
+			aria-pressed={comparison !== "edited"}
+			title="Compare before and after (hold backslash for original)"
+			className="flex size-8 items-center justify-center rounded-md p-0 aria-pressed:bg-neutral-700 aria-pressed:text-neutral-100"
+			onClick={() =>
+				preview.setState({
+					comparison: comparison === "split" ? "edited" : "split",
+				})
+			}
 		>
-			Before
+			<svg
+				aria-hidden="true"
+				viewBox="0 0 20 20"
+				className="size-5"
+				fill="none"
+				stroke="currentColor"
+				strokeWidth="1.5"
+			>
+				<path d="M10 2v16M7 5H3v10h4M13 5h4v10h-4" />
+			</svg>
 		</Button>
 	);
 }

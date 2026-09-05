@@ -58,16 +58,18 @@ export function createRenderer(gpu: Gpu, source: Target) {
 			if (!rendered) {
 				return;
 			}
-			const image = preview?.original ? source : output;
+			const image = preview?.comparison === "original" ? source : output;
 			frame.pass(
 				canvas,
 				display.set({
 					source: image.color,
+					original: source.color,
 					params: {
 						size: canvas.size,
 						sourceSize: image.size,
 						pan: view.pan.map((p) => p * canvas.dpr),
 						zoom: view.zoom,
+						split: preview?.comparison === "split" ? preview.split : -1,
 						shadows: Number(preview?.shadows ?? false),
 						highlights: Number(preview?.highlights ?? false),
 					},
