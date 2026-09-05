@@ -51,7 +51,7 @@ All React bindings come from `vgpu-react`; everything else comes from `vgpu`.
 
 - `useGpu()` returns the `Gpu`. Every vgpu call takes it as the first argument.
 - Build pipelines once per engine instance and reuse them across frames.
-- `useSurface(canvasRef)` turns a `<canvas>` into a render target and disposes it on unmount. Its options are read once; to change them, remount the canvas with a `key`.
+- `useSurface(canvasRef, options)` turns a `<canvas>` into a render target and disposes it on cleanup. Changing `clearColor` updates the surface in place; changing other options recreates it.
 - `useFrameLoop` renders every animation frame. `useFrame` returns a function that renders once, for pointer and other events.
 - Shader code lives in `.wgsl` files beside the module that owns it, or in `lib/` for reusable GPU operations. The Vite loader and ambient types are already configured.
 - The working space is linear Rec.2020 in `rgba16float`. Decoders convert into it, the editor shader converts out of it; nothing in between assumes a format or primaries, so both can change (an 8-bit variant is planned).
