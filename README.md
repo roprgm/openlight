@@ -14,8 +14,10 @@ bun dev
 ```
 
 ```sh
-bun run check   # format + lint
-bun run build   # typecheck + bundle
+bun run check        # format + lint
+bun run build        # typecheck + bundle
+bun run test         # fast integration tests; no browser or GPU
+bun run test:browser # pixels, UI, and codecs; requires Chromium + WebGPU
 ```
 
 ## License

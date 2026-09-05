@@ -60,10 +60,10 @@ All React bindings come from `vgpu-react`; everything else comes from `vgpu`.
 
 ## Testing
 
-Prefer a few broad end-to-end tests over many granular tests. Keep one main editing session that opens a fixture, changes controls, checks the preview and histogram, edits curves, uses undo/redo, and exports. Extend that session with named steps instead of adding a test per control. Check actual pixels against known values, with a small tolerance when needed; changed state or a changed screenshot alone does not prove correct rendering. Keep independent loading and rendering checks separate, and load real files for format coverage. Use browser-free tests for invariants that the editing session cannot meaningfully exercise.
+Prefer a few broad integration tests over many granular tests. Run document, history, loader, and renderer orchestration checks in Bun using real application modules and `vgpu/mock`. Keep GPU pixel, browser UI, and codec checks in Playwright; the mock does not execute shaders. Keep one main editing session that opens a fixture, changes controls, checks the preview and histogram, edits curves, uses undo/redo, and exports. Extend that session with named steps instead of adding a test per control. Check actual pixels against known values, with a small tolerance when needed; changed state or a changed screenshot alone does not prove correct rendering. Keep independent loading and rendering checks separate, and load real files for format coverage. Use browser-free tests for invariants that the editing session cannot meaningfully exercise.
 
 Maintain a browser-side control API with semantic commands for loading, editing, and reading state. Extend it with new workflows; it must work in local browsers, CI, and remote sessions. Use DOM interaction when testing the UI itself. Wait for visible results without adding production completion tracking.
 
 ## Done
 
-`bun run check` formats and lints. `bun run build` type-checks. `bun run test` runs the browser tests. Run all three after changing files and before a commit.
+`bun run check` formats and lints. `bun run build` type-checks. `bun run test` runs browser-free tests. `bun run test:browser` runs GPU/browser tests. Run all four after changing files and before a commit.
