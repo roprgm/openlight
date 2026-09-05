@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { interpolatePchip } from "@/lib/math";
 import { expect, test } from "./fixtures";
-import { readImage } from "./images";
+import { readImage, readPreview } from "./images";
 
 test("edit a photo, inspect the preview and histograms, undo changes, and export", async ({
 	page,
@@ -67,6 +67,117 @@ test("edit a photo, inspect the preview and histograms, undo changes, and export
 		await exposure.dblclick();
 		await expect(exposure).toHaveValue("0");
 		await expect(output).toHaveAttribute("points", histogram ?? "");
+		await expect.poll(() => canvas.screenshot()).toEqual(original);
+	});
+
+	await test.step("compare and clipping change only the preview", async () => {
+		await page.evaluate(() => {
+			window.openlight.setAdjustments({ exposure: 3 });
+			window.openlight.setToneCurve([
+				{ x: 0, y: 0 },
+				{ x: 0.5, y: 1 },
+				{ x: 1, y: 1 },
+			]);
+		});
+		const before = page.getByRole("button", {
+			name: "Compare before and after",
+			exact: true,
+		});
+		const shadows = page.getByRole("button", { name: "Show clipped shadows" });
+		const highlights = page.getByRole("button", {
+			name: "Show clipped highlights",
+		});
+		const edited = await readImage(page);
+		const history = (await page.evaluate(() => window.openlight.getState()))
+			.history;
+		const bins = await output.getAttribute("points");
+		await before.focus();
+		await page.keyboard.down("Backslash");
+		await expect(before).toHaveAttribute("aria-pressed", "true");
+		await expect
+			.poll(async () => (await readPreview(page)).center)
+			.toEqual([128, 128, 128, 255]);
+		await page.keyboard.up("Backslash");
+		await expect
+			.poll(async () => (await readPreview(page)).center)
+			.toEqual([255, 255, 255, 255]);
+		await before.click();
+		const divider = page.getByRole("slider", {
+			name: "Before and after divider",
+		});
+		await expect(divider).toHaveAttribute("aria-valuenow", "50");
+		const bounds = await canvas.boundingBox();
+		if (!bounds) throw new Error("Preview is missing.");
+		await divider.hover();
+		await page.mouse.down();
+		await page.mouse.move(
+			bounds.x + bounds.width * 0.8,
+			bounds.y + bounds.height / 2,
+			{ steps: 8 },
+		);
+		await page.mouse.up();
+		await expect(divider).toHaveAttribute("aria-valuenow", "80");
+		await expect
+			.poll(async () => (await readPreview(page)).center)
+			.toEqual([128, 128, 128, 255]);
+		await divider.press("Home");
+		await expect
+			.poll(async () => (await readPreview(page)).center)
+			.toEqual([255, 255, 255, 255]);
+		await divider.press("End");
+		await expect
+			.poll(async () => (await readPreview(page)).center)
+			.toEqual([128, 128, 128, 255]);
+		await divider.press("Shift+ArrowLeft");
+		await expect(divider).toHaveAttribute("aria-valuenow", "90");
+		await page.keyboard.down("Backslash");
+		await expect(divider).toBeHidden();
+		await page.keyboard.up("Backslash");
+		await expect(divider).toHaveAttribute("aria-valuenow", "90");
+		await before.click();
+		await expect(divider).toBeHidden();
+		await page.keyboard.down("Backslash");
+		await page.evaluate(() => window.dispatchEvent(new Event("blur")));
+		await expect(before).toHaveAttribute("aria-pressed", "false");
+		await page.keyboard.up("Backslash");
+		const field = page.getByRole("textbox", { name: "Exposure", exact: true });
+		await field.focus();
+		await page.keyboard.press("Backslash");
+		await expect(before).toHaveAttribute("aria-pressed", "false");
+		await field.press("Escape");
+		await shadows.click();
+		await expect
+			.poll(async () => (await readPreview(page)).blue)
+			.toBeGreaterThan(100);
+		await highlights.click();
+		await expect
+			.poll(async () => (await readPreview(page)).center)
+			.toEqual([255, 0, 0, 255]);
+		await expect
+			.poll(async () => (await readPreview(page)).blue)
+			.toBeGreaterThan(100);
+		await before.click();
+		await expect
+			.poll(async () => (await readPreview(page)).center)
+			.toEqual([128, 128, 128, 255]);
+		expect(await readImage(page)).toEqual(edited);
+		expect(
+			(await page.evaluate(() => window.openlight.getState())).history,
+		).toEqual(history);
+		await expect(output).toHaveAttribute("points", bins ?? "");
+		await page.evaluate(() =>
+			window.openlight.setPreview({
+				comparison: "edited",
+				shadows: false,
+				highlights: false,
+			}),
+		);
+		await expect(highlights).toHaveAttribute("aria-pressed", "false");
+		await expect.poll(async () => (await readPreview(page)).blue).toBe(0);
+		await page.evaluate(() => {
+			window.openlight.setAdjustments({ exposure: 0 });
+			window.openlight.setToneCurve();
+		});
 		await expect.poll(() => canvas.screenshot()).toEqual(original);
 	});
 

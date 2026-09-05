@@ -1,4 +1,5 @@
 import type { Gpu } from "vgpu";
+import type { Preview } from "@/app/document";
 import { setAdjustments, setToneCurve } from "@/app/document/edits";
 import {
 	type ExportOptions,
@@ -28,6 +29,8 @@ export function createControls(gpu: Gpu, workspace: Workspace) {
 			setAdjustments(workspace.getDocument(), change),
 		setToneCurve: (curve?: ToneCurve) =>
 			setToneCurve(workspace.getDocument(), curve),
+		setPreview: (change: Partial<Preview>) =>
+			workspace.getDocument().preview.setState(change),
 		beginEdit: () => workspace.getDocument().history.begin(),
 		commitEdit: () => workspace.getDocument().history.commit(),
 		cancelEdit: () => workspace.getDocument().history.cancel(),
@@ -40,6 +43,7 @@ export function createControls(gpu: Gpu, workspace: Workspace) {
 			const scene = document?.scene.getState();
 			return {
 				file,
+				preview: document && { ...document.preview.getState() },
 				documentId: document?.id,
 				size: scene && [...scene.size],
 				adjustments: { ...(scene?.adjustments ?? defaultAdjustments) },
