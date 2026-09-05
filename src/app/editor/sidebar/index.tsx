@@ -69,8 +69,10 @@ export function Sidebar() {
 					<AdjustmentControls />
 					<ToneCurvesPanel histogram={histogram} />
 				</div>
-				<HistoryControls />
-				<ExportButton />
+				<div className="flex shrink-0 items-center gap-2 bg-neutral-900 px-2 py-1.5">
+					<HistoryControls />
+					<ExportButton />
+				</div>
 			</div>
 		</ResizablePanel>
 	);
