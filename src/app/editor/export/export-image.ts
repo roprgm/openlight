@@ -24,18 +24,28 @@ export async function exportImage(
 		throw new Error("JPEG quality must be between 1 and 100.");
 	}
 	const scene = document.scene.getState();
-	const { image } = document.resources.get(scene.source);
 	let output: ReturnType<typeof surface> | undefined;
 	let renderer: ReturnType<typeof createRenderer> | undefined;
 	try {
 		const [width, height] = scene.size;
 		const canvas = new OffscreenCanvas(width, height);
-		output = surface(gpu, canvas, { size: [width, height], dpr: 1 });
-		renderer = createRenderer(gpu, image);
+		output = surface(gpu, canvas, {
+			size: [width, height],
+			dpr: 1,
+			alphaMode: "premultiplied",
+		});
+		renderer = createRenderer(gpu, document);
 		renderer.update(scene);
 		const draw = renderer.draw;
 		const destination = output;
-		frame(gpu, (frame) => draw(frame, destination, { zoom: 1, pan: [0, 0] }));
+		frame(gpu, (frame) =>
+			draw(
+				frame,
+				destination,
+				{ zoom: 1, pan: [0, 0] },
+				options.format === "png" ? "transparent" : "white",
+			),
+		);
 		// Source work is submitted before yielding; the canvas owns the export pixels.
 		const blob = await canvas.convertToBlob({
 			type: `image/${options.format}`,

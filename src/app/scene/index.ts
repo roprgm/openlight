@@ -29,10 +29,18 @@ export const adjustmentLimits: Adjustments = {
 	saturation: 100,
 };
 
-/** Serializable document content. Image bytes and GPU resources live elsewhere. */
-export type Scene = {
-	readonly size: readonly [number, number];
+export type ImageLayer = {
+	readonly id: string;
+	readonly name: string;
 	readonly source: string;
+	readonly visible: boolean;
+	readonly opacity: number;
 	readonly adjustments: Readonly<Adjustments>;
 	readonly toneCurve: ToneCurve;
+};
+
+/** Serializable document content, ordered from bottom to top. */
+export type Scene = {
+	readonly size: readonly [number, number];
+	readonly layers: readonly ImageLayer[];
 };

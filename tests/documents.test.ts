@@ -1,18 +1,21 @@
 import { expect, test } from "bun:test";
 import { init, target } from "vgpu/mock";
 import { createDocument } from "@/app/document";
-import { setAdjustments, setToneCurve } from "@/app/document/edits";
+import {
+	createImageLayer,
+	removeLayer,
+	setAdjustments,
+	setLayer,
+	setToneCurve,
+} from "@/app/document/edits";
 import { createResources } from "@/app/document/resources";
-import { defaultAdjustments } from "@/app/scene";
 import { createWorkspace } from "@/app/workspace";
 import { defaultCurve } from "@/features/tone-curves/curve";
 
 function document() {
 	return createDocument({
 		size: [32, 32],
-		source: "image-1",
-		adjustments: { ...defaultAdjustments },
-		toneCurve: defaultCurve,
+		layers: [createImageLayer("image-1", "Image")],
 	});
 }
 
@@ -27,8 +30,8 @@ test("documents edit independently without React, retain bounded history, and re
 	];
 	setToneCurve(first, points);
 	points[1].y = 0.2;
-	expect(first.scene.getState().toneCurve[1].y).toBe(0.7);
-	expect(second.scene.getState().adjustments.exposure).toBe(0);
+	expect(first.scene.getState().layers[0].toneCurve[1].y).toBe(0.7);
+	expect(second.scene.getState().layers[0].adjustments.exposure).toBe(0);
 	expect(second.history.status.getState().undoCount).toBe(0);
 	const unchanged = first.scene.getState();
 	for (const curve of [
@@ -68,7 +71,7 @@ test("documents edit independently without React, retain bounded history, and re
 	}
 	expect(first.scene.getState()).toBe(unchanged);
 	first.history.undo();
-	expect(first.scene.getState().toneCurve).toEqual(defaultCurve);
+	expect(first.scene.getState().layers[0].toneCurve).toEqual(defaultCurve);
 	for (let i = 0; i < 150; i++) setAdjustments(first, { exposure: i % 2 });
 	expect(first.history.status.getState().undoCount).toBe(100);
 	for (let i = 0; i < 100; i++) first.history.undo();
@@ -98,41 +101,46 @@ test("documents edit independently without React, retain bounded history, and re
 	workspace.dispose();
 	expect(() => setAdjustments(second, { exposure: 2 })).toThrow("closed");
 
-	// Resources survive undo and are released after cancellation, branching, and eviction.
+	// Sources stay alive while any layer or history snapshot references them.
 	const gpu = await init();
 	const resources = createResources();
 	const file = new File(["fixture"], "image.png");
 	const add = () => resources.add(file, target(gpu, { size: [2, 2] }));
 	const source = add();
-	const doc = createDocument(
-		{ ...document().scene.getState(), source },
-		resources,
-	);
-	const replace = (source: string) =>
-		doc.edit({ ...doc.scene.getState(), source });
-	const canceled = add();
+	const layer = createImageLayer(source, "First");
+	const doc = createDocument({ size: [2, 2], layers: [layer] }, resources);
+	const extraSource = add();
+	const extra = createImageLayer(extraSource, "Second");
 	doc.history.begin();
-	replace(canceled);
-	expect(resources.get(source)).toBeDefined();
+	doc.edit({ ...doc.scene.getState(), layers: [layer, extra] });
 	doc.history.cancel();
-	expect(() => resources.get(canceled)).toThrow("unavailable");
-	const branch = add();
-	replace(branch);
+	expect(() => resources.get(extraSource)).toThrow("unavailable");
+	removeLayer(doc, layer.id);
+	expect(resources.get(source)).toBeDefined();
 	doc.history.undo();
-	expect(resources.get(branch)).toBeDefined();
-	doc.history.redo();
-	expect(doc.scene.getState().source).toBe(branch);
+	expect(doc.selection.getState().layerId).toBe(layer.id);
+	expect(resources.get(source)).toBeDefined();
+	const branchSource = add();
+	const branch = createImageLayer(branchSource, "Branch");
+	doc.edit({ ...doc.scene.getState(), layers: [layer, branch] });
 	doc.history.undo();
-	setAdjustments(doc, { exposure: 1 });
-	expect(() => resources.get(branch)).toThrow("unavailable");
-	const replacement = add();
-	replace(replacement);
+	setLayer(doc, layer.id, { name: "Renamed" });
+	expect(() => resources.get(branchSource)).toThrow("unavailable");
+	// A source shared by two layers remains alive until both leave retained history.
+	const duplicate = createImageLayer(source, "Duplicate");
+	doc.edit({ ...doc.scene.getState(), layers: [layer, duplicate] });
+	removeLayer(doc, layer.id);
+	doc.history.clear();
+	expect(resources.get(source)).toBeDefined();
+	const replacementSource = add();
+	const replacement = createImageLayer(replacementSource, "Replacement");
+	doc.edit({ ...doc.scene.getState(), layers: [replacement] });
 	for (let i = 0; i < 100; i++) {
-		setAdjustments(doc, { exposure: i % 2 });
+		setLayer(doc, replacement.id, { name: String(i) });
 	}
 	expect(() => resources.get(source)).toThrow("unavailable");
-	expect(resources.get(replacement)).toBeDefined();
+	expect(resources.get(replacementSource)).toBeDefined();
 	doc.dispose();
-	expect(() => resources.get(replacement)).toThrow("unavailable");
+	expect(() => resources.get(replacementSource)).toThrow("unavailable");
 	gpu.dispose();
 });

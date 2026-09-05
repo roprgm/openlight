@@ -4,15 +4,14 @@ import type { Workspace } from "@/app/workspace";
 import ResizablePanel from "@/components/ui/resizable-panel";
 import Spinner from "@/components/ui/spinner";
 import { usePanZoom } from "@/hooks/use-pan-zoom";
-import type { Target } from "@/lib/decode";
 import { CanvasRenderer } from "./renderer";
 import { RendererProvider } from "./renderer/provider";
 import { Sidebar } from "./sidebar";
 
-type WorkspaceProps = { image: Target };
+type CanvasProps = { size: readonly [number, number] };
 
-function ImageCanvas({ image }: WorkspaceProps) {
-	const { ref, view, handlers } = usePanZoom(image.size);
+function DocumentCanvas({ size }: CanvasProps) {
+	const { ref, view, handlers } = usePanZoom(size);
 
 	return (
 		<div
@@ -20,7 +19,7 @@ function ImageCanvas({ image }: WorkspaceProps) {
 			ref={ref}
 			{...handlers}
 		>
-			<Canvas className="size-full min-h-0">
+			<Canvas aria-label="Document canvas" className="size-full min-h-0">
 				<CanvasRenderer view={view} />
 			</Canvas>
 		</div>
@@ -43,13 +42,11 @@ function LoadingStatus({ state }: EditorProps) {
 function EditorContent({ state }: EditorProps) {
 	if (state.status === "ready") {
 		const { document } = state;
-		const image = document.resources.get(
-			document.scene.getState().source,
-		).image;
+		const { size } = document.scene.getState();
 		return (
-			<DocumentProvider value={document}>
-				<RendererProvider source={image}>
-					<ImageCanvas image={image} />
+			<DocumentProvider key={document.id} value={document}>
+				<RendererProvider>
+					<DocumentCanvas size={size} />
 					<Sidebar />
 				</RendererProvider>
 			</DocumentProvider>

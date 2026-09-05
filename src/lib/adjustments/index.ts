@@ -22,12 +22,14 @@ export type Adjustments = {
 	saturation: number;
 };
 
-/** Owns the adjustment pass and output for one source. */
-export function createAdjustments(gpu: Gpu, source: Target) {
-	const output = target(gpu, { size: source.size, format: source.format });
+/** Reuses a canvas-sized adjustment pass for each image source. */
+export function createAdjustments(
+	gpu: Gpu,
+	canvas: Pick<Target, "size" | "format">,
+) {
+	const output = target(gpu, { size: canvas.size, format: canvas.format });
 	const apply = effect(gpu, shader, {
 		set: {
-			source: source.color,
 			sourceSampler: sampler(gpu, {
 				minFilter: "linear",
 				magFilter: "linear",
@@ -36,8 +38,20 @@ export function createAdjustments(gpu: Gpu, source: Target) {
 	});
 	return {
 		output,
-		render(frame: Frame, adjustments: Adjustments) {
-			frame.pass(output, apply.set({ adjustments }));
+		render(
+			frame: Frame,
+			adjustments: Adjustments,
+			source: Target,
+			imageSize: readonly number[],
+		) {
+			frame.pass(
+				output,
+				apply.set({
+					adjustments,
+					source: source.color,
+					params: { size: canvas.size, imageSize },
+				}),
+			);
 		},
 		dispose() {
 			output.color.dispose();

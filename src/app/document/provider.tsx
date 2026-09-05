@@ -16,3 +16,9 @@ export function useDocument() {
 export function useScene<T>(selector: (scene: Scene) => T) {
 	return useStore(useDocument().scene, selector);
 }
+
+export function useSelectedLayer() {
+	const document = useDocument();
+	const id = useStore(document.selection, (state) => state.layerId);
+	return useScene((scene) => scene.layers.find((layer) => layer.id === id));
+}
