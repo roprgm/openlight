@@ -7,12 +7,19 @@ import {
 import type { FileLoader } from "./registry";
 
 function toAdjustments(xmp: CameraRawXmp): Partial<Adjustments> {
-	return {
-		...(xmp.exposure2012 === undefined ? {} : { exposure: xmp.exposure2012 }),
-		...(xmp.contrast2012 === undefined ? {} : { contrast: xmp.contrast2012 }),
-		...(xmp.vibrance === undefined ? {} : { vibrance: xmp.vibrance }),
-		...(xmp.saturation === undefined ? {} : { saturation: xmp.saturation }),
+	const adjustments: Partial<Adjustments> = {
+		exposure: xmp.exposure2012,
+		contrast: xmp.contrast2012,
+		highlights: xmp.highlights2012,
+		shadows: xmp.shadows2012,
+		whites: xmp.whites2012,
+		blacks: xmp.blacks2012,
+		vibrance: xmp.vibrance,
+		saturation: xmp.saturation,
 	};
+	return Object.fromEntries(
+		Object.entries(adjustments).filter(([, value]) => value !== undefined),
+	);
 }
 
 async function importCameraRawXmp(file: File) {

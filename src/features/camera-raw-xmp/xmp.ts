@@ -4,6 +4,10 @@ const rdf = "http://www.w3.org/1999/02/22-rdf-syntax-ns#";
 export type CameraRawXmp = {
 	exposure2012?: number;
 	contrast2012?: number;
+	highlights2012?: number;
+	shadows2012?: number;
+	whites2012?: number;
+	blacks2012?: number;
 	vibrance?: number;
 	saturation?: number;
 };
@@ -11,6 +15,10 @@ export type CameraRawXmp = {
 const attributes = {
 	Exposure2012: "exposure2012",
 	Contrast2012: "contrast2012",
+	Highlights2012: "highlights2012",
+	Shadows2012: "shadows2012",
+	Whites2012: "whites2012",
+	Blacks2012: "blacks2012",
 	Vibrance: "vibrance",
 	Saturation: "saturation",
 } as const satisfies Record<string, keyof CameraRawXmp>;

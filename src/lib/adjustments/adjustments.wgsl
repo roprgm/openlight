@@ -1,38 +1,17 @@
-struct Adjustments {
-  exposure: f32,
-  incrementalTemperature: f32,
-  incrementalTint: f32,
-  contrast: f32,
-  vibrance: f32,
-  saturation: f32,
-}
+import { luminance } from "../color.wgsl";
+import { adjustBlacks } from "./blacks.wgsl";
+import { adjustHighlights } from "./highlights.wgsl";
+import { adjustShadows } from "./shadows.wgsl";
+import { adjustWhites } from "./whites.wgsl";
+import { Adjustments, prepareColor } from "./prepare.wgsl";
 
 @group(0) @binding(0) var source: texture_2d<f32>;
 @group(0) @binding(1) var sourceSampler: sampler;
 @group(0) @binding(2) var<uniform> adjustments: Adjustments;
 
-// All adjustment functions accept and return linear Rec.2020.
-fn adjustExposure(color: vec3f, stops: f32) -> vec3f {
-  let bounded = clamp(color, vec3f(0.0), vec3f(1.0));
-  if stops < 0.0 {
-    return exp2(stops * 1.09) * pow(bounded, vec3f(exp2(-stops * 0.14)));
-  }
-  let gain = mix(vec2f(1.11, -0.11) * min(stops, 1.0), vec2f(4.05, -0.63), max(stops - 1.0, 0.0) / 4.0);
-  return 1.0 - pow(1.0 - pow(bounded, vec3f(exp2(gain.y))), vec3f(exp2(gain.x)));
-}
-
 fn interpolateGain(amount: f32, half: vec3f, full: vec3f) -> vec3f {
   let strength = 2.0 * abs(amount);
   return mix(half * min(strength, 1.0), full, max(strength - 1.0, 0.0));
-}
-
-fn adjustWhiteBalance(color: vec3f, temperature: f32, tint: f32) -> vec3f {
-  let warmth = vec3f(2.50, 1.19, -1.89) * temperature
-    + (vec3f(1.55, 1.89, 2.93) + vec3f(-1.47, -1.05, -0.69) * temperature) * abs(temperature);
-  let tintGain = (vec3f(0.53, -0.59, 1.02) + vec3f(0.64, 0.94, 1.35) * tint) * tint;
-  let gain = warmth + tintGain;
-  let bounded = min(color, vec3f(1.0));
-  return bounded / (bounded + (1.0 - bounded) * exp2(-gain)) + (color - bounded);
 }
 
 fn adjustContrast(color: vec3f, amount: f32) -> vec3f {
@@ -43,8 +22,8 @@ fn adjustContrast(color: vec3f, amount: f32) -> vec3f {
 }
 
 fn adjustSaturation(color: vec3f, amount: f32) -> vec3f {
-  let luminance = dot(color, vec3f(0.2627, 0.6780, 0.0593));
-  return vec3f(luminance) + (color - vec3f(luminance)) * amount;
+  let gray = vec3f(luminance(color));
+  return gray + (color - gray) * amount;
 }
 
 fn adjustVibrance(color: vec3f, amount: f32) -> vec3f {
@@ -58,9 +37,11 @@ fn adjustVibrance(color: vec3f, amount: f32) -> vec3f {
 @fragment
 fn fs_main(@location(0) uv: vec2f) -> @location(0) vec4f {
   let input = textureSample(source, sourceSampler, uv);
-  var color = input.rgb;
-  color = adjustExposure(color, adjustments.exposure);
-  color = adjustWhiteBalance(color, adjustments.incrementalTemperature / 100.0, adjustments.incrementalTint / 100.0);
+  let prepared = prepareColor(input.rgb, adjustments);
+  var color = adjustHighlights(prepared, adjustments.highlights);
+  color = adjustShadows(color, adjustments.shadows);
+  color = adjustWhites(color, adjustments.whites);
+  color = adjustBlacks(color, adjustments.blacks);
   color = adjustContrast(color, 1.0 + adjustments.contrast / 100.0);
   color = adjustVibrance(color, adjustments.vibrance / 100.0);
   color = adjustSaturation(color, 1.0 + adjustments.saturation / 100.0);

@@ -37,6 +37,7 @@ await openlight.openFiles([
   new File([xmpText], "photo.xmp"),
 ]);
 openlight.setAdjustments({ exposure: 1, saturation: -25 });
+openlight.setAdjustments({ highlights: -50, shadows: 50, whites: 10, blacks: -10 });
 const state = // Or read immediately: openlight.getState()
 ```
 
@@ -56,5 +57,11 @@ scene store owns document state and generic editing actions, without file loader
 
 `setAdjustments` merges a partial update. Exposure accepts -5 to 5; other
 adjustments accept -100 to 100. Loading another image resets adjustments.
+The four tone controls follow Camera Raw XMP's units and direction. Each effect
+is owned by its matching WGSL file in `src/lib/adjustments/`.
+Whites and blacks move their endpoints along monotone cubic curves in perceptual
+space, leaving middle gray fixed. At full strength the endpoint moves by 0.1.
+Highlights and shadows use pointwise curves fitted against Lightroom exports;
+they do not yet model Lightroom's spatial processing.
 State includes the file name and adjustments. Loading commands resolve when their
 batch finishes; image decoding failures appear in the editor. The renderer runs every frame.

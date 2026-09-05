@@ -5,20 +5,17 @@ import {
 	type Gpu,
 	sampler,
 	type Target,
-	target,
 } from "vgpu";
 import type { Scene } from "@/app/scene";
 import { createToneCurves } from "@/features/tone-curves/pass";
 import type { View } from "@/hooks/use-pan-zoom";
-import adjustmentsShader from "@/lib/adjustments/adjustments.wgsl";
+import { createAdjustments } from "@/lib/adjustments";
 import shader from "./renderer.wgsl";
 
 /** Owns scene passes and intermediate textures for one decoded source. */
 export function createRenderer(gpu: Gpu, source: Target) {
-	const adjusted = target(gpu, { size: source.size, format: source.format });
-	const adjust = effect(gpu, adjustmentsShader, {
-		set: { sourceSampler: sampler(gpu) },
-	});
+	const adjust = createAdjustments(gpu, source);
+	const adjusted = adjust.output;
 	const toneCurves = createToneCurves(gpu, adjusted);
 	const display = effect(gpu, shader, {
 		set: {
@@ -43,10 +40,7 @@ export function createRenderer(gpu: Gpu, source: Target) {
 		},
 		update(scene: Scene) {
 			frame(gpu, (frame) => {
-				frame.pass(
-					adjusted,
-					adjust.set({ source: source.color, adjustments: scene.adjustments }),
-				);
+				adjust.render(frame, scene.adjustments);
 				output = toneCurves.render(frame, scene.toneCurve);
 			});
 			rendered = true;
@@ -73,7 +67,7 @@ export function createRenderer(gpu: Gpu, source: Target) {
 		},
 		dispose() {
 			listeners.clear();
-			adjusted.color.dispose();
+			adjust.dispose();
 			toneCurves.dispose();
 		},
 	};

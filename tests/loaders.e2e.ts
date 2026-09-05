@@ -44,7 +44,7 @@ test("file batches load one image before its settings, regardless of file order"
 
 	for (const settingsFirst of [true, false]) {
 		const parameters = settings(
-			'crs:Exposure2012="1.25" crs:Contrast2012="-20" crs:Vibrance="30" crs:Saturation="-10"',
+			'crs:Exposure2012="1.25" crs:Contrast2012="-20" crs:Highlights2012="-50" crs:Shadows2012="50" crs:Whites2012="25" crs:Blacks2012="-25" crs:Vibrance="30" crs:Saturation="-10"',
 			settingsFirst ? "photo.xml" : "photo.xmp",
 		);
 		const ignored = { name: "second.png", content: "invalid image" };
@@ -57,6 +57,10 @@ test("file batches load one image before its settings, regardless of file order"
 			adjustments: {
 				exposure: 1.25,
 				contrast: -20,
+				highlights: -50,
+				shadows: 50,
+				whites: 25,
+				blacks: -25,
 				vibrance: 30,
 				saturation: -10,
 			},
@@ -72,12 +76,27 @@ test("file batches load one image before its settings, regardless of file order"
 		expect(partial.adjustments).toMatchObject({
 			exposure: -1,
 			contrast: -20,
+			highlights: -50,
+			shadows: 50,
+			whites: 25,
+			blacks: -25,
 			vibrance: 30,
 			saturation: -10,
 		});
 		await expect
 			.poll(() => page.locator("canvas").screenshot())
 			.not.toEqual(before);
+		const reset = await openFiles(page, [
+			settings(
+				'crs:Highlights2012="0" crs:Shadows2012="0" crs:Whites2012="0" crs:Blacks2012="0"',
+			),
+		]);
+		expect(reset.adjustments).toMatchObject({
+			highlights: 0,
+			shadows: 0,
+			whites: 0,
+			blacks: 0,
+		});
 	}
 });
 

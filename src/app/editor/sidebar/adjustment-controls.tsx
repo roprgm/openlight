@@ -43,7 +43,7 @@ function AdjustmentSlider({ name, ...props }: AdjustmentSliderProps) {
 
 export default function AdjustmentControls() {
 	return (
-		<section className="flex flex-col gap-3 p-4 shadow-ridge">
+		<section className="flex flex-col gap-2 p-4 shadow-ridge">
 			<AdjustmentSlider name="exposure" label="Exposure" step={0.01} />
 			<AdjustmentSlider
 				name="incrementalTemperature"
@@ -56,6 +56,10 @@ export default function AdjustmentControls() {
 				stops={stops.incrementalTint}
 			/>
 			<AdjustmentSlider name="contrast" label="Contrast" />
+			<AdjustmentSlider name="highlights" label="Highlights" />
+			<AdjustmentSlider name="shadows" label="Shadows" />
+			<AdjustmentSlider name="whites" label="Whites" />
+			<AdjustmentSlider name="blacks" label="Blacks" />
 			<AdjustmentSlider
 				name="vibrance"
 				label="Vibrance"

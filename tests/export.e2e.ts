@@ -36,7 +36,13 @@ test("exports full-resolution PNGs with current edits through the API and button
 	});
 	expect(original).toEqual([128, 128, 128, 255]);
 	await page.evaluate(() => {
-		window.openlight.setAdjustments({ exposure: 1 });
+		window.openlight.setAdjustments({
+			exposure: 1,
+			highlights: -20,
+			shadows: 30,
+			whites: 10,
+			blacks: -5,
+		});
 		window.openlight.setToneCurve([
 			{ x: 0, y: 0 },
 			{ x: 0.5, y: 0.75 },

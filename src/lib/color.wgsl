@@ -1,5 +1,9 @@
 import { linearToSrgb3 } from "@vgpu/wgsl-std/color";
 
+export fn luminance(color: vec3f) -> f32 {
+  return dot(color, vec3f(0.2627, 0.6780, 0.0593));
+}
+
 // The working space is linear Rec.2020; these convert its primaries to and from linear sRGB and Display P3 (column-major).
 export const srgbToRec2020 = mat3x3f(
   0.6274, 0.0691, 0.0164,
