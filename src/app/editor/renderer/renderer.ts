@@ -8,6 +8,7 @@ import {
 } from "vgpu";
 import type { Preview } from "@/app/document";
 import type { Scene } from "@/app/scene";
+import { createCrop } from "@/features/crop/pass";
 import { createToneCurves } from "@/features/tone-curves/pass";
 import type { View } from "@/hooks/use-pan-zoom";
 import { createAdjustments } from "@/lib/adjustments";
@@ -24,11 +25,16 @@ export function createRenderer(gpu: Gpu, source: Target) {
 		},
 	});
 
+	const cropInput = createCrop(gpu);
+	const cropOutput = createCrop(gpu);
+	const cropOriginal = createCrop(gpu);
+	let input = adjusted;
+	let original = source;
 	const listeners = new Set<() => void>();
 	let rendered = false;
 	let output = adjusted;
 	return {
-		inputImage: () => adjusted,
+		inputImage: () => input,
 		outputImage: () => output,
 		subscribe(listener: () => void) {
 			listeners.add(listener);
@@ -42,7 +48,13 @@ export function createRenderer(gpu: Gpu, source: Target) {
 		update(scene: Scene) {
 			frame(gpu, (frame) => {
 				adjust.render(frame, scene.adjustments);
-				output = toneCurves.render(frame, scene.toneCurve);
+				const curved = toneCurves.render(frame, scene.toneCurve);
+				input = cropInput.render(frame, adjusted, scene.geometry);
+				output =
+					curved === adjusted
+						? input
+						: cropOutput.render(frame, curved, scene.geometry);
+				original = cropOriginal.render(frame, source, scene.geometry);
 			});
 			rendered = true;
 			for (const listener of listeners) {
@@ -58,12 +70,12 @@ export function createRenderer(gpu: Gpu, source: Target) {
 			if (!rendered) {
 				return;
 			}
-			const image = preview?.comparison === "original" ? source : output;
+			const image = preview?.comparison === "original" ? original : output;
 			frame.pass(
 				canvas,
 				display.set({
 					source: image.color,
-					original: source.color,
+					original: original.color,
 					params: {
 						size: canvas.size,
 						sourceSize: image.size,
@@ -80,6 +92,9 @@ export function createRenderer(gpu: Gpu, source: Target) {
 			listeners.clear();
 			adjust.dispose();
 			toneCurves.dispose();
+			cropInput.dispose();
+			cropOutput.dispose();
+			cropOriginal.dispose();
 		},
 	};
 }

@@ -29,8 +29,7 @@ bun run test:browser # pixels, UI, and codecs; requires Chromium + WebGPU
 `window.openlight` is available after the app mounts, including production builds.
 `createControls(gpu, workspace)` exposes the same commands without React. Each
 document owns a vanilla Zustand scene store, an in-memory history, and image
-resources. The scene contains canvas dimensions, a source ID, adjustments, and a
-tone curve. Files and GPU targets stay outside scene snapshots. The workspace
+resources. The scene contains canvas dimensions, a source ID, adjustments, a tone curve, and non-destructive crop geometry. Files and GPU targets stay outside scene snapshots. The workspace
 currently opens one document at a time and replaces it when another image opens.
 React hooks and context bind these instances to the UI; the renderer subscribes to its
 explicit document.
@@ -94,3 +93,24 @@ Preview settings reset when another image opens and never enter undo history.
 Scripts can use `openlight.setPreview({ comparison: "split", split: 0.5 })` and
 `openlight.setPreview({ shadows: true, highlights: true })`. Comparison accepts
 `"edited"`, `"original"`, or `"split"`; the split position is a fraction from 0 to 1.
+
+## Crop and rotate
+
+Use the crop icon or press **C**. Drag the corners to resize the crop, drag inside
+to move it, or use arrow keys on the focused selection or corner. The aspect selector
+starts locked to the current image ratio and offers common ratios or Free.
+The two rotation icons turn 90° left or right; Straighten adjusts from -45°
+to 45° and fills the frame automatically. Scroll to pan and use Ctrl/⌘ + scroll
+to zoom while cropping. Uncrop restores the full frame while
+keeping rotation; Reset restores the original geometry.
+
+Apply commits the entire crop session as one undo step. Escape or Cancel discards
+the draft. Enter applies when focus is on the canvas. The source image stays intact,
+so reopening the tool can recover cropped areas. Preview, comparison, histograms,
+and export use the same geometry; exported dimensions follow the applied crop.
+
+`openlight.setGeometry({ x: 0.1, y: 0.1, width: 0.8, height: 0.8, rotation: 90, angle: 2 })`
+applies geometry imperatively. Rectangle coordinates are fractions of the oriented
+image, rotation accepts 0/90/180/270 degrees, and angle is the straighten adjustment
+in degrees. `openlight.setGeometry()` resets geometry. `getState()` includes geometry
+and the resulting document dimensions.

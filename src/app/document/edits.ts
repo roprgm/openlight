@@ -1,5 +1,11 @@
 import { type Adjustments, adjustmentLimits } from "@/app/scene";
 import {
+	cropSize,
+	defaultGeometry,
+	type Geometry,
+	validateGeometry,
+} from "@/features/crop/geometry";
+import {
 	defaultCurve,
 	type ToneCurve,
 	validateCurve,
@@ -34,4 +40,15 @@ export function setToneCurve(
 		...document.scene.getState(),
 		toneCurve: points.map((point) => ({ ...point })),
 	});
+}
+
+export function setGeometry(
+	document: EditorDocument,
+	change: Partial<Geometry> = defaultGeometry,
+) {
+	const scene = document.scene.getState();
+	const geometry = { ...scene.geometry, ...change };
+	validateGeometry(geometry);
+	const { image } = document.resources.get(scene.source);
+	document.edit({ ...scene, geometry, size: cropSize(image.size, geometry) });
 }

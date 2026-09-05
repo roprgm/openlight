@@ -6,7 +6,7 @@ export type ExportOptions =
 	| { format: "png" }
 	| { format: "jpeg"; quality: number };
 
-/** Renders a snapshot of the current edits at the original image dimensions. */
+/** Renders a snapshot of the current edits at the document dimensions. */
 export async function exportImage(
 	gpu: Gpu,
 	document: EditorDocument,
