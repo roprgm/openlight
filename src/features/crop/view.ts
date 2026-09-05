@@ -31,3 +31,25 @@ export function revealCrop(
 		],
 	};
 }
+
+/** Camera view that fits the original image while editing an applied crop. */
+export function fitCropView(
+	viewport: readonly number[],
+	size: readonly number[],
+	geometry: Geometry,
+): View {
+	const reference = revealCrop(
+		{ zoom: 1, pan: [0, 0] },
+		viewport,
+		size,
+		geometry,
+		0,
+	);
+	return {
+		zoom: 1 / reference.zoom,
+		pan: [
+			-reference.pan[0] / reference.zoom,
+			-reference.pan[1] / reference.zoom,
+		],
+	};
+}

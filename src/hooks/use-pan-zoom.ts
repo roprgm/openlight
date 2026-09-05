@@ -60,17 +60,69 @@ function clamp(view: View, content: Size, viewport: Size): View {
 export function usePanZoom(content?: Size, { constrain = true } = {}) {
 	const ref = useRef<HTMLDivElement>(null);
 	const pointers = useRef(new Map<number, Point>());
+	const boundedDrag = useRef(true);
+	const fitZoom = useRef(1);
 	const [view, setView] = useState(fit);
 	const [viewport, setViewport] = useState<Point>([0, 0]);
+	const [panMode, setPanMode] = useState(false);
+
+	useEffect(() => {
+		const controller = new AbortController();
+		const { signal } = controller;
+		window.addEventListener(
+			"keydown",
+			(event) => {
+				if (
+					event.code !== "Space" ||
+					event.ctrlKey ||
+					event.metaKey ||
+					event.altKey
+				) {
+					return;
+				}
+				const target = event.target;
+				if (
+					target instanceof HTMLElement &&
+					(target.isContentEditable ||
+						target.closest(
+							'input:not([type="range"]), textarea, select, dialog, [role="dialog"]',
+						))
+				) {
+					return;
+				}
+				event.preventDefault();
+				setPanMode(true);
+			},
+			{ signal },
+		);
+		window.addEventListener(
+			"keyup",
+			(event) => {
+				if (event.code === "Space") {
+					setPanMode(false);
+				}
+			},
+			{ signal },
+		);
+		window.addEventListener(
+			"blur",
+			() => {
+				setPanMode(false);
+				pointers.current.clear();
+			},
+			{ signal },
+		);
+		return () => controller.abort();
+	}, []);
 
 	const update = useCallback(
-		(next: (view: View) => View) => {
+		(next: (view: View) => View, bounded = constrain) => {
 			const element = ref.current;
 			if (element && content) {
 				const viewport: Size = [element.clientWidth, element.clientHeight];
 				setView((view) => {
 					const result = next(view);
-					return constrain ? clamp(result, content, viewport) : result;
+					return bounded ? clamp(result, content, viewport) : result;
 				});
 			}
 		},
@@ -100,7 +152,7 @@ export function usePanZoom(content?: Size, { constrain = true } = {}) {
 						view,
 						focal,
 						view.zoom * Math.exp(-event.deltaY / 100),
-						constrain ? 1 : 0.1,
+						constrain ? 1 : fitZoom.current * 0.1,
 					);
 				}
 				return {
@@ -118,10 +170,24 @@ export function usePanZoom(content?: Size, { constrain = true } = {}) {
 
 	const release = (event: PointerEvent<HTMLElement>) =>
 		pointers.current.delete(event.pointerId);
+	const resetView = (next = fit) => {
+		fitZoom.current = next.zoom;
+		setView(next);
+	};
 	const handlers = {
+		onPointerDownCapture: (event: PointerEvent<HTMLElement>) => {
+			if (panMode && event.button === 0) {
+				event.preventDefault();
+				event.stopPropagation();
+				handlers.onPointerDown(event);
+			}
+		},
 		onPointerDown: (event: PointerEvent<HTMLElement>) => {
 			if (event.button !== 0 || pointers.current.size === 2) {
 				return;
+			}
+			if (pointers.current.size === 0) {
+				boundedDrag.current = constrain && !panMode;
 			}
 			pointers.current.set(event.pointerId, [event.clientX, event.clientY]);
 			event.currentTarget.setPointerCapture(event.pointerId);
@@ -147,7 +213,7 @@ export function usePanZoom(content?: Size, { constrain = true } = {}) {
 					view,
 					focal,
 					view.zoom * ratio,
-					constrain ? 1 : 0.1,
+					constrain ? 1 : fitZoom.current * 0.1,
 				);
 				return {
 					...zoomed,
@@ -156,12 +222,12 @@ export function usePanZoom(content?: Size, { constrain = true } = {}) {
 						zoomed.pan[1] + next.center[1] - previous.center[1],
 					],
 				};
-			});
+			}, boundedDrag.current);
 		},
 		onPointerUp: release,
 		onPointerCancel: release,
 		onLostPointerCapture: release,
-		onDoubleClick: () => setView(fit),
+		onDoubleClick: () => resetView(),
 	};
 
 	const panBy = (delta: Point) =>
@@ -169,5 +235,5 @@ export function usePanZoom(content?: Size, { constrain = true } = {}) {
 			...view,
 			pan: [view.pan[0] + delta[0], view.pan[1] + delta[1]],
 		}));
-	return { ref, view, viewport, handlers, panBy };
+	return { ref, view, viewport, handlers, panBy, resetView, panMode };
 }

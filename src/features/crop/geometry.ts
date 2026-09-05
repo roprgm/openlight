@@ -2,6 +2,8 @@ export type Rect = { x: number; y: number; width: number; height: number };
 export type Geometry = Rect & {
 	rotation: number;
 	angle: number;
+	flipX: boolean;
+	flipY: boolean;
 	// Keep the image transform independent of subsequent crop-frame edits.
 	scale: number;
 	offsetX: number;
@@ -13,6 +15,8 @@ export const defaultGeometry: Geometry = {
 	...fullRect,
 	rotation: 0,
 	angle: 0,
+	flipX: false,
+	flipY: false,
 	scale: 1,
 	offsetX: 0,
 	offsetY: 0,
@@ -58,10 +62,13 @@ export function rotateCrop(
 	};
 }
 
-export function validateGeometry(geometry: Geometry) {
-	const { x, y, width, height, rotation, angle, scale } = geometry;
+function validateGeometry(geometry: Geometry) {
+	const { flipX, flipY, ...numeric } = geometry;
+	const { x, y, width, height, rotation, angle, scale } = numeric;
 	if (
-		Object.values(geometry).some((value) => !Number.isFinite(value)) ||
+		Object.values(numeric).some((value) => !Number.isFinite(value)) ||
+		typeof flipX !== "boolean" ||
+		typeof flipY !== "boolean" ||
 		x < 0 ||
 		y < 0 ||
 		width <= 0 ||
@@ -76,6 +83,121 @@ export function validateGeometry(geometry: Geometry) {
 	}
 }
 
+function rotatePoint(x: number, y: number, degrees: number) {
+	const angle = (degrees * Math.PI) / 180;
+	return [
+		Math.cos(angle) * x - Math.sin(angle) * y,
+		Math.sin(angle) * x + Math.cos(angle) * y,
+	];
+}
+
+/** Mirror the image around the crop center without moving the frame. */
+export function flipCrop(
+	geometry: Geometry,
+	axis: "horizontal" | "vertical",
+	size: readonly number[],
+): Geometry {
+	const horizontal = axis === "horizontal";
+	const [width, height] = orientedSize(size, geometry.rotation);
+	const shift = rotatePoint(
+		horizontal ? (2 * geometry.x + geometry.width - 1) * width : 0,
+		horizontal ? 0 : (2 * geometry.y + geometry.height - 1) * height,
+		-geometry.angle,
+	);
+	const sourceAxis =
+		horizontal === (geometry.rotation % 180 === 0) ? "flipX" : "flipY";
+	return {
+		...geometry,
+		[sourceAxis]: !geometry[sourceAxis],
+		angle: -geometry.angle,
+		offsetX:
+			(geometry.offsetX + shift[0] / width / geometry.scale) *
+			(horizontal ? -1 : 1),
+		offsetY:
+			(geometry.offsetY + shift[1] / height / geometry.scale) *
+			(horizontal ? 1 : -1),
+	};
+}
+
+/** Map crop coordinates into the original texture, shared by preview and output. */
+export function cropTransform(geometry: Geometry, size: readonly number[]) {
+	const [width, height] = orientedSize(size, geometry.rotation);
+	const offset = rotatePoint(
+		geometry.offsetX * width,
+		geometry.offsetY * height,
+		-geometry.rotation,
+	);
+	const direction = [geometry.flipX ? -1 : 1, geometry.flipY ? -1 : 1];
+	function point(x: number, y: number) {
+		return rotatePoint(
+			(x - 0.5) * width,
+			(y - 0.5) * height,
+			-geometry.rotation - geometry.angle,
+		).map(
+			(value, i) =>
+				(direction[i] * (value / geometry.scale + offset[i])) / size[i] + 0.5,
+		);
+	}
+	const origin = point(geometry.x, geometry.y);
+	return {
+		origin,
+		xAxis: point(geometry.x + geometry.width, geometry.y).map(
+			(v, i) => v - origin[i],
+		),
+		yAxis: point(geometry.x, geometry.y + geometry.height).map(
+			(v, i) => v - origin[i],
+		),
+	};
+}
+
+function sourceCornerCoordinates(geometry: Geometry, size: readonly number[]) {
+	const { origin, xAxis, yAxis } = cropTransform(geometry, size);
+	return [0, 1].flatMap((x) =>
+		[0, 1].flatMap((y) =>
+			origin.map((v, i) => v + x * xAxis[i] + y * yAxis[i]),
+		),
+	);
+}
+
+/** Stop a frame edit at the first source edge, preserving its anchor and aspect. */
+function constrainCrop(
+	previous: Geometry,
+	next: Geometry,
+	size: readonly number[],
+) {
+	const corners = sourceCornerCoordinates(next, size);
+	if (corners.every((value) => value >= -1e-9 && value <= 1 + 1e-9)) {
+		return next;
+	}
+	if (
+		previous.rotation !== next.rotation ||
+		previous.angle !== next.angle ||
+		previous.scale !== next.scale ||
+		previous.offsetX !== next.offsetX ||
+		previous.offsetY !== next.offsetY
+	) {
+		throw new Error("Crop extends outside the image.");
+	}
+	const start = sourceCornerCoordinates(previous, size);
+	let fraction = 1;
+	for (const [i, value] of corners.entries()) {
+		if (value < 0 || value > 1) {
+			const edge = Math.min(1, Math.max(0, value));
+			fraction = Math.min(
+				fraction,
+				Math.max(0, (edge - start[i]) / (value - start[i])),
+			);
+		}
+	}
+	return {
+		...next,
+		x: previous.x + (next.x - previous.x) * fraction,
+		y: previous.y + (next.y - previous.y) * fraction,
+		width: previous.width + (next.width - previous.width) * fraction,
+		height: previous.height + (next.height - previous.height) * fraction,
+	};
+}
+
 /** Turn around the crop's current source point, fitting its corners inside the image. */
 function straighten(
 	geometry: Geometry,
@@ -85,13 +207,10 @@ function straighten(
 	const [width, height] = orientedSize(size, geometry.rotation);
 	const x = geometry.x + geometry.width / 2 - 0.5;
 	const y = geometry.y + geometry.height / 2 - 0.5;
-	const inverse = (degrees: number) => {
-		const radians = (degrees * Math.PI) / 180;
-		return [
-			Math.cos(radians) * x + (Math.sin(radians) * y * height) / width,
-			(-Math.sin(radians) * x * width) / height + Math.cos(radians) * y,
-		];
-	};
+	const inverse = (degrees: number) =>
+		rotatePoint(x * width, y * height, -degrees).map(
+			(value, i) => value / [width, height][i],
+		);
 	const previous = inverse(geometry.angle);
 	const center = [
 		previous[0] / geometry.scale + geometry.offsetX + 0.5,
@@ -131,7 +250,7 @@ export function changeGeometry(
 	if (change.angle !== undefined && change.scale === undefined) {
 		return straighten({ ...next, angle: geometry.angle }, change.angle, size);
 	}
-	return next;
+	return constrainCrop(geometry, next, size);
 }
 
 /** Fit a pixel aspect ratio inside the current rectangle without moving its center. */
@@ -169,16 +288,17 @@ export function dragRect(
 	const anchorY = rect.y + (top ? rect.height : 0);
 	const maxWidth = left ? anchorX : 1 - anchorX;
 	const maxHeight = top ? anchorY : 1 - anchorY;
-	let width = clamp(rect.width + (left ? -dx : dx), 0.01, maxWidth);
-	let height = clamp(rect.height + (top ? -dy : dy), 0.01, maxHeight);
-	if (ratio) {
-		width = Math.min(
-			Math.abs(dx) >= Math.abs(dy) * ratio ? width : height * ratio,
-			maxWidth,
-			maxHeight * ratio,
-		);
-		height = width / ratio;
-	}
+	const draggedWidth = rect.width + (left ? -dx : dx);
+	const draggedHeight = rect.height + (top ? -dy : dy);
+	// Project onto the aspect diagonal instead of switching the controlling axis.
+	const width = ratio
+		? clamp(
+				((draggedWidth * ratio + draggedHeight) * ratio) / (ratio * ratio + 1),
+				0.01,
+				Math.min(maxWidth, maxHeight * ratio),
+			)
+		: clamp(draggedWidth, 0.01, maxWidth);
+	const height = ratio ? width / ratio : clamp(draggedHeight, 0.01, maxHeight);
 	return {
 		x: left ? anchorX - width : anchorX,
 		y: top ? anchorY - height : anchorY,

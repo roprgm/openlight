@@ -25,7 +25,7 @@ export default function ResizablePanel({
 	return (
 		<aside
 			className={cn(
-				"relative h-1/2 shrink-0 bg-neutral-800 shadow-ridge max-md:w-full! max-md:border-t max-md:border-neutral-600 md:h-auto",
+				"relative h-1/2 shrink-0 bg-panel shadow-ridge max-md:w-full! max-md:border-t max-md:border-neutral-600 md:h-auto",
 				className,
 			)}
 			style={{ width, ...style }}

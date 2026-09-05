@@ -4,21 +4,25 @@ import { Field } from "@/components/ui/field";
 import { Slider } from "@/components/ui/slider";
 import {
 	type CropDraft,
-	changeGeometry,
 	cropSize,
 	defaultGeometry,
 	fitAspect,
+	flipCrop,
 	type Geometry,
 	orientedSize,
 	rotateCrop,
 } from "./geometry";
 
 const rotations = [
-	{ direction: -1, label: "Rotate counterclockwise", transform: "" },
+	{
+		direction: -1,
+		label: "Rotate counterclockwise",
+		transform: "translate(24 0) scale(-1 1)",
+	},
 	{
 		direction: 1,
 		label: "Rotate clockwise",
-		transform: "translate(20 0) scale(-1 1)",
+		transform: "",
 	},
 ] as const;
 
@@ -28,6 +32,7 @@ type CropPanelProps = {
 	onChange: (change: Partial<Geometry>, aspect?: number | null) => void;
 	onApply: () => void;
 	onCancel: () => void;
+	onResetView: () => void;
 };
 
 export function CropPanel({
@@ -36,6 +41,7 @@ export function CropPanel({
 	onChange,
 	onApply,
 	onCancel,
+	onResetView,
 }: CropPanelProps) {
 	useEffect(() => {
 		function keyDown(event: KeyboardEvent) {
@@ -57,20 +63,20 @@ export function CropPanel({
 	const { geometry, aspect } = crop;
 	const [width, height] = orientedSize(size, geometry.rotation);
 	const [outputWidth, outputHeight] = cropSize(size, geometry);
+	const aspects = {
+		Original: width / height,
+		Square: 1,
+		"4:3": 4 / 3,
+		"3:2": 3 / 2,
+		"16:9": 16 / 9,
+		"4:5": 4 / 5,
+		"9:16": 9 / 16,
+		"3:4": 3 / 4,
+		"2:3": 2 / 3,
+		"5:4": 5 / 4,
+	};
 	const customAspect =
-		aspect !== null &&
-		![
-			width / height,
-			1,
-			4 / 3,
-			3 / 2,
-			16 / 9,
-			4 / 5,
-			9 / 16,
-			3 / 4,
-			2 / 3,
-			5 / 4,
-		].includes(aspect);
+		aspect !== null && !Object.values(aspects).includes(aspect);
 	function changeAspect(value: string) {
 		const ratio = value === "free" ? null : Number(value);
 		const rect = ratio
@@ -79,21 +85,9 @@ export function CropPanel({
 		onChange(rect, ratio);
 	}
 	return (
-		<section
-			aria-label="Crop tool"
-			className="flex h-full flex-col bg-neutral-900"
-		>
+		<section aria-label="Crop tool" className="flex h-full flex-col bg-panel">
 			<div className="flex-1 space-y-5 overflow-y-auto p-4">
-				<div className="flex items-center justify-between">
-					<h2 className="text-sm text-neutral-100">Crop & rotate</h2>
-					<Button
-						variant="ghost"
-						className="px-2 py-1 text-xs"
-						onClick={() => onChange(defaultGeometry, size[0] / size[1])}
-					>
-						Reset
-					</Button>
-				</div>
+				<h2 className="text-sm text-neutral-100">Crop & rotate</h2>
 				<label className="flex items-center justify-between text-sm text-neutral-400">
 					Aspect ratio
 					<Field className="relative w-24">
@@ -105,16 +99,11 @@ export function CropPanel({
 						>
 							<option value="free">Free</option>
 							{customAspect && <option value={aspect ?? ""}>Current</option>}
-							<option value={width / height}>Original</option>
-							<option value={1}>Square</option>
-							<option value={4 / 3}>4:3</option>
-							<option value={3 / 2}>3:2</option>
-							<option value={16 / 9}>16:9</option>
-							<option value={4 / 5}>4:5</option>
-							<option value={9 / 16}>9:16</option>
-							<option value={3 / 4}>3:4</option>
-							<option value={2 / 3}>2:3</option>
-							<option value={5 / 4}>5:4</option>
+							{Object.entries(aspects).map(([label, value]) => (
+								<option key={label} value={value}>
+									{label}
+								</option>
+							))}
 						</select>
 						<svg
 							aria-hidden="true"
@@ -130,51 +119,85 @@ export function CropPanel({
 						</svg>
 					</Field>
 				</label>
-				<div className="flex gap-2">
-					{rotations.map(({ direction, label, transform }) => (
+				<section aria-label="Rotate and flip image" className="space-y-2">
+					<div className="flex items-center justify-between">
+						<h3 className="text-xs font-medium text-neutral-400">
+							Rotate & flip
+						</h3>
 						<Button
-							key={direction}
 							variant="ghost"
-							aria-label={label}
-							title={`${label} (90°)`}
-							className="flex size-8 items-center justify-center rounded-md p-0"
-							onClick={() =>
-								onChange(rotateCrop(geometry, direction), aspect && 1 / aspect)
-							}
+							className="px-2 py-1 text-xs"
+							onClick={() => {
+								onChange(defaultGeometry, size[0] / size[1]);
+								onResetView();
+							}}
 						>
-							<svg
-								aria-hidden="true"
-								viewBox="0 0 20 20"
-								className="size-4"
-								fill="none"
-								stroke="currentColor"
-								strokeWidth="1.5"
-								strokeLinecap="round"
-								strokeLinejoin="round"
-							>
-								<path transform={transform} d="M3 3v5h5M3 8a7 7 0 1 1 0 4" />
-							</svg>
+							Reset
 						</Button>
-					))}
-					<Button
-						variant="ghost"
-						className="ml-auto py-1.5 text-xs"
-						onClick={() =>
-							onChange(
-								changeGeometry(
-									{ ...defaultGeometry, rotation: geometry.rotation },
-									{ angle: geometry.angle },
-									size,
-								),
-								width / height,
-							)
-						}
-					>
-						Uncrop
-					</Button>
-				</div>
+					</div>
+					<div className="flex gap-2">
+						{rotations.map(({ direction, label, transform }) => (
+							<Button
+								key={direction}
+								variant="ghost"
+								aria-label={label}
+								title={`${label} (90°)`}
+								className="flex h-9 flex-1 items-center justify-center gap-1 rounded-md px-1"
+								onClick={() =>
+									onChange(
+										rotateCrop(geometry, direction),
+										aspect && 1 / aspect,
+									)
+								}
+							>
+								<svg
+									aria-hidden="true"
+									viewBox="0 0 24 24"
+									className="size-5"
+									fill="none"
+									stroke="currentColor"
+									strokeWidth="1.5"
+									strokeLinecap="round"
+									strokeLinejoin="round"
+								>
+									<g transform={transform}>
+										<path d="M4 12a8 8 0 0 1 14-5" />
+										<path d="M4 12a8 8 0 0 0 16 0" strokeDasharray="0.1 3.5" />
+										<path d="M20 3v6h-6z" fill="currentColor" stroke="none" />
+									</g>
+								</svg>
+								<span className="text-xs">90°</span>
+							</Button>
+						))}
+						{(["horizontal", "vertical"] as const).map((axis) => (
+							<Button
+								key={axis}
+								variant="ghost"
+								aria-label={`Flip ${axis}`}
+								title={`Flip ${axis}`}
+								className="flex h-9 flex-1 items-center justify-center rounded-md px-1"
+								onClick={() => onChange(flipCrop(geometry, axis, size))}
+							>
+								<svg
+									aria-hidden="true"
+									viewBox="0 0 24 24"
+									className="size-5"
+									fill="none"
+									stroke="currentColor"
+									strokeWidth="1.5"
+									strokeLinejoin="round"
+									style={{ rotate: axis === "vertical" ? "90deg" : undefined }}
+								>
+									<path d="M9 5 3 12l6 7Z" fill="currentColor" stroke="none" />
+									<path d="m15 5 6 7-6 7Z" />
+									<path d="M12 3v18" strokeDasharray="1 3" />
+								</svg>
+							</Button>
+						))}
+					</div>
+				</section>
 				<Slider
-					label="Straighten"
+					label="Rotation"
 					min={-45}
 					max={45}
 					step={0.1}
@@ -184,7 +207,7 @@ export function CropPanel({
 				/>
 				<p className="text-xs text-neutral-500">
 					Drag corners to crop, inside to move the image, or well outside to
-					straighten. Scroll to pan; Ctrl/⌘ + scroll to zoom. Enter to apply.
+					rotate. Scroll to pan; Ctrl/⌘ + scroll to zoom. Enter to apply.
 				</p>
 				<p className="text-xs tabular-nums text-neutral-400">
 					{outputWidth} × {outputHeight} px

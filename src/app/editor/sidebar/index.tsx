@@ -53,7 +53,13 @@ function ToneCurvesPanel({
 	);
 }
 
-export function Sidebar() {
+export function Sidebar({
+	onResetView,
+	onCropApplied,
+}: {
+	onResetView: () => void;
+	onCropApplied: () => void;
+}) {
 	const gpu = useGpu();
 	const document = useDocument();
 	const crop = useStore(document.preview, (state) => state.crop);
@@ -70,8 +76,12 @@ export function Sidebar() {
 						document.resources.get(document.scene.getState().source).image.size
 					}
 					onChange={(change, aspect) => updateCrop(document, change, aspect)}
-					onApply={() => applyCrop(document)}
+					onApply={() => {
+						applyCrop(document);
+						onCropApplied();
+					}}
 					onCancel={() => cancelCrop(document)}
+					onResetView={onResetView}
 				/>
 			</ResizablePanel>
 		);
@@ -98,7 +108,7 @@ export function Sidebar() {
 					<AdjustmentControls />
 					<ToneCurvesPanel histogram={histogram} />
 				</div>
-				<div className="flex shrink-0 items-center gap-2 bg-neutral-900 p-3">
+				<div className="flex shrink-0 items-center gap-2 bg-panel p-3">
 					<HistoryControls />
 					<ComparisonControl />
 					<CropButton onClick={() => beginCrop(document)} />

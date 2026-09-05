@@ -1,16 +1,27 @@
-import { useMemo } from "react";
+import { type Ref, useImperativeHandle, useMemo } from "react";
 import { Canvas } from "vgpu-react";
 import { useStore } from "zustand";
 import { useDocument, useScene } from "@/app/document/provider";
 import { orientedSize } from "@/features/crop/geometry";
 import { CropOverlay } from "@/features/crop/overlay";
-import { revealCrop } from "@/features/crop/view";
+import { fitCropView, revealCrop } from "@/features/crop/view";
 import { usePanZoom } from "@/hooks/use-pan-zoom";
 import { ComparisonDivider } from "./comparison-divider";
 import { updateCrop } from "./crop";
 import { CanvasRenderer } from "./renderer";
 
-export function EditorCanvas({ size }: { size: readonly [number, number] }) {
+export type EditorCanvasHandle = {
+	resetView: () => void;
+	fitView: () => void;
+};
+
+export function EditorCanvas({
+	size,
+	ref: canvasRef,
+}: {
+	size: readonly [number, number];
+	ref: Ref<EditorCanvasHandle>;
+}) {
 	const document = useDocument();
 	const crop = useStore(document.preview, (state) => state.crop);
 	const geometry = useScene((scene) => scene.geometry);
@@ -20,9 +31,14 @@ export function EditorCanvas({ size }: { size: readonly [number, number] }) {
 		() => orientedSize(size, rotation - geometry.rotation),
 		[size, rotation, geometry.rotation],
 	);
-	const { ref, view, viewport, handlers, panBy } = usePanZoom(content, {
-		constrain: !crop,
-	});
+	const { ref, view, viewport, handlers, panBy, resetView, panMode } =
+		usePanZoom(content, {
+			constrain: !crop,
+		});
+	useImperativeHandle(canvasRef, () => ({
+		fitView: resetView,
+		resetView: () => resetView(fitCropView(viewport, image.size, geometry)),
+	}));
 	const display = crop
 		? revealCrop(view, viewport, image.size, geometry, rotation)
 		: view;
@@ -35,14 +51,15 @@ export function EditorCanvas({ size }: { size: readonly [number, number] }) {
 			<div
 				ref={ref}
 				{...handlers}
-				className="relative size-full cursor-grab touch-none active:cursor-grabbing"
+				data-pan-mode={panMode}
+				className="relative size-full cursor-grab touch-none active:cursor-grabbing data-[pan-mode=true]:[&_*]:cursor-grab! data-[pan-mode=true]:active:[&_*]:cursor-grabbing!"
 			>
-				<Canvas className="size-full">
-					<CanvasRenderer view={display} />
+				<Canvas className="absolute -inset-6 size-[calc(100%+3rem)]">
+					<CanvasRenderer view={display} fitSize={viewport} />
 				</Canvas>
 				{crop && (
 					<CropOverlay
-						size={fullSize}
+						size={image.size}
 						view={display}
 						viewport={viewport}
 						geometry={crop.geometry}
@@ -51,8 +68,8 @@ export function EditorCanvas({ size }: { size: readonly [number, number] }) {
 						onPan={panBy}
 					/>
 				)}
-				<ComparisonDivider />
 			</div>
+			<ComparisonDivider />
 		</section>
 	);
 }

@@ -1,4 +1,5 @@
 import { type PointerEvent, type RefObject, useRef } from "react";
+import rotateCursor from "./rotate-cursor.svg";
 
 type RotationAreaProps = {
 	selection: RefObject<HTMLDivElement | null>;
@@ -31,6 +32,13 @@ export function RotationArea({
 		bearing: number;
 		angle: number;
 	} | null>(null);
+	function updateCursor(event: PointerEvent<HTMLDivElement>) {
+		const bounds = selection.current?.getBoundingClientRect();
+		event.currentTarget.style.cursor =
+			drag.current || (bounds && distance(event, bounds) >= 50)
+				? `url("${rotateCursor}") 12 12, crosshair`
+				: "inherit";
+	}
 	return (
 		<div
 			className="pointer-events-auto absolute -inset-6 touch-none"
@@ -48,13 +56,12 @@ export function RotationArea({
 				event.stopPropagation();
 				event.currentTarget.setPointerCapture(event.pointerId);
 				drag.current = { bounds, bearing: bearing(event, bounds), angle };
+				updateCursor(event);
 			}}
 			onPointerMove={(event) => {
 				const current = drag.current;
 				if (!current) {
-					const bounds = selection.current?.getBoundingClientRect();
-					event.currentTarget.style.cursor =
-						bounds && distance(event, bounds) >= 50 ? "crosshair" : "inherit";
+					updateCursor(event);
 					return;
 				}
 				const delta = bearing(event, current.bounds) - current.bearing;
@@ -67,8 +74,9 @@ export function RotationArea({
 					),
 				);
 			}}
-			onLostPointerCapture={() => {
+			onLostPointerCapture={(event) => {
 				drag.current = null;
+				updateCursor(event);
 			}}
 		/>
 	);

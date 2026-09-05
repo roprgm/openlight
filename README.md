@@ -96,20 +96,22 @@ Scripts can use `openlight.setPreview({ comparison: "split", split: 0.5 })` and
 
 ## Crop and rotate
 
-Use the crop icon or press **C**. Drag corners to resize the crop or drag inside
-to move the image beneath the fixed frame. Arrow keys work on the focused frame
+Use the crop icon or press **C**. Drag corners to resize around the frame's screen
+center, keeping the opposite corner anchored to the photo. Drag inside to move
+the image beneath the fixed frame. Arrow keys work on the focused frame
 or corner. The aspect selector starts locked to the current image ratio and
 offers common ratios or Free.
 
-The rotation icons turn 90° left or right. Straighten adjusts from -45° to 45°
+The rotation icons turn 90° left or right; the adjacent flip icons mirror the image
+horizontally or vertically around the crop center. Rotation adjusts from -45° to 45°
 around the crop center and fills the frame automatically. Drag at least 50 screen
 pixels outside the crop border to straighten directly. Scroll to pan and use
-Ctrl/⌘ + scroll to zoom.
+Ctrl/⌘ + scroll to zoom. Hold Space and drag to pan the view, including during crop editing.
 
 Reopening a crop keeps its scale and position, revealing the surrounding source.
 Loading an image or applying a crop fits the result in the canvas, up to 200%.
-Uncrop restores the full frame while keeping rotation; Reset restores the original
-geometry.
+Reset restores the full frame, clears rotation and flips, and centers the
+original image at its initial fit, up to 200% zoom.
 
 Apply or Enter commits the session as one undo step, including any typed value.
 Escape or Cancel discards the draft. The source stays intact so reopening the tool

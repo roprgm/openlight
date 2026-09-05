@@ -27,7 +27,7 @@ export function ExportButton() {
 			<dialog
 				ref={dialog}
 				aria-label="Export image"
-				className="m-auto w-[360px] max-w-[calc(100%-2rem)] overflow-hidden rounded-xl border border-black bg-neutral-800 p-0 text-neutral-100 shadow-2xl backdrop:bg-black/50 backdrop:backdrop-blur-sm"
+				className="m-auto w-[360px] max-w-[calc(100%-2rem)] overflow-hidden rounded-xl border border-black bg-panel p-0 text-neutral-100 shadow-2xl backdrop:bg-black/50 backdrop:backdrop-blur-sm"
 			>
 				<ExportSettings onClose={() => dialog.current?.close()} />
 			</dialog>

@@ -9,9 +9,9 @@ import {
 import shader from "./crop.wgsl";
 import {
 	cropSize,
+	cropTransform,
 	defaultGeometry,
 	type Geometry,
-	orientedSize,
 } from "./geometry";
 
 /** One reusable transform target; identity geometry preserves the original texture. */
@@ -34,23 +34,11 @@ export function createCrop(gpu: Gpu) {
 			const size = cropSize(source.size, geometry);
 			output ??= target(gpu, { size, format: source.format });
 			output.resize(size);
-			const angle = (geometry.angle * Math.PI) / 180;
-			const fullSize = orientedSize(source.size, geometry.rotation);
-			const cosine = Math.cos(angle);
-			const sine = Math.sin(angle);
 			frame.pass(
 				output,
 				apply.set({
 					source: source.color,
-					params: {
-						rect: [geometry.x, geometry.y, geometry.width, geometry.height],
-						size: fullSize,
-						rotation: geometry.rotation / 90,
-						cosine,
-						sine,
-						scale: geometry.scale,
-						offset: [geometry.offsetX, geometry.offsetY],
-					},
+					transform: cropTransform(geometry, source.size),
 				}),
 			);
 			return output;

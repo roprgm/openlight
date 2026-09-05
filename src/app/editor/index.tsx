@@ -1,14 +1,24 @@
+import { useRef } from "react";
 import { DocumentProvider, useScene } from "@/app/document/provider";
 import type { Workspace } from "@/app/workspace";
 import ResizablePanel from "@/components/ui/resizable-panel";
 import Spinner from "@/components/ui/spinner";
-import { EditorCanvas } from "./canvas";
+import { EditorCanvas, type EditorCanvasHandle } from "./canvas";
 import { RendererProvider } from "./renderer/provider";
 import { Sidebar } from "./sidebar";
 
-function DocumentCanvas() {
+function DocumentEditor() {
 	const size = useScene((scene) => scene.size);
-	return <EditorCanvas key={size.join("x")} size={size} />;
+	const canvas = useRef<EditorCanvasHandle>(null);
+	return (
+		<>
+			<EditorCanvas key={size.join("x")} size={size} ref={canvas} />
+			<Sidebar
+				onResetView={() => canvas.current?.resetView()}
+				onCropApplied={() => canvas.current?.fitView()}
+			/>
+		</>
+	);
 }
 
 type EditorProps = { state: ReturnType<Workspace["state"]["getState"]> };
@@ -33,8 +43,7 @@ function EditorContent({ state }: EditorProps) {
 		return (
 			<DocumentProvider key={document.id} value={document}>
 				<RendererProvider source={image}>
-					<DocumentCanvas />
-					<Sidebar />
+					<DocumentEditor />
 				</RendererProvider>
 			</DocumentProvider>
 		);

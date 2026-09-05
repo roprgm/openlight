@@ -8,6 +8,13 @@ import {
 } from "vgpu";
 import type { Preview } from "@/app/document";
 import type { Scene } from "@/app/scene";
+import {
+	cropSize,
+	cropTransform,
+	defaultGeometry,
+	fullRect,
+	orientedSize,
+} from "@/features/crop/geometry";
 import { createCrop } from "@/features/crop/pass";
 import { createToneCurves } from "@/features/tone-curves/pass";
 import type { View } from "@/hooks/use-pan-zoom";
@@ -27,9 +34,9 @@ export function createRenderer(gpu: Gpu, source: Target) {
 
 	const cropInput = createCrop(gpu);
 	const cropOutput = createCrop(gpu);
-	const cropOriginal = createCrop(gpu);
+	let geometry = defaultGeometry;
 	let input = adjusted;
-	let original = source;
+	let curved = adjusted;
 	const listeners = new Set<() => void>();
 	let rendered = false;
 	let output = adjusted;
@@ -46,15 +53,15 @@ export function createRenderer(gpu: Gpu, source: Target) {
 			};
 		},
 		update(scene: Scene) {
+			geometry = scene.geometry;
 			frame(gpu, (frame) => {
 				adjust.render(frame, scene.adjustments);
-				const curved = toneCurves.render(frame, scene.toneCurve);
+				curved = toneCurves.render(frame, scene.toneCurve);
 				input = cropInput.render(frame, adjusted, scene.geometry);
 				output =
 					curved === adjusted
 						? input
 						: cropOutput.render(frame, curved, scene.geometry);
-				original = cropOriginal.render(frame, source, scene.geometry);
 			});
 			rendered = true;
 			for (const listener of listeners) {
@@ -66,19 +73,28 @@ export function createRenderer(gpu: Gpu, source: Target) {
 			canvas: Target & { dpr: number },
 			view: View,
 			preview?: Preview,
+			fitSize: readonly number[] = canvas.size,
 		) {
 			if (!rendered) {
 				return;
 			}
-			const image = preview?.comparison === "original" ? original : output;
+			const image = preview?.comparison === "original" ? source : curved;
+			const crop = preview?.crop?.geometry;
+			const transform = crop ? { ...crop, ...fullRect } : geometry;
+			const size = crop
+				? orientedSize(source.size, crop.rotation)
+				: cropSize(source.size, geometry);
 			frame.pass(
 				canvas,
 				display.set({
 					source: image.color,
-					original: original.color,
+					original: source.color,
+					transform: cropTransform(transform, source.size),
 					params: {
 						size: canvas.size,
-						sourceSize: image.size,
+						fitSize,
+						sourceSize: size,
+						cropping: Number(!!crop),
 						pan: view.pan.map((p) => p * canvas.dpr),
 						zoom: view.zoom,
 						split: preview?.comparison === "split" ? preview.split : -1,
@@ -94,7 +110,6 @@ export function createRenderer(gpu: Gpu, source: Target) {
 			toneCurves.dispose();
 			cropInput.dispose();
 			cropOutput.dispose();
-			cropOriginal.dispose();
 		},
 	};
 }
