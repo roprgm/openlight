@@ -4,6 +4,13 @@ import type { Scene } from "@/app/scene";
 import { createHistory } from "@/lib/history";
 import { createResources } from "./resources";
 
+export type Preview = {
+	comparison: "edited" | "original" | "split";
+	split: number;
+	shadows: boolean;
+	highlights: boolean;
+};
+
 function equal(a: Scene, b: Scene) {
 	return (
 		a.source === b.source &&
@@ -33,6 +40,12 @@ export function createDocument(initial: Scene, resources = createResources()) {
 			getInitialState: scene.getInitialState,
 			subscribe: scene.subscribe,
 		},
+		preview: createStore<Preview>(() => ({
+			comparison: "edited",
+			split: 0.5,
+			shadows: false,
+			highlights: false,
+		})),
 		history,
 		resources,
 		edit(next: Scene) {
