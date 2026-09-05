@@ -20,6 +20,14 @@ export function createResources() {
 			}
 			return resource;
 		},
+		retain(ids: ReadonlySet<string>) {
+			for (const [id, { image }] of images) {
+				if (!ids.has(id)) {
+					image.color.dispose();
+					images.delete(id);
+				}
+			}
+		},
 		dispose() {
 			disposed = true;
 			for (const { image } of images.values()) {

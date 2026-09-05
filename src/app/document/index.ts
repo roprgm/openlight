@@ -17,7 +17,14 @@ function equal(a: Scene, b: Scene) {
 /** One independent editing session. No React, decoders, or file workflows. */
 export function createDocument(initial: Scene, resources = createResources()) {
 	const scene = createStore(() => initial);
-	const { update, ...history } = createHistory(scene, equal);
+	const { update, ...history } = createHistory(
+		scene,
+		equal,
+		100,
+		(retained) => {
+			resources.retain(new Set(retained.map((state) => state.source)));
+		},
+	);
 	let closed = false;
 	return {
 		id: crypto.randomUUID(),

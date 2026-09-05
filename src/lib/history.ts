@@ -5,13 +5,21 @@ export function createHistory<T extends object>(
 	state: StoreApi<T>,
 	equal: (a: T, b: T) => boolean,
 	limit = 100,
+	onChange?: (retained: readonly T[]) => void,
 ) {
 	const status = createStore(() => ({ undoCount: 0, redoCount: 0 }));
 	const past: T[] = [];
 	const future: T[] = [];
 	let group: T | undefined;
-	const publish = () =>
+	function publish() {
 		status.setState({ undoCount: past.length, redoCount: future.length });
+		onChange?.([
+			...past,
+			...future,
+			...(group ? [group] : []),
+			state.getState(),
+		]);
+	}
 	function record(before: T) {
 		if (equal(before, state.getState())) {
 			return;
@@ -21,13 +29,13 @@ export function createHistory<T extends object>(
 			past.shift();
 		}
 		future.length = 0;
-		publish();
 	}
 	function commit() {
 		const before = group;
 		group = undefined;
 		if (before !== undefined) {
 			record(before);
+			publish();
 		}
 	}
 	function cancel() {
@@ -35,6 +43,7 @@ export function createHistory<T extends object>(
 		group = undefined;
 		if (before !== undefined) {
 			state.setState(before, true);
+			publish();
 		}
 	}
 	function travel(from: T[], to: T[]) {
@@ -62,6 +71,7 @@ export function createHistory<T extends object>(
 			if (!group) {
 				record(before);
 			}
+			publish();
 		},
 		begin() {
 			group ??= state.getState();
