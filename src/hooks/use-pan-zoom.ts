@@ -38,14 +38,17 @@ function zoomAt(view: View, focal: Point, zoom: number, minimum = 1): View {
 	};
 }
 
+export function fitScale(content: Size, viewport: Size) {
+	return Math.min(
+		viewport[0] / content[0],
+		viewport[1] / content[1],
+		2 / devicePixelRatio,
+	);
+}
+
 /** Axes smaller than the viewport stay centered; larger ones cannot pan past their edge. */
 function clamp(view: View, content: Size, viewport: Size): View {
-	const scale =
-		Math.min(
-			viewport[0] / content[0],
-			viewport[1] / content[1],
-			2 / devicePixelRatio,
-		) * view.zoom;
+	const scale = fitScale(content, viewport) * view.zoom;
 	const axis = (i: 0 | 1) => {
 		const room = Math.max(0, (content[i] * scale - viewport[i]) / 2);
 		return Math.min(room, Math.max(-room, view.pan[i]));

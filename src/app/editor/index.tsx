@@ -3,16 +3,17 @@ import { DocumentProvider, useScene } from "@/app/document/provider";
 import type { Workspace } from "@/app/workspace";
 import ResizablePanel from "@/components/ui/resizable-panel";
 import Spinner from "@/components/ui/spinner";
-import { EditorCanvas, type EditorCanvasHandle } from "./canvas";
+import type { CropViewHandle } from "@/features/crop/view";
+import { EditorCanvas } from "./canvas";
 import { RendererProvider } from "./renderer/provider";
 import { Sidebar } from "./sidebar";
 
 function DocumentEditor() {
 	const size = useScene((scene) => scene.size);
-	const canvas = useRef<EditorCanvasHandle>(null);
+	const canvas = useRef<CropViewHandle>(null);
 	return (
 		<>
-			<EditorCanvas key={size.join("x")} size={size} ref={canvas} />
+			<EditorCanvas key={size.join("x")} ref={canvas} />
 			<Sidebar
 				onResetView={() => canvas.current?.resetView()}
 				onCropApplied={() => canvas.current?.fitView()}

@@ -2,15 +2,15 @@ import { createStore } from "zustand/vanilla";
 import { shallow } from "zustand/vanilla/shallow";
 import type { Scene } from "@/app/scene";
 import {
-	type CropDraft,
+	cropSize,
 	defaultGeometry,
 	type Geometry,
 } from "@/features/crop/geometry";
+import { createCropTool } from "@/features/crop/tool";
 import { createHistory } from "@/lib/history";
 import { createResources } from "./resources";
 
 export type Preview = {
-	crop: CropDraft | null;
 	comparison: "edited" | "original" | "split";
 	split: number;
 	shadows: boolean;
@@ -46,6 +46,29 @@ export function createDocument(
 		},
 	);
 	let closed = false;
+	function edit(next: Scene) {
+		if (closed) {
+			throw new Error("Document is closed.");
+		}
+		update(next);
+	}
+	const preview = createStore<Preview>(() => ({
+		comparison: "edited",
+		split: 0.5,
+		shadows: false,
+		highlights: false,
+	}));
+	const size = () => resources.get(scene.getState().source).image.size;
+	const crop = createCropTool(
+		size,
+		() => {
+			history.commit();
+			preview.setState({ comparison: "edited" });
+			return scene.getState().geometry;
+		},
+		(geometry) =>
+			edit({ ...scene.getState(), geometry, size: cropSize(size(), geometry) }),
+	);
 	return {
 		id: crypto.randomUUID(),
 		scene: {
@@ -53,21 +76,11 @@ export function createDocument(
 			getInitialState: scene.getInitialState,
 			subscribe: scene.subscribe,
 		},
-		preview: createStore<Preview>(() => ({
-			crop: null,
-			comparison: "edited",
-			split: 0.5,
-			shadows: false,
-			highlights: false,
-		})),
+		preview,
+		crop,
 		history,
 		resources,
-		edit(next: Scene) {
-			if (closed) {
-				throw new Error("Document is closed.");
-			}
-			update(next);
-		},
+		edit,
 		dispose() {
 			if (closed) {
 				return;

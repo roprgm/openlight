@@ -9,11 +9,10 @@ import {
 import type { Preview } from "@/app/document";
 import type { Scene } from "@/app/scene";
 import {
+	type CropDraft,
 	cropSize,
 	cropTransform,
 	defaultGeometry,
-	fullRect,
-	orientedSize,
 } from "@/features/crop/geometry";
 import { createCrop } from "@/features/crop/pass";
 import { createToneCurves } from "@/features/tone-curves/pass";
@@ -72,7 +71,7 @@ export function createRenderer(gpu: Gpu, source: Target) {
 			frame: Frame,
 			canvas: Target & { dpr: number },
 			view: View,
-			preview?: Preview,
+			preview?: Preview & { crop?: CropDraft | null },
 			fitSize: readonly number[] = canvas.size,
 		) {
 			if (!rendered) {
@@ -80,10 +79,8 @@ export function createRenderer(gpu: Gpu, source: Target) {
 			}
 			const image = preview?.comparison === "original" ? source : curved;
 			const crop = preview?.crop?.geometry;
-			const transform = crop ? { ...crop, ...fullRect } : geometry;
-			const size = crop
-				? orientedSize(source.size, crop.rotation)
-				: cropSize(source.size, geometry);
+			const transform = crop ?? geometry;
+			const size = cropSize(source.size, transform);
 			frame.pass(
 				canvas,
 				display.set({

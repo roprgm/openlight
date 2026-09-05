@@ -1,31 +1,6 @@
-import { useEffect } from "react";
 import Button from "@/components/ui/button";
 
 export function CropButton({ onClick }: { onClick: () => void }) {
-	useEffect(() => {
-		function keyDown(event: KeyboardEvent) {
-			if (
-				event.key.toLowerCase() !== "c" ||
-				event.ctrlKey ||
-				event.metaKey ||
-				event.altKey ||
-				event.repeat
-			) {
-				return;
-			}
-			if (
-				event.target instanceof HTMLElement &&
-				(event.target.isContentEditable ||
-					event.target.closest('input, textarea, select, [role="dialog"]'))
-			) {
-				return;
-			}
-			event.preventDefault();
-			onClick();
-		}
-		window.addEventListener("keydown", keyDown);
-		return () => window.removeEventListener("keydown", keyDown);
-	}, [onClick]);
 	return (
 		<Button
 			variant="ghost"

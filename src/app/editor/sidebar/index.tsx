@@ -3,12 +3,6 @@ import { useGpu } from "vgpu-react";
 import { useStore } from "zustand";
 import { setToneCurve } from "@/app/document/edits";
 import { useDocument, useScene } from "@/app/document/provider";
-import {
-	applyCrop,
-	beginCrop,
-	cancelCrop,
-	updateCrop,
-} from "@/app/editor/crop";
 import { ExportButton } from "@/app/editor/export/export-button";
 import { HistoryControls } from "@/app/editor/history";
 import { useRenderer } from "@/app/editor/renderer/provider";
@@ -62,7 +56,7 @@ export function Sidebar({
 }) {
 	const gpu = useGpu();
 	const document = useDocument();
-	const crop = useStore(document.preview, (state) => state.crop);
+	const crop = useStore(document.crop.state);
 	const gesture = useEditGesture(document.history);
 	const renderer = useRenderer();
 	const histogram = useMemo(() => createHistogram(gpu), [gpu]);
@@ -71,16 +65,8 @@ export function Sidebar({
 		return (
 			<ResizablePanel>
 				<CropPanel
-					crop={crop}
-					size={
-						document.resources.get(document.scene.getState().source).image.size
-					}
-					onChange={(change, aspect) => updateCrop(document, change, aspect)}
-					onApply={() => {
-						applyCrop(document);
-						onCropApplied();
-					}}
-					onCancel={() => cancelCrop(document)}
+					tool={document.crop}
+					onApply={onCropApplied}
 					onResetView={onResetView}
 				/>
 			</ResizablePanel>
@@ -111,7 +97,7 @@ export function Sidebar({
 				<div className="flex shrink-0 items-center gap-2 bg-panel p-3">
 					<HistoryControls />
 					<ComparisonControl />
-					<CropButton onClick={() => beginCrop(document)} />
+					<CropButton onClick={document.crop.begin} />
 					<ExportButton />
 				</div>
 			</div>

@@ -50,7 +50,10 @@ export function createControls(gpu: Gpu, workspace: Workspace) {
 			const scene = document?.scene.getState();
 			return {
 				file,
-				preview: document && { ...document.preview.getState() },
+				preview: document && {
+					...document.preview.getState(),
+					crop: document.crop.state.getState(),
+				},
 				documentId: document?.id,
 				size: scene && [...scene.size],
 				geometry: scene && { ...scene.geometry },

@@ -9,14 +9,16 @@ type CanvasRendererProps = { view: View; fitSize: readonly number[] };
 
 export function CanvasRenderer({ view, fitSize }: CanvasRendererProps) {
 	const renderer = useRenderer();
-	const preview = useStore(useDocument().preview);
+	const document = useDocument();
+	const preview = useStore(document.preview);
+	const crop = useStore(document.crop.state);
 	const canvas = useCanvas();
 	const draw = useFrame((frame) =>
 		renderer.draw(
 			frame,
 			canvas,
 			view,
-			preview,
+			{ ...preview, crop },
 			fitSize.map((value) => value * canvas.dpr),
 		),
 	);
@@ -31,6 +33,6 @@ export function CanvasRenderer({ view, fitSize }: CanvasRendererProps) {
 			observer.disconnect();
 		};
 	}, [renderer, canvas, draw]);
-	useEffect(() => draw(), [draw, view, preview, fitSize]);
+	useEffect(() => draw(), [draw, view, preview, crop, fitSize]);
 	return null;
 }

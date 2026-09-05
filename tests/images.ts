@@ -60,3 +60,10 @@ export async function readPreview(page: Page) {
 		[...bytes],
 	);
 }
+
+export async function readPixel(page: Page, point: { x: number; y: number }) {
+	const bytes = await page.screenshot({
+		clip: { ...point, width: 1, height: 1 },
+	});
+	return (await readImage(page, bytes)).center;
+}
