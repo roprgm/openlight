@@ -80,3 +80,13 @@ they do not yet model Lightroom's spatial processing.
 State includes the file name, document ID, canvas size, adjustments, tone curve,
 and undo/redo counts. Loading commands resolve when their batch finishes; image
 decoding failures appear in the editor. The renderer updates when the scene changes.
+
+## Preview aids
+
+Click **Before** to toggle the original image, or hold backslash to compare and
+release to return. Text fields keep normal keyboard input. The histogram's left
+and right triangles toggle clipping overlays: blue for pixels with all sRGB
+channels at or below zero, red for any channel at or above one. Transparent pixels
+are excluded. These controls affect only the canvas; histograms and exports keep
+the edited result. Preview settings reset when another image opens and never enter
+undo history. Scripts can use `openlight.setPreview({ original, shadows, highlights })`.

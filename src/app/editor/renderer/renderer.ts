@@ -6,6 +6,7 @@ import {
 	sampler,
 	type Target,
 } from "vgpu";
+import type { Preview } from "@/app/document";
 import type { Scene } from "@/app/scene";
 import { createToneCurves } from "@/features/tone-curves/pass";
 import type { View } from "@/hooks/use-pan-zoom";
@@ -48,19 +49,27 @@ export function createRenderer(gpu: Gpu, source: Target) {
 				listener();
 			}
 		},
-		draw(frame: Frame, canvas: Target & { dpr: number }, view: View) {
+		draw(
+			frame: Frame,
+			canvas: Target & { dpr: number },
+			view: View,
+			preview?: Preview,
+		) {
 			if (!rendered) {
 				return;
 			}
+			const image = preview?.original ? source : output;
 			frame.pass(
 				canvas,
 				display.set({
-					source: output.color,
+					source: image.color,
 					params: {
 						size: canvas.size,
-						sourceSize: output.size,
+						sourceSize: image.size,
 						pan: view.pan.map((p) => p * canvas.dpr),
 						zoom: view.zoom,
+						shadows: Number(preview?.shadows ?? false),
+						highlights: Number(preview?.highlights ?? false),
 					},
 				}),
 			);
