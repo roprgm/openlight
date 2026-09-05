@@ -98,8 +98,10 @@ Scripts can use `openlight.setPreview({ comparison: "split", split: 0.5 })` and
 
 Use the crop icon or press **C**. Drag the corners to resize the crop, drag inside
 to move it, or use arrow keys on the focused selection or corner. The aspect selector
-locks common ratios. Rotate turns clockwise by 90°; Straighten adjusts from -45°
-to 45° and fills the frame automatically. Uncrop restores the full frame while
+starts locked to the current image ratio and offers common ratios or Free.
+The two rotation icons turn 90° left or right; Straighten adjusts from -45°
+to 45° and fills the frame automatically. Scroll to pan and use Ctrl/⌘ + scroll
+to zoom while cropping. Uncrop restores the full frame while
 keeping rotation; Reset restores the original geometry.
 
 Apply commits the entire crop session as one undo step. Escape or Cancel discards

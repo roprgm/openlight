@@ -21,14 +21,23 @@ export function cropSize(
 	];
 }
 
-export function rotateCrop(geometry: Geometry): Geometry {
+export function rotateCrop(
+	geometry: Geometry,
+	direction: -1 | 1 = 1,
+): Geometry {
 	return {
 		...geometry,
-		x: Math.max(0, 1 - geometry.y - geometry.height),
-		y: geometry.x,
+		x:
+			direction === 1
+				? Math.max(0, 1 - geometry.y - geometry.height)
+				: geometry.y,
+		y:
+			direction === 1
+				? geometry.x
+				: Math.max(0, 1 - geometry.x - geometry.width),
 		width: geometry.height,
 		height: geometry.width,
-		rotation: (geometry.rotation + 90) % 360,
+		rotation: (geometry.rotation + direction * 90 + 360) % 360,
 	};
 }
 

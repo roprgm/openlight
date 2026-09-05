@@ -1,8 +1,10 @@
 import { type PointerEvent, useEffect, useRef, useState } from "react";
+import type { View } from "@/hooks/use-pan-zoom";
 import { dragRect, type Rect } from "./geometry";
 
 type CropOverlayProps = {
 	size: readonly [number, number];
+	view: View;
 	rect: Rect;
 	ratio: number | null;
 	onChange: (rect: Rect) => void;
@@ -14,7 +16,13 @@ const corners = [
 	{ handle: "se", label: "bottom right", x: 1, y: 1 },
 ];
 
-export function CropOverlay({ size, rect, ratio, onChange }: CropOverlayProps) {
+export function CropOverlay({
+	size,
+	view,
+	rect,
+	ratio,
+	onChange,
+}: CropOverlayProps) {
 	const ref = useRef<HTMLDivElement>(null);
 	const drag = useRef<{
 		rect: Rect;
@@ -44,6 +52,7 @@ export function CropOverlay({ size, rect, ratio, onChange }: CropOverlayProps) {
 		if (event.button !== 0) {
 			return;
 		}
+		event.stopPropagation();
 		const corner =
 			event.target instanceof Element && event.target.closest("[data-handle]");
 		drag.current = {
@@ -62,7 +71,12 @@ export function CropOverlay({ size, rect, ratio, onChange }: CropOverlayProps) {
 		<div ref={ref} className="pointer-events-none absolute inset-0">
 			<div
 				className="absolute top-1/2 left-1/2 -translate-1/2"
-				style={{ width: box[0], height: box[1] }}
+				style={{
+					width: box[0] * view.zoom,
+					height: box[1] * view.zoom,
+					marginLeft: view.pan[0],
+					marginTop: view.pan[1],
+				}}
 			>
 				<div
 					role="application"
@@ -82,8 +96,8 @@ export function CropOverlay({ size, rect, ratio, onChange }: CropOverlayProps) {
 								dragRect(
 									current.rect,
 									current.handle,
-									(event.clientX - current.x) / box[0],
-									(event.clientY - current.y) / box[1],
+									(event.clientX - current.x) / (box[0] * view.zoom),
+									(event.clientY - current.y) / (box[1] * view.zoom),
 									ratio,
 								),
 							);
