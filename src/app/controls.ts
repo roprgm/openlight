@@ -1,6 +1,10 @@
 import type { Gpu } from "vgpu";
 import type { Preview } from "@/app/document";
-import { setAdjustments, setToneCurve } from "@/app/document/edits";
+import {
+	setAdjustments,
+	setGeometry,
+	setToneCurve,
+} from "@/app/document/edits";
 import {
 	type ExportOptions,
 	exportImage,
@@ -10,6 +14,7 @@ import { createImageLoader } from "@/app/loaders/image";
 import { createLoaderRegistry } from "@/app/loaders/registry";
 import { type Adjustments, defaultAdjustments } from "@/app/scene";
 import type { Workspace } from "@/app/workspace";
+import type { Geometry } from "@/features/crop/geometry";
 import { defaultCurve, type ToneCurve } from "@/features/tone-curves/curve";
 
 /** Imperative commands bound to an explicit workspace, usable without React. */
@@ -29,6 +34,8 @@ export function createControls(gpu: Gpu, workspace: Workspace) {
 			setAdjustments(workspace.getDocument(), change),
 		setToneCurve: (curve?: ToneCurve) =>
 			setToneCurve(workspace.getDocument(), curve),
+		setGeometry: (change?: Partial<Geometry>) =>
+			setGeometry(workspace.getDocument(), change),
 		setPreview: (change: Partial<Preview>) =>
 			workspace.getDocument().preview.setState(change),
 		beginEdit: () => workspace.getDocument().history.begin(),
@@ -46,6 +53,7 @@ export function createControls(gpu: Gpu, workspace: Workspace) {
 				preview: document && { ...document.preview.getState() },
 				documentId: document?.id,
 				size: scene && [...scene.size],
+				geometry: scene && { ...scene.geometry },
 				adjustments: { ...(scene?.adjustments ?? defaultAdjustments) },
 				toneCurve: (scene?.toneCurve ?? defaultCurve).map((point) => ({
 					...point,
