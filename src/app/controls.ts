@@ -15,6 +15,7 @@ import { createLoaderRegistry } from "@/app/loaders/registry";
 import { type Adjustments, defaultAdjustments } from "@/app/scene";
 import type { Workspace } from "@/app/workspace";
 import type { Geometry } from "@/features/crop/geometry";
+import { createCropTool } from "@/features/crop/tool";
 import { defaultCurve, type ToneCurve } from "@/features/tone-curves/curve";
 
 /** Imperative commands bound to an explicit workspace, usable without React. */
@@ -25,7 +26,25 @@ export function createControls(gpu: Gpu, workspace: Workspace) {
 		[xmp, image],
 		() => workspace.state.getState().status === "ready",
 	);
+	const crop = createCropTool(
+		() => {
+			const document = workspace.getDocument();
+			return document.resources.get(document.scene.getState().source).image
+				.size;
+		},
+		() => {
+			const document = workspace.getDocument();
+			document.history.commit();
+			document.preview.setState({ comparison: "edited" });
+			return document.scene.getState().geometry;
+		},
+		(geometry) => setGeometry(workspace.getDocument(), geometry),
+	);
+	const dispose = workspace.state.subscribe(crop.cancel);
+
 	return {
+		crop,
+		dispose,
 		openFiles: files.openFiles,
 		openFile: (file: File) => files.openFiles([file]),
 		loadImage: (file: File) => files.loadFile(image, file),
@@ -52,7 +71,7 @@ export function createControls(gpu: Gpu, workspace: Workspace) {
 				file,
 				preview: document && {
 					...document.preview.getState(),
-					crop: document.crop.state.getState(),
+					crop: crop.state.getState(),
 				},
 				documentId: document?.id,
 				size: scene && [...scene.size],

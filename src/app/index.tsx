@@ -11,5 +11,5 @@ export default function App() {
 	if (state.status === "empty") {
 		return <Landing onOpen={controls.openFiles} />;
 	}
-	return <Editor state={state} />;
+	return <Editor state={state} crop={controls.crop} />;
 }

@@ -8,16 +8,10 @@ import {
 } from "vgpu";
 import type { Preview } from "@/app/document";
 import type { Scene } from "@/app/scene";
-import {
-	type CropDraft,
-	cropSize,
-	cropTransform,
-	defaultGeometry,
-} from "@/features/crop/geometry";
 import { createCrop } from "@/features/crop/pass";
 import { createToneCurves } from "@/features/tone-curves/pass";
-import type { View } from "@/hooks/use-pan-zoom";
 import { createAdjustments } from "@/lib/adjustments";
+import { displayView, type View } from "@/lib/image-display";
 import shader from "./renderer.wgsl";
 
 /** Owns scene passes and intermediate textures for one decoded source. */
@@ -31,16 +25,16 @@ export function createRenderer(gpu: Gpu, source: Target) {
 		},
 	});
 
-	const cropInput = createCrop(gpu);
-	const cropOutput = createCrop(gpu);
-	let geometry = defaultGeometry;
+	const crop = createCrop(gpu);
+	let original = source;
 	let input = adjusted;
-	let curved = adjusted;
+	let fullImage = adjusted;
 	const listeners = new Set<() => void>();
 	let rendered = false;
 	let output = adjusted;
 	return {
 		inputImage: () => input,
+		fullImage: () => fullImage,
 		outputImage: () => output,
 		subscribe(listener: () => void) {
 			listeners.add(listener);
@@ -52,15 +46,14 @@ export function createRenderer(gpu: Gpu, source: Target) {
 			};
 		},
 		update(scene: Scene) {
-			geometry = scene.geometry;
 			frame(gpu, (frame) => {
 				adjust.render(frame, scene.adjustments);
-				curved = toneCurves.render(frame, scene.toneCurve);
-				input = cropInput.render(frame, adjusted, scene.geometry);
-				output =
-					curved === adjusted
-						? input
-						: cropOutput.render(frame, curved, scene.geometry);
+				fullImage = toneCurves.render(frame, scene.toneCurve);
+				[original, input, output] = crop.render(
+					frame,
+					[source, adjusted, fullImage],
+					scene.geometry,
+				);
 			});
 			rendered = true;
 			for (const listener of listeners) {
@@ -71,33 +64,22 @@ export function createRenderer(gpu: Gpu, source: Target) {
 			frame: Frame,
 			canvas: Target & { dpr: number },
 			view: View,
-			preview?: Preview & { crop?: CropDraft | null },
-			fitSize: readonly number[] = canvas.size,
+			preview?: Preview,
+			fitSize: readonly number[] = canvas.size.map(
+				(value) => value / canvas.dpr,
+			),
 		) {
 			if (!rendered) {
 				return;
 			}
-			const image = preview?.comparison === "original" ? source : curved;
-			const crop = preview?.crop?.geometry;
-			const transform = crop ?? geometry;
-			const size = cropSize(source.size, transform);
+			const image = preview?.comparison === "original" ? original : output;
 			frame.pass(
 				canvas,
 				display.set({
 					source: image.color,
-					original: source.color,
-					transform: cropTransform(transform, source.size),
-					params: {
-						size: canvas.size,
-						fitSize,
-						sourceSize: size,
-						cropping: Number(!!crop),
-						pan: view.pan.map((p) => p * canvas.dpr),
-						zoom: view.zoom,
-						split: preview?.comparison === "split" ? preview.split : -1,
-						shadows: Number(preview?.shadows ?? false),
-						highlights: Number(preview?.highlights ?? false),
-					},
+					original: original.color,
+					view: displayView(canvas, image.size, view, fitSize, preview),
+					split: preview?.comparison === "split" ? preview.split : -1,
 				}),
 			);
 		},
@@ -105,8 +87,7 @@ export function createRenderer(gpu: Gpu, source: Target) {
 			listeners.clear();
 			adjust.dispose();
 			toneCurves.dispose();
-			cropInput.dispose();
-			cropOutput.dispose();
+			crop.dispose();
 		},
 	};
 }

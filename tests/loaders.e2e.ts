@@ -44,6 +44,8 @@ test("decode an image, apply XMP, recover from failure, and replace a document d
 	expect(await readImage(page)).toEqual(expected);
 	const exported = await page.evaluate(async () => {
 		const api = window.openlight;
+		api.crop.begin();
+		api.crop.change({ width: 0.5 });
 		const convert = OffscreenCanvas.prototype.convertToBlob;
 		let release = () => {};
 		const gate = new Promise<void>((resolve) => {
@@ -71,6 +73,7 @@ test("decode an image, apply XMP, recover from failure, and replace a document d
 	});
 	expect(await readImage(page, new Uint8Array(exported))).toEqual(expected);
 	const replaced = await page.evaluate(() => window.openlight.getState());
+	expect(replaced.preview?.crop).toBeNull();
 	expect(replaced.documentId).not.toBe(before.documentId);
 	expect(replaced.history).toEqual({ undoCount: 0, redoCount: 0 });
 	expect(replaced.adjustments.exposure).toBe(0);

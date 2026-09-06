@@ -1,14 +1,11 @@
-import { useEffect, useMemo } from "react";
+import { type ComponentProps, useEffect, useMemo } from "react";
 import { useGpu } from "vgpu-react";
-import { useStore } from "zustand";
 import { setToneCurve } from "@/app/document/edits";
 import { useDocument, useScene } from "@/app/document/provider";
 import { ExportButton } from "@/app/editor/export/export-button";
 import { HistoryControls } from "@/app/editor/history";
 import { useRenderer } from "@/app/editor/renderer/provider";
 import ResizablePanel from "@/components/ui/resizable-panel";
-import { CropButton } from "@/features/crop/button";
-import { CropPanel } from "@/features/crop/panel";
 import { Histogram } from "@/features/histogram";
 import { createHistogram } from "@/features/histogram/histogram";
 import { ToneCurves } from "@/features/tone-curves/tone-curves";
@@ -48,32 +45,17 @@ function ToneCurvesPanel({
 }
 
 export function Sidebar({
-	onResetView,
-	onCropApplied,
-}: {
-	onResetView: () => void;
-	onCropApplied: () => void;
-}) {
+	children,
+	...panel
+}: ComponentProps<typeof ResizablePanel>) {
 	const gpu = useGpu();
 	const document = useDocument();
-	const crop = useStore(document.crop.state);
 	const gesture = useEditGesture(document.history);
 	const renderer = useRenderer();
 	const histogram = useMemo(() => createHistogram(gpu), [gpu]);
 	useEffect(() => () => histogram.dispose(), [histogram]);
-	if (crop) {
-		return (
-			<ResizablePanel>
-				<CropPanel
-					tool={document.crop}
-					onApply={onCropApplied}
-					onResetView={onResetView}
-				/>
-			</ResizablePanel>
-		);
-	}
 	return (
-		<ResizablePanel>
+		<ResizablePanel {...panel}>
 			<div className="flex h-full flex-col divide-y divide-black">
 				<div
 					{...gesture}
@@ -97,7 +79,7 @@ export function Sidebar({
 				<div className="flex shrink-0 items-center gap-2 bg-panel p-3">
 					<HistoryControls />
 					<ComparisonControl />
-					<CropButton onClick={document.crop.begin} />
+					{children}
 					<ExportButton />
 				</div>
 			</div>

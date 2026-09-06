@@ -568,11 +568,21 @@ test("edit a photo, inspect the preview and histograms, undo changes, and export
 	});
 
 	await test.step("cropping preserves framing, moves the image, and rotates around the crop center", async () => {
+		const sidebar = page.getByRole("complementary");
+		const sidebarBefore = await box(sidebar);
+		await drag(
+			page,
+			[sidebarBefore.x - 2, sidebarBefore.y + 40],
+			[sidebarBefore.x - 82, sidebarBefore.y + 40],
+		);
+		const resizedSidebar = await box(sidebar);
+		expect(resizedSidebar.width).toBe(sidebarBefore.width + 80);
 		await page.evaluate(() =>
 			window.openlight.setGeometry({ x: 0.2, y: 0.1, width: 0.2, height: 0.3 }),
 		);
 		const viewport = await box(canvas);
 		await open.click();
+		expect(await box(sidebar)).toEqual(resizedSidebar);
 		const bounds = await box(selection);
 		// A 240px crop starts at 200%, centered exactly where it was before opening the tool.
 		expect(bounds.width).toBeCloseTo(480, 0);
@@ -642,6 +652,7 @@ test("edit a photo, inspect the preview and histograms, undo changes, and export
 		const center = { x, y };
 		expect(await readPixel(page, center)).toEqual([48, 80, 128, 255]);
 		await page.keyboard.press("Enter");
+		expect(await box(sidebar)).toEqual(resizedSidebar);
 		expect((await readImage(page)).center).toEqual([48, 80, 128, 255]);
 		await canvas.hover();
 		await page.keyboard.down("Control");
@@ -666,6 +677,12 @@ test("edit a photo, inspect the preview and histograms, undo changes, and export
 		await open.click();
 		expect(await box(selection)).toEqual(bounds);
 		await page.keyboard.press("Escape");
+		expect(await box(sidebar)).toEqual(resizedSidebar);
+		await drag(
+			page,
+			[resizedSidebar.x - 2, resizedSidebar.y + 40],
+			[sidebarBefore.x - 2, sidebarBefore.y + 40],
+		);
 		await page.evaluate(() => window.openlight.setGeometry());
 	});
 

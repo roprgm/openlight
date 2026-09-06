@@ -7,7 +7,7 @@ import {
 	type Geometry,
 } from "./geometry";
 
-/** One document's crop draft. Source pixels and committed edits belong to the caller. */
+/** Imperative crop draft. Source pixels and committed edits belong to the caller. */
 export function createCropTool(
 	sourceSize: () => readonly [number, number, ...number[]],
 	onBegin: () => Geometry,

@@ -9,6 +9,7 @@ import {
 import { createResources } from "@/app/document/resources";
 import { defaultAdjustments } from "@/app/scene";
 import { createWorkspace } from "@/app/workspace";
+import { defaultGeometry } from "@/features/crop/geometry";
 import { defaultCurve } from "@/features/tone-curves/curve";
 
 function document() {
@@ -16,6 +17,7 @@ function document() {
 		size: [32, 32],
 		source: "image-1",
 		adjustments: { ...defaultAdjustments },
+		geometry: defaultGeometry,
 		toneCurve: defaultCurve,
 	});
 }

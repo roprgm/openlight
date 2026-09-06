@@ -9,6 +9,7 @@ import { createDocument } from "@/app/document";
 import { setAdjustments, setToneCurve } from "@/app/document/edits";
 import { createRenderer } from "@/app/editor/renderer/renderer";
 import { defaultAdjustments } from "@/app/scene";
+import { defaultGeometry } from "@/features/crop/geometry";
 import { defaultCurve } from "@/features/tone-curves/curve";
 
 test("rendering follows grouped edits and undo, reuses pipelines, and releases owned targets", async () => {
@@ -19,6 +20,7 @@ test("rendering follows grouped edits and undo, reuses pipelines, and releases o
 		size: [32, 16],
 		source: "photo",
 		adjustments: { ...defaultAdjustments },
+		geometry: defaultGeometry,
 		toneCurve: defaultCurve,
 	});
 	const renderer = createRenderer(gpu, source);

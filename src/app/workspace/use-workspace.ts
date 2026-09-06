@@ -14,6 +14,7 @@ export function useWorkspace() {
 		window.openlight = session.controls;
 		return () => {
 			Reflect.deleteProperty(window, "openlight");
+			session.controls.dispose();
 			session.workspace.dispose();
 		};
 	}, [session]);

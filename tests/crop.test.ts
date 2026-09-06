@@ -3,14 +3,15 @@ import {
 	changeGeometry,
 	cropTransform,
 	defaultGeometry,
-	dragCrop,
 	flipCrop,
 	type Geometry,
+	moveCrop,
+	resizeCrop,
 } from "@/features/crop/geometry";
 
 function sample(
 	geometry: Geometry,
-	size: readonly number[],
+	size: readonly [number, number],
 	x: number,
 	y: number,
 ) {
@@ -18,7 +19,7 @@ function sample(
 	return origin.map((v, i) => v + x * xAxis[i] + y * yAxis[i]);
 }
 
-function expectCovered(geometry: Geometry, size: readonly number[]) {
+function expectCovered(geometry: Geometry, size: readonly [number, number]) {
 	for (const x of [0, 1]) {
 		for (const y of [0, 1]) {
 			for (const value of sample(geometry, size, x, y)) {
@@ -38,7 +39,7 @@ test("crop geometry preserves coverage, anchors, flips, and movement along edges
 		width: 0.5,
 		height: 0.5,
 	};
-	const slide = dragCrop(edge, "move", 0.1, 0.1, null, size);
+	const slide = moveCrop(edge, 0.1, 0.1, size);
 	expect(slide.x).toBeCloseTo(0.5);
 	expect(slide.y).toBeCloseTo(0.35);
 	for (const rotation of [0, 90, 180, 270]) {
@@ -75,7 +76,10 @@ test("crop geometry preserves coverage, anchors, flips, and movement along edges
 			for (const handle of ["nw", "ne", "sw", "se", "move"]) {
 				for (const delta of [-1, 1]) {
 					const ratio = delta < 0 ? before.width / before.height : null;
-					const next = dragCrop(before, handle, delta, delta, ratio, size);
+					const next =
+						handle === "move"
+							? moveCrop(before, delta, delta, size)
+							: resizeCrop(before, handle, delta, delta, ratio, size);
 					expectCovered(next, size);
 					if (ratio && handle !== "move") {
 						expect(next.width / next.height).toBeCloseTo(ratio, 8);

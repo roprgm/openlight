@@ -3,6 +3,7 @@ import { createDocument } from "@/app/document";
 import { createResources } from "@/app/document/resources";
 import { defaultAdjustments } from "@/app/scene";
 import type { Workspace } from "@/app/workspace";
+import { defaultGeometry } from "@/features/crop/geometry";
 import { defaultCurve } from "@/features/tone-curves/curve";
 import decode, { canDecode } from "@/lib/decode";
 import type { FileLoader } from "./registry";
@@ -24,6 +25,7 @@ export function createImageLoader(gpu: Gpu, workspace: Workspace): FileLoader {
 						size: [image.size[0], image.size[1]],
 						source,
 						adjustments: { ...defaultAdjustments },
+						geometry: defaultGeometry,
 						toneCurve: defaultCurve,
 					},
 					resources,

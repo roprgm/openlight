@@ -1,17 +1,18 @@
 import { type PointerEvent, useRef } from "react";
-import { useStore } from "zustand";
+import rotateCursor from "@/components/icons/rotate-cursor.svg";
 import { clamp } from "@/lib/math";
 import {
 	type CropDraft,
-	dragCrop,
 	type Geometry,
+	moveCrop,
 	orientedSize,
+	resizeCrop,
 } from "./geometry";
-import rotateCursor from "./rotate-cursor.svg";
 import type { CropTool } from "./tool";
 
 type CropOverlayProps = {
 	tool: CropTool;
+	crop: CropDraft;
 	frame: {
 		width: number;
 		height: number;
@@ -38,11 +39,7 @@ function bearing(x: number, y: number, bounds: DOMRect) {
 	);
 }
 
-function CropSelection({
-	tool,
-	frame,
-	crop,
-}: CropOverlayProps & { crop: CropDraft }) {
+export function CropOverlay({ tool, frame, crop }: CropOverlayProps) {
 	const selection = useRef<HTMLDivElement>(null);
 	const drag = useRef<((event: PointerEvent<HTMLDivElement>) => void) | null>(
 		null,
@@ -57,9 +54,11 @@ function CropSelection({
 		dx: number,
 		dy: number,
 	) {
-		// Move the photo against the pointer; resize both sides of the centered frame.
-		const factor = handle === "move" ? -1 : 2;
-		onChange(dragCrop(start, handle, dx * factor, dy * factor, ratio, size));
+		if (handle === "move") {
+			tool.change(moveCrop(start, -dx, -dy, size));
+			return;
+		}
+		tool.change(resizeCrop(start, handle, dx * 2, dy * 2, ratio, size));
 	}
 	function getDragHandle(event: PointerEvent<HTMLDivElement>) {
 		const bounds = selection.current?.getBoundingClientRect();
@@ -184,9 +183,4 @@ function CropSelection({
 			</div>
 		</div>
 	);
-}
-
-export function CropOverlay(props: CropOverlayProps) {
-	const crop = useStore(props.tool.state);
-	return crop && <CropSelection {...props} crop={crop} />;
 }

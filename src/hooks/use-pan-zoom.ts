@@ -2,15 +2,21 @@ import {
 	type PointerEvent,
 	useCallback,
 	useEffect,
+	useLayoutEffect,
 	useRef,
 	useState,
 } from "react";
 
+import { useStore } from "zustand";
+import { createStore } from "zustand/vanilla";
+import type { View } from "@/lib/image-display";
+
 type Size = readonly [number, number, ...unknown[]];
 type Point = readonly [number, number];
-export type View = { zoom: number; pan: Point };
 
 const fit: View = { zoom: 1, pan: [0, 0] };
+export const createCamera = () => createStore<View>(() => fit);
+export type Camera = ReturnType<typeof createCamera>;
 const maxZoom = 8;
 
 function measureGesture(points: Iterable<Point>) {
@@ -64,12 +70,16 @@ function clamp(view: View, content: Size, viewport: Size): View {
  * Zoom 1 is the initial fit: contain, but capped at 200%. `pan` is in CSS px from the viewport center.
  * Wheel/drag pans, ctrl/cmd+wheel zooms at the cursor, two pointers pinch and pan, double-click resets.
  */
-export function usePanZoom(content?: Size, { constrain = true } = {}) {
+export function usePanZoom(
+	state: Camera,
+	content: Size,
+	{ constrain = true } = {},
+) {
 	const ref = useRef<HTMLDivElement>(null);
 	const pointers = useRef(new Map<number, Point>());
 	const boundedDrag = useRef(true);
 	const fitZoom = useRef(1);
-	const [view, setView] = useState(fit);
+	const view = useStore(state);
 	const [viewport, setViewport] = useState<Point>([0, 0]);
 	const [panMode, setPanMode] = useState(false);
 
@@ -116,26 +126,29 @@ export function usePanZoom(content?: Size, { constrain = true } = {}) {
 	const update = useCallback(
 		(next: (view: View) => View, bounded = constrain) => {
 			const element = ref.current;
-			if (element && content) {
+			if (element) {
 				const viewport: Size = [element.clientWidth, element.clientHeight];
-				setView((view) => {
+				state.setState((view) => {
 					const result = next(view);
 					return bounded ? clamp(result, content, viewport) : result;
-				});
+				}, true);
 			}
 		},
-		[content, constrain],
+		[state, content, constrain],
 	);
 
-	useEffect(() => {
+	useLayoutEffect(() => update((view) => view), [update, viewport]);
+
+	useLayoutEffect(() => {
 		const element = ref.current;
 		if (!element) {
 			return;
 		}
-		const observer = new ResizeObserver(() => {
+		const measure = () => {
 			setViewport([element.clientWidth, element.clientHeight]);
-			update((view) => view);
-		});
+		};
+		measure();
+		const observer = new ResizeObserver(measure);
 		observer.observe(element);
 		const wheel = (event: WheelEvent) => {
 			event.preventDefault();
@@ -167,7 +180,7 @@ export function usePanZoom(content?: Size, { constrain = true } = {}) {
 		pointers.current.delete(event.pointerId);
 	const resetView = (next = fit) => {
 		fitZoom.current = next.zoom;
-		setView(next);
+		state.setState(next, true);
 	};
 	function startDrag(event: PointerEvent<HTMLElement>) {
 		if (event.button !== 0 || pointers.current.size === 2) {
@@ -224,7 +237,5 @@ export function usePanZoom(content?: Size, { constrain = true } = {}) {
 		onDoubleClick: () => resetView(),
 	};
 
-	const panBy = (delta: Point) =>
-		update((view) => pan(view, delta[0], delta[1]));
-	return { ref, view, viewport, handlers, panBy, resetView, panMode };
+	return { ref, view, viewport, handlers, resetView, panMode };
 }

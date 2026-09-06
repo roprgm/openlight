@@ -1,6 +1,34 @@
+import { useEffect } from "react";
+import { CropIcon } from "@/components/icons/crop";
 import Button from "@/components/ui/button";
 
 export function CropButton({ onClick }: { onClick: () => void }) {
+	useEffect(() => {
+		function keyDown(event: KeyboardEvent) {
+			if (
+				event.key.toLowerCase() !== "c" ||
+				event.isComposing ||
+				event.repeat ||
+				event.ctrlKey ||
+				event.metaKey ||
+				event.altKey
+			) {
+				return;
+			}
+			const target = event.target;
+			if (
+				target instanceof HTMLElement &&
+				(target.isContentEditable ||
+					target.closest('input, textarea, select, dialog, [role="dialog"]'))
+			) {
+				return;
+			}
+			event.preventDefault();
+			onClick();
+		}
+		window.addEventListener("keydown", keyDown);
+		return () => window.removeEventListener("keydown", keyDown);
+	}, [onClick]);
 	return (
 		<Button
 			variant="ghost"
@@ -9,18 +37,7 @@ export function CropButton({ onClick }: { onClick: () => void }) {
 			className="flex size-8 items-center justify-center rounded-md p-0"
 			onClick={onClick}
 		>
-			<svg
-				aria-hidden="true"
-				viewBox="0 0 20 20"
-				className="size-4"
-				fill="none"
-				stroke="currentColor"
-				strokeWidth="1.5"
-				strokeLinecap="round"
-				strokeLinejoin="round"
-			>
-				<path d="M5 2v13h13M2 5h13v13" />
-			</svg>
+			<CropIcon className="size-4" />
 		</Button>
 	);
 }

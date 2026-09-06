@@ -1,8 +1,11 @@
-import { useStore } from "zustand";
+import { ChevronDownIcon } from "@/components/icons/chevron-down";
+import { FlipIcon } from "@/components/icons/flip";
+import { RotateIcon } from "@/components/icons/rotate";
 import Button from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
 import { Slider } from "@/components/ui/slider";
 import {
+	type CropDraft,
 	cropSize,
 	fitAspect,
 	flipCrop,
@@ -17,26 +20,20 @@ const actions = [
 	{ label: "Flip horizontal", flip: "horizontal", transform: "" },
 	{ label: "Flip vertical", flip: "vertical", transform: "rotate(90deg)" },
 ] as const;
-const icons = {
-	turn: ["M4 12a8 8 0 0 1 14-5", "M20 3v6h-6z", "M4 12a8 8 0 0 0 16 0"],
-	flip: ["m15 5 6 7-6 7Z", "M9 5 3 12l6 7Z", "M12 3v18"],
-};
 
 type CropPanelProps = {
 	tool: CropTool;
+	crop: CropDraft;
 	onApply: () => void;
 	onResetView: () => void;
 };
 
-export function CropPanel({ tool, onApply, onResetView }: CropPanelProps) {
-	const crop = useStore(tool.state);
-	function apply() {
-		tool.apply();
-		onApply();
-	}
-	if (!crop) {
-		return null;
-	}
+export function CropPanel({
+	tool,
+	crop,
+	onApply,
+	onResetView,
+}: CropPanelProps) {
 	const { geometry, aspect } = crop;
 	const [width, height] = orientedSize(tool.size, geometry.rotation);
 	const aspects = {
@@ -88,16 +85,7 @@ export function CropPanel({ tool, onApply, onResetView }: CropPanelProps) {
 								</option>
 							))}
 						</select>
-						<svg
-							aria-hidden="true"
-							viewBox="0 0 12 12"
-							className="pointer-events-none absolute top-1/2 right-1.5 size-3 -translate-y-1/2"
-							fill="none"
-							stroke="currentColor"
-							strokeWidth="1.5"
-						>
-							<path d="m3 4.5 3 3 3-3" />
-						</svg>
+						<ChevronDownIcon className="pointer-events-none absolute top-1/2 right-1.5 size-3 -translate-y-1/2" />
 					</Field>
 				</label>
 				<section aria-label="Rotate and flip image" className="space-y-2">
@@ -119,7 +107,7 @@ export function CropPanel({ tool, onApply, onResetView }: CropPanelProps) {
 					<div className="flex gap-2">
 						{actions.map((action) => {
 							const turning = "turn" in action;
-							const [outline, fill, dotted] = icons[turning ? "turn" : "flip"];
+							const Icon = turning ? RotateIcon : FlipIcon;
 							return (
 								<Button
 									key={action.label}
@@ -129,21 +117,7 @@ export function CropPanel({ tool, onApply, onResetView }: CropPanelProps) {
 									className="flex h-9 flex-1 items-center justify-center gap-1 rounded-md px-1"
 									onClick={() => applyAction(action)}
 								>
-									<svg
-										aria-hidden="true"
-										viewBox="0 0 24 24"
-										className="size-5"
-										fill="none"
-										stroke="currentColor"
-										strokeWidth="1.5"
-										strokeLinecap="round"
-										strokeLinejoin="round"
-										style={{ transform: action.transform }}
-									>
-										<path d={outline} />
-										<path d={fill} fill="currentColor" stroke="none" />
-										<path d={dotted} strokeDasharray="0.1 3.5" />
-									</svg>
+									<Icon style={{ transform: action.transform }} />
 									{turning && <span className="text-xs">90°</span>}
 								</Button>
 							);
@@ -175,7 +149,7 @@ export function CropPanel({ tool, onApply, onResetView }: CropPanelProps) {
 				>
 					Cancel
 				</Button>
-				<Button onClick={apply}>Apply crop</Button>
+				<Button onClick={onApply}>Apply crop</Button>
 			</div>
 		</section>
 	);

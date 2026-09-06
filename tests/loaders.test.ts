@@ -5,6 +5,7 @@ import { createCameraRawXmpLoader } from "@/app/loaders/camera-raw-xmp";
 import { createLoaderRegistry, type FileLoader } from "@/app/loaders/registry";
 import { defaultAdjustments } from "@/app/scene";
 import { createWorkspace } from "@/app/workspace";
+import { defaultGeometry } from "@/features/crop/geometry";
 import { defaultCurve } from "@/features/tone-curves/curve";
 
 function settings(attributes: string, name = "photo.xmp") {
@@ -29,6 +30,7 @@ test("file batches preserve ordering, group imports, recover from failures, and 
 					size: [32, 32],
 					source: file.name,
 					adjustments: { ...defaultAdjustments },
+					geometry: defaultGeometry,
 					toneCurve: defaultCurve,
 				});
 			}),

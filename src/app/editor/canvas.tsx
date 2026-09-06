@@ -1,36 +1,25 @@
-import type { Ref } from "react";
-import { Canvas } from "vgpu-react";
+import { useStore } from "zustand";
 import { useDocument, useScene } from "@/app/document/provider";
-import { CropOverlay } from "@/features/crop/overlay";
-import { type CropViewHandle, useCropView } from "@/features/crop/view";
+import { ImageView } from "@/components/image-view";
+import { type Camera, usePanZoom } from "@/hooks/use-pan-zoom";
 import { ComparisonDivider } from "./comparison-divider";
-import { CanvasRenderer } from "./renderer";
+import { useRenderer } from "./renderer/provider";
 
-export function EditorCanvas({ ref: canvasRef }: { ref: Ref<CropViewHandle> }) {
-	const document = useDocument();
-	const geometry = useScene((scene) => scene.geometry);
-	const { ref, view, viewport, handlers, frame, panMode } = useCropView(
-		document.crop,
-		geometry,
-		canvasRef,
+export function EditorCanvas({ state }: { state: Camera }) {
+	const camera = usePanZoom(
+		state,
+		useScene((scene) => scene.size),
 	);
+	const preview = useStore(useDocument().preview);
+	const renderer = useRenderer();
 	return (
-		<section
-			className="relative min-h-0 min-w-0 flex-1 overflow-hidden p-6"
-			aria-label="Image canvas"
-		>
-			<div
-				ref={ref}
-				{...handlers}
-				data-pan-mode={panMode}
-				className="relative size-full cursor-grab touch-none active:cursor-grabbing data-[pan-mode=true]:[&_*]:cursor-grab! data-[pan-mode=true]:active:[&_*]:cursor-grabbing!"
-			>
-				<Canvas className="absolute -inset-6 size-[calc(100%+3rem)]">
-					<CanvasRenderer view={view} fitSize={viewport} />
-				</Canvas>
-				<CropOverlay tool={document.crop} frame={frame} />
-			</div>
-			<ComparisonDivider />
-		</section>
+		<ImageView
+			camera={camera}
+			subscribe={renderer.subscribe}
+			draw={(frame, canvas) =>
+				renderer.draw(frame, canvas, camera.view, preview, camera.viewport)
+			}
+			overlay={<ComparisonDivider />}
+		/>
 	);
 }

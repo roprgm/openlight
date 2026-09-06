@@ -1,5 +1,7 @@
 import { clamp } from "@/lib/math";
 
+type Size = readonly [number, number, ...number[]];
+
 export type Rect = { x: number; y: number; width: number; height: number };
 // The rectangle's center is a source point; its dimensions describe the output frame.
 export type Geometry = Rect & {
@@ -30,17 +32,11 @@ function rotate(x: number, y: number, degrees: number) {
 	];
 }
 
-export function orientedSize(
-	size: readonly number[],
-	rotation: number,
-): [number, number] {
+export function orientedSize(size: Size, rotation: number): [number, number] {
 	return rotation % 180 ? [size[1], size[0]] : [size[0], size[1]];
 }
 
-export function cropSize(
-	size: readonly number[],
-	geometry: Geometry,
-): [number, number] {
+export function cropSize(size: Size, geometry: Geometry): [number, number] {
 	const [width, height] = orientedSize(size, geometry.rotation);
 	return [
 		Math.max(1, Math.round(width * geometry.width)),
@@ -49,7 +45,7 @@ export function cropSize(
 }
 
 /** One affine map from the crop frame to the source, including the area outside it. */
-export function cropTransform(crop: Geometry, size: readonly number[]) {
+export function cropTransform(crop: Geometry, size: Size) {
 	const [width, height] = orientedSize(size, crop.rotation);
 	const center = rotate(
 		(crop.x + crop.width / 2 - 0.5) * width,
@@ -73,20 +69,18 @@ export function cropTransform(crop: Geometry, size: readonly number[]) {
 	};
 }
 
-function sourceCorners(crop: Geometry, size: readonly number[]) {
+function sourceBounds(crop: Geometry, size: Size) {
 	const { origin, xAxis, yAxis } = cropTransform(crop, size);
-	return [0, 1].flatMap((x) =>
-		[0, 1].map((y) => origin.map((v, i) => v + x * xAxis[i] + y * yAxis[i])),
-	);
+	return origin.map((value, axis) => [
+		value + Math.min(0, xAxis[axis]) + Math.min(0, yAxis[axis]),
+		value + Math.max(0, xAxis[axis]) + Math.max(0, yAxis[axis]),
+	]);
 }
 
 /** Translation slides along reached edges instead of stopping both axes. */
-function constrainMove(crop: Geometry, size: readonly number[]) {
-	const corners = sourceCorners(crop, size);
-	const correction = [0, 1].map((axis) => {
-		const values = corners.map((point) => point[axis]);
-		const overflow =
-			Math.max(0, -Math.min(...values)) + Math.min(0, 1 - Math.max(...values));
+function constrainMove(crop: Geometry, size: Size) {
+	const correction = sourceBounds(crop, size).map(([min, max], axis) => {
+		const overflow = Math.max(0, -min) + Math.min(0, 1 - max);
 		return overflow * size[axis];
 	});
 	const [x, y] = rotate(correction[0], correction[1], crop.rotation);
@@ -95,13 +89,9 @@ function constrainMove(crop: Geometry, size: readonly number[]) {
 }
 
 /** Stop the whole resize at its first source edge to preserve the anchor and aspect. */
-function constrainResize(
-	previous: Geometry,
-	next: Geometry,
-	size: readonly number[],
-) {
-	const start = sourceCorners(previous, size).flat();
-	const end = sourceCorners(next, size).flat();
+function constrainResize(previous: Geometry, next: Geometry, size: Size) {
+	const start = sourceBounds(previous, size).flat();
+	const end = sourceBounds(next, size).flat();
 	let fraction = 1;
 	for (const [i, value] of end.entries()) {
 		if (value < -1e-9 || value > 1 + 1e-9) {
@@ -123,45 +113,47 @@ function constrainResize(
 	};
 }
 
+/** Minimum magnification that keeps the rotated frame covered around its source center. */
+function rotationScale(crop: Geometry, size: Size) {
+	const scales = sourceBounds({ ...crop, scale: 1 }, size).map(([min, max]) => {
+		const center = (min + max) / 2;
+		const room = Math.max(0, Math.min(center, 1 - center));
+		return (max - min) / (2 * room);
+	});
+	return Math.max(1, ...scales);
+}
+
+function validateGeometry(crop: Geometry, size: Size) {
+	const { flipX, flipY, ...numeric } = crop;
+	const finite = Object.values(numeric).every(Number.isFinite);
+	const flips = typeof flipX === "boolean" && typeof flipY === "boolean";
+	const dimensions = crop.width > 0 && crop.height > 0 && crop.scale >= 1;
+	const rotation =
+		[0, 90, 180, 270].includes(crop.rotation) && Math.abs(crop.angle) <= 45;
+	if (!finite || !flips || !dimensions || !rotation) {
+		throw new Error("Invalid crop or rotation.");
+	}
+	const outside = sourceBounds(crop, size)
+		.flat()
+		.some((value) => value < -1e-9 || value > 1 + 1e-9);
+	if (outside) {
+		throw new Error("Invalid crop: outside the image.");
+	}
+}
+
 export function changeGeometry(
 	geometry: Geometry,
 	change: Partial<Geometry>,
-	size: readonly number[],
+	size: Size,
 ): Geometry {
 	const next = { ...geometry, ...change };
-	const { flipX, flipY, ...numeric } = next;
-	if (
-		Object.values(numeric).some((v) => !Number.isFinite(v)) ||
-		typeof flipX !== "boolean" ||
-		typeof flipY !== "boolean" ||
-		next.width <= 0 ||
-		next.height <= 0 ||
-		![0, 90, 180, 270].includes(next.rotation) ||
-		Math.abs(next.angle) > 45 ||
-		next.scale < 1
-	) {
-		throw new Error("Invalid crop or rotation.");
-	}
-	if (change.angle !== undefined && change.scale === undefined) {
-		const { origin, xAxis, yAxis } = cropTransform({ ...next, scale: 1 }, size);
-		const scales = origin.map((v, i) => {
-			const center = v + (xAxis[i] + yAxis[i]) / 2;
-			const room = Math.min(center, 1 - center);
-			if (room <= 0) {
-				throw new Error("Crop center is outside the image.");
-			}
-			return (Math.abs(xAxis[i]) + Math.abs(yAxis[i])) / (2 * room);
-		});
-		return { ...next, scale: Math.max(1, ...scales) };
-	}
-	if (
-		sourceCorners(next, size)
-			.flat()
-			.some((v) => v < -1e-9 || v > 1 + 1e-9)
-	) {
-		throw new Error("Invalid crop: outside the image.");
-	}
-	return next;
+	const needsScale = change.angle !== undefined && change.scale === undefined;
+	const result = {
+		...next,
+		scale: needsScale ? rotationScale(next, size) : next.scale,
+	};
+	validateGeometry(result, size);
+	return result;
 }
 
 export function rotateCrop(crop: Geometry, direction: -1 | 1 = 1): Geometry {
@@ -196,50 +188,67 @@ export function fitAspect(rect: Rect, ratio: number): Rect {
 	};
 }
 
-/** Deltas are in oriented-image units. Resizing anchors the opposite source corner. */
-export function dragCrop(
+/** Convert an on-screen displacement to the oriented source coordinates. */
+function sourceOffset(crop: Geometry, dx: number, dy: number, size: Size) {
+	const [width, height] = orientedSize(size, crop.rotation);
+	const [x, y] = rotate(
+		dx * width * (crop.flipX ? -1 : 1),
+		dy * height * (crop.flipY ? -1 : 1),
+		-crop.angle,
+	);
+	return [x / width / crop.scale, y / height / crop.scale];
+}
+
+export function moveCrop(
+	crop: Geometry,
+	dx: number,
+	dy: number,
+	size: Size,
+): Geometry {
+	const [x, y] = sourceOffset(crop, dx, dy, size);
+	return constrainMove({ ...crop, x: crop.x + x, y: crop.y + y }, size);
+}
+
+function resizeDimensions(width: number, height: number, ratio: number | null) {
+	if (!ratio) {
+		return [Math.max(0.01, width), Math.max(0.01, height)];
+	}
+	// Project the pointer onto the aspect diagonal, so changing direction stays continuous.
+	const projection = (width * ratio + height) / (ratio * ratio + 1);
+	const lockedWidth = Math.max(0.01, projection * ratio);
+	return [lockedWidth, lockedWidth / ratio];
+}
+
+export function resizeCrop(
 	crop: Geometry,
 	handle: string,
 	dx: number,
 	dy: number,
 	ratio: number | null,
-	size: readonly number[],
+	size: Size,
 ): Geometry {
-	const [imageWidth, imageHeight] = orientedSize(size, crop.rotation);
 	const directionX = handle.includes("w") ? -1 : 1;
 	const directionY = handle.includes("n") ? -1 : 1;
-	let width = crop.width;
-	let height = crop.height;
-	if (handle !== "move") {
-		const proposedWidth = crop.width + directionX * dx;
-		const proposedHeight = crop.height + directionY * dy;
-		width = Math.max(
-			0.01,
-			ratio
-				? ((proposedWidth * ratio + proposedHeight) * ratio) /
-						(ratio * ratio + 1)
-				: proposedWidth,
-		);
-		height = ratio ? width / ratio : Math.max(0.01, proposedHeight);
-	}
-	const offsetX =
-		handle === "move" ? dx : ((width - crop.width) * directionX) / 2;
-	const offsetY =
-		handle === "move" ? dy : ((height - crop.height) * directionY) / 2;
-	const shift = rotate(
-		offsetX * imageWidth * (crop.flipX ? -1 : 1),
-		offsetY * imageHeight * (crop.flipY ? -1 : 1),
-		-crop.angle,
+	const [width, height] = resizeDimensions(
+		crop.width + directionX * dx,
+		crop.height + directionY * dy,
+		ratio,
 	);
-	const next = {
-		...crop,
-		x: crop.x + (crop.width - width) / 2 + shift[0] / imageWidth / crop.scale,
-		y:
-			crop.y + (crop.height - height) / 2 + shift[1] / imageHeight / crop.scale,
-		width,
-		height,
-	};
-	return handle === "move"
-		? constrainMove(next, size)
-		: constrainResize(crop, next, size);
+	const [x, y] = sourceOffset(
+		crop,
+		((width - crop.width) * directionX) / 2,
+		((height - crop.height) * directionY) / 2,
+		size,
+	);
+	return constrainResize(
+		crop,
+		{
+			...crop,
+			x: crop.x + (crop.width - width) / 2 + x,
+			y: crop.y + (crop.height - height) / 2 + y,
+			width,
+			height,
+		},
+		size,
+	);
 }
