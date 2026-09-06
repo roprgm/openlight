@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
-import { sampleCurve } from "@/features/tone-curves/curve";
 import { interpolatePchip } from "@/lib/math";
+import { sampleCurve } from "@/lib/tone-curves/curve";
 
 test("curves interpolate smoothly through their handles without overshoot", () => {
 	const identity = [

@@ -1,7 +1,7 @@
 import { useRef, useState } from "react";
 import { useGpu } from "vgpu-react";
-import { useDocument } from "@/app/document/provider";
 import { exportImage } from "@/app/editor/export/export-image";
+import { useDocument } from "@/components/editor/session";
 import Button from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 

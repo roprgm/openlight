@@ -1,25 +1,13 @@
-import { useStore } from "zustand";
-import { useDocument, useScene } from "@/app/document/provider";
-import { ImageView } from "@/components/image-view";
-import { type Camera, usePanZoom } from "@/hooks/use-pan-zoom";
+import { Image } from "@/components/editor/image";
+import { useScene } from "@/components/editor/session";
+import { EditorViewport } from "@/components/editor/viewport";
 import { ComparisonDivider } from "./comparison-divider";
-import { useRenderer } from "./renderer/provider";
 
-export function EditorCanvas({ state }: { state: Camera }) {
-	const camera = usePanZoom(
-		state,
-		useScene((scene) => scene.size),
-	);
-	const preview = useStore(useDocument().preview);
-	const renderer = useRenderer();
+export function EditorCanvas() {
+	const size = useScene((scene) => scene.frame.size);
 	return (
-		<ImageView
-			camera={camera}
-			subscribe={renderer.subscribe}
-			draw={(frame, canvas) =>
-				renderer.draw(frame, canvas, camera.view, preview, camera.viewport)
-			}
-			overlay={<ComparisonDivider />}
-		/>
+		<EditorViewport size={size} overlay={<ComparisonDivider />}>
+			<Image original="originalImage" />
+		</EditorViewport>
 	);
 }

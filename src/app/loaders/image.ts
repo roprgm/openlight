@@ -1,11 +1,11 @@
 import type { Gpu } from "vgpu";
-import { createDocument } from "@/app/document";
-import { createResources } from "@/app/document/resources";
-import { defaultAdjustments } from "@/app/scene";
 import type { Workspace } from "@/app/workspace";
-import { defaultGeometry } from "@/features/crop/geometry";
-import { defaultCurve } from "@/features/tone-curves/curve";
 import decode, { canDecode } from "@/lib/decode";
+import { createDocument } from "@/lib/editor/document";
+import { createResources } from "@/lib/editor/document/resources";
+import { defaultAdjustments } from "@/lib/editor/scene";
+import { imageFrame } from "@/lib/image-frame/geometry";
+import { defaultCurve } from "@/lib/tone-curves/curve";
 import type { FileLoader } from "./registry";
 
 export function createImageLoader(gpu: Gpu, workspace: Workspace): FileLoader {
@@ -22,10 +22,9 @@ export function createImageLoader(gpu: Gpu, workspace: Workspace): FileLoader {
 				const source = resources.add(file, image);
 				return createDocument(
 					{
-						size: [image.size[0], image.size[1]],
+						frame: imageFrame(image.size),
 						source,
 						adjustments: { ...defaultAdjustments },
-						geometry: defaultGeometry,
 						toneCurve: defaultCurve,
 					},
 					resources,

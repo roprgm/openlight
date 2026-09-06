@@ -5,10 +5,9 @@ import {
 	useEffect,
 	useMemo,
 } from "react";
-import type { Target } from "vgpu";
 import { useGpu } from "vgpu-react";
-import { useDocument } from "@/app/document/provider";
-import { createRenderer } from "./renderer";
+import { useDocument, useScene } from "@/components/editor/session";
+import { createRenderer } from "@/lib/editor/renderer";
 
 const RendererContext = createContext<ReturnType<typeof createRenderer> | null>(
 	null,
@@ -22,11 +21,13 @@ export function useRenderer() {
 	return renderer;
 }
 
-type RendererProviderProps = { source: Target; children: ReactNode };
+type RendererProviderProps = { children: ReactNode };
 
-export function RendererProvider({ source, children }: RendererProviderProps) {
+export function RendererProvider({ children }: RendererProviderProps) {
 	const gpu = useGpu();
 	const document = useDocument();
+	const sourceId = useScene((scene) => scene.source);
+	const source = document.resources.get(sourceId).image;
 	const renderer = useMemo(() => createRenderer(gpu, source), [gpu, source]);
 	useEffect(() => {
 		const render = () => renderer.update(document.scene.getState());

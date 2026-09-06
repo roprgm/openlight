@@ -1,28 +1,21 @@
 import { expect, test } from "bun:test";
+import { flip, move, resize, rotate, turn } from "@/features/crop/geometry";
 import {
-	changeGeometry,
-	cropTransform,
-	defaultGeometry,
-	flipCrop,
-	type Geometry,
-	moveCrop,
-	resizeCrop,
-} from "@/features/crop/geometry";
+	frameTransform,
+	type ImageFrame,
+	imageFrame,
+	type Point,
+} from "@/lib/image-frame/geometry";
 
-function sample(
-	geometry: Geometry,
-	size: readonly [number, number],
-	x: number,
-	y: number,
-) {
-	const { origin, xAxis, yAxis } = cropTransform(geometry, size);
-	return origin.map((v, i) => v + x * xAxis[i] + y * yAxis[i]);
+const source: Point = [1200, 800];
+function sample(frame: ImageFrame, x: number, y: number) {
+	const { origin, xAxis, yAxis } = frameTransform(frame, source);
+	return origin.map((value, axis) => value + x * xAxis[axis] + y * yAxis[axis]);
 }
-
-function expectCovered(geometry: Geometry, size: readonly [number, number]) {
+function expectCovered(frame: ImageFrame) {
 	for (const x of [0, 1]) {
 		for (const y of [0, 1]) {
-			for (const value of sample(geometry, size, x, y)) {
+			for (const value of sample(frame, x, y)) {
 				expect(value).toBeGreaterThanOrEqual(-1e-9);
 				expect(value).toBeLessThanOrEqual(1 + 1e-9);
 			}
@@ -30,73 +23,58 @@ function expectCovered(geometry: Geometry, size: readonly [number, number]) {
 	}
 }
 
-test("crop geometry preserves coverage, anchors, flips, and movement along edges", () => {
-	const size = [1200, 800] as const;
-	const edge = {
-		...defaultGeometry,
-		x: 0.5,
-		y: 0.25,
-		width: 0.5,
-		height: 0.5,
+test("crop preserves source coverage, opposite corners, flips, and sliding along edges", () => {
+	const edge: ImageFrame = {
+		...imageFrame(source),
+		center: [900, 400],
+		size: [600, 400],
 	};
-	const slide = moveCrop(edge, 0.1, 0.1, size);
-	expect(slide.x).toBeCloseTo(0.5);
-	expect(slide.y).toBeCloseTo(0.35);
+	expect(move(edge, 120, 80, source).center).toEqual([900, 480]);
 	for (const rotation of [0, 90, 180, 270]) {
-		for (const angle of [-45, -30, 30, 45]) {
-			const before = changeGeometry(
-				defaultGeometry,
-				{
-					x: 0.15,
-					y: 0.2,
-					width: 0.5,
-					height: 0.5,
-					rotation,
-					angle,
-					flipX: rotation % 180 !== 0,
-					flipY: angle < 0,
-				},
-				size,
+		for (const angle of [-45, -30, 0, 30, 45]) {
+			const before = rotate(
+				{ ...edge, center: [480, 360], rotation },
+				angle,
+				source,
 			);
-			for (const axis of ["horizontal", "vertical"] as const) {
-				const flipped = flipCrop(before, axis);
-				expectCovered(flipped, size);
-
+			for (const axis of [0, 1]) {
+				const flipped = flip(before, axis);
+				expectCovered(flipped);
 				for (const x of [0, 0.3, 1]) {
 					for (const y of [0, 0.7, 1]) {
-						const u = axis === "horizontal" ? 1 - x : x;
-						const v = axis === "vertical" ? 1 - y : y;
-						const expected = sample(before, size, u, v);
-						for (const [i, value] of sample(flipped, size, x, y).entries()) {
+						const expected = sample(
+							before,
+							axis === 0 ? 1 - x : x,
+							axis === 1 ? 1 - y : y,
+						);
+						for (const [i, value] of sample(flipped, x, y).entries()) {
 							expect(value).toBeCloseTo(expected[i], 10);
 						}
 					}
 				}
-			}
-			for (const handle of ["nw", "ne", "sw", "se", "move"]) {
-				for (const delta of [-1, 1]) {
-					const ratio = delta < 0 ? before.width / before.height : null;
-					const next =
-						handle === "move"
-							? moveCrop(before, delta, delta, size)
-							: resizeCrop(before, handle, delta, delta, ratio, size);
-					expectCovered(next, size);
-					if (ratio && handle !== "move") {
-						expect(next.width / next.height).toBeCloseTo(ratio, 8);
-						const right = handle.includes("w") ? 1 : 0;
-						const bottom = handle.includes("n") ? 1 : 0;
-						const anchor = sample(before, size, right, bottom);
-						for (const [i, value] of sample(
-							next,
-							size,
-							right,
-							bottom,
-						).entries()) {
-							expect(value).toBeCloseTo(anchor[i], 8);
+				for (const direction of [-1, 1]) {
+					const turned = turn(flipped, direction);
+					expectCovered(turned);
+					expect(turn(turned, -direction)).toEqual(flipped);
+				}
+				for (const corner of ["nw", "ne", "sw", "se"]) {
+					for (const delta of [-1200, 1200]) {
+						for (const ratio of [before.size[0] / before.size[1], null]) {
+							const next = resize(flipped, corner, delta, delta, ratio, source);
+							expectCovered(next);
+							if (ratio)
+								expect(next.size[0] / next.size[1]).toBeCloseTo(ratio, 8);
+							const x = corner.includes("w") ? 1 : 0;
+							const y = corner.includes("n") ? 1 : 0;
+							const anchor = sample(flipped, x, y);
+							for (const [i, value] of sample(next, x, y).entries()) {
+								expect(value).toBeCloseTo(anchor[i], 8);
+							}
+							expect(next.scale).toBe(flipped.scale);
+							expectCovered(move(next, delta, delta, source));
+							expectCovered(rotate(next, -angle, source));
 						}
 					}
-					expect(next.scale).toBe(before.scale);
-					expectCovered(changeGeometry(next, { angle: -angle }, size), size);
 				}
 			}
 		}

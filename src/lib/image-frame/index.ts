@@ -6,16 +6,16 @@ import {
 	type Target,
 	target,
 } from "vgpu";
-import shader from "./crop.wgsl";
+import shader from "./frame.wgsl";
 import {
-	cropSize,
-	cropTransform,
-	defaultGeometry,
-	type Geometry,
+	frameTransform,
+	frameValues,
+	type ImageFrame,
+	imageFrame,
 } from "./geometry";
 
 /** Transforms image outputs; equal inputs share a target and identity preserves the source. */
-export function createCrop(gpu: Gpu) {
+export function createImageFrame(gpu: Gpu) {
 	const apply = effect(gpu, shader, {
 		set: {
 			sourceSampler: sampler(gpu, { magFilter: "linear", minFilter: "linear" }),
@@ -23,17 +23,17 @@ export function createCrop(gpu: Gpu) {
 	});
 	const outputs = new Map<Target, Target>();
 	return {
-		render(frame: Frame, sources: Target[], geometry: Geometry) {
-			if (
-				Object.entries(defaultGeometry).every(
-					([key, value]) => Reflect.get(geometry, key) === value,
-				)
-			) {
+		render(frame: Frame, sources: Target[], geometry: ImageFrame) {
+			const initial = frameValues(imageFrame(sources[0].size));
+			if (frameValues(geometry).every((value, i) => value === initial[i])) {
 				return sources;
 			}
 			const rendered = new Set<Target>();
 			return sources.map((source) => {
-				const size = cropSize(source.size, geometry);
+				const size: [number, number] = [
+					Math.round(geometry.size[0]),
+					Math.round(geometry.size[1]),
+				];
 				let output = outputs.get(source);
 				if (!output) {
 					output = target(gpu, { size, format: source.format });
@@ -45,7 +45,7 @@ export function createCrop(gpu: Gpu) {
 						output,
 						apply.set({
 							source: source.color,
-							transform: cropTransform(geometry, source.size),
+							transform: frameTransform(geometry, source.size),
 						}),
 					);
 				}

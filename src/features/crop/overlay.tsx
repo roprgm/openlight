@@ -1,137 +1,111 @@
 import { type PointerEvent, useRef } from "react";
+import { useViewport } from "@/components/editor/viewport";
 import rotateCursor from "@/components/icons/rotate-cursor.svg";
+import type { ImageFrame, Point } from "@/lib/image-frame/geometry";
 import { clamp } from "@/lib/math";
-import {
-	type CropDraft,
-	type Geometry,
-	moveCrop,
-	orientedSize,
-	resizeCrop,
-} from "./geometry";
-import type { CropTool } from "./tool";
+import { move, resize, rotate } from "./geometry";
 
-type CropOverlayProps = {
-	tool: CropTool;
-	crop: CropDraft;
-	frame: {
-		width: number;
-		height: number;
-		marginLeft: number;
-		marginTop: number;
-	};
-};
 const corners = [
-	{ handle: "nw", label: "top left", left: 0, top: 0 },
-	{ handle: "ne", label: "top right", left: 100, top: 0 },
-	{ handle: "sw", label: "bottom left", left: 0, top: 100 },
-	{ handle: "se", label: "bottom right", left: 100, top: 100 },
-];
-const directions: Record<string, [number, number]> = {
+	["nw", "top left", 0, 0, "nwse-resize"],
+	["ne", "top right", 100, 0, "nesw-resize"],
+	["sw", "bottom left", 0, 100, "nesw-resize"],
+	["se", "bottom right", 100, 100, "nwse-resize"],
+] as const;
+const arrows: Record<string, Point> = {
 	ArrowLeft: [-1, 0],
 	ArrowRight: [1, 0],
 	ArrowUp: [0, -1],
 	ArrowDown: [0, 1],
 };
-function bearing(x: number, y: number, bounds: DOMRect) {
-	return Math.atan2(
-		y - bounds.top - bounds.height / 2,
-		x - bounds.left - bounds.width / 2,
-	);
-}
 
-export function CropOverlay({ tool, frame, crop }: CropOverlayProps) {
+export function CropOverlay({
+	frame,
+	source,
+	ratio,
+	onChange,
+}: {
+	frame: ImageFrame;
+	source: Point;
+	ratio: number | null;
+	onChange: (frame: ImageFrame) => void;
+}) {
+	const camera = useViewport();
 	const selection = useRef<HTMLDivElement>(null);
-	const drag = useRef<((event: PointerEvent<HTMLDivElement>) => void) | null>(
-		null,
-	);
-	const { geometry, aspect } = crop;
-	const { size, change: onChange } = tool;
-	const [width, height] = orientedSize(size, geometry.rotation);
-	const ratio = aspect && (aspect * height) / width;
-	function updateFrame(
-		start: Geometry,
-		handle: string,
-		dx: number,
-		dy: number,
-	) {
-		if (handle === "move") {
-			tool.change(moveCrop(start, -dx, -dy, size));
-			return;
-		}
-		tool.change(resizeCrop(start, handle, dx * 2, dy * 2, ratio, size));
-	}
-	function getDragHandle(event: PointerEvent<HTMLDivElement>) {
-		const bounds = selection.current?.getBoundingClientRect();
-		const target =
-			event.target instanceof Element && event.target.closest("[data-handle]");
-		if (target) {
-			return target.getAttribute("data-handle") ?? "move";
-		}
-		if (!bounds) {
+	const style = {
+		width: frame.size[0] * camera.scale,
+		height: frame.size[1] * camera.scale,
+		marginLeft: camera.view.pan[0],
+		marginTop: camera.view.pan[1],
+	};
+	function hit(event: PointerEvent) {
+		const box = selection.current?.getBoundingClientRect();
+		if (!box || !(event.target instanceof Element)) {
 			return null;
 		}
 		const distance = Math.hypot(
-			Math.max(bounds.left - event.clientX, 0, event.clientX - bounds.right),
-			Math.max(bounds.top - event.clientY, 0, event.clientY - bounds.bottom),
+			Math.max(box.left - event.clientX, 0, event.clientX - box.right),
+			Math.max(box.top - event.clientY, 0, event.clientY - box.bottom),
 		);
-		return distance >= 50 ? "rotate" : null;
+		const handle =
+			event.target.closest<HTMLElement>("[data-handle]")?.dataset.handle;
+		return { box, handle: handle ?? (distance >= 50 ? "rotate" : null) };
 	}
-	function startDrag(event: PointerEvent<HTMLDivElement>) {
-		const handle = getDragHandle(event);
-		const bounds = selection.current?.getBoundingClientRect();
-		if (event.button !== 0 || !event.isPrimary || !handle || !bounds) {
+	function change(handle: string, dx: number, dy: number) {
+		onChange(
+			handle === "move"
+				? move(frame, -dx, -dy, source)
+				: resize(frame, handle, dx * 2, dy * 2, ratio, source),
+		);
+	}
+	function start(event: PointerEvent<HTMLDivElement>) {
+		const target = hit(event);
+		if (event.button !== 0 || !event.isPrimary || !target?.handle) {
 			return;
 		}
+		const { handle, box } = target;
 		event.preventDefault();
 		event.stopPropagation();
-		event.currentTarget.setPointerCapture(event.pointerId);
+		const element = event.currentTarget;
+		element.setPointerCapture(event.pointerId);
 		if (event.target instanceof HTMLElement) {
 			event.target.closest("button")?.focus();
 		}
-		const pointerId = event.pointerId;
-		const startX = event.clientX;
-		const startY = event.clientY;
-		drag.current = (pointer) => {
+		const { clientX: x, clientY: y, pointerId } = event;
+		const bearing = (px: number, py: number) =>
+			Math.atan2(py - box.y - box.height / 2, px - box.x - box.width / 2);
+		element.onpointermove = (pointer) => {
 			if (pointer.pointerId !== pointerId) {
 				return;
 			}
-			if (handle === "rotate") {
-				const delta =
-					bearing(pointer.clientX, pointer.clientY, bounds) -
-					bearing(startX, startY, bounds);
-				const angle =
-					geometry.angle +
-					(Math.atan2(Math.sin(delta), Math.cos(delta)) * 180) / Math.PI;
-				onChange({
-					angle: clamp(Math.round(angle * 10) / 10, -45, 45),
-				});
-			} else {
-				updateFrame(
-					geometry,
+			if (handle !== "rotate") {
+				change(
 					handle,
-					((pointer.clientX - startX) * geometry.width) / bounds.width,
-					((pointer.clientY - startY) * geometry.height) / bounds.height,
+					(pointer.clientX - x) / camera.scale,
+					(pointer.clientY - y) / camera.scale,
 				);
+				return;
 			}
+			const delta = bearing(pointer.clientX, pointer.clientY) - bearing(x, y);
+			const angle =
+				frame.angle +
+				(Math.atan2(Math.sin(delta), Math.cos(delta)) * 180) / Math.PI;
+			onChange(
+				rotate(frame, clamp(Math.round(angle * 10) / 10, -45, 45), source),
+			);
+		};
+		element.onlostpointercapture = () => {
+			element.onpointermove = null;
 		};
 	}
-
 	return (
 		<div
 			className="absolute -inset-6 touch-none"
-			onPointerDown={startDrag}
+			onPointerDown={start}
 			onPointerMove={(event) => {
-				if (drag.current) {
-					drag.current(event);
-					return;
-				}
 				event.currentTarget.style.cursor =
-					getDragHandle(event) === "rotate"
+					hit(event)?.handle === "rotate"
 						? `url("${rotateCursor}") 12 12, crosshair`
 						: "inherit";
-			}}
-			onLostPointerCapture={() => {
-				drag.current = null;
 			}}
 		>
 			<div
@@ -139,20 +113,20 @@ export function CropOverlay({ tool, frame, crop }: CropOverlayProps) {
 				role="application"
 				aria-label="Crop selection"
 				data-handle="move"
-				className="absolute top-1/2 left-1/2 -translate-1/2 cursor-grab border border-white shadow-[0_0_0_9999px_#0009] active:cursor-grabbing"
-				style={frame}
+				style={style}
+				className="absolute top-1/2 left-1/2 -translate-1/2 cursor-grab border border-white bg-[linear-gradient(to_right,#fff3_1px,transparent_1px),linear-gradient(to_bottom,#fff3_1px,transparent_1px)] bg-size-[33.333%_33.333%] shadow-[0_0_0_9999px_#0009] active:cursor-grabbing"
 				onKeyDown={(event) => {
-					const delta = directions[event.key];
-					if (!delta) {
+					const delta = arrows[event.key];
+					if (!delta || !(event.target instanceof HTMLElement)) {
 						return;
 					}
 					event.preventDefault();
-					const handle =
-						event.target instanceof HTMLElement
-							? (event.target.dataset.handle ?? "move")
-							: "move";
 					const step = event.shiftKey ? 0.05 : 0.005;
-					updateFrame(geometry, handle, delta[0] * step, delta[1] * step);
+					change(
+						event.target.dataset.handle ?? "move",
+						delta[0] * source[0] * step,
+						delta[1] * source[1] * step,
+					);
 				}}
 			>
 				<button
@@ -160,26 +134,19 @@ export function CropOverlay({ tool, frame, crop }: CropOverlayProps) {
 					aria-label="Move crop"
 					className="absolute inset-0 cursor-[inherit] focus-visible:outline-2 focus-visible:outline-white"
 				/>
-				<div className="pointer-events-none absolute inset-0 grid grid-cols-3 grid-rows-3">
-					{Array.from({ length: 9 }, (_, i) => (
-						<div key={i} className="border border-white/20" />
-					))}
-				</div>
-				{corners.map(({ handle, label, left, top }) => {
-					const cursor = left === top ? "nwse-resize" : "nesw-resize";
-					return (
-						<button
-							key={handle}
-							type="button"
-							data-handle={handle}
-							aria-label={`Resize crop ${label}`}
-							className="group absolute flex size-8 -translate-1/2 items-center justify-center outline-none"
-							style={{ left: `${left}%`, top: `${top}%`, cursor }}
-						>
-							<span className="pointer-events-none size-2.5 border border-neutral-900 bg-white group-focus-visible:ring-2 group-focus-visible:ring-neutral-400/50" />
-						</button>
-					);
-				})}
+
+				{corners.map(([handle, label, left, top, cursor]) => (
+					<button
+						key={handle}
+						type="button"
+						data-handle={handle}
+						aria-label={`Resize crop ${label}`}
+						className="group absolute flex size-8 -translate-1/2 items-center justify-center outline-none"
+						style={{ left: `${left}%`, top: `${top}%`, cursor }}
+					>
+						<span className="pointer-events-none size-2.5 border border-neutral-900 bg-white group-focus-visible:ring-2 group-focus-visible:ring-neutral-400/50" />
+					</button>
+				))}
 			</div>
 		</div>
 	);

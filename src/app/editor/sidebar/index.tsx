@@ -1,15 +1,18 @@
-import { type ComponentProps, useEffect, useMemo } from "react";
+import { type ReactNode, useEffect, useMemo } from "react";
 import { useGpu } from "vgpu-react";
-import { setToneCurve } from "@/app/document/edits";
-import { useDocument, useScene } from "@/app/document/provider";
 import { ExportButton } from "@/app/editor/export/export-button";
 import { HistoryControls } from "@/app/editor/history";
-import { useRenderer } from "@/app/editor/renderer/provider";
-import ResizablePanel from "@/components/ui/resizable-panel";
+import { useRenderer } from "@/components/editor/pipeline";
+import {
+	EditorPanel,
+	useDocument,
+	useScene,
+} from "@/components/editor/session";
 import { Histogram } from "@/features/histogram";
 import { createHistogram } from "@/features/histogram/histogram";
 import { ToneCurves } from "@/features/tone-curves/tone-curves";
 import { useEditGesture } from "@/hooks/use-edit-gesture";
+import { setToneCurve } from "@/lib/editor/document/edits";
 import AdjustmentControls from "./adjustment-controls";
 import { ClippingControls } from "./clipping-controls";
 import { ComparisonControl } from "./comparison-control";
@@ -44,10 +47,7 @@ function ToneCurvesPanel({
 	);
 }
 
-export function Sidebar({
-	children,
-	...panel
-}: ComponentProps<typeof ResizablePanel>) {
+export function Sidebar({ children }: { children?: ReactNode }) {
 	const gpu = useGpu();
 	const document = useDocument();
 	const gesture = useEditGesture(document.history);
@@ -55,7 +55,7 @@ export function Sidebar({
 	const histogram = useMemo(() => createHistogram(gpu), [gpu]);
 	useEffect(() => () => histogram.dispose(), [histogram]);
 	return (
-		<ResizablePanel {...panel}>
+		<EditorPanel>
 			<div className="flex h-full flex-col divide-y divide-black">
 				<div
 					{...gesture}
@@ -83,6 +83,6 @@ export function Sidebar({
 					<ExportButton />
 				</div>
 			</div>
-		</ResizablePanel>
+		</EditorPanel>
 	);
 }

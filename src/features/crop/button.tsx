@@ -1,34 +1,9 @@
-import { useEffect } from "react";
 import { CropIcon } from "@/components/icons/crop";
 import Button from "@/components/ui/button";
+import { useShortcuts } from "@/hooks/use-shortcuts";
 
 export function CropButton({ onClick }: { onClick: () => void }) {
-	useEffect(() => {
-		function keyDown(event: KeyboardEvent) {
-			if (
-				event.key.toLowerCase() !== "c" ||
-				event.isComposing ||
-				event.repeat ||
-				event.ctrlKey ||
-				event.metaKey ||
-				event.altKey
-			) {
-				return;
-			}
-			const target = event.target;
-			if (
-				target instanceof HTMLElement &&
-				(target.isContentEditable ||
-					target.closest('input, textarea, select, dialog, [role="dialog"]'))
-			) {
-				return;
-			}
-			event.preventDefault();
-			onClick();
-		}
-		window.addEventListener("keydown", keyDown);
-		return () => window.removeEventListener("keydown", keyDown);
-	}, [onClick]);
+	useShortcuts({ c: onClick });
 	return (
 		<Button
 			variant="ghost"

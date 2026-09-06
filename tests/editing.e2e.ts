@@ -1,5 +1,6 @@
 import { readFile } from "node:fs/promises";
 import type { Locator, Page } from "@playwright/test";
+import { type ImageFrame, imageFrame } from "@/lib/image-frame/geometry";
 import { interpolatePchip } from "@/lib/math";
 import { expect, test } from "./fixtures";
 import { readImage, readPixel, readPreview } from "./images";
@@ -29,6 +30,12 @@ async function drag(page: Page, from: number[], to: number[], steps = 8) {
 	await page.mouse.down();
 	await page.mouse.move(to[0], to[1], { steps });
 	await page.mouse.up();
+}
+
+async function zoom(page: Page, factor: number) {
+	await page.keyboard.down("Control");
+	await page.mouse.wheel(0, -Math.log(factor) * 100);
+	await page.keyboard.up("Control");
 }
 
 test("edit a photo, inspect the preview and histograms, undo changes, and export", async ({
@@ -61,9 +68,7 @@ test("edit a photo, inspect the preview and histograms, undo changes, and export
 		if (!viewport) throw new Error("Missing editor viewport.");
 		expect(await canvas.boundingBox()).toEqual(viewport);
 		await canvas.hover();
-		await page.keyboard.down("Control");
-		await page.mouse.wheel(0, -Math.log(2) * 100);
-		await page.keyboard.up("Control");
+		await zoom(page, 2);
 		const edge = {
 			x: viewport.x + viewport.width / 2,
 			y: viewport.y + 4,
@@ -365,21 +370,25 @@ test("edit a photo, inspect the preview and histograms, undo changes, and export
 	const move = page.getByRole("button", { name: "Move crop" });
 	const reset = panel.getByRole("button", { name: "Reset", exact: true });
 	const aspect = panel.getByRole("combobox", { name: "Aspect ratio" });
-	async function cropGeometry() {
-		const crop = (await state()).preview?.crop;
-		if (!crop) throw new Error("Missing crop draft.");
-		return crop.geometry;
+	const rotation = panel.getByRole("slider", { name: "Rotation", exact: true });
+	async function setFrame(change: Partial<ImageFrame> = {}) {
+		const frame = { ...imageFrame([1200, 800]), ...change };
+		await page.evaluate(
+			(frame) => window.openlight.editScene({ frame }),
+			frame,
+		);
+	}
+
+	async function expectImage(size: number[], corner: number) {
+		expect(await readImage(page)).toEqual({
+			size,
+			center: [128, 128, 128, 255],
+			corner: [corner, corner, corner, 255],
+		});
 	}
 
 	await test.step("locked crop corners resize continuously when the drag changes direction", async () => {
-		await page.evaluate(() =>
-			window.openlight.setGeometry({
-				x: 0.25,
-				y: 0.25,
-				width: 0.5,
-				height: 0.5,
-			}),
-		);
+		await setFrame({ size: [600, 400] });
 		await open.click();
 		const grip = await box(corner);
 		const x = grip.x + grip.width / 2;
@@ -395,11 +404,11 @@ test("edit a photo, inspect the preview and histograms, undo changes, and export
 		await page.keyboard.press("Escape");
 		await page.mouse.up();
 		await page.keyboard.press("c");
-		const reopened = (await state()).preview?.crop;
+		const reopened = await box(selection);
 		await page.mouse.move(x - 40, y - 40);
-		expect((await state()).preview?.crop).toEqual(reopened);
+		expect(await box(selection)).toEqual(reopened);
 		await page.keyboard.press("Escape");
-		await page.evaluate(() => window.openlight.setGeometry());
+		await setFrame();
 	});
 
 	await test.step("crop drafts cancel, apply once, rotate and straighten without losing the source", async () => {
@@ -409,25 +418,17 @@ test("edit a photo, inspect the preview and histograms, undo changes, and export
 		await expect(aspect).toHaveValue("1.5");
 		await aspect.selectOption({ label: "Square" });
 		const bounds = await box(selection);
-		await corner.hover();
-		await page.mouse.down();
-		await page.mouse.move(
-			bounds.x + bounds.width * 0.8,
-			bounds.y + bounds.height * 0.8,
-			{ steps: 6 },
+		await drag(
+			page,
+			[bounds.x + bounds.width, bounds.y + bounds.height],
+			[bounds.x + bounds.width * 0.8, bounds.y + bounds.height * 0.8],
 		);
-		await page.mouse.up();
-		const draft = await cropGeometry();
-		expect(draft.width).toBeLessThan(2 / 3);
-		expect(draft.width * 1200).toBeCloseTo(draft.height * 800, 4);
 		const beforeZoom = await box(selection);
+		expect(beforeZoom.width).toBeLessThan(bounds.width);
+		expect(beforeZoom.width).toBeCloseTo(beforeZoom.height, 4);
 		expectCentered(beforeZoom, bounds);
-		expect(draft.x).toBeCloseTo(1 / 6, 5);
-		expect(draft.y).toBe(0);
 		await corner.hover();
-		await page.keyboard.down("Control");
-		await page.mouse.wheel(0, -40);
-		await page.keyboard.up("Control");
+		await zoom(page, Math.exp(0.4));
 		await expect
 			.poll(async () => (await box(selection)).width)
 			.toBeGreaterThan(beforeZoom.width * 1.4);
@@ -439,18 +440,15 @@ test("edit a photo, inspect the preview and histograms, undo changes, and export
 			[grip.x + grip.width / 2 - 20, grip.y + grip.height / 2 - 20],
 			4,
 		);
-		const resized = await cropGeometry();
-		expect(resized.width).toBeCloseTo(
-			draft.width - 40 / (zoomed.width / draft.width),
-			3,
-		);
+		const resized = await box(selection);
+		expect(resized.width).toBeCloseTo(zoomed.width - 40, 0);
 		const beforePan = await box(selection);
 		expectCentered(beforePan, zoomed);
 		await page.mouse.wheel(30, 20);
 		await expect
 			.poll(async () => (await box(selection)).x)
 			.not.toBe(beforePan.x);
-		expect(await cropGeometry()).toEqual(resized);
+		expect((await box(selection)).width).toBe(resized.width);
 		await move.press("Shift+ArrowRight");
 		for (const gap of [49, 51]) {
 			const frame = await box(selection);
@@ -473,25 +471,21 @@ test("edit a photo, inspect the preview and histograms, undo changes, and export
 				{ steps: 8 },
 			);
 			await page.mouse.up();
-			const geometry = await cropGeometry();
-			expect(geometry.angle).toBeCloseTo(gap < 50 ? 0 : 30, 0);
+			const angle = await rotation.inputValue();
+			expect(Number(angle)).toBeCloseTo(gap < 50 ? 0 : 30, 0);
 			await page.mouse.move(x + 20, y);
-			expect(await cropGeometry()).toEqual(geometry);
+			await expect(rotation).toHaveValue(angle);
 		}
 		expect((await readImage(page)).size).toEqual([1200, 800]);
 		await page.keyboard.press("Escape");
-		expect((await state()).geometry).toEqual(before.geometry);
+		expect((await state()).frame).toEqual(before.frame);
 		expect((await state()).history).toEqual(before.history);
 		await open.focus();
 		await page.keyboard.press("c");
 		await aspect.selectOption({ label: "Square" });
 		await corner.press("Enter");
 		await expect(panel).toBeHidden();
-		expect(await readImage(page)).toEqual({
-			size: [800, 800],
-			center: [128, 128, 128, 255],
-			corner: [128, 128, 128, 255],
-		});
+		await expectImage([800, 800], 128);
 		await expect(output).not.toHaveAttribute("points", histogram ?? "");
 		expect((await state()).history.undoCount).toBe(
 			before.history.undoCount + 1,
@@ -506,20 +500,12 @@ test("edit a photo, inspect the preview and histograms, undo changes, and export
 			.getByRole("button", { name: "Rotate counterclockwise" })
 			.click();
 		await page.keyboard.press("Enter");
-		expect(await readImage(page)).toEqual({
-			size: [800, 1200],
-			center: [128, 128, 128, 255],
-			corner: [224, 224, 224, 255],
-		});
+		await expectImage([800, 1200], 224);
 		await open.click();
 		await panel.getByRole("button", { name: "Rotate clockwise" }).click();
 		await panel.getByRole("button", { name: "Rotate clockwise" }).click();
 		await panel.getByRole("button", { name: "Apply crop" }).click();
-		expect(await readImage(page)).toEqual({
-			size: [800, 1200],
-			center: [128, 128, 128, 255],
-			corner: [32, 32, 32, 255],
-		});
+		await expectImage([800, 1200], 32);
 		await open.click();
 		await reset.click();
 		const angle = panel.getByRole("textbox", {
@@ -529,11 +515,7 @@ test("edit a photo, inspect the preview and histograms, undo changes, and export
 		await angle.fill("30");
 		await angle.press("Enter");
 		await expect(panel).toBeHidden();
-		expect(await readImage(page)).toEqual({
-			size: [1200, 800],
-			center: [128, 128, 128, 255],
-			corner: [32, 32, 32, 255],
-		});
+		await expectImage([1200, 800], 32);
 		await open.click();
 		await reset.click();
 		await panel.getByRole("button", { name: "Apply crop" }).click();
@@ -577,9 +559,7 @@ test("edit a photo, inspect the preview and histograms, undo changes, and export
 		);
 		const resizedSidebar = await box(sidebar);
 		expect(resizedSidebar.width).toBe(sidebarBefore.width + 80);
-		await page.evaluate(() =>
-			window.openlight.setGeometry({ x: 0.2, y: 0.1, width: 0.2, height: 0.3 }),
-		);
+		await setFrame({ center: [360, 200], size: [240, 240] });
 		const viewport = await box(canvas);
 		await open.click();
 		expect(await box(sidebar)).toEqual(resizedSidebar);
@@ -648,16 +628,14 @@ test("edit a photo, inspect the preview and histograms, undo changes, and export
 			8,
 		);
 		expect(await box(selection)).toEqual(bounds);
-		expect((await cropGeometry()).angle).toBeCloseTo(30, 0);
+		expect(Number(await rotation.inputValue())).toBeCloseTo(30, 0);
 		const center = { x, y };
 		expect(await readPixel(page, center)).toEqual([48, 80, 128, 255]);
 		await page.keyboard.press("Enter");
 		expect(await box(sidebar)).toEqual(resizedSidebar);
 		expect((await readImage(page)).center).toEqual([48, 80, 128, 255]);
 		await canvas.hover();
-		await page.keyboard.down("Control");
-		await page.mouse.wheel(0, -Math.log(2.5) * 100);
-		await page.keyboard.up("Control");
+		await zoom(page, 2.5);
 		await page.mouse.wheel(30, 20);
 		const before = await readPixel(page, center);
 		await open.click();
@@ -683,24 +661,14 @@ test("edit a photo, inspect the preview and histograms, undo changes, and export
 			[resizedSidebar.x - 2, resizedSidebar.y + 40],
 			[sidebarBefore.x - 2, sidebarBefore.y + 40],
 		);
-		await page.evaluate(() => window.openlight.setGeometry());
+		await setFrame();
 	});
 
 	await test.step("straightened crops leave empty space outside the source and reset restores geometry and camera", async () => {
-		await page.evaluate(() =>
-			window.openlight.setGeometry({
-				x: 0.25,
-				y: 0.25,
-				width: 0.5,
-				height: 0.5,
-				angle: 30,
-			}),
-		);
+		await setFrame({ size: [600, 400], angle: 30 });
 		await open.click();
 		await move.hover();
-		await page.keyboard.down("Control");
-		await page.mouse.wheel(0, Math.log(2) * 100);
-		await page.keyboard.up("Control");
+		await zoom(page, 0.5);
 		const bounds = await box(selection);
 		const outside = {
 			x: bounds.x - bounds.width * 0.46,
@@ -708,20 +676,12 @@ test("edit a photo, inspect the preview and histograms, undo changes, and export
 		};
 		const pixel = async () => await readPixel(page, outside);
 		await expect.poll(pixel).toEqual([9, 9, 9, 255]);
-		await page.keyboard.down("Control");
-		await page.mouse.wheel(0, Math.log(2) * 100);
-		await page.keyboard.up("Control");
+		await zoom(page, 0.5);
 		const smaller = await box(selection);
-		// This source pixel rotates beyond the original right edge of the image.
-		const sourceX = 0.955 - 0.5;
-		const sourceY = 0.13 - 0.5;
-		const rotatedX =
-			0.5 + Math.cos(Math.PI / 6) * sourceX - (0.5 * sourceY * 800) / 1200;
-		const rotatedY =
-			0.5 + (0.5 * sourceX * 1200) / 800 + Math.cos(Math.PI / 6) * sourceY;
+		// Known light patch rotated beyond the original source rectangle.
 		const revealed = {
-			x: smaller.x + (rotatedX - 0.25) * smaller.width * 2,
-			y: smaller.y + (rotatedY - 0.25) * smaller.height * 2,
+			x: smaller.x + smaller.width * 1.535,
+			y: smaller.y + smaller.height * 0.542,
 		};
 		await expect
 			.poll(async () => await readPixel(page, revealed))
@@ -740,9 +700,7 @@ test("edit a photo, inspect the preview and histograms, undo changes, and export
 		expectCentered(fitted, viewport);
 		await page.getByRole("button", { name: "Rotate clockwise" }).click();
 		await move.hover();
-		await page.keyboard.down("Control");
-		await page.mouse.wheel(0, -80);
-		await page.keyboard.up("Control");
+		await zoom(page, Math.exp(0.8));
 		await page.mouse.wheel(60, 40);
 		await reset.click();
 		expect(await box(selection)).toEqual(fitted);
@@ -750,16 +708,6 @@ test("edit a photo, inspect the preview and histograms, undo changes, and export
 			page.getByRole("slider", { name: "Rotation", exact: true }),
 		).toHaveValue("0");
 		await expect(aspect).toHaveValue("1.5");
-		const draft = await cropGeometry();
-		expect(draft).toMatchObject({
-			x: 0,
-			y: 0,
-			width: 1,
-			height: 1,
-			rotation: 0,
-			angle: 0,
-			scale: 1,
-		});
 		await aspect.selectOption({ label: "Square" });
 		const fixed = await box(selection);
 		for (const direction of [
@@ -774,7 +722,7 @@ test("edit a photo, inspect the preview and histograms, undo changes, and export
 			expect(actual.y).toBeCloseTo(fixed.y, 0);
 		}
 		await page.keyboard.press("Escape");
-		await page.evaluate(() => window.openlight.setGeometry());
+		await setFrame();
 	});
 
 	await test.step("export retains edits and original dimensions independently of viewport zoom", async () => {
@@ -799,9 +747,7 @@ test("edit a photo, inspect the preview and histograms, undo changes, and export
 		expect(expected.center[0]).toBeLessThan(255);
 		expect(expected.corner).toEqual([0, 0, 0, 255]);
 		await canvas.hover();
-		await page.keyboard.down("Control");
-		await page.mouse.wheel(0, -100);
-		await page.keyboard.up("Control");
+		await zoom(page, Math.E);
 		const trigger = page.getByRole("button", { name: "Export", exact: true });
 		const dialog = page.getByRole("dialog", { name: "Export image" });
 		const sizes: number[] = [];

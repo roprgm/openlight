@@ -237,5 +237,13 @@ export function usePanZoom(
 		onDoubleClick: () => resetView(),
 	};
 
-	return { ref, view, viewport, handlers, resetView, panMode };
+	return {
+		ref,
+		view,
+		viewport,
+		handlers,
+		resetView,
+		panMode,
+		scale: fitScale(content, viewport) * view.zoom,
+	};
 }

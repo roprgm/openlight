@@ -33,7 +33,6 @@ bun run test:browser # pixels, UI, and codecs; requires Chromium + WebGPU
 ```js
 await openlight.openFiles([imageFile, xmpFile]);
 openlight.setAdjustments({ exposure: 1, shadows: 25 });
-openlight.setGeometry({ x: 0.1, y: 0.1, width: 0.8, height: 0.8 });
 openlight.undo();
 const image = await openlight.exportImage();
 ```
