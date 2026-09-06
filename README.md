@@ -1,6 +1,8 @@
 # OpenLight
 
-An open-source photo editor built with [vgpu.sh](https://vgpu.sh). Non-destructive editing, rendered on your GPU. Everything stays on your machine: no account, no upload.
+**An open-source image editor for the browser, built with [vgpu.sh](https://vgpu.sh)**
+
+Non-destructive editing, rendered on your GPU. Everything stays on your machine: no account, no upload.
 
 ## Features
 
