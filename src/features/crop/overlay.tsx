@@ -1,5 +1,6 @@
 import { type PointerEvent, useRef } from "react";
 import { useStore } from "zustand";
+import { clamp } from "@/lib/math";
 import {
 	type CropDraft,
 	dragCrop,
@@ -18,7 +19,12 @@ type CropOverlayProps = {
 		marginTop: number;
 	};
 };
-const corners = ["nw", "ne", "sw", "se"];
+const corners = [
+	{ handle: "nw", label: "top left", left: 0, top: 0 },
+	{ handle: "ne", label: "top right", left: 100, top: 0 },
+	{ handle: "sw", label: "bottom left", left: 0, top: 100 },
+	{ handle: "se", label: "bottom right", left: 100, top: 100 },
+];
 const directions: Record<string, [number, number]> = {
 	ArrowLeft: [-1, 0],
 	ArrowRight: [1, 0],
@@ -45,74 +51,83 @@ function CropSelection({
 	const { size, change: onChange } = tool;
 	const [width, height] = orientedSize(size, geometry.rotation);
 	const ratio = aspect && (aspect * height) / width;
-	function move(start: Geometry, handle: string, dx: number, dy: number) {
+	function updateFrame(
+		start: Geometry,
+		handle: string,
+		dx: number,
+		dy: number,
+	) {
+		// Move the photo against the pointer; resize both sides of the centered frame.
 		const factor = handle === "move" ? -1 : 2;
 		onChange(dragCrop(start, handle, dx * factor, dy * factor, ratio, size));
 	}
-	function hit(event: PointerEvent<HTMLDivElement>) {
+	function getDragHandle(event: PointerEvent<HTMLDivElement>) {
 		const bounds = selection.current?.getBoundingClientRect();
 		const target =
 			event.target instanceof Element && event.target.closest("[data-handle]");
 		if (target) {
 			return target.getAttribute("data-handle") ?? "move";
 		}
-		return bounds &&
-			Math.hypot(
-				Math.max(bounds.left - event.clientX, 0, event.clientX - bounds.right),
-				Math.max(bounds.top - event.clientY, 0, event.clientY - bounds.bottom),
-			) >= 50
-			? "rotate"
-			: null;
+		if (!bounds) {
+			return null;
+		}
+		const distance = Math.hypot(
+			Math.max(bounds.left - event.clientX, 0, event.clientX - bounds.right),
+			Math.max(bounds.top - event.clientY, 0, event.clientY - bounds.bottom),
+		);
+		return distance >= 50 ? "rotate" : null;
 	}
+	function startDrag(event: PointerEvent<HTMLDivElement>) {
+		const handle = getDragHandle(event);
+		const bounds = selection.current?.getBoundingClientRect();
+		if (event.button !== 0 || !event.isPrimary || !handle || !bounds) {
+			return;
+		}
+		event.preventDefault();
+		event.stopPropagation();
+		event.currentTarget.setPointerCapture(event.pointerId);
+		if (event.target instanceof HTMLElement) {
+			event.target.closest("button")?.focus();
+		}
+		const pointerId = event.pointerId;
+		const startX = event.clientX;
+		const startY = event.clientY;
+		drag.current = (pointer) => {
+			if (pointer.pointerId !== pointerId) {
+				return;
+			}
+			if (handle === "rotate") {
+				const delta =
+					bearing(pointer.clientX, pointer.clientY, bounds) -
+					bearing(startX, startY, bounds);
+				const angle =
+					geometry.angle +
+					(Math.atan2(Math.sin(delta), Math.cos(delta)) * 180) / Math.PI;
+				onChange({
+					angle: clamp(Math.round(angle * 10) / 10, -45, 45),
+				});
+			} else {
+				updateFrame(
+					geometry,
+					handle,
+					((pointer.clientX - startX) * geometry.width) / bounds.width,
+					((pointer.clientY - startY) * geometry.height) / bounds.height,
+				);
+			}
+		};
+	}
+
 	return (
 		<div
 			className="absolute -inset-6 touch-none"
-			onPointerDown={(event) => {
-				const handle = hit(event);
-				const bounds = selection.current?.getBoundingClientRect();
-				if (event.button !== 0 || !event.isPrimary || !handle || !bounds) {
-					return;
-				}
-				event.preventDefault();
-				event.stopPropagation();
-				event.currentTarget.setPointerCapture(event.pointerId);
-				if (event.target instanceof HTMLElement) {
-					event.target.closest("button")?.focus();
-				}
-				const pointerId = event.pointerId;
-				const startX = event.clientX;
-				const startY = event.clientY;
-				drag.current = (pointer) => {
-					if (pointer.pointerId !== pointerId) {
-						return;
-					}
-					if (handle === "rotate") {
-						const delta =
-							bearing(pointer.clientX, pointer.clientY, bounds) -
-							bearing(startX, startY, bounds);
-						const angle =
-							geometry.angle +
-							(Math.atan2(Math.sin(delta), Math.cos(delta)) * 180) / Math.PI;
-						onChange({
-							angle: Math.max(-45, Math.min(45, Math.round(angle * 10) / 10)),
-						});
-					} else {
-						move(
-							geometry,
-							handle,
-							((pointer.clientX - startX) * geometry.width) / bounds.width,
-							((pointer.clientY - startY) * geometry.height) / bounds.height,
-						);
-					}
-				};
-			}}
+			onPointerDown={startDrag}
 			onPointerMove={(event) => {
 				if (drag.current) {
 					drag.current(event);
 					return;
 				}
 				event.currentTarget.style.cursor =
-					hit(event) === "rotate"
+					getDragHandle(event) === "rotate"
 						? `url("${rotateCursor}") 12 12, crosshair`
 						: "inherit";
 			}}
@@ -138,7 +153,7 @@ function CropSelection({
 							? (event.target.dataset.handle ?? "move")
 							: "move";
 					const step = event.shiftKey ? 0.05 : 0.005;
-					move(geometry, handle, delta[0] * step, delta[1] * step);
+					updateFrame(geometry, handle, delta[0] * step, delta[1] * step);
 				}}
 			>
 				<button
@@ -151,22 +166,21 @@ function CropSelection({
 						<div key={i} className="border border-white/20" />
 					))}
 				</div>
-				{corners.map((handle, i) => (
-					<button
-						key={handle}
-						type="button"
-						data-handle={handle}
-						aria-label={`Resize crop ${i < 2 ? "top" : "bottom"} ${i % 2 ? "right" : "left"}`}
-						className="group absolute flex size-8 -translate-1/2 items-center justify-center outline-none"
-						style={{
-							left: `${(i % 2) * 100}%`,
-							top: `${Math.floor(i / 2) * 100}%`,
-							cursor: i === 0 || i === 3 ? "nwse-resize" : "nesw-resize",
-						}}
-					>
-						<span className="pointer-events-none size-2.5 border border-neutral-900 bg-white group-focus-visible:ring-2 group-focus-visible:ring-neutral-400/50" />
-					</button>
-				))}
+				{corners.map(({ handle, label, left, top }) => {
+					const cursor = left === top ? "nwse-resize" : "nesw-resize";
+					return (
+						<button
+							key={handle}
+							type="button"
+							data-handle={handle}
+							aria-label={`Resize crop ${label}`}
+							className="group absolute flex size-8 -translate-1/2 items-center justify-center outline-none"
+							style={{ left: `${left}%`, top: `${top}%`, cursor }}
+						>
+							<span className="pointer-events-none size-2.5 border border-neutral-900 bg-white group-focus-visible:ring-2 group-focus-visible:ring-neutral-400/50" />
+						</button>
+					);
+				})}
 			</div>
 		</div>
 	);

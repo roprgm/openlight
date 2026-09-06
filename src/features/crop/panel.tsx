@@ -52,6 +52,21 @@ export function CropPanel({ tool, onApply, onResetView }: CropPanelProps) {
 		"5:4": 5 / 4,
 	};
 	const custom = aspect !== null && !Object.values(aspects).includes(aspect);
+	function changeAspect(value: string) {
+		const aspect = Number(value) || null;
+		const fitted = aspect
+			? fitAspect(geometry, (aspect * height) / width)
+			: geometry;
+		tool.change(fitted, aspect);
+	}
+	function applyAction(action: (typeof actions)[number]) {
+		if ("turn" in action) {
+			tool.change(rotateCrop(geometry, action.turn), aspect && 1 / aspect);
+		} else {
+			tool.change(flipCrop(geometry, action.flip));
+		}
+	}
+
 	return (
 		<section aria-label="Crop tool" className="flex h-full flex-col bg-panel">
 			<div className="flex-1 space-y-5 overflow-y-auto p-4">
@@ -63,15 +78,7 @@ export function CropPanel({ tool, onApply, onResetView }: CropPanelProps) {
 							aria-label="Aspect ratio"
 							value={aspect ?? "free"}
 							className="w-full cursor-pointer appearance-none bg-transparent pl-1 pr-5 text-neutral-100 outline-none [color-scheme:dark]"
-							onChange={(event) => {
-								const value = Number(event.currentTarget.value) || null;
-								tool.change(
-									value
-										? fitAspect(geometry, (value * height) / width)
-										: geometry,
-									value,
-								);
-							}}
+							onChange={(event) => changeAspect(event.currentTarget.value)}
 						>
 							<option value="free">Free</option>
 							{custom && <option value={aspect}>Current</option>}
@@ -112,7 +119,7 @@ export function CropPanel({ tool, onApply, onResetView }: CropPanelProps) {
 					<div className="flex gap-2">
 						{actions.map((action) => {
 							const turning = "turn" in action;
-							const paths = icons[turning ? "turn" : "flip"];
+							const [outline, fill, dotted] = icons[turning ? "turn" : "flip"];
 							return (
 								<Button
 									key={action.label}
@@ -120,16 +127,7 @@ export function CropPanel({ tool, onApply, onResetView }: CropPanelProps) {
 									aria-label={action.label}
 									title={action.label}
 									className="flex h-9 flex-1 items-center justify-center gap-1 rounded-md px-1"
-									onClick={() => {
-										if ("turn" in action) {
-											tool.change(
-												rotateCrop(geometry, action.turn),
-												aspect && 1 / aspect,
-											);
-										} else {
-											tool.change(flipCrop(geometry, action.flip));
-										}
-									}}
+									onClick={() => applyAction(action)}
 								>
 									<svg
 										aria-hidden="true"
@@ -142,9 +140,9 @@ export function CropPanel({ tool, onApply, onResetView }: CropPanelProps) {
 										strokeLinejoin="round"
 										style={{ transform: action.transform }}
 									>
-										<path d={paths[0]} />
-										<path d={paths[1]} fill="currentColor" stroke="none" />
-										<path d={paths[2]} strokeDasharray="0.1 3.5" />
+										<path d={outline} />
+										<path d={fill} fill="currentColor" stroke="none" />
+										<path d={dotted} strokeDasharray="0.1 3.5" />
 									</svg>
 									{turning && <span className="text-xs">90°</span>}
 								</Button>

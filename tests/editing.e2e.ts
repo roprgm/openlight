@@ -404,7 +404,7 @@ test("edit a photo, inspect the preview and histograms, undo changes, and export
 
 	await test.step("crop drafts cancel, apply once, rotate and straighten without losing the source", async () => {
 		const before = await state();
-		const fullHistogram = await output.getAttribute("points");
+		await expect(output).toHaveAttribute("points", histogram ?? "");
 		await open.click();
 		await expect(aspect).toHaveValue("1.5");
 		await aspect.selectOption({ label: "Square" });
@@ -492,7 +492,7 @@ test("edit a photo, inspect the preview and histograms, undo changes, and export
 			center: [128, 128, 128, 255],
 			corner: [128, 128, 128, 255],
 		});
-		await expect(output).not.toHaveAttribute("points", fullHistogram ?? "");
+		await expect(output).not.toHaveAttribute("points", histogram ?? "");
 		expect((await state()).history.undoCount).toBe(
 			before.history.undoCount + 1,
 		);
