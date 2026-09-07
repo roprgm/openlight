@@ -19,7 +19,7 @@ export function Collapsible({
 				aria-expanded={open}
 				aria-controls={id}
 				onClick={() => setOpen(!open)}
-				className="flex w-full cursor-pointer items-center gap-2.5 px-4 py-3.5 text-left text-sm text-neutral-300 transition-colors hover:bg-white/3 hover:text-neutral-100 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-neutral-400"
+				className="flex w-full cursor-pointer items-center gap-2.5 px-4 py-2.5 text-left text-sm text-neutral-300 transition-colors hover:bg-white/3 hover:text-neutral-100 outline-none focus-visible:bg-white/8 focus-visible:text-white"
 			>
 				<svg
 					aria-hidden="true"
@@ -43,7 +43,7 @@ export function Collapsible({
 				className="invisible grid grid-rows-[0fr] transition-[grid-template-rows,visibility] duration-200 ease-out data-[open=true]:visible data-[open=true]:grid-rows-[1fr] motion-reduce:transition-none"
 			>
 				<div className="min-h-0 overflow-hidden">
-					<div className="px-4 pb-4">{children}</div>
+					<div className="px-4 pt-2 pb-4">{children}</div>
 				</div>
 			</div>
 		</section>
