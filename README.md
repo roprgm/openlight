@@ -2,15 +2,21 @@
 
 **An open-source image editor for the browser, built with [vgpu.sh](https://vgpu.sh)**
 
-Non-destructive editing, rendered on your GPU. Everything stays on your machine: no account, no upload.
+Image processing runs locally with WebGPU. Built with TypeScript and React.
 
 ## Features
 
-- Light and color adjustments, tone curves, and Camera Raw XMP import.
-- Crop, rotate, straighten, and flip, with undo/redo.
-- Before/after comparison, RGB histograms, and clipping overlays.
-- Pan and zoom, including Space + drag while cropping.
-- PNG and JPEG export.
+- Light and color adjustments
+- Tone curves
+- Clarity and sharpening
+- Crop, rotate, straighten, and flip
+- Undo and redo
+- Before/after comparison
+- RGB histogram
+- Highlight and shadow clipping overlays
+- Pan and zoom
+- Camera Raw XMP import
+- PNG and JPEG export
 
 Requires a WebGPU-capable browser.
 
@@ -21,25 +27,13 @@ bun install
 bun dev
 ```
 
-```sh
-bun run check        # format + lint
-bun run build        # typecheck + bundle
-bun run test         # browser-free integration tests
-bun run test:browser # pixels, UI, and codecs; requires Chromium + WebGPU
-```
+Run `bun run check` to format and lint, `bun run build` to type-check and build, and `bun run test` for integration tests. GPU and UI tests run with `bun run test:browser` and require Chromium with WebGPU.
 
 On Linux the browser tests need a Vulkan driver such as `mesa-vulkan-drivers` and run headed, so use `xvfb-run` without a display.
 
 ## Scripting
 
-`window.openlight` exposes the editor commands in the browser. `createControls(gpu, workspace)` provides the same API without React.
-
-```js
-await openlight.openFiles([imageFile, xmpFile]);
-openlight.setAdjustments({ exposure: 1, shadows: 25 });
-openlight.undo();
-const image = await openlight.exportImage();
-```
+`window.openlight` exposes commands for loading, editing, undo/redo, and export. See the [API reference](API.md).
 
 ## License
 
