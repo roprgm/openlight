@@ -28,6 +28,8 @@ bun run test         # browser-free integration tests
 bun run test:browser # pixels, UI, and codecs; requires Chromium + WebGPU
 ```
 
+On Linux the browser tests need a Vulkan driver such as `mesa-vulkan-drivers` and run headed, so use `xvfb-run` without a display.
+
 ## Scripting
 
 `window.openlight` exposes the editor commands in the browser. `createControls(gpu, workspace)` provides the same API without React.
