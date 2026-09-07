@@ -32,24 +32,24 @@ export function Slider({
 	return (
 		<div className="grid grid-cols-[1fr_auto] items-center gap-y-0.5 text-neutral-400 text-sm">
 			<span>{label}</span>
-			<ScrubInput
-				aria-label={label}
-				max={max}
-				min={min}
-				onChange={onChange}
-				step={step}
-				value={value}
-				variant="text"
-			/>
-			<div className="relative col-span-2 flex h-11 min-w-11 items-center">
-				<div
-					aria-hidden="true"
-					className="pointer-events-none absolute h-1 w-full rounded-full bg-neutral-900 shadow-groove"
-					style={gradient}
+			<div className="relative z-10">
+				<ScrubInput
+					aria-label={label}
+					max={max}
+					min={min}
+					onChange={onChange}
+					step={step}
+					value={value}
+					variant="text"
 				/>
+			</div>
+			<div
+				className="relative col-span-2 my-1 h-1 min-w-11 rounded-full bg-neutral-900 shadow-groove"
+				style={gradient}
+			>
 				<input
 					aria-label={label}
-					className="relative h-full w-full touch-pan-y appearance-none bg-transparent outline-none focus-visible:ring-1 focus-visible:ring-neutral-100/50 [&::-webkit-slider-runnable-track]:bg-transparent [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:size-3 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-neutral-100 [&::-webkit-slider-thumb]:ring-1 [&::-webkit-slider-thumb]:ring-neutral-800 [&::-moz-range-track]:bg-transparent [&::-moz-range-thumb]:size-2.5 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:border-0 [&::-moz-range-thumb]:bg-neutral-100 [&::-moz-range-thumb]:ring-1 [&::-moz-range-thumb]:ring-neutral-800"
+					className="absolute top-1/2 h-11 w-full -translate-y-1/2 touch-pan-y appearance-none bg-transparent outline-none focus-visible:ring-1 focus-visible:ring-neutral-100/50 [&::-webkit-slider-runnable-track]:bg-transparent [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:size-3 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-neutral-100 [&::-webkit-slider-thumb]:ring-1 [&::-webkit-slider-thumb]:ring-neutral-800 [&::-moz-range-track]:bg-transparent [&::-moz-range-thumb]:size-2.5 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:border-0 [&::-moz-range-thumb]:bg-neutral-100 [&::-moz-range-thumb]:ring-1 [&::-moz-range-thumb]:ring-neutral-800"
 					max={max}
 					min={min}
 					onChange={(event) => onChange(event.currentTarget.valueAsNumber)}

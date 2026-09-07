@@ -882,9 +882,12 @@ test("edit a photo, inspect the preview and histograms, undo changes, and export
 				const bounds = await box(slider);
 				expect(bounds.width).toBeGreaterThanOrEqual(44);
 				expect(bounds.height).toBeGreaterThanOrEqual(44);
+				const track = await box(slider.locator(".."));
+				expect(track.height).toBe(4);
+				expectCentered(bounds, track);
 			}
 			const bounds = await box(exposure);
-			await mobile.touchscreen.tap(bounds.x + bounds.width - 2, bounds.y + 3);
+			await mobile.touchscreen.tap(bounds.x + bounds.width - 2, bounds.y + 16);
 			await expect(exposure).toHaveValue("5");
 			expect((await readImage(mobile)).center).toEqual([255, 255, 255, 255]);
 			await mobile.touchscreen.tap(bounds.x + 2, bounds.y + bounds.height - 3);
@@ -895,6 +898,12 @@ test("edit a photo, inspect the preview and histograms, undo changes, and export
 			await undo.tap();
 			await expect(exposure).toHaveValue("0");
 			expect((await readImage(mobile)).center).toEqual([128, 128, 128, 255]);
+			const field = mobile.getByRole("textbox", {
+				name: "Exposure",
+				exact: true,
+			});
+			await field.tap();
+			await expect(field).toBeFocused();
 		} finally {
 			await context.close();
 		}
