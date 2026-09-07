@@ -1,6 +1,6 @@
 import { type PointerEvent, useRef } from "react";
 import { useViewport } from "@/components/editor/viewport";
-import rotateCursor from "@/components/icons/rotate-cursor.svg";
+import rotateCursor from "@/components/icons/rotate-cursor.svg?raw";
 import type { ImageFrame, Point } from "@/lib/image-frame/geometry";
 import { clamp } from "@/lib/math";
 import { move, resize, rotate } from "./geometry";
@@ -102,10 +102,21 @@ export function CropOverlay({
 			className="absolute -inset-6 touch-none"
 			onPointerDown={start}
 			onPointerMove={(event) => {
-				event.currentTarget.style.cursor =
-					hit(event)?.handle === "rotate"
-						? `url("${rotateCursor}") 12 12, crosshair`
-						: "inherit";
+				const target = hit(event);
+				if (target?.handle !== "rotate") {
+					event.currentTarget.style.cursor = "inherit";
+					return;
+				}
+				const { box } = target;
+				const angle = Math.atan2(
+					event.clientY - box.y - box.height / 2,
+					event.clientX - box.x - box.width / 2,
+				);
+				const svg = rotateCursor.replace(
+					'transform="',
+					`transform="rotate(${Math.round((angle * 180) / Math.PI)} 12 12) `,
+				);
+				event.currentTarget.style.cursor = `url("data:image/svg+xml,${encodeURIComponent(svg)}") 12 12, crosshair`;
 			}}
 		>
 			<div
