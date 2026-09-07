@@ -47,7 +47,8 @@ export function createRenderer(gpu: Gpu, source: Target) {
 				fullImage = sharpen.render(
 					frame,
 					clarified,
-					sharpening / 100,
+					// Slider 150 applies a 3× detail gain; radius remains Gaussian sigma.
+					sharpening / 50,
 					sharpenRadius,
 				);
 				[original, input, output] = transform.render(

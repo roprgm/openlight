@@ -68,11 +68,10 @@ test("edit a photo, inspect the preview and histograms, undo changes, and export
 			["Color", "Temp"],
 			["Details", "Clarity"],
 		]) {
-			const summary = page
-				.locator("summary")
-				.filter({ hasText: new RegExp(`^${title}$`) });
+			const summary = page.getByRole("button", { name: title, exact: true });
 			const control = page.getByRole("slider", { name: label, exact: true });
 			await summary.click();
+			await expect(summary).toHaveAttribute("aria-expanded", "false");
 			await expect(control).toBeHidden();
 			expect(await state()).toEqual(initial);
 			await summary.press("Enter");

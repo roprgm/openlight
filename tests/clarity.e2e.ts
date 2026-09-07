@@ -91,7 +91,7 @@ test("detail filters follow Gaussian unsharp masking and preserve flat fields an
 					left,
 					right,
 					amount: adjustment.sharpening
-						? adjustment.sharpening / 100
+						? adjustment.sharpening / 50
 						: adjustment.clarity / 200,
 					sigma: adjustment.sharpening ? adjustment.sharpenRadius : 64,
 					pixels: await read(xs.map((x) => [x, 64])),

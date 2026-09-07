@@ -2,7 +2,7 @@
 
 Implemented 2026-09-07, following the [sharpening proposal](detail-filters.md#proposed-sharpening).
 
-The Details section contains Clarity, Sharpening, and Radius. Light and Color have their own collapsible sections. Sections start open; collapsing them does not alter edits or history.
+The Details section contains Clarity, Sharpening, and Radius. Light and Color have their own collapsible sections. Sections use the reusable animated `Collapsible` UI component with a rotating chevron and reduced-motion support. They start open; collapsing them does not alter edits or history.
 
 ## Operation
 
@@ -11,12 +11,12 @@ Use ordinary luminance unsharp masking:
 ```text
 L = sRGB_transfer(max(Rec2020_luminance(rgb), 0))
 base = Gaussian_sigma(L * alpha) / Gaussian_sigma(alpha)
-L_out = max(L + (Sharpening / 100) * (L - base), 0)
+L_out = max(L + (Sharpening / 50) * (L - base), 0)
 ```
 
 Convert `L_out` back to linear luminance and scale the input RGB to that luminance. Preserve alpha. The shared shader supplies the same perceptual luminance and color reconstruction as Clarity.
 
-Sharpening ranges from 0 to 150, default 0. Radius ranges from 0.5 to 3 source pixels in 0.1 increments, default 1. Radius means Gaussian standard deviation. Each one-dimensional kernel is sampled on the pixel grid, truncated at `ceil(3 * sigma)`, and normalized. Edges use clamped coordinates. Zero amount bypasses all passes exactly.
+Sharpening ranges from 0 to 150, default 0. Its gain is slider / 50, so the maximum adds three times the detail residual. This provisional gain was doubled after manual comparison found the initial maximum too weak; it is not a measured reference fit. Radius ranges from 0.5 to 3 source pixels in 0.1 increments, default 1. Radius means Gaussian standard deviation. Each one-dimensional kernel is sampled on the pixel grid, truncated at `ceil(3 * sigma)`, and normalized. Edges use clamped coordinates. Zero amount bypasses all passes exactly.
 
 This is a baseline for manual comparison, without thresholding, masking, deconvolution, or fitted constants. Radius and amount values need not match another editor's controls. Strong settings can amplify noise and create halos. Output encoding clips values outside its representable range.
 
@@ -39,4 +39,20 @@ window.openlight.setAdjustments({ clarity: 0, sharpening: 100, sharpenRadius: 1 
 const png = await window.openlight.exportImage();
 ```
 
-For a GPU script, instantiate `createUnsharpMask(gpu, source)` and call `render(frame, input, 1, 1)` for 100% amount and radius 1. Dispose the owner when done. Use `vgpu/node` for actual pixel execution or `vgpu/mock` for lifecycle checks. The existing `bun run test:clarity` comparison script still exercises Clarity through this shared implementation.
+For a GPU script, instantiate `createUnsharpMask(gpu, source)` and call `render(frame, input, 1, 1)` for unit gain and radius 1. Dispose the owner when done. Use `vgpu/node` for actual pixel execution or `vgpu/mock` for lifecycle checks. The existing `bun run test:clarity` comparison script still exercises Clarity through this shared implementation.
+
+## Line count
+
+Compared with the Clarity-only commit `b8cf3b4`, sharpening adds 45 nonblank production lines, including braces, imports, and comments. This excludes tests, documentation, and section layout/animation.
+
+| Responsibility | Net added nonblank lines |
+| --- | ---: |
+| Shared WGSL filtering | 5 |
+| Shared GPU resource owner | 5 |
+| Renderer composition | 14 |
+| Scene defaults and bounds | 12 |
+| Edit validation | 5 |
+| Slider controls and bounds import | 4 |
+| Total | 45 |
+
+The shared filter totals 122 physical lines, or 118 nonblank lines, and serves both Clarity and sharpening. Its existing lines are reused, not counted as newly added sharpening code.
