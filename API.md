@@ -84,7 +84,3 @@ Each edit creates an undo step unless a group is open. Preview changes are outsi
 `getState()` returns a detached snapshot containing `file`, `documentId`, `size`, `frame`, `adjustments`, `toneCurve`, `preview`, and `history`. `file` is the filename, and `history` contains `undoCount` and `redoCount`.
 
 Without a document, `documentId`, `size`, `frame`, and `preview` are undefined. Adjustments and the tone curve use their defaults, and history counts are zero. Mutating the snapshot does not edit the document.
-
-## Without React
-
-Inside the codebase, [createControls(gpu, workspace)](src/app/controls.ts) provides the same API for an existing GPU and workspace. The caller owns their lifetimes.
