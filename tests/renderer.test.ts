@@ -5,6 +5,7 @@ import {
 	init,
 	target,
 } from "vgpu/mock";
+import { createClarity } from "@/lib/clarity";
 import { createDocument } from "@/lib/editor/document";
 import { setAdjustments, setToneCurve } from "@/lib/editor/document/edits";
 import { createRenderer } from "@/lib/editor/renderer";
@@ -12,6 +13,42 @@ import { defaultAdjustments } from "@/lib/editor/scene";
 import { createDisplay } from "@/lib/image-display";
 import { imageFrame } from "@/lib/image-frame/geometry";
 import { defaultCurve } from "@/lib/tone-curves/curve";
+
+test("clarity bypasses zero, reuses its pipeline across amounts, and owns only its outputs", async () => {
+	const gpu = await init();
+	const source = target(gpu, { size: [127, 65], format: "rgba16float" });
+	const clarity = createClarity(gpu, source);
+	let output = source;
+	const render = (amount: number) =>
+		frame(gpu, (f) => {
+			output = clarity.render(f, source, amount);
+		});
+	try {
+		render(0);
+		expect(output).toBe(source);
+		const calls = getMockGPUDeviceInstrumentation(gpu.gpu).calls;
+		expect(calls.createRenderPipeline ?? 0).toBe(0);
+		render(100);
+		const filtered = output;
+		expect(filtered).not.toBe(source);
+		expect(filtered.size).toEqual(source.size);
+		const pipelines = calls.createRenderPipeline;
+		for (const amount of [-100, -50, 25, 75]) {
+			render(amount);
+			expect(output).toBe(filtered);
+		}
+		expect(calls.createRenderPipeline).toBe(pipelines);
+		render(0);
+		expect(output).toBe(source);
+		clarity.dispose();
+		expect(() => filtered.color.view).toThrow("destroyed");
+		expect(() => source.color.view).not.toThrow();
+	} finally {
+		clarity.dispose();
+		source.color.dispose();
+		gpu.dispose();
+	}
+});
 
 test("rendering follows grouped edits and undo, reuses pipelines, and releases owned targets", async () => {
 	const gpu = await init();
@@ -81,7 +118,7 @@ test("rendering follows grouped edits and undo, reuses pipelines, and releases o
 		expect(notify).toHaveBeenCalledTimes(8);
 		expect(late).toHaveBeenCalledTimes(1);
 		detach();
-		setAdjustments(document, { exposure: -1 });
+		setAdjustments(document, { exposure: -1, clarity: 50 });
 		expect(notify).toHaveBeenCalledTimes(8);
 		document.edit({
 			...document.scene.getState(),

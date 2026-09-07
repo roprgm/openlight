@@ -295,6 +295,28 @@ test("edit a photo, inspect the preview and histograms, undo changes, and export
 		await expect.poll(() => canvas.screenshot()).toEqual(original);
 	});
 
+	await test.step("clarity changes local contrast and histogram, then undoes and resets", async () => {
+		const field = page.getByRole("textbox", { name: "Clarity", exact: true });
+		const slider = page.getByRole("slider", { name: "Clarity", exact: true });
+		await field.fill("100");
+		await field.press("Enter");
+		await expect(slider).toHaveValue("100");
+		await expect(output).not.toHaveAttribute("points", histogram ?? "");
+		const positive = await readImage(page);
+		expect(positive.center).toEqual([128, 128, 128, 255]);
+		expect(positive.corner).toEqual([0, 0, 0, 255]);
+		await page.getByRole("button", { name: "Undo", exact: true }).click();
+		await expect(slider).toHaveValue("0");
+		expect((await readImage(page)).center).toEqual([128, 128, 128, 255]);
+		await field.fill("-100");
+		await field.press("Enter");
+		expect((await readImage(page)).center).toEqual([128, 128, 128, 255]);
+		expect((await readImage(page)).corner[0]).toBeGreaterThan(0);
+		await slider.dblclick();
+		await expect(slider).toHaveValue("0");
+		await expect(output).toHaveAttribute("points", histogram ?? "");
+	});
+
 	await test.step("curve gestures change output after adjustments and undo as one edit", async () => {
 		await page.evaluate(() =>
 			window.openlight.setAdjustments({ exposure: -1 }),
@@ -807,6 +829,7 @@ test("edit a photo, inspect the preview and histograms, undo changes, and export
 				shadows: 30,
 				whites: 10,
 				blacks: -5,
+				clarity: -50,
 			});
 			window.openlight.setToneCurve([
 				{ x: 0, y: 0 },
@@ -818,7 +841,8 @@ test("edit a photo, inspect the preview and histograms, undo changes, and export
 		const expected = await readImage(page);
 		expect(expected.center[0]).toBeGreaterThan(190);
 		expect(expected.center[0]).toBeLessThan(255);
-		expect(expected.corner).toEqual([0, 0, 0, 255]);
+		expect(expected.corner[0]).toBeGreaterThan(0);
+		expect(expected.corner[3]).toBe(255);
 		await canvas.hover();
 		await zoom(page, Math.E);
 		const trigger = page.getByRole("button", { name: "Export", exact: true });

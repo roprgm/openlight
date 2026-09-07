@@ -1,8 +1,8 @@
-import type { Adjustments } from "@/lib/adjustments";
+import type { Adjustments as ToneAdjustments } from "@/lib/adjustments";
 import type { ImageFrame } from "@/lib/image-frame/geometry";
 import type { ToneCurve } from "@/lib/tone-curves/curve";
 
-export type { Adjustments } from "@/lib/adjustments";
+export type Adjustments = ToneAdjustments & { clarity: number };
 
 export const defaultAdjustments: Adjustments = {
 	exposure: 0,
@@ -15,6 +15,7 @@ export const defaultAdjustments: Adjustments = {
 	blacks: 0,
 	vibrance: 0,
 	saturation: 0,
+	clarity: 0,
 };
 
 export const adjustmentLimits: Adjustments = {
@@ -28,6 +29,7 @@ export const adjustmentLimits: Adjustments = {
 	blacks: 100,
 	vibrance: 100,
 	saturation: 100,
+	clarity: 100,
 };
 
 /** Serializable document content. Image bytes and GPU resources live elsewhere. */

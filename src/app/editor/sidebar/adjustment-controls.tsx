@@ -61,6 +61,7 @@ export default function AdjustmentControls() {
 			<AdjustmentSlider name="shadows" label="Shadows" />
 			<AdjustmentSlider name="whites" label="Whites" />
 			<AdjustmentSlider name="blacks" label="Blacks" />
+			<AdjustmentSlider name="clarity" label="Clarity" />
 			<AdjustmentSlider
 				name="vibrance"
 				label="Vibrance"

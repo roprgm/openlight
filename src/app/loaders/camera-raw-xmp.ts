@@ -12,6 +12,7 @@ function toAdjustments(xmp: CameraRawXmp): Partial<Adjustments> {
 	const adjustments: Partial<Adjustments> = {
 		exposure: xmp.exposure2012,
 		contrast: xmp.contrast2012,
+		clarity: xmp.clarity2012,
 		highlights: xmp.highlights2012,
 		shadows: xmp.shadows2012,
 		whites: xmp.whites2012,
