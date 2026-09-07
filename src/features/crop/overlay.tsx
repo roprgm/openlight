@@ -109,8 +109,8 @@ export function CropOverlay({
 				}
 				const { box } = target;
 				const angle = Math.atan2(
-					event.clientY - box.y - box.height / 2,
-					event.clientX - box.x - box.width / 2,
+					box.y + box.height / 2 - event.clientY,
+					box.x + box.width / 2 - event.clientX,
 				);
 				const svg = rotateCursor.replace(
 					'transform="',
