@@ -12,6 +12,51 @@ import { defaultAdjustments } from "@/lib/editor/scene";
 import { createDisplay } from "@/lib/image-display";
 import { imageFrame } from "@/lib/image-frame/geometry";
 import { defaultCurve } from "@/lib/tone-curves/curve";
+import { createUnsharpMask } from "@/lib/unsharp-mask";
+
+test.each([1, 16])(
+	"unsharp mask at reduction %s bypasses zero, reuses pipelines, and owns its outputs",
+	async (reduction) => {
+		const gpu = await init();
+		const source = target(gpu, { size: [127, 65], format: "rgba16float" });
+		const clarity = createUnsharpMask(gpu, source, reduction);
+		let output = source;
+		const render = (amount: number) =>
+			frame(gpu, (f) => {
+				output = clarity.render(
+					f,
+					source,
+					amount / 200,
+					reduction === 1 ? 1 : 64,
+				);
+			});
+		try {
+			render(0);
+			expect(output).toBe(source);
+			const calls = getMockGPUDeviceInstrumentation(gpu.gpu).calls;
+			expect(calls.createRenderPipeline ?? 0).toBe(0);
+			render(100);
+			const filtered = output;
+			expect(filtered).not.toBe(source);
+			expect(filtered.size).toEqual(source.size);
+			const pipelines = calls.createRenderPipeline;
+			for (const amount of [-100, -50, 25, 75]) {
+				render(amount);
+				expect(output).toBe(filtered);
+			}
+			expect(calls.createRenderPipeline).toBe(pipelines);
+			render(0);
+			expect(output).toBe(source);
+			clarity.dispose();
+			expect(() => filtered.color.view).toThrow("destroyed");
+			expect(() => source.color.view).not.toThrow();
+		} finally {
+			clarity.dispose();
+			source.color.dispose();
+			gpu.dispose();
+		}
+	},
+);
 
 test("rendering follows grouped edits and undo, reuses pipelines, and releases owned targets", async () => {
 	const gpu = await init();
@@ -81,7 +126,12 @@ test("rendering follows grouped edits and undo, reuses pipelines, and releases o
 		expect(notify).toHaveBeenCalledTimes(8);
 		expect(late).toHaveBeenCalledTimes(1);
 		detach();
-		setAdjustments(document, { exposure: -1 });
+		setAdjustments(document, {
+			exposure: -1,
+			clarity: 50,
+			sharpening: 100,
+			sharpenRadius: 2,
+		});
 		expect(notify).toHaveBeenCalledTimes(8);
 		document.edit({
 			...document.scene.getState(),

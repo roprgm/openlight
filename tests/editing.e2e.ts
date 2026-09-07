@@ -62,6 +62,27 @@ test("edit a photo, inspect the preview and histograms, undo changes, and export
 	const initial = await state();
 	expect((await readImage(page)).center).toEqual([128, 128, 128, 255]);
 
+	await test.step("adjustment sections collapse independently without changing the scene", async () => {
+		for (const [title, label] of [
+			["Light", "Exposure"],
+			["Color", "Temp"],
+			["Details", "Clarity"],
+		]) {
+			const summary = page.getByRole("button", { name: title, exact: true });
+			const control = page.getByRole("slider", { name: label, exact: true });
+			await summary.click();
+			await expect(summary).toHaveAttribute("aria-expanded", "false");
+			await expect(control).toBeHidden();
+			if (title === "Light")
+				await expect(
+					page.getByRole("region", { name: "Curves", exact: true }),
+				).toBeHidden();
+			expect(await state()).toEqual(initial);
+			await summary.press("Enter");
+			await expect(control).toBeVisible();
+		}
+	});
+
 	await test.step("zoomed rendering reaches the edges of the editor viewport", async () => {
 		const viewport = await page
 			.getByRole("region", { name: "Image canvas" })
@@ -295,6 +316,53 @@ test("edit a photo, inspect the preview and histograms, undo changes, and export
 		await expect.poll(() => canvas.screenshot()).toEqual(original);
 	});
 
+	await test.step("clarity changes local contrast and histogram, then undoes and resets", async () => {
+		const field = page.getByRole("textbox", { name: "Clarity", exact: true });
+		const slider = page.getByRole("slider", { name: "Clarity", exact: true });
+		await field.fill("100");
+		await field.press("Enter");
+		await expect(slider).toHaveValue("100");
+		await expect(output).not.toHaveAttribute("points", histogram ?? "");
+		const positive = await readImage(page);
+		expect(positive.center).toEqual([128, 128, 128, 255]);
+		expect(positive.corner).toEqual([0, 0, 0, 255]);
+		await page.getByRole("button", { name: "Undo", exact: true }).click();
+		await expect(slider).toHaveValue("0");
+		expect((await readImage(page)).center).toEqual([128, 128, 128, 255]);
+		await field.fill("-100");
+		await field.press("Enter");
+		expect((await readImage(page)).center).toEqual([128, 128, 128, 255]);
+		expect((await readImage(page)).corner[0]).toBeGreaterThan(0);
+		await slider.dblclick();
+		await expect(slider).toHaveValue("0");
+		await expect(output).toHaveAttribute("points", histogram ?? "");
+	});
+
+	await test.step("sharpening amount and radius edit, undo, and reset", async () => {
+		const amount = page.getByRole("textbox", {
+			name: "Sharpening",
+			exact: true,
+		});
+		const radius = page.getByRole("textbox", { name: "Radius", exact: true });
+		await amount.fill("100");
+		await amount.press("Enter");
+		await radius.fill("3");
+		await radius.press("Enter");
+		await expect(output).not.toHaveAttribute("points", histogram ?? "");
+		expect((await readImage(page)).center).toEqual([128, 128, 128, 255]);
+		await page.getByRole("button", { name: "Undo", exact: true }).click();
+		await expect(radius).toHaveValue("1.0");
+		await page.getByRole("button", { name: "Undo", exact: true }).click();
+		await expect(amount).toHaveValue("0");
+		await expect(output).toHaveAttribute("points", histogram ?? "");
+		await amount.fill("150");
+		await amount.press("Enter");
+		await page
+			.getByRole("slider", { name: "Sharpening", exact: true })
+			.dblclick();
+		await expect(amount).toHaveValue("0");
+	});
+
 	await test.step("curve gestures change output after adjustments and undo as one edit", async () => {
 		await page.evaluate(() =>
 			window.openlight.setAdjustments({ exposure: -1 }),
@@ -346,9 +414,14 @@ test("edit a photo, inspect the preview and histograms, undo changes, and export
 			{ from: [0, 1], to: [0, 0.75], sample: "corner", expected: 64 },
 			{ from: [1, 0], to: [0.1, 0], sample: "center", expected: 255 },
 		] as const) {
+			await graph.scrollIntoViewIfNeeded();
+			const bounds = await box(graph);
 			await drag(
 				page,
-				[bounds.x + from[0] * bounds.width, bounds.y + from[1] * bounds.height],
+				[
+					bounds.x + 1 + from[0] * (bounds.width - 2),
+					bounds.y + 1 + from[1] * (bounds.height - 2),
+				],
 				[bounds.x + to[0] * bounds.width, bounds.y + to[1] * bounds.height],
 				5,
 			);
@@ -807,6 +880,9 @@ test("edit a photo, inspect the preview and histograms, undo changes, and export
 				shadows: 30,
 				whites: 10,
 				blacks: -5,
+				clarity: -50,
+				sharpening: 100,
+				sharpenRadius: 1,
 			});
 			window.openlight.setToneCurve([
 				{ x: 0, y: 0 },
@@ -818,7 +894,8 @@ test("edit a photo, inspect the preview and histograms, undo changes, and export
 		const expected = await readImage(page);
 		expect(expected.center[0]).toBeGreaterThan(190);
 		expect(expected.center[0]).toBeLessThan(255);
-		expect(expected.corner).toEqual([0, 0, 0, 255]);
+		expect(expected.corner[0]).toBeGreaterThan(0);
+		expect(expected.corner[3]).toBe(255);
 		await canvas.hover();
 		await zoom(page, Math.E);
 		const trigger = page.getByRole("button", { name: "Export", exact: true });

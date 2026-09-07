@@ -1,10 +1,12 @@
-import type { ComponentProps } from "react";
+import type { ComponentProps, ReactNode } from "react";
 import { useDocument, useScene } from "@/components/editor/session";
+import { Collapsible } from "@/components/ui/collapsible";
 import { Slider } from "@/components/ui/slider";
 import { setAdjustments } from "@/lib/editor/document/edits";
 import {
 	type Adjustments,
 	adjustmentLimits,
+	adjustmentMinimums,
 	defaultAdjustments,
 } from "@/lib/editor/scene";
 
@@ -36,41 +38,57 @@ function AdjustmentSlider({ name, ...props }: AdjustmentSliderProps) {
 			value={value}
 			onChange={(value) => setAdjustments(document, { [name]: value })}
 			defaultValue={defaultAdjustments[name]}
-			min={-adjustmentLimits[name]}
+			min={adjustmentMinimums[name] ?? -adjustmentLimits[name]}
 			max={adjustmentLimits[name]}
 		/>
 	);
 }
 
-export default function AdjustmentControls() {
+export default function AdjustmentControls({ curves }: { curves: ReactNode }) {
 	return (
-		<section className="flex flex-col gap-2 p-4 shadow-ridge">
-			<AdjustmentSlider name="exposure" label="Exposure" step={0.01} />
-			<AdjustmentSlider
-				name="incrementalTemperature"
-				label="Temp"
-				stops={stops.incrementalTemperature}
-			/>
-			<AdjustmentSlider
-				name="incrementalTint"
-				label="Tint"
-				stops={stops.incrementalTint}
-			/>
-			<AdjustmentSlider name="contrast" label="Contrast" />
-			<AdjustmentSlider name="highlights" label="Highlights" />
-			<AdjustmentSlider name="shadows" label="Shadows" />
-			<AdjustmentSlider name="whites" label="Whites" />
-			<AdjustmentSlider name="blacks" label="Blacks" />
-			<AdjustmentSlider
-				name="vibrance"
-				label="Vibrance"
-				stops={stops.saturation}
-			/>
-			<AdjustmentSlider
-				name="saturation"
-				label="Saturation"
-				stops={stops.saturation}
-			/>
-		</section>
+		<>
+			<Collapsible title="Light">
+				<div className="flex flex-col gap-2">
+					<AdjustmentSlider name="exposure" label="Exposure" step={0.01} />
+					<AdjustmentSlider name="contrast" label="Contrast" />
+					<AdjustmentSlider name="highlights" label="Highlights" />
+					<AdjustmentSlider name="shadows" label="Shadows" />
+					<AdjustmentSlider name="whites" label="Whites" />
+					<AdjustmentSlider name="blacks" label="Blacks" />
+				</div>
+				<div className="pt-3">{curves}</div>
+			</Collapsible>
+			<Collapsible title="Color">
+				<div className="flex flex-col gap-2">
+					<AdjustmentSlider
+						name="incrementalTemperature"
+						label="Temp"
+						stops={stops.incrementalTemperature}
+					/>
+					<AdjustmentSlider
+						name="incrementalTint"
+						label="Tint"
+						stops={stops.incrementalTint}
+					/>
+					<AdjustmentSlider
+						name="vibrance"
+						label="Vibrance"
+						stops={stops.saturation}
+					/>
+					<AdjustmentSlider
+						name="saturation"
+						label="Saturation"
+						stops={stops.saturation}
+					/>
+				</div>
+			</Collapsible>
+			<Collapsible title="Details">
+				<div className="flex flex-col gap-2">
+					<AdjustmentSlider name="clarity" label="Clarity" />
+					<AdjustmentSlider name="sharpening" label="Sharpening" />
+					<AdjustmentSlider name="sharpenRadius" label="Radius" step={0.1} />
+				</div>
+			</Collapsible>
+		</>
 	);
 }

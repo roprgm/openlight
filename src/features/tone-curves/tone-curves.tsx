@@ -11,7 +11,7 @@ type ToneCurvesProps = {
 
 export function ToneCurves({ points, onChange, children }: ToneCurvesProps) {
 	return (
-		<section aria-label="Curves" className="space-y-2.5 p-4 shadow-ridge">
+		<section aria-label="Curves" className="space-y-2.5">
 			<div className="flex items-center justify-between">
 				<h2 className="text-sm text-neutral-400">Curves</h2>
 				<Button
