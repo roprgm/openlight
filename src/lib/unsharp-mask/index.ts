@@ -36,16 +36,12 @@ export function createUnsharpMask(gpu: Gpu, source: Target, reduction = 1) {
 	return {
 		render(frame: Frame, input: Target, amount: number, radius: number) {
 			if (amount === 0) return input;
+			const params = { reduction, amount, sigma: radius / reduction };
 			for (const [i, image] of temporary.entries()) {
 				frame.pass(
 					image,
 					passes[modes[i]].set({
-						params: {
-							mode: modes[i],
-							reduction,
-							amount,
-							sigma: radius / reduction,
-						},
+						params: { ...params, mode: modes[i] },
 						source: i === 0 ? input.color : temporary[i - 1].color,
 					}),
 				);
@@ -55,7 +51,7 @@ export function createUnsharpMask(gpu: Gpu, source: Target, reduction = 1) {
 				passes[3].set({
 					source: input.color,
 					base: temporary[temporary.length - 1].color,
-					params: { mode: 3, reduction, amount, sigma: radius / reduction },
+					params: { ...params, mode: 3 },
 				}),
 			);
 			return output;
