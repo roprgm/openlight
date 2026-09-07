@@ -434,6 +434,52 @@ test("edit a photo, inspect the preview and histograms, undo changes, and export
 		await setFrame();
 	});
 
+	await test.step("44px edge targets resize along one axis and preserve locked ratios", async () => {
+		for (const locked of [false, true]) {
+			for (const [label, sx, sy] of [
+				["top", 0, -1],
+				["right", 1, 0],
+				["bottom", 0, 1],
+				["left", -1, 0],
+			] as const) {
+				await setFrame({ size: [300, 200] });
+				await open.click();
+				if (!locked) await aspect.selectOption({ label: "Free" });
+				const bounds = await box(selection);
+				const edge = page.getByRole("button", {
+					name: `Resize crop ${label}`,
+					exact: true,
+				});
+				const target = await box(edge);
+				expect(sx ? target.width : target.height).toBe(44);
+				const grip = await box(corner);
+				expect([grip.width, grip.height]).toEqual([44, 44]);
+				const x =
+					bounds.x + bounds.width * (sx ? (sx + 1) / 2 : 0.35) + sx * 20;
+				const y =
+					bounds.y + bounds.height * (sy ? (sy + 1) / 2 : 0.35) + sy * 20;
+				await drag(
+					page,
+					[x, y],
+					[x - sx * 30 + Math.abs(sy) * 15, y - sy * 30 + Math.abs(sx) * 15],
+				);
+				const resized = await box(selection);
+				const widthChange = sx ? 60 : Number(locked) * 90;
+				const heightChange = sy ? 60 : Number(locked) * 40;
+				expect(resized.width).toBeCloseTo(bounds.width - widthChange, 0);
+				expect(resized.height).toBeCloseTo(bounds.height - heightChange, 0);
+				expectCentered(resized, bounds);
+				await panel.getByRole("button", { name: "Apply crop" }).click();
+				const frame = (await state()).frame;
+				if (!frame) throw new Error("Missing cropped frame");
+				const exported = await readImage(page);
+				expect(exported.size).toEqual(frame.size.map(Math.round));
+				expect(exported.center).toEqual([128, 128, 128, 255]);
+			}
+		}
+		await setFrame();
+	});
+
 	await test.step("crop drafts cancel, apply once, rotate and straighten without losing the source", async () => {
 		const before = await state();
 		await expect(output).toHaveAttribute("points", histogram ?? "");
@@ -473,7 +519,7 @@ test("edit a photo, inspect the preview and histograms, undo changes, and export
 			.not.toBe(beforePan.x);
 		expect((await box(selection)).width).toBe(resized.width);
 		await move.press("Shift+ArrowRight");
-		for (const gap of [49, 51]) {
+		for (const gap of [20, 24]) {
 			const frame = await box(selection);
 			const x = frame.x + frame.width + gap;
 			const y = frame.y + frame.height / 2;
@@ -486,7 +532,7 @@ test("edit a photo, inspect the preview and histograms, undo changes, and export
 					},
 					{ x, y },
 				),
-			).toContain(gap < 50 ? "grab" : "url(");
+			).toContain(gap < 22 ? "ew-resize" : "url(");
 			await page.mouse.down();
 			await page.mouse.move(
 				x,
@@ -495,7 +541,8 @@ test("edit a photo, inspect the preview and histograms, undo changes, and export
 			);
 			await page.mouse.up();
 			const angle = await rotation.inputValue();
-			expect(Number(angle)).toBeCloseTo(gap < 50 ? 0 : 30, 0);
+			expect(Number(angle)).toBeCloseTo(gap < 22 ? 0 : 30, 0);
+			expect(await box(selection)).toEqual(frame);
 			await page.mouse.move(x + 20, y);
 			await expect(rotation).toHaveValue(angle);
 		}
@@ -603,6 +650,8 @@ test("edit a photo, inspect the preview and histograms, undo changes, and export
 		for (const [startX, startY] of [
 			[x, y],
 			[bounds.x, bounds.y],
+			[bounds.x + bounds.width, y],
+			[bounds.x + bounds.width + 12, y],
 			[bounds.x + bounds.width + 60, y],
 		]) {
 			await page.mouse.move(startX, startY);

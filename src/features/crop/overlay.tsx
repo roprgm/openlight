@@ -5,7 +5,11 @@ import type { ImageFrame, Point } from "@/lib/image-frame/geometry";
 import { clamp } from "@/lib/math";
 import { move, resize, rotate } from "./geometry";
 
-const corners = [
+const handles = [
+	["n", "top", 50, 0, "ns-resize"],
+	["e", "right", 100, 50, "ew-resize"],
+	["s", "bottom", 50, 100, "ns-resize"],
+	["w", "left", 0, 50, "ew-resize"],
 	["nw", "top left", 0, 0, "nwse-resize"],
 	["ne", "top right", 100, 0, "nesw-resize"],
 	["sw", "bottom left", 0, 100, "nesw-resize"],
@@ -42,13 +46,9 @@ export function CropOverlay({
 		if (!box || !(event.target instanceof Element)) {
 			return null;
 		}
-		const distance = Math.hypot(
-			Math.max(box.left - event.clientX, 0, event.clientX - box.right),
-			Math.max(box.top - event.clientY, 0, event.clientY - box.bottom),
-		);
 		const handle =
 			event.target.closest<HTMLElement>("[data-handle]")?.dataset.handle;
-		return { box, handle: handle ?? (distance >= 50 ? "rotate" : null) };
+		return { box, handle: handle ?? "rotate" };
 	}
 	function change(handle: string, dx: number, dy: number) {
 		onChange(
@@ -146,13 +146,13 @@ export function CropOverlay({
 					className="absolute inset-0 cursor-[inherit] focus-visible:outline-2 focus-visible:outline-white"
 				/>
 
-				{corners.map(([handle, label, left, top, cursor]) => (
+				{handles.map(([handle, label, left, top, cursor]) => (
 					<button
 						key={handle}
 						type="button"
 						data-handle={handle}
 						aria-label={`Resize crop ${label}`}
-						className="group absolute flex size-8 -translate-1/2 items-center justify-center outline-none"
+						className="group absolute flex size-11 min-h-11 min-w-11 -translate-1/2 items-center justify-center outline-none data-[handle=n]:w-full data-[handle=s]:w-full data-[handle=e]:h-full data-[handle=w]:h-full"
 						style={{ left: `${left}%`, top: `${top}%`, cursor }}
 					>
 						<span className="pointer-events-none size-2.5 border border-neutral-900 bg-white group-focus-visible:ring-2 group-focus-visible:ring-neutral-400/50" />

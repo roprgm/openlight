@@ -31,7 +31,7 @@ function expectCovered(frame: ImageFrame) {
 	}
 }
 
-test("crop preserves source coverage, opposite corners, flips, and sliding along edges", () => {
+test("crop preserves source coverage, opposite anchors, flips, and sliding along edges", () => {
 	const edge: ImageFrame = {
 		...imageFrame(source),
 		center: [900, 400],
@@ -73,15 +73,26 @@ test("crop preserves source coverage, opposite corners, flips, and sliding along
 					expectCovered(turned);
 					expect(turn(turned, -direction)).toEqual(flipped);
 				}
-				for (const corner of ["nw", "ne", "sw", "se"]) {
+				for (const [handle, x, y] of [
+					["nw", 1, 1],
+					["ne", 0, 1],
+					["sw", 1, 0],
+					["se", 0, 0],
+					["n", 0.5, 1],
+					["s", 0.5, 0],
+					["w", 1, 0.5],
+					["e", 0, 0.5],
+				] as const) {
 					for (const delta of [-1200, 1200]) {
 						for (const ratio of [before.size[0] / before.size[1], null]) {
-							const next = resize(flipped, corner, delta, delta, ratio, source);
+							const next = resize(flipped, handle, delta, delta, ratio, source);
 							expectCovered(next);
 							if (ratio)
 								expect(next.size[0] / next.size[1]).toBeCloseTo(ratio, 8);
-							const x = corner.includes("w") ? 1 : 0;
-							const y = corner.includes("n") ? 1 : 0;
+							if (!ratio && x === 0.5)
+								expect(next.size[0]).toBe(flipped.size[0]);
+							if (!ratio && y === 0.5)
+								expect(next.size[1]).toBe(flipped.size[1]);
 							const anchor = sample(flipped, x, y);
 							for (const [i, value] of sample(next, x, y).entries()) {
 								expect(value).toBeCloseTo(anchor[i], 8);

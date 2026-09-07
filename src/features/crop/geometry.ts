@@ -29,24 +29,27 @@ export function move(
 	};
 }
 
-/** Resize from the opposite source corner, stopping the entire gesture at the first edge. */
+/** Anchor the opposite source edge or corner, stopping the gesture at the first bound. */
 export function resize(
 	frame: ImageFrame,
-	corner: string,
+	handle: string,
 	dx: number,
 	dy: number,
 	ratio: number | null,
 	source: Point,
 ): ImageFrame {
-	const sx = corner.includes("w") ? -1 : 1;
-	const sy = corner.includes("n") ? -1 : 1;
+	const sx = Number(handle.includes("e")) - Number(handle.includes("w"));
+	const sy = Number(handle.includes("s")) - Number(handle.includes("n"));
+	const xWeight = Math.abs(sx);
+	const yWeight = Math.abs(sy);
 	const width = frame.size[0] + sx * dx;
 	const height = frame.size[1] + sy * dy;
 	const w = ratio
 		? Math.max(
 				1,
 				ratio,
-				((width * ratio + height) * ratio) / (ratio * ratio + 1),
+				((width * ratio * xWeight + height * yWeight) * ratio) /
+					(ratio * ratio * xWeight + yWeight),
 			)
 		: Math.max(1, width);
 	const h = ratio ? w / ratio : Math.max(1, height);
