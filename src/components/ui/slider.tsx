@@ -13,9 +13,6 @@ type SliderProps = {
 	stops?: string[];
 };
 
-const track =
-	"col-span-2 my-1 h-[4px] appearance-none rounded-full bg-neutral-900 shadow-groove outline-none focus-visible:ring-1 focus-visible:ring-neutral-100/50 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:size-3 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-neutral-100 [&::-webkit-slider-thumb]:ring-1 [&::-webkit-slider-thumb]:ring-neutral-800 [&::-moz-range-thumb]:size-2.5 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:border-0 [&::-moz-range-thumb]:bg-neutral-100 [&::-moz-range-thumb]:ring-1 [&::-moz-range-thumb]:ring-neutral-800";
-
 /** Labeled slider paired with a scrubbable numeric field. */
 export function Slider({
 	label,
@@ -44,18 +41,24 @@ export function Slider({
 				value={value}
 				variant="text"
 			/>
-			<input
-				aria-label={label}
-				className={track}
-				max={max}
-				min={min}
-				onChange={(event) => onChange(event.currentTarget.valueAsNumber)}
-				onDoubleClick={reset}
-				step={step}
-				style={gradient}
-				type="range"
-				value={value}
-			/>
+			<div className="relative col-span-2 flex h-11 min-w-11 items-center">
+				<div
+					aria-hidden="true"
+					className="pointer-events-none absolute h-1 w-full rounded-full bg-neutral-900 shadow-groove"
+					style={gradient}
+				/>
+				<input
+					aria-label={label}
+					className="relative h-full w-full touch-pan-y appearance-none bg-transparent outline-none focus-visible:ring-1 focus-visible:ring-neutral-100/50 [&::-webkit-slider-runnable-track]:bg-transparent [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:size-3 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-neutral-100 [&::-webkit-slider-thumb]:ring-1 [&::-webkit-slider-thumb]:ring-neutral-800 [&::-moz-range-track]:bg-transparent [&::-moz-range-thumb]:size-2.5 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:border-0 [&::-moz-range-thumb]:bg-neutral-100 [&::-moz-range-thumb]:ring-1 [&::-moz-range-thumb]:ring-neutral-800"
+					max={max}
+					min={min}
+					onChange={(event) => onChange(event.currentTarget.valueAsNumber)}
+					onDoubleClick={reset}
+					step={step}
+					type="range"
+					value={value}
+				/>
+			</div>
 		</div>
 	);
 }

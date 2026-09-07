@@ -40,6 +40,7 @@ async function zoom(page: Page, factor: number) {
 
 test("edit a photo, inspect the preview and histograms, undo changes, and export", async ({
 	page,
+	browser,
 }) => {
 	const state = () => page.evaluate(() => window.openlight.getState());
 	await page.goto("/");
@@ -857,5 +858,45 @@ test("edit a photo, inspect the preview and histograms, undo changes, and export
 		);
 		await page.keyboard.press("Escape");
 		await expect(dialog).toBeHidden();
+	});
+
+	await test.step("mobile slider targets accept taps above and below the visible track", async () => {
+		const context = await browser.newContext({
+			viewport: { width: 390, height: 844 },
+			isMobile: true,
+			hasTouch: true,
+			deviceScaleFactor: 2,
+		});
+		try {
+			const mobile = await context.newPage();
+			await mobile.goto(page.url());
+			await mobile
+				.locator('input[type="file"]')
+				.setInputFiles("tests/fixtures/photo.svg");
+			const exposure = mobile.getByRole("slider", {
+				name: "Exposure",
+				exact: true,
+			});
+			await exposure.scrollIntoViewIfNeeded();
+			for (const slider of await mobile.getByRole("slider").all()) {
+				const bounds = await box(slider);
+				expect(bounds.width).toBeGreaterThanOrEqual(44);
+				expect(bounds.height).toBeGreaterThanOrEqual(44);
+			}
+			const bounds = await box(exposure);
+			await mobile.touchscreen.tap(bounds.x + bounds.width - 2, bounds.y + 3);
+			await expect(exposure).toHaveValue("5");
+			expect((await readImage(mobile)).center).toEqual([255, 255, 255, 255]);
+			await mobile.touchscreen.tap(bounds.x + 2, bounds.y + bounds.height - 3);
+			await expect(exposure).toHaveValue("-5");
+			const undo = mobile.getByRole("button", { name: "Undo", exact: true });
+			await undo.tap();
+			await expect(exposure).toHaveValue("5");
+			await undo.tap();
+			await expect(exposure).toHaveValue("0");
+			expect((await readImage(mobile)).center).toEqual([128, 128, 128, 255]);
+		} finally {
+			await context.close();
+		}
 	});
 });
