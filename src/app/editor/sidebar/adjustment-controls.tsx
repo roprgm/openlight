@@ -1,4 +1,4 @@
-import type { ComponentProps } from "react";
+import type { ComponentProps, ReactNode } from "react";
 import { useDocument, useScene } from "@/components/editor/session";
 import { Collapsible } from "@/components/ui/collapsible";
 import { Slider } from "@/components/ui/slider";
@@ -44,7 +44,7 @@ function AdjustmentSlider({ name, ...props }: AdjustmentSliderProps) {
 	);
 }
 
-export default function AdjustmentControls() {
+export default function AdjustmentControls({ curves }: { curves: ReactNode }) {
 	return (
 		<>
 			<Collapsible title="Light">
@@ -56,6 +56,7 @@ export default function AdjustmentControls() {
 					<AdjustmentSlider name="whites" label="Whites" />
 					<AdjustmentSlider name="blacks" label="Blacks" />
 				</div>
+				<div className="pt-3">{curves}</div>
 			</Collapsible>
 			<Collapsible title="Color">
 				<div className="flex flex-col gap-2">

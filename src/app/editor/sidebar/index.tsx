@@ -73,8 +73,9 @@ export function Sidebar({ children }: { children?: ReactNode }) {
 							aria-label="output histogram"
 						/>
 					</section>
-					<AdjustmentControls />
-					<ToneCurvesPanel histogram={histogram} />
+					<AdjustmentControls
+						curves={<ToneCurvesPanel histogram={histogram} />}
+					/>
 				</div>
 				<div className="flex shrink-0 items-center gap-2 bg-panel p-3">
 					<HistoryControls />

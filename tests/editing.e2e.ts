@@ -73,6 +73,10 @@ test("edit a photo, inspect the preview and histograms, undo changes, and export
 			await summary.click();
 			await expect(summary).toHaveAttribute("aria-expanded", "false");
 			await expect(control).toBeHidden();
+			if (title === "Light")
+				await expect(
+					page.getByRole("region", { name: "Curves", exact: true }),
+				).toBeHidden();
 			expect(await state()).toEqual(initial);
 			await summary.press("Enter");
 			await expect(control).toBeVisible();
