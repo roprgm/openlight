@@ -3,7 +3,7 @@ import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import { PNG } from "pngjs";
 import { effect, frame, init, target } from "vgpu/node";
-import { createClarity } from "@/lib/clarity";
+import { createUnsharpMask } from "@/lib/unsharp-mask";
 import io from "./clarity-io.wgsl";
 
 // Run with: bun --preload ./tests/setup.ts tests/clarity-calibrate.ts
@@ -34,7 +34,7 @@ const encoded = gpu.device.createTexture({
 const source = target(gpu, { size, format: "rgba16float" });
 const output = target(gpu, { size, format: "rgba8unorm" });
 const convert = effect(gpu, io);
-const clarity = createClarity(gpu, source);
+const clarity = createUnsharpMask(gpu, source, 16);
 const results = [];
 
 function label(amount: number) {
@@ -109,7 +109,7 @@ try {
 			throw new Error(`${name} has different dimensions.`);
 		const start = performance.now();
 		frame(gpu, (f) => {
-			const result = clarity.render(f, source, amount);
+			const result = clarity.render(f, source, amount / 200, 64);
 			f.pass(output, convert.set({ source: result.color, decode: 0 }));
 		});
 		const actual = await output.read();

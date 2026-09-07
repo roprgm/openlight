@@ -1,4 +1,8 @@
-import { type Adjustments, adjustmentLimits } from "@/lib/editor/scene";
+import {
+	type Adjustments,
+	adjustmentLimits,
+	adjustmentMinimums,
+} from "@/lib/editor/scene";
 import {
 	defaultCurve,
 	type ToneCurve,
@@ -16,7 +20,8 @@ export function setAdjustments(
 			typeof limit !== "number" ||
 			typeof value !== "number" ||
 			!Number.isFinite(value) ||
-			Math.abs(value) > limit
+			value > limit ||
+			value < (Reflect.get(adjustmentMinimums, name) ?? -limit)
 		) {
 			throw new Error(`Invalid adjustment: ${name}.`);
 		}

@@ -1,7 +1,7 @@
 import { linearToSrgb, srgbToLinear } from "@vgpu/wgsl-std/color";
 import { luminance } from "../color.wgsl";
 
-struct Params { mode: u32, reduction: i32, amount: f32 }
+struct Params { mode: u32, reduction: i32, amount: f32, sigma: f32 }
 @group(0) @binding(0) var source: texture_2d<f32>;
 @group(0) @binding(1) var base: texture_2d<f32>;
 @group(0) @binding(2) var linearSampler: sampler;
@@ -24,7 +24,7 @@ fn load(p: vec2i) -> vec4f {
     return vec4f(total / f32(params.reduction * params.reduction), 0.0, 1.0);
   }
   if (params.mode < 3u) {
-    let sigma = 64.0 / f32(params.reduction); // 64 source pixels, evaluated at reduced resolution.
+    let sigma = params.sigma;
     let axis = select(vec2i(0, 1), vec2i(1, 0), params.mode == 1u);
     var total = vec2f(0.0);
     var weights = 0.0;
@@ -32,7 +32,12 @@ fn load(p: vec2i) -> vec4f {
     for (var offset = -radius; offset <= radius; offset++) {
       let distance = f32(offset) / sigma;
       let weight = exp(-0.5 * distance * distance);
-      total += load(p + axis * offset).rg * weight;
+      let pixel = load(p + axis * offset);
+      var value = pixel.rg;
+      if (params.mode == 1u && params.reduction == 1) {
+        value = vec2f(linearToSrgb(max(luminance(pixel.rgb), 0.0)), 1.0) * pixel.a;
+      }
+      total += value * weight;
       weights += weight;
     }
     return vec4f(total / weights, 0.0, 1.0);

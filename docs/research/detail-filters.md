@@ -1,6 +1,6 @@
 # Detail filter proposals
 
-Research date: 2026-09-05. Status: proposals, with an initial Clarity experiment described in [the calibration report](clarity-calibration.md). Sharpening and texture remain proposals.
+Research date: 2026-09-05. Status: proposals, with an initial Clarity experiment described in [the calibration report](clarity-calibration.md). The [standard sharpening baseline](sharpening.md) is implemented; texture remains a proposal.
 
 Propose three distinct controls: sharpening with a radius for fine edges, texture for medium detail, and clarity for broader local contrast. Start with a small, measurable implementation of each. Fit its response to reference exports before choosing final scales, slider mappings, or safeguards.
 

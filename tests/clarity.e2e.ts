@@ -1,27 +1,37 @@
 import { expect, test } from "./fixtures";
 
-// Full-resolution Gaussian reference, independent of the shader's reduced blur.
-function expectedStep(x: number, left: number, right: number, amount: number) {
+// Full-resolution Gaussian reference, independent of GPU passes and working-space conversion.
+function expectedStep(
+	x: number,
+	left: number,
+	right: number,
+	amount: number,
+	sigma: number,
+) {
 	let sum = 0;
 	let weights = 0;
-	for (let offset = -192; offset <= 192; offset++) {
-		const weight = Math.exp(-0.5 * (offset / 64) ** 2);
+	const radius = Math.ceil(3 * sigma);
+	for (let offset = -radius; offset <= radius; offset++) {
+		const weight = Math.exp(-0.5 * (offset / sigma) ** 2);
 		sum += (x + offset < 512 ? left : right) * weight;
 		weights += weight;
 	}
 	const original = x < 512 ? left : right;
 	return Math.max(
 		0,
-		Math.min(255, original + (amount / 200) * (original - sum / weights)),
+		Math.min(255, original + amount * (original - sum / weights)),
 	);
 }
 
-test("clarity follows Gaussian local contrast and preserves flat fields and alpha", async ({
+test("detail filters follow Gaussian unsharp masking and preserve flat fields and alpha", async ({
 	page,
 }) => {
 	await page.goto("/");
 	await page.waitForFunction(() => window.openlight);
-	const xs = [256, 384, 448, 511, 512, 576, 640, 768];
+	const xs = [
+		0, 256, 384, 448, 504, 509, 510, 511, 512, 513, 514, 519, 576, 640, 768,
+		1023,
+	];
 	const result = await page.evaluate(async (xs) => {
 		const api = window.openlight;
 		const load = async (width: number, height: number, shapes: string) => {
@@ -61,12 +71,29 @@ test("clarity follows Gaussian local contrast and preserves flat fields and alph
 					)
 					.join(""),
 			);
-			for (const amount of [-100, -50, 0, 50, 100]) {
-				api.setAdjustments({ clarity: amount });
+			const settings = [
+				...[-100, -50, 0, 50, 100].map((clarity) => ({
+					clarity,
+					sharpening: 0,
+					sharpenRadius: 1,
+				})),
+				...[0.5, 1, 1.7, 3].flatMap((sharpenRadius) =>
+					[0, 50, 100, 150].map((sharpening) => ({
+						clarity: 0,
+						sharpening,
+						sharpenRadius,
+					})),
+				),
+			];
+			for (const adjustment of settings) {
+				api.setAdjustments(adjustment);
 				steps.push({
 					left,
 					right,
-					amount,
+					amount: adjustment.sharpening
+						? adjustment.sharpening / 100
+						: adjustment.clarity / 200,
+					sigma: adjustment.sharpening ? adjustment.sharpenRadius : 64,
 					pixels: await read(xs.map((x) => [x, 64])),
 				});
 			}
@@ -74,7 +101,7 @@ test("clarity follows Gaussian local contrast and preserves flat fields and alph
 		await load(127, 65, '<rect width="127" height="65" fill="#737373"/>');
 		const flat = [];
 		for (const clarity of [-100, 0, 100]) {
-			api.setAdjustments({ clarity });
+			api.setAdjustments({ clarity, sharpening: 150, sharpenRadius: 3 });
 			flat.push(
 				...(await read([
 					[0, 0],
@@ -97,16 +124,16 @@ test("clarity follows Gaussian local contrast and preserves flat fields and alph
 		const neutral = await read(positions);
 		const alpha = [];
 		for (const clarity of [-100, 100]) {
-			api.setAdjustments({ clarity });
+			api.setAdjustments({ clarity, sharpening: 150, sharpenRadius: 3 });
 			alpha.push(await read(positions));
 		}
 		return { steps, flat, neutral, alpha };
 	}, xs);
-	for (const { left, right, amount, pixels } of result.steps) {
+	for (const { left, right, amount, sigma, pixels } of result.steps) {
 		for (const [i, pixel] of pixels.entries()) {
 			for (const channel of pixel.slice(0, 3))
 				expect(
-					Math.abs(channel - expectedStep(xs[i], left, right, amount)),
+					Math.abs(channel - expectedStep(xs[i], left, right, amount, sigma)),
 				).toBeLessThanOrEqual(2);
 			expect(pixel[3]).toBe(255);
 		}

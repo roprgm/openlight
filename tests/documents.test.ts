@@ -20,6 +20,16 @@ function document() {
 test("documents edit independently without React, retain bounded history, and reject edits after replacement", async () => {
 	const first = document();
 	const second = document();
+	for (const change of [
+		{ sharpening: -1 },
+		{ sharpening: 151 },
+		{ sharpenRadius: 0 },
+		{ sharpenRadius: 3.1 },
+		{ sharpenRadius: NaN },
+	]) {
+		expect(() => setAdjustments(first, change)).toThrow("Invalid adjustment");
+	}
+
 	setAdjustments(first, { exposure: 1 });
 	const points = [
 		{ x: 0, y: 0 },
