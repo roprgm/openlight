@@ -38,10 +38,23 @@ test("decode an image, apply XMP, recover from failure, and replace a document d
 	const expected = await readImage(page);
 	expect(expected.center[0]).toBeLessThan(baseline.center[0]);
 	const before = await page.evaluate(() => window.openlight.getState());
+	await page.evaluate(() => {
+		const frame = window.openlight.getState().frame;
+		if (!frame) throw new Error("Missing loaded frame");
+		frame.angle = 30;
+		Reflect.set(frame.center, 0, 0);
+	});
+	expect(
+		(await page.evaluate(() => window.openlight.getState())).frame,
+	).toEqual(before.frame);
 	await page.evaluate(() => window.openlight.undo());
 	expect(await readImage(page)).toEqual(baseline);
 	await page.evaluate(() => window.openlight.redo());
 	expect(await readImage(page)).toEqual(expected);
+	await page.getByRole("button", { name: "Crop and rotate" }).click();
+	await page
+		.getByRole("combobox", { name: "Aspect ratio" })
+		.selectOption({ label: "Square" });
 	const exported = await page.evaluate(async () => {
 		const api = window.openlight;
 		const convert = OffscreenCanvas.prototype.convertToBlob;
@@ -71,6 +84,8 @@ test("decode an image, apply XMP, recover from failure, and replace a document d
 	});
 	expect(await readImage(page, new Uint8Array(exported))).toEqual(expected);
 	const replaced = await page.evaluate(() => window.openlight.getState());
+	await expect(page.getByRole("region", { name: "Crop tool" })).toBeHidden();
+	expect(replaced.frame?.size).toEqual([32, 32]);
 	expect(replaced.documentId).not.toBe(before.documentId);
 	expect(replaced.history).toEqual({ undoCount: 0, redoCount: 0 });
 	expect(replaced.adjustments.exposure).toBe(0);

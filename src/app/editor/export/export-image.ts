@@ -1,12 +1,13 @@
 import { frame, type Gpu, surface } from "vgpu";
-import type { EditorDocument } from "@/app/document";
-import { createRenderer } from "@/app/editor/renderer/renderer";
+import type { EditorDocument } from "@/lib/editor/document";
+import { createRenderer } from "@/lib/editor/renderer";
+import { createDisplay } from "@/lib/image-display";
 
 export type ExportOptions =
 	| { format: "png" }
 	| { format: "jpeg"; quality: number };
 
-/** Renders a snapshot of the current edits at the original image dimensions. */
+/** Renders a snapshot of the current edits at the document dimensions. */
 export async function exportImage(
 	gpu: Gpu,
 	document: EditorDocument,
@@ -28,14 +29,17 @@ export async function exportImage(
 	let output: ReturnType<typeof surface> | undefined;
 	let renderer: ReturnType<typeof createRenderer> | undefined;
 	try {
-		const [width, height] = scene.size;
+		const [width, height] = scene.frame.size.map(Math.round);
 		const canvas = new OffscreenCanvas(width, height);
 		output = surface(gpu, canvas, { size: [width, height], dpr: 1 });
 		renderer = createRenderer(gpu, image);
 		renderer.update(scene);
-		const draw = renderer.draw;
+		const draw = createDisplay(gpu);
+		const texture = renderer.outputImage();
 		const destination = output;
-		frame(gpu, (frame) => draw(frame, destination, { zoom: 1, pan: [0, 0] }));
+		frame(gpu, (frame) =>
+			draw(frame, destination, texture, { view: { zoom: 1, pan: [0, 0] } }),
+		);
 		// Source work is submitted before yielding; the canvas owns the export pixels.
 		const blob = await canvas.convertToBlob({
 			type: `image/${options.format}`,

@@ -1,7 +1,7 @@
 import { useRef, useState } from "react";
 import { useGpu } from "vgpu-react";
-import { useDocument } from "@/app/document/provider";
 import { exportImage } from "@/app/editor/export/export-image";
+import { useDocument } from "@/components/editor/session";
 import Button from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 
@@ -101,7 +101,7 @@ export function ExportSettings({ onClose }: { onClose: () => void }) {
 					</p>
 				)}
 			</div>
-			<footer className="flex justify-end gap-2 bg-neutral-900/40 px-4 py-3">
+			<footer className="flex justify-end gap-2 bg-panel p-3">
 				<Button variant="ghost" onClick={onClose}>
 					Cancel
 				</Button>

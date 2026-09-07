@@ -1,36 +1,36 @@
-import { Canvas } from "vgpu-react";
-import { DocumentProvider } from "@/app/document/provider";
+import { type ReactNode, useState } from "react";
 import type { Workspace } from "@/app/workspace";
+import { RendererProvider } from "@/components/editor/pipeline";
+import { DocumentProvider } from "@/components/editor/session";
 import ResizablePanel from "@/components/ui/resizable-panel";
 import Spinner from "@/components/ui/spinner";
-import { usePanZoom } from "@/hooks/use-pan-zoom";
-import type { Target } from "@/lib/decode";
-import { ComparisonDivider } from "./comparison-divider";
-import { CanvasRenderer } from "./renderer";
-import { RendererProvider } from "./renderer/provider";
+import { CropButton } from "@/features/crop/button";
+import { CropEditor } from "@/features/crop/view";
+import { EditorCanvas } from "./canvas";
 import { Sidebar } from "./sidebar";
 
-type WorkspaceProps = { image: Target };
-
-function ImageCanvas({ image }: WorkspaceProps) {
-	const { ref, view, handlers } = usePanZoom(image.size);
-
+function AdjustmentEditor({ children }: { children: ReactNode }) {
 	return (
-		<div
-			className="relative grid min-h-0 min-w-0 flex-1 overflow-hidden cursor-grab touch-none place-items-center active:cursor-grabbing"
-			ref={ref}
-			{...handlers}
-		>
-			<Canvas className="size-full min-h-0">
-				<CanvasRenderer view={view} />
-			</Canvas>
-			<ComparisonDivider />
-		</div>
+		<RendererProvider>
+			<EditorCanvas />
+			<Sidebar>{children}</Sidebar>
+		</RendererProvider>
+	);
+}
+
+function DocumentEditor() {
+	const [cropping, setCropping] = useState(false);
+	if (cropping) {
+		return <CropEditor onClose={() => setCropping(false)} />;
+	}
+	return (
+		<AdjustmentEditor>
+			<CropButton onClick={() => setCropping(true)} />
+		</AdjustmentEditor>
 	);
 }
 
 type EditorProps = { state: ReturnType<Workspace["state"]["getState"]> };
-
 function LoadingStatus({ state }: EditorProps) {
 	if (state.status !== "error") {
 		return <Spinner />;
@@ -41,19 +41,11 @@ function LoadingStatus({ state }: EditorProps) {
 		</p>
 	);
 }
-
 function EditorContent({ state }: EditorProps) {
 	if (state.status === "ready") {
-		const { document } = state;
-		const image = document.resources.get(
-			document.scene.getState().source,
-		).image;
 		return (
-			<DocumentProvider value={document}>
-				<RendererProvider source={image}>
-					<ImageCanvas image={image} />
-					<Sidebar />
-				</RendererProvider>
+			<DocumentProvider key={state.document.id} value={state.document}>
+				<DocumentEditor />
 			</DocumentProvider>
 		);
 	}
@@ -66,7 +58,6 @@ function EditorContent({ state }: EditorProps) {
 		</>
 	);
 }
-
 export default function Editor({ state }: EditorProps) {
 	return (
 		<main className="flex h-dvh flex-col md:flex-row">

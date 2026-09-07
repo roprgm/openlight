@@ -1,5 +1,6 @@
-import type { ToneCurve } from "@/features/tone-curves/curve";
 import type { Adjustments } from "@/lib/adjustments";
+import type { ImageFrame } from "@/lib/image-frame/geometry";
+import type { ToneCurve } from "@/lib/tone-curves/curve";
 
 export type { Adjustments } from "@/lib/adjustments";
 
@@ -31,7 +32,7 @@ export const adjustmentLimits: Adjustments = {
 
 /** Serializable document content. Image bytes and GPU resources live elsewhere. */
 export type Scene = {
-	readonly size: readonly [number, number];
+	readonly frame: ImageFrame;
 	readonly source: string;
 	readonly adjustments: Readonly<Adjustments>;
 	readonly toneCurve: ToneCurve;

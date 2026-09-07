@@ -1,11 +1,12 @@
 import { expect, test } from "bun:test";
-import { createDocument } from "@/app/document";
-import { setAdjustments } from "@/app/document/edits";
 import { createCameraRawXmpLoader } from "@/app/loaders/camera-raw-xmp";
 import { createLoaderRegistry, type FileLoader } from "@/app/loaders/registry";
-import { defaultAdjustments } from "@/app/scene";
 import { createWorkspace } from "@/app/workspace";
-import { defaultCurve } from "@/features/tone-curves/curve";
+import { createDocument } from "@/lib/editor/document";
+import { setAdjustments } from "@/lib/editor/document/edits";
+import { defaultAdjustments } from "@/lib/editor/scene";
+import { imageFrame } from "@/lib/image-frame/geometry";
+import { defaultCurve } from "@/lib/tone-curves/curve";
 
 function settings(attributes: string, name = "photo.xmp") {
 	return new File(
@@ -26,7 +27,7 @@ test("file batches preserve ordering, group imports, recover from failures, and 
 			workspace.open(file.name, async () => {
 				if (file.name === "broken.png") throw new Error("Decode failed");
 				return createDocument({
-					size: [32, 32],
+					frame: imageFrame([32, 32]),
 					source: file.name,
 					adjustments: { ...defaultAdjustments },
 					toneCurve: defaultCurve,

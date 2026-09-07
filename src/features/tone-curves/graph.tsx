@@ -12,7 +12,7 @@ import {
 	removeCurvePoint,
 	sampleCurve,
 	type ToneCurve,
-} from "./curve";
+} from "@/lib/tone-curves/curve";
 
 function gridLines(spacing: number) {
 	return Array.from({ length: 256 / spacing - 1 }, (_, index) => {

@@ -1,6 +1,4 @@
 import type { Gpu } from "vgpu";
-import type { Preview } from "@/app/document";
-import { setAdjustments, setToneCurve } from "@/app/document/edits";
 import {
 	type ExportOptions,
 	exportImage,
@@ -8,9 +6,15 @@ import {
 import { createCameraRawXmpLoader } from "@/app/loaders/camera-raw-xmp";
 import { createImageLoader } from "@/app/loaders/image";
 import { createLoaderRegistry } from "@/app/loaders/registry";
-import { type Adjustments, defaultAdjustments } from "@/app/scene";
 import type { Workspace } from "@/app/workspace";
-import { defaultCurve, type ToneCurve } from "@/features/tone-curves/curve";
+import type { Preview } from "@/lib/editor/document";
+import { setAdjustments, setToneCurve } from "@/lib/editor/document/edits";
+import {
+	type Adjustments,
+	defaultAdjustments,
+	type Scene,
+} from "@/lib/editor/scene";
+import { defaultCurve, type ToneCurve } from "@/lib/tone-curves/curve";
 
 /** Imperative commands bound to an explicit workspace, usable without React. */
 export function createControls(gpu: Gpu, workspace: Workspace) {
@@ -20,6 +24,7 @@ export function createControls(gpu: Gpu, workspace: Workspace) {
 		[xmp, image],
 		() => workspace.state.getState().status === "ready",
 	);
+
 	return {
 		openFiles: files.openFiles,
 		openFile: (file: File) => files.openFiles([file]),
@@ -29,6 +34,10 @@ export function createControls(gpu: Gpu, workspace: Workspace) {
 			setAdjustments(workspace.getDocument(), change),
 		setToneCurve: (curve?: ToneCurve) =>
 			setToneCurve(workspace.getDocument(), curve),
+		editScene(change: Partial<Scene>) {
+			const document = workspace.getDocument();
+			document.edit({ ...document.scene.getState(), ...change });
+		},
 		setPreview: (change: Partial<Preview>) =>
 			workspace.getDocument().preview.setState(change),
 		beginEdit: () => workspace.getDocument().history.begin(),
@@ -41,22 +50,19 @@ export function createControls(gpu: Gpu, workspace: Workspace) {
 		getState() {
 			const { file, document } = workspace.state.getState();
 			const scene = document?.scene.getState();
-			return {
+			return structuredClone({
 				file,
-				preview: document && { ...document.preview.getState() },
+				preview: document?.preview.getState(),
 				documentId: document?.id,
-				size: scene && [...scene.size],
-				adjustments: { ...(scene?.adjustments ?? defaultAdjustments) },
-				toneCurve: (scene?.toneCurve ?? defaultCurve).map((point) => ({
-					...point,
-				})),
-				history: {
-					...(document?.history.status.getState() ?? {
-						undoCount: 0,
-						redoCount: 0,
-					}),
+				size: scene?.frame.size,
+				frame: scene?.frame,
+				adjustments: scene?.adjustments ?? defaultAdjustments,
+				toneCurve: scene?.toneCurve ?? defaultCurve,
+				history: document?.history.status.getState() ?? {
+					undoCount: 0,
+					redoCount: 0,
 				},
-			};
+			});
 		},
 	};
 }

@@ -1,5 +1,5 @@
 import { useStore } from "zustand";
-import { useDocument } from "@/app/document/provider";
+import { useDocument } from "@/components/editor/session";
 import Button from "@/components/ui/button";
 
 export function ClippingControls() {

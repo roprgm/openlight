@@ -1,6 +1,6 @@
 import type { PointerEvent } from "react";
 import { useStore } from "zustand";
-import { useDocument } from "@/app/document/provider";
+import { useDocument } from "@/components/editor/session";
 
 export function ComparisonDivider() {
 	const { preview } = useDocument();

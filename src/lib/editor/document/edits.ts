@@ -1,9 +1,9 @@
-import { type Adjustments, adjustmentLimits } from "@/app/scene";
+import { type Adjustments, adjustmentLimits } from "@/lib/editor/scene";
 import {
 	defaultCurve,
 	type ToneCurve,
 	validateCurve,
-} from "@/features/tone-curves/curve";
+} from "@/lib/tone-curves/curve";
 import type { EditorDocument } from "./index";
 
 export function setAdjustments(

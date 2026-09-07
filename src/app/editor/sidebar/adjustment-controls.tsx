@@ -1,12 +1,12 @@
 import type { ComponentProps } from "react";
-import { setAdjustments } from "@/app/document/edits";
-import { useDocument, useScene } from "@/app/document/provider";
+import { useDocument, useScene } from "@/components/editor/session";
+import { Slider } from "@/components/ui/slider";
+import { setAdjustments } from "@/lib/editor/document/edits";
 import {
 	type Adjustments,
 	adjustmentLimits,
 	defaultAdjustments,
-} from "@/app/scene";
-import { Slider } from "@/components/ui/slider";
+} from "@/lib/editor/scene";
 
 const stops = {
 	incrementalTemperature: ["#4a6fc3", "#c3b84a"],

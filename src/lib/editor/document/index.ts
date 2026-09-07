@@ -1,7 +1,8 @@
 import { createStore } from "zustand/vanilla";
 import { shallow } from "zustand/vanilla/shallow";
-import type { Scene } from "@/app/scene";
+import type { Scene } from "@/lib/editor/scene";
 import { createHistory } from "@/lib/history";
+import { frameValues, validateFrame } from "@/lib/image-frame/geometry";
 import { createResources } from "./resources";
 
 export type Preview = {
@@ -14,7 +15,7 @@ export type Preview = {
 function equal(a: Scene, b: Scene) {
 	return (
 		a.source === b.source &&
-		shallow(a.size, b.size) &&
+		shallow(frameValues(a.frame), frameValues(b.frame)) &&
 		shallow(a.adjustments, b.adjustments) &&
 		a.toneCurve.length === b.toneCurve.length &&
 		a.toneCurve.every((point, i) => shallow(point, b.toneCurve[i]))
@@ -52,6 +53,7 @@ export function createDocument(initial: Scene, resources = createResources()) {
 			if (closed) {
 				throw new Error("Document is closed.");
 			}
+			validateFrame(next.frame);
 			update(next);
 		},
 		dispose() {

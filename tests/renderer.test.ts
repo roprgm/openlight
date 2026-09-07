@@ -5,18 +5,20 @@ import {
 	init,
 	target,
 } from "vgpu/mock";
-import { createDocument } from "@/app/document";
-import { setAdjustments, setToneCurve } from "@/app/document/edits";
-import { createRenderer } from "@/app/editor/renderer/renderer";
-import { defaultAdjustments } from "@/app/scene";
-import { defaultCurve } from "@/features/tone-curves/curve";
+import { createDocument } from "@/lib/editor/document";
+import { setAdjustments, setToneCurve } from "@/lib/editor/document/edits";
+import { createRenderer } from "@/lib/editor/renderer";
+import { defaultAdjustments } from "@/lib/editor/scene";
+import { createDisplay } from "@/lib/image-display";
+import { imageFrame } from "@/lib/image-frame/geometry";
+import { defaultCurve } from "@/lib/tone-curves/curve";
 
 test("rendering follows grouped edits and undo, reuses pipelines, and releases owned targets", async () => {
 	const gpu = await init();
 	const source = target(gpu, { size: [32, 16], format: "rgba16float" });
 	const canvas = Object.assign(target(gpu, { size: [64, 32] }), { dpr: 2 });
 	const document = createDocument({
-		size: [32, 16],
+		frame: imageFrame([32, 16]),
 		source: "photo",
 		adjustments: { ...defaultAdjustments },
 		toneCurve: defaultCurve,
@@ -25,12 +27,14 @@ test("rendering follows grouped edits and undo, reuses pipelines, and releases o
 	const notify = mock(() => {});
 	const detach = renderer.subscribe(notify);
 	const unsubscribe = document.scene.subscribe(renderer.update);
+	const display = createDisplay(gpu);
 	const draw = () =>
 		frame(gpu, (frame) =>
-			renderer.draw(frame, canvas, { pan: [4, 8], zoom: 2 }),
+			display(frame, canvas, renderer.outputImage(), {
+				view: { pan: [4, 8], zoom: 2 },
+			}),
 		);
 	try {
-		draw();
 		expect(notify).not.toHaveBeenCalled();
 		renderer.update(document.scene.getState());
 		const adjusted = renderer.inputImage();
@@ -79,7 +83,21 @@ test("rendering follows grouped edits and undo, reuses pipelines, and releases o
 		detach();
 		setAdjustments(document, { exposure: -1 });
 		expect(notify).toHaveBeenCalledTimes(8);
+		document.edit({
+			...document.scene.getState(),
+			frame: {
+				...document.scene.getState().frame,
+				size: [16, 8],
+				angle: 10,
+			},
+		});
+		const croppedInput = renderer.inputImage();
+		const croppedOutput = renderer.outputImage();
+		expect(croppedOutput.size).toEqual([16, 8]);
+		expect(croppedInput.size).toEqual([16, 8]);
 		renderer.dispose();
+		expect(() => croppedInput.color.view).toThrow("destroyed");
+		expect(() => croppedOutput.color.view).toThrow("destroyed");
 		expect(() => adjusted.color.view).toThrow("destroyed");
 		expect(() => curved.color.view).toThrow("destroyed");
 		expect(() => source.color.view).not.toThrow();

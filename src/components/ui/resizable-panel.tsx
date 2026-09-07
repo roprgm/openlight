@@ -1,15 +1,17 @@
 import { cn } from "cn";
-import { type ComponentProps, type PointerEvent, useState } from "react";
+import type { ComponentProps, PointerEvent } from "react";
 
 type ResizablePanelProps = ComponentProps<"aside"> & {
 	width?: number;
+	onWidthChange?: (width: number) => void;
 	min?: number;
 	max?: number;
 };
 
 /** Bottom half on mobile; right-side panel with a draggable left edge on desktop. */
 export default function ResizablePanel({
-	width: initial = 288,
+	width = 288,
+	onWidthChange,
 	min = 240,
 	max = 400,
 	className,
@@ -17,15 +19,14 @@ export default function ResizablePanel({
 	children,
 	...props
 }: ResizablePanelProps) {
-	const [width, setWidth] = useState(initial);
 	const resize = (event: PointerEvent) =>
 		event.buttons === 1 &&
-		setWidth((width) => Math.min(max, Math.max(min, width - event.movementX)));
+		onWidthChange?.(Math.min(max, Math.max(min, width - event.movementX)));
 
 	return (
 		<aside
 			className={cn(
-				"relative h-1/2 shrink-0 bg-neutral-800 shadow-ridge max-md:w-full! max-md:border-t max-md:border-neutral-600 md:h-auto",
+				"relative h-1/2 shrink-0 bg-panel shadow-ridge max-md:w-full! max-md:border-t max-md:border-neutral-600 md:h-auto",
 				className,
 			)}
 			style={{ width, ...style }}
