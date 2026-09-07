@@ -98,6 +98,15 @@ export function CropEditor({ onClose }: { onClose: () => void }) {
 				<section
 					aria-label="Crop tool"
 					className="flex h-full flex-col bg-panel"
+					onKeyDown={(event) => {
+						if (
+							event.key === "Enter" &&
+							event.target instanceof Element &&
+							event.target.closest("button")
+						) {
+							event.stopPropagation();
+						}
+					}}
 				>
 					<div className="flex-1 space-y-5 overflow-y-auto p-4">
 						<h2 className="text-sm text-neutral-100">Crop & rotate</h2>

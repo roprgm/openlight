@@ -387,6 +387,29 @@ test("edit a photo, inspect the preview and histograms, undo changes, and export
 		});
 	}
 
+	await test.step("Enter activates focused crop panel buttons", async () => {
+		const before = await state();
+		await open.click();
+		await aspect.selectOption({ label: "Square" });
+		await panel
+			.getByRole("button", { name: "Cancel", exact: true })
+			.press("Enter");
+		await expect(panel).toBeHidden();
+		expect((await state()).frame).toEqual(before.frame);
+		expect((await state()).history).toEqual(before.history);
+		await open.click();
+		await panel
+			.getByRole("button", { name: "Rotate clockwise" })
+			.press("Enter");
+		await expect(panel).toBeVisible();
+		expect((await state()).frame).toEqual(before.frame);
+		await reset.press("Enter");
+		await panel.getByRole("button", { name: "Apply crop" }).press("Enter");
+		await expect(panel).toBeHidden();
+		expect((await state()).frame).toEqual(before.frame);
+		expect((await state()).history).toEqual(before.history);
+	});
+
 	await test.step("locked crop corners resize continuously when the drag changes direction", async () => {
 		await setFrame({ size: [600, 400] });
 		await open.click();
@@ -499,7 +522,7 @@ test("edit a photo, inspect the preview and histograms, undo changes, and export
 		await panel
 			.getByRole("button", { name: "Rotate counterclockwise" })
 			.click();
-		await page.keyboard.press("Enter");
+		await corner.press("Enter");
 		await expectImage([800, 1200], 224);
 		await open.click();
 		await panel.getByRole("button", { name: "Rotate clockwise" }).click();

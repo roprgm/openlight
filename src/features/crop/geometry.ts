@@ -118,6 +118,20 @@ export function flip(frame: ImageFrame, axis: number): ImageFrame {
 }
 
 export function fitRatio(frame: ImageFrame, ratio: number): ImageFrame {
-	const width = Math.min(frame.size[0], frame.size[1] * ratio);
-	return { ...frame, size: [width, width / ratio] };
+	const width = Math.max(
+		1,
+		ratio,
+		Math.min(frame.size[0], frame.size[1] * ratio),
+	);
+	// Keep one output pixel per axis without expanding source coverage.
+	const scale = Math.min(
+		1,
+		frame.size[0] / width,
+		(frame.size[1] * ratio) / width,
+	);
+	return {
+		...frame,
+		size: [width, width / ratio],
+		scale: [frame.scale[0] * scale, frame.scale[1] * scale],
+	};
 }

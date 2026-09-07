@@ -1,10 +1,18 @@
 import { expect, test } from "bun:test";
-import { flip, move, resize, rotate, turn } from "@/features/crop/geometry";
+import {
+	fitRatio,
+	flip,
+	move,
+	resize,
+	rotate,
+	turn,
+} from "@/features/crop/geometry";
 import {
 	frameTransform,
 	type ImageFrame,
 	imageFrame,
 	type Point,
+	validateFrame,
 } from "@/lib/image-frame/geometry";
 
 const source: Point = [1200, 800];
@@ -30,6 +38,14 @@ test("crop preserves source coverage, opposite corners, flips, and sliding along
 		size: [600, 400],
 	};
 	expect(move(edge, 120, 80, source).center).toEqual([900, 480]);
+	const minimum = resize(imageFrame(source), "se", -1200, -800, null, source);
+	for (const ratio of [16 / 9, 9 / 16, 4 / 3, 3 / 4, 1]) {
+		const next = fitRatio(minimum, ratio);
+		expect(() => validateFrame(next)).not.toThrow();
+		expect(next.size[0] / next.size[1]).toBeCloseTo(ratio, 10);
+		expect(next.center).toEqual(minimum.center);
+		expectCovered(next);
+	}
 	for (const rotation of [0, 90, 180, 270]) {
 		for (const angle of [-45, -30, 0, 30, 45]) {
 			const before = rotate(
