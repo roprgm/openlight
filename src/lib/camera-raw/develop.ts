@@ -1,7 +1,7 @@
 import { effect, frame, type Gpu, type Target, target } from "vgpu";
+import { uploadTiff } from "@/lib/tiff-gpu";
 import developShader from "./develop.wgsl";
 import type { PreparedDng } from "./dng";
-import { uploadTiff } from "./upload";
 
 /** GPU half: the mosaic into a float texture, then one pass that demosaics, balances, and converts it. */
 export function developDng(gpu: Gpu, { prepared, raw }: PreparedDng): Target {

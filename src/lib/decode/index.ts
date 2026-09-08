@@ -1,5 +1,6 @@
 import type { Gpu, Target } from "vgpu";
-import { developDng, uploadTiff } from "@/lib/tiff-gpu";
+import { developDng } from "@/lib/camera-raw";
+import { uploadTiff } from "@/lib/tiff-gpu";
 import { decodeHeic } from "./heic";
 import linearize from "./linearize";
 import decodeSvg from "./svg";

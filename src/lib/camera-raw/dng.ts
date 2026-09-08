@@ -1,6 +1,12 @@
 import { mat3 } from "gl-matrix";
-import { type Directory, parseTiff, readTiff, type TiffInfo } from "./ifd";
-import { type Prepared, prepareTiff } from "./prepare";
+// Straight from the modules, so the worker bundle carries no shaders.
+import {
+	type Directory,
+	parseTiff,
+	readTiff,
+	type TiffInfo,
+} from "@/lib/tiff-gpu/ifd";
+import { type Prepared, prepareTiff } from "@/lib/tiff-gpu/prepare";
 
 /** A Bayer DNG's raw image and the camera data needed to develop it. */
 export type RawImage = {

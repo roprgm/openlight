@@ -69,9 +69,9 @@ test("TIFF and DNG files open through the loader with their color, orientation, 
 	expect(Math.min(...white)).toBeGreaterThan(240);
 	expect(Math.max(...white) - Math.min(...white)).toBeLessThan(10);
 	// Bayer DNG files develop through the same loader; the second is lossless JPEG, rotated, and cropped.
-	await load("bayer.dng");
+	await load("bayer.dng", "src/lib/camera-raw/fixtures");
 	expect((await readImage(page)).size).toEqual([64, 48]);
-	await load("bayer-ljpeg.dng");
+	await load("bayer-ljpeg.dng", "src/lib/camera-raw/fixtures");
 	expect((await readImage(page)).size).toEqual([44, 56]);
 	await load("rgb8-jpeg.tif");
 	await expect(

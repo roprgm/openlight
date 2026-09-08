@@ -1,4 +1,4 @@
-import { prepareDng } from "@/lib/tiff-gpu/dng";
+import { prepareDng } from "@/lib/camera-raw/dng";
 
 self.onmessage = async ({ data }: MessageEvent<Blob>) => {
 	try {
