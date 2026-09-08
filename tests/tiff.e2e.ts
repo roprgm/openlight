@@ -50,8 +50,13 @@ test("TIFF preserve samples, color, orientation, alpha and HDR", async ({
 			}
 		});
 	}
-	await test.step("reject invalid floats and recover", async () => {
-		for (const name of ["nonfinite.tif", "overflow.tif"]) {
+	await test.step("reject invalid samples and compressed sizes, then recover", async () => {
+		for (const name of [
+			"nonfinite.tif",
+			"overflow.tif",
+			"deflate-overflow.tif",
+			"deflate-truncated.tif",
+		]) {
 			const bytes = [...(await readFile(`${directory}/${name}`))];
 			await page.evaluate(
 				({ bytes, name }) =>

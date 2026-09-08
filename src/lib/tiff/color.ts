@@ -1,12 +1,5 @@
-import {
-	adaptation,
-	d50,
-	diagonal,
-	inverse,
-	multiply,
-	srgbToWorking,
-	xyzToWorking,
-} from "@/lib/color";
+import { mat3, vec3 } from "gl-matrix";
+import { adaptation, d50, srgbToWorking, xyzToWorking } from "@/lib/color";
 import { check, type Directory } from "./tiff";
 
 const curveSize = 4096;
@@ -122,14 +115,17 @@ function icc(bytes: number[]) {
 	const columns = gray
 		? [d50, [0, 0, 0], [0, 0, 0]]
 		: [xyz("rXYZ"), xyz("gXYZ"), xyz("bXYZ")];
-	const matrix = Array.from(
-		{ length: 9 },
-		(_, i) => columns[i % 3][Math.floor(i / 3)],
-	);
+	const matrix = columns.flat();
+	mat3.multiply(matrix, adaptation(d50), matrix);
+	mat3.multiply(matrix, xyzToWorking, matrix);
 	return {
-		matrix: multiply(multiply(xyzToWorking, adaptation(d50)), matrix),
+		matrix,
 		curves: curves(functions),
 	};
+}
+
+function xyToXyz([x, y]: number[]) {
+	return [x / y, 1, (1 - x - y) / y];
 }
 
 export function imageColor(image: Directory) {
@@ -140,21 +136,17 @@ export function imageColor(image: Directory) {
 		white = image.get(318);
 	let matrix = srgbToWorking;
 	if (primaries.length === 6 && white.length === 2) {
-		const basis = [0, 1, 2].flatMap((row) =>
-			[0, 1, 2].map((c) =>
-				row === 0
-					? primaries[c * 2] / primaries[c * 2 + 1]
-					: row === 1
-						? 1
-						: (1 - primaries[c * 2] - primaries[c * 2 + 1]) /
-							primaries[c * 2 + 1],
-			),
+		const basis = [0, 2, 4].flatMap((i) => xyToXyz(primaries.slice(i, i + 2)));
+		const xyz = xyToXyz(white);
+		const inverse: number[] = [];
+		check(
+			Math.abs(mat3.determinant(basis)) >= 1e-10 && mat3.invert(inverse, basis),
+			"Singular image color matrix.",
 		);
-		const xyz = [white[0] / white[1], 1, (1 - white[0] - white[1]) / white[1]];
-		matrix = multiply(
-			multiply(xyzToWorking, adaptation(xyz)),
-			multiply(basis, diagonal(multiply(inverse(basis), xyz))),
-		);
+		const scale = vec3.transformMat3([], xyz, inverse);
+		matrix = basis.map((v, i) => v * scale[Math.floor(i / 3)]);
+		mat3.multiply(matrix, adaptation(xyz), matrix);
+		mat3.multiply(matrix, xyzToWorking, matrix);
 	}
 	check(
 		image.one(339, 1) !== 3 || primaries.length === 6,

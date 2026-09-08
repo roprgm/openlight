@@ -158,10 +158,7 @@ export function createRasterImporter(gpu: Gpu) {
 				photo: raster.photo,
 				alpha: raster.alpha,
 				maximum: format === 3 ? 1 : 2 ** bits - 1,
-				matrix: Array.from(
-					{ length: 9 },
-					(_, i) => matrix[(i % 3) * 3 + Math.floor(i / 3)],
-				),
+				matrix,
 			};
 			const output = image;
 			frame(gpu, (f) =>

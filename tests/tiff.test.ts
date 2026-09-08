@@ -29,6 +29,20 @@ test("TIFF directory traversal, decompression and profiles are bounded and deter
 	const big = bytes.slice();
 	new DataView(big.buffer).setUint16(2, 43, true);
 	expect(() => new Tiff(big)).toThrow("BigTIFF");
+	const primaries = await fixture("rgb8-lzw-p3.tif");
+	const p3 = new Tiff(primaries).directories[0];
+	const decoded = await decodeTiff(primaries);
+	expect(
+		new Bun.CryptoHasher("sha256").update(decoded.chunks[0].data).digest("hex"),
+	).toBe("f70eb9615501f85830a26cd867bc85370bef16b76e3266c5d290547c0281fa8f");
+	// Repeated primaries cannot define an invertible color space.
+	const primaryStart = p3.offsets.get(319) ?? 0;
+	primaries.copyWithin(primaryStart + 16, primaryStart, primaryStart + 16);
+	primaries.copyWithin(primaryStart + 32, primaryStart, primaryStart + 16);
+	await expect(decodeTiff(primaries)).rejects.toThrow("matrix");
+	expect(
+		await decompress(new Uint8Array([128, 255, 7, 0, 9]), 32773, 3),
+	).toEqual(new Uint8Array([7, 7, 9]));
 	await expect(decompress(new Uint8Array([127, 0]), 32773, 1)).rejects.toThrow(
 		"PackBits",
 	);
