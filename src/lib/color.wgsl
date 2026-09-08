@@ -23,7 +23,24 @@ export const rec2020ToSrgb = mat3x3f(
   -0.0728, -0.0083, 1.1187,
 );
 
-/** Working space to what the screen shows: sRGB, clipped to its gamut, encoded. */
+/**
+ * Working space to what the screen shows: sRGB, brought into its gamut, encoded. Colors the screen
+ * cannot show slide toward their own luminance until they fit, so bright saturated light rolls off to
+ * white and hue holds, instead of each channel clipping on its own into cyan, magenta, or yellow.
+ */
 export fn display(working: vec3f) -> vec3f {
-  return linearToSrgb3(clamp(rec2020ToSrgb * working, vec3f(0.0), vec3f(1.0)));
+  let light = luminance(working);
+  if (light >= 1.0) {
+    return vec3f(1.0);
+  }
+  var rgb = rec2020ToSrgb * working;
+  let low = min(rgb.r, min(rgb.g, rgb.b));
+  if (low < 0.0 && light > 0.0) {
+    rgb = mix(rgb, vec3f(light), -low / (light - low));
+  }
+  let high = max(rgb.r, max(rgb.g, rgb.b));
+  if (high > 1.0) {
+    rgb = mix(rgb, vec3f(light), (high - 1.0) / (high - light));
+  }
+  return linearToSrgb3(clamp(rgb, vec3f(0.0), vec3f(1.0)));
 }

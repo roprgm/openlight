@@ -57,7 +57,7 @@ All React bindings come from `vgpu-react`; everything else comes from `vgpu`.
 - The working space is linear Rec.2020 in `rgba16float`. Decoders convert into it, the editor shader converts out of it; nothing in between assumes a format or primaries, so both can change (an 8-bit variant is planned).
 - `lib/adjustments/adjustments.wgsl` works in that space; its `Adjustments` struct mirrors the TypeScript type in the UI's units, and its constants were fitted against reference exports; treat them as data, not formulas to tidy.
 - `lib/decode` converts every format into the working space. Browser-decoded formats go through `linearize`. TIFF uses `lib/tiff-gpu`, which returns a linear Rec.2020 target on its own: `prepareTiff` (directory, color profile, CPU codecs) runs in the worker and `uploadTiff` does the rest on the GPU. Reuse `workerDecoder` for decoders to come (16-bit PNG, RAW).
-- Samples above 1.0 (HDR) keep their headroom through exposure, curves, and vibrance; negatives clip at exposure as before, so wide-gamut noise cannot be amplified into colored speckles.
+- Samples above 1.0 (HDR) keep their headroom through exposure, curves, and vibrance; negatives clip at exposure. Exposure scales all channels by one luminance gain so hue holds, and `display()` in `lib/color.wgsl` maps out-of-gamut colors toward their luminance, so bright saturated light rolls off to white instead of clipping per channel.
 
 ## Testing
 
