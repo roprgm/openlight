@@ -8,7 +8,7 @@ fn lookup(linear: f32) -> f32 {
   let last = arrayLength(&curve) - 1u;
   let position = clamp(linearToSrgb(linear), 0.0, 1.0) * f32(last);
   let lo = u32(position);
-  return srgbToLinear(mix(curve[lo], curve[min(lo + 1u, last)], fract(position)));
+  return linear - clamp(linear, 0.0, 1.0) + srgbToLinear(mix(curve[lo], curve[min(lo + 1u, last)], fract(position)));
 }
 
 // Film-like tone mapping: interpolate the middle channel between mapped extremes in linear RGB.
@@ -25,5 +25,5 @@ fn tone(color: vec3f) -> vec3f {
 
 @fragment fn fs_main(@builtin(position) position: vec4f) -> @location(0) vec4f {
   let input = textureLoad(source, vec2i(position.xy), 0);
-  return vec4f(tone(clamp(input.rgb, vec3f(0.0), vec3f(1.0))), input.a);
+  return vec4f(tone(input.rgb), input.a);
 }

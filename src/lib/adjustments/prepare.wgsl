@@ -15,10 +15,10 @@ export struct Adjustments {
 fn adjustExposure(color: vec3f, stops: f32) -> vec3f {
   let bounded = clamp(color, vec3f(0.0), vec3f(1.0));
   if stops < 0.0 {
-    return exp2(stops * 1.09) * pow(bounded, vec3f(exp2(-stops * 0.14)));
+    return (color - bounded) * exp2(stops) + exp2(stops * 1.09) * pow(bounded, vec3f(exp2(-stops * 0.14)));
   }
   let gain = mix(vec2f(1.11, -0.11) * min(stops, 1.0), vec2f(4.05, -0.63), max(stops - 1.0, 0.0) / 4.0);
-  return 1.0 - pow(1.0 - pow(bounded, vec3f(exp2(gain.y))), vec3f(exp2(gain.x)));
+  return (color - bounded) * exp2(stops) + 1.0 - pow(1.0 - pow(bounded, vec3f(exp2(gain.y))), vec3f(exp2(gain.x)));
 }
 
 fn adjustWhiteBalance(color: vec3f, temperature: f32, tint: f32) -> vec3f {

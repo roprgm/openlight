@@ -36,3 +36,10 @@ Run `bun run check` to format and lint, `bun run build` to type-check and build,
 ## License
 
 [MIT](LICENSE)
+
+TIFF import supports 8/16/32-bit unsigned samples and 16/32-bit floating-point HDR,
+including strips, tiles, alpha, orientation, PackBits/LZW/Deflate and matrix/TRC
+ICC profiles. JPEG-compressed TIFF, BigTIFF and ICC lookup-table profiles are
+not supported. Untagged integer TIFF uses sRGB; floating-point TIFF needs a
+profile or explicit primaries. Decoding lives in `src/lib/tiff`; samples stay
+in linear Rec.2020 `rgba16float` through editing, with display clipping deferred.

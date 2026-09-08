@@ -1,6 +1,6 @@
 import type { Gpu } from "vgpu";
 import type { Workspace } from "@/app/workspace";
-import decode, { canDecode } from "@/lib/decode";
+import { canDecode, createDecoder } from "@/lib/decode";
 import { createDocument } from "@/lib/editor/document";
 import { createResources } from "@/lib/editor/document/resources";
 import { defaultAdjustments } from "@/lib/editor/scene";
@@ -9,6 +9,7 @@ import { defaultCurve } from "@/lib/tone-curves/curve";
 import type { FileLoader } from "./registry";
 
 export function createImageLoader(gpu: Gpu, workspace: Workspace): FileLoader {
+	const decode = createDecoder(gpu);
 	return {
 		kind: "document",
 		accepts: canDecode,
@@ -17,7 +18,7 @@ export function createImageLoader(gpu: Gpu, workspace: Workspace): FileLoader {
 				throw new Error("loadImage requires a File.");
 			}
 			await workspace.open(file.name, async () => {
-				const image = await decode(gpu, file);
+				const { image } = await decode(file);
 				const resources = createResources();
 				const source = resources.add(file, image);
 				return createDocument(
