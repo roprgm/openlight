@@ -1,6 +1,6 @@
 /**
- * Lossless JPEG (ITU T.81 process 14) as DNG and Canon store it: Huffman-coded differences against
- * one of seven predictors, up to 16 bits per sample. Samples come out as little-endian 16-bit values,
+ * Lossless JPEG (ITU T.81 process 14, TIFF compression 7): Huffman-coded differences against one of
+ * seven predictors, up to 16 bits per sample. Samples come out as little-endian 16-bit values,
  * components interleaved, so a tile encoded as two half-width components lands in raster order.
  */
 

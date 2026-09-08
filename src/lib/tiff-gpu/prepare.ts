@@ -5,7 +5,7 @@ import { type Chunk, parseTiff, type TiffInfo } from "./ifd";
 export type PrepareOptions = {
 	/** Linear RGB primaries of the output; Rec.2020 by default, which holds every photo gamut. `none` keeps sample values as they are. */
 	colorSpace?: ColorSpace | "none";
-	/** Layout to decode instead of the file's first image, for example a DNG SubIFD. */
+	/** Layout to decode instead of the file's first image, such as a SubIFD. */
 	image?: TiffInfo;
 };
 
@@ -20,7 +20,7 @@ export type Prepared = {
 	matrix: number[];
 };
 
-/** Photometric interpretations the unpack pass understands: gray, RGB, palette, and camera raw mosaics. */
+/** Photometric interpretations the unpack pass understands: gray, RGB, palette, and TIFF/EP sensor mosaics. */
 const photometrics = [0, 1, 2, 3, 32803, 34892];
 
 export function rowBytes(info: TiffInfo, width: number) {
@@ -28,7 +28,7 @@ export function rowBytes(info: TiffInfo, width: number) {
 	return Math.ceil((width * stride * info.bitsPerSample) / 8);
 }
 
-/** Samples that are already linear light: floats and camera raw data. */
+/** Samples that are already linear light: floats and sensor data. */
 export const isLinear = (info: TiffInfo) =>
 	info.sampleFormat === 3 || info.photometric >= 32803;
 

@@ -11,7 +11,7 @@ const image = await decodeTiff(gpu, await file.arrayBuffer());
 // a vgpu Target: rgba16float, linear Rec.2020 by default
 ```
 
-Options: `colorSpace` picks the output primaries, `"rec2020"` (default, holds every photo gamut), `"srgb"`, `"display-p3"`, or `"none"` to keep sample values as they are; `format` can be `"rgba32float"` to keep those values exact; `image` decodes a layout other than the first, such as a DNG SubIFD. `prepareTiff(bytes, options)` is the CPU half and runs in a worker, returning transferable buffers; `uploadTiff(gpu, prepared, options)` is the GPU half and returns synchronously once its work is queued.
+Options: `colorSpace` picks the output primaries, `"rec2020"` (default, holds every photo gamut), `"srgb"`, `"display-p3"`, or `"none"` to keep sample values as they are; `format` can be `"rgba32float"` to keep those values exact; `image` decodes a layout other than the first, such as a SubIFD. `prepareTiff(bytes, options)` is the CPU half and runs in a worker, returning transferable buffers; `uploadTiff(gpu, prepared, options)` is the GPU half and returns synchronously once its work is queued.
 
 Color comes from the file's ICC profile when it is the matrix/TRC kind every photo editor writes, otherwise samples are treated as sRGB; float samples are taken as linear. Values above 1.0 and below 0.0 pass through.
 
@@ -21,7 +21,7 @@ Color comes from the file's ICC profile when it is the matrix/TRC kind every pho
 | --- | --- |
 | Container | TIFF and BigTIFF, both byte orders, strips and tiles, chunky and planar, first image |
 | Samples | Unsigned integers of any depth up to 32 bits, packed or byte-aligned; 16, 32, 64-bit floats |
-| Color | RGB, grayscale (black or white is zero), palette, camera raw mosaics, alpha as an extra sample |
+| Color | RGB, grayscale (black or white is zero), palette, TIFF/EP sensor mosaics (CFA, linear raw), alpha as an extra sample |
 | Compression | None, LZW, Deflate (8 and 32946), PackBits, lossless JPEG (7) |
 | Predictors | Horizontal (GPU) and floating point (CPU) |
 
@@ -47,13 +47,9 @@ Compressed files spend their time in the CPU codec. GPU kernels for LZW and Defl
 
 Run the benchmark on your own files with `bun run --preload ./tests/setup.ts src/lib/tiff-gpu/bench.ts /folder/of/tiffs`.
 
-## Building a RAW loader on top
+## Building on it
 
-Camera raw formats are TIFF containers, so `lib/camera-raw` is a few pieces on top of this one, and native formats would add to it:
-
-- `readTiff(bytes)` lists every directory with its SubIFDs and gives typed access to any tag, so a DNG loader can find the raw image (photometric CFA or linear raw) and read its black level, white level, and color matrices. `parseTiff(bytes, directory)` turns that directory into a layout, passed to `prepareTiff` as `image`.
-- Codecs are a table keyed by compression code in `codecs.ts`; lossless JPEG (code 7) is one entry away.
-- Raw mosaics decode as gray with `colorSpace: "none"` and `format: "rgba32float"`, which yields the exact sample values in a target; demosaicing and camera color then run as passes of their own.
+`readTiff(bytes)` lists every directory with its SubIFDs and gives typed access to any tag; `parseTiff(bytes, directory)` turns a chosen directory into a layout that `prepareTiff` takes as `image`. Codecs are a table keyed by compression code in `codecs.ts`. Sensor mosaics decode as gray with `colorSpace: "none"` and `format: "rgba32float"`, which yields exact sample values for passes of their own. `lib/camera-raw` is built this way.
 
 ## Tests
 

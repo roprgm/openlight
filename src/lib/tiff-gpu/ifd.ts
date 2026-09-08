@@ -5,7 +5,7 @@ export type Directory = { tags: Map<number, Tag>; subdirectories: Directory[] };
 
 export type Tiff = {
 	littleEndian: boolean;
-	/** Image directories in file order, each with its SubIFDs; DNG keeps the raw image in a SubIFD of the first. */
+	/** Image directories in file order, each with its SubIFDs. */
 	directories: Directory[];
 	/** A tag's values by type: numbers, rationals divided, or text for ASCII. */
 	value(directory: Directory, tag: number): number[] | string | undefined;

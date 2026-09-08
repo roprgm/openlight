@@ -128,7 +128,7 @@ export type Codec = (
 	output: Uint8Array,
 ) => void | Promise<void>;
 
-/** Decoders by TIFF compression code; a RAW loader adds its own here. */
+/** Decoders by TIFF compression code; further codecs register here. */
 export const codecs: Record<number, Codec> = {
 	1: (input, output) => output.set(input.subarray(0, output.length)),
 	5: decodeLzw,
