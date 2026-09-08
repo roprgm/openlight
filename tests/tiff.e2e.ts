@@ -9,8 +9,8 @@ test("TIFF files open through the loader with their color, orientation, and head
 }) => {
 	await page.goto("/");
 	await page.waitForFunction(() => window.openlight);
-	const load = async (name: string) => {
-		const bytes = [...(await readFile(`${directory}/${name}`))];
+	const load = async (name: string, folder = directory) => {
+		const bytes = [...(await readFile(`${folder}/${name}`))];
 		await page.evaluate(
 			({ bytes, name }) =>
 				window.openlight.loadImage(new File([new Uint8Array(bytes)], name)),
@@ -48,6 +48,22 @@ test("TIFF files open through the loader with their color, orientation, and head
 	expect(recovered[4]).toBeLessThan(150);
 	expect(recovered[5]).toBeGreaterThan(recovered[4]);
 	expect(recovered[6]).toBeGreaterThan(240);
+	// Linear sRGB [0.02, 0.08, 0.8]; scalar exposure and the constant-luminance gamut intersection.
+	await load("blue-float.tif", "tests/fixtures");
+	for (const [exposure, expected] of [
+		[0, [39, 80, 231]],
+		[2, [170, 178, 255]],
+		[5, [254, 254, 255]],
+	] as const) {
+		await page.evaluate(
+			(exposure) => window.openlight.setAdjustments({ exposure }),
+			exposure,
+		);
+		const { center } = await readImage(page);
+		for (const [channel, value] of expected.entries()) {
+			expect(Math.abs(center[channel] - value)).toBeLessThanOrEqual(2);
+		}
+	}
 	await load("rgb8-jpeg.tif");
 	await expect(
 		page.getByText("Couldn't open rgb8-jpeg.tif:", { exact: false }),
