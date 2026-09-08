@@ -22,6 +22,8 @@ jobs:
         with:
           bun-version: 1.3.2
       - run: bun install --frozen-lockfile
+      - name: Software WebGPU for tiff-gpu tests
+        run: sudo apt-get install -y mesa-vulkan-drivers
       - name: Lint and format
         run: bunx --no-install biome ci .
       - name: Tests

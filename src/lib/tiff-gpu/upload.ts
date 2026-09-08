@@ -1,5 +1,15 @@
-import type { Buffer, Texture } from "@vgpu/core";
-import { compute, type Gpu } from "vgpu";
+import type { Buffer } from "@vgpu/core";
+import {
+	type Compute,
+	compute,
+	type Effect,
+	effect,
+	frame,
+	type Gpu,
+	type Target,
+	target,
+} from "vgpu";
+import blitShader from "./blit.wgsl";
 import inflateShader from "./inflate.wgsl";
 import lzwShader from "./lzw.wgsl";
 import { offsetsOf, type Prepared, rowBytes } from "./prepare";
@@ -8,18 +18,8 @@ import unpackShader from "./unpack.wgsl";
 export type UploadOptions = {
 	/** Largest buffer to bind, in bytes; defaults to the device limits. */
 	limit?: number;
-};
-
-/** Scaled samples in an `rgba16uint` texture, plus what a consumer needs to interpret them. */
-export type TiffTexture = {
-	texture: Texture;
-	width: number;
-	height: number;
-	/** Samples are float16 bit patterns instead of 16-bit integers. */
-	float: boolean;
-	premultiplied: boolean;
-	orientation: number;
-	icc?: Uint8Array;
+	/** Target format; `rgba32float` keeps raw sample values exact. */
+	format?: "rgba16float" | "rgba32float";
 };
 
 type Entry = {
@@ -41,8 +41,12 @@ type Band = {
 
 const align = (n: number) => (n + 3) & ~3;
 
-/** writeBuffer takes multiples of 4: over-read up to 3 bytes of `data`, or pad at its end. */
+/**
+ * writeBuffer takes multiples of 4: over-read up to 3 bytes of `data`, or pad at its end. Offsets are
+ * passed explicitly because the Node WebGPU binding ignores a typed array view's byte offset.
+ */
 function writeBytes(
+	gpu: Gpu,
 	target: Buffer,
 	data: Uint8Array<ArrayBuffer>,
 	start: number,
@@ -51,21 +55,29 @@ function writeBytes(
 ) {
 	const stop = Math.min(align(end), data.byteLength);
 	const whole = stop - ((stop - start) & 3);
-	target.write(data.subarray(start, whole), at);
+	gpu.gpu.queue.writeBuffer(
+		target.gpu,
+		at,
+		data.buffer,
+		data.byteOffset + start,
+		whole - start,
+	);
 	if (whole < end) {
 		const tail = new Uint8Array(4);
 		tail.set(data.subarray(whole, end));
 		target.write(tail, at + whole - start);
 	}
 }
+
 const pipelines = new WeakMap<
 	Gpu,
-	Record<"lzw" | "deflate" | "unpack", ReturnType<typeof compute>>
+	{ codecs: Record<number, Compute>; unpack: Compute; blit: Effect }
 >();
 
 /**
- * Row bands that fit the buffer limit, with entries in plane, chunk row, column order: whole chunks
- * while the GPU still has to expand them, otherwise any run of rows.
+ * Row bands that fit the buffer limit, with entries in plane, chunk row, column order: whole chunks,
+ * expanded in full so no codec phrase is cut at the image edge, while the GPU still has to expand
+ * them, otherwise any run of rows.
  */
 function bands(prepared: Prepared, bytesPerRow: number, limit: number): Band[] {
 	const { info, chunks, encoded } = prepared;
@@ -98,7 +110,7 @@ function bands(prepared: Prepared, bytesPerRow: number, limit: number): Band[] {
 						entry(
 							p * perPlane + j * across + i,
 							Math.max(y, top) - top,
-							Math.min(end, top + chunkHeight) - top,
+							encoded ? chunkHeight : Math.min(end, top + chunkHeight) - top,
 						),
 					);
 				}
@@ -164,32 +176,38 @@ function bands(prepared: Prepared, bytesPerRow: number, limit: number): Band[] {
 	return result;
 }
 
-/** Expands LZW where needed and unpacks samples on the GPU, one row band at a time, into a new texture. */
+/** Expands LZW or Deflate where needed and unpacks samples on the GPU, one row band at a time, into a linear rgba16float target. */
 export function uploadTiff(
 	gpu: Gpu,
 	prepared: Prepared,
 	options: UploadOptions = {},
-): TiffTexture {
+): Target {
 	const { info, data, encoded } = prepared;
 	const device = gpu.device;
 	const shaders = pipelines.get(gpu) ?? {
-		lzw: compute(gpu, lzwShader),
-		deflate: compute(gpu, inflateShader),
+		// GPU codecs by compression code; a RAW loader adds lossless JPEG here.
+		codecs: {
+			5: compute(gpu, lzwShader),
+			8: compute(gpu, inflateShader),
+			32946: compute(gpu, inflateShader),
+		},
 		unpack: compute(gpu, unpackShader),
+		blit: effect(gpu, blitShader),
 	};
 	pipelines.set(gpu, shaders);
-	const { width, height } = info;
+	const { width, height, orientation } = info;
 	const limit = Math.min(
 		options.limit ?? Number.POSITIVE_INFINITY,
 		device.limits.maxStorageBufferBindingSize,
 		device.limits.maxBufferSize,
 	);
-	const bytesPerRow = Math.ceil((width * 8) / 256) * 256;
 	const planes = info.planar === 2 ? info.samplesPerPixel : 1;
-	const texture = device.createTexture({
-		size: [width, height],
-		format: "rgba16uint",
-		usage: ["texture_binding", "copy_dst", "copy_src"],
+	const transposed = orientation >= 5;
+	const flipped = [3, 4, 6, 7].includes(orientation);
+	const wide = options.format === "rgba32float";
+	const image = target(gpu, {
+		size: transposed ? [height, width] : [width, height],
+		format: wide ? "rgba32float" : "rgba16float",
 	});
 	const colorMap = device.createBuffer({
 		size: Math.max(4, (info.colorMap?.length ?? 0) * 4),
@@ -198,9 +216,14 @@ export function uploadTiff(
 	if (info.colorMap) {
 		colorMap.write(Uint32Array.from(info.colorMap));
 	}
+	const curves = device.createBuffer({
+		size: prepared.curves.byteLength,
+		usage: ["storage", "copy_dst"],
+	});
+	curves.write(prepared.curves);
 	const params = {
 		width,
-		height: 0,
+		height,
 		samples: info.samplesPerPixel,
 		colors: info.photometric === 2 ? 3 : 1,
 		bits: info.bitsPerSample,
@@ -210,11 +233,12 @@ export function uploadTiff(
 		planar: info.planar,
 		predictor: info.predictor,
 		palette: Number(info.photometric === 3),
-		chunksPerPlane: 0,
-		maxRows: 0,
-		rowWords: bytesPerRow / 4,
+		wide: Number(wide),
+		premultiplied: Number(info.premultiplied),
+		orientation,
+		matrix: prepared.matrix,
 	};
-	for (const band of bands(prepared, bytesPerRow, limit)) {
+	bands(prepared, width * 8, limit).forEach((band, index) => {
 		const owned: Buffer[] = [];
 		const buffer = (
 			size: number,
@@ -245,7 +269,7 @@ export function uploadTiff(
 			"copy_dst",
 		]);
 		for (const run of runs) {
-			writeBytes(input, data, run.start, run.end, run.at);
+			writeBytes(gpu, input, data, run.start, run.end, run.at);
 		}
 		let source = input;
 		let offsets = packed;
@@ -263,7 +287,7 @@ export function uploadTiff(
 					]),
 				),
 			);
-			shaders[encoded]
+			shaders.codecs[encoded]
 				.set({
 					params: { count: band.entries.length },
 					input,
@@ -279,43 +303,55 @@ export function uploadTiff(
 					offsets[i],
 					e.length,
 					e.x,
-					e.y - band.y,
+					e.y,
 					e.width,
 					e.height,
 				]),
 			),
 		);
-		const pixels = buffer(band.rows * bytesPerRow, ["storage", "copy_src"]);
+		// The band's stored rows land in a rectangle of the oriented output.
+		const along = flipped ? height - band.y - band.rows : band.y;
+		const rect = transposed
+			? [along, 0, band.rows, width]
+			: [0, along, width, band.rows];
+		const rowWords = Math.ceil((rect[2] * (wide ? 16 : 8)) / 256) * 64;
+		const pixels = buffer(rowWords * 4 * rect[3], ["storage"]);
 		const chunksPerPlane = band.entries.length / planes;
 		const maxRows = Math.max(...band.entries.map((e) => e.height));
 		shaders.unpack
 			.set({
-				params: { ...params, height: band.rows, chunksPerPlane, maxRows },
+				params: {
+					...params,
+					chunksPerPlane,
+					maxRows,
+					rowWords,
+					origin: [rect[0], rect[1]],
+				},
 				data: source,
 				chunks: table,
 				colorMap,
+				curves,
 				output: pixels,
 			})
 			.dispatch(Math.ceil((chunksPerPlane * maxRows) / 64));
-		const encoder = gpu.gpu.createCommandEncoder();
-		encoder.copyBufferToTexture(
-			{ buffer: pixels.gpu, bytesPerRow, rowsPerImage: band.rows },
-			{ texture: texture.gpu, origin: [0, band.y] },
-			[width, band.rows],
-		);
-		gpu.gpu.queue.submit([encoder.finish()]);
+		frame(gpu, (f) => {
+			f.pass(
+				{
+					target: image,
+					clear: index === 0,
+					scissor: [rect[0], rect[1], rect[2], rect[3]],
+				},
+				shaders.blit.set({
+					rect: { origin: [rect[0], rect[1]], rowWords, wide: Number(wide) },
+					pixels,
+				}),
+			);
+		});
 		for (const b of owned) {
 			b.dispose();
 		}
-	}
+	});
 	colorMap.dispose();
-	return {
-		texture,
-		width,
-		height,
-		float: info.sampleFormat === 3,
-		premultiplied: info.premultiplied,
-		orientation: info.orientation,
-		icc: info.icc,
-	};
+	curves.dispose();
+	return image;
 }

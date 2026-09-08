@@ -2,7 +2,6 @@ import type { Gpu, Target } from "vgpu";
 import { uploadTiff } from "@/lib/tiff-gpu";
 import { decodeHeic } from "./heic";
 import linearize from "./linearize";
-import { importRaster } from "./raster";
 import decodeSvg from "./svg";
 import type { Decoded, Decoder } from "./types";
 
@@ -82,11 +81,7 @@ export default async function decode(gpu: Gpu, file: File): Promise<Target> {
 	}
 	const decoder = await format.load();
 	const decoded = await decoder(file);
-	if (!("chunks" in decoded)) {
-		return linearize(gpu, decoded);
-	}
-	const source = uploadTiff(gpu, decoded);
-	const image = importRaster(gpu, source);
-	source.texture.dispose();
-	return image;
+	return "chunks" in decoded
+		? uploadTiff(gpu, decoded)
+		: linearize(gpu, decoded);
 }

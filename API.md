@@ -84,5 +84,3 @@ Each edit creates an undo step unless a group is open. Preview changes are outsi
 `getState()` returns a detached snapshot containing `file`, `documentId`, `size`, `frame`, `adjustments`, `toneCurve`, `preview`, and `history`. `file` is the filename, and `history` contains `undoCount` and `redoCount`.
 
 Without a document, `documentId`, `size`, `frame`, and `preview` are undefined. Adjustments and the tone curve use their defaults, and history counts are zero. Mutating the snapshot does not edit the document.
-
-`readSourcePixels()` returns the decoded image as linear Rec.2020 `Float32Array` samples, four per pixel in row order, before any edits. Values can be negative or above one.

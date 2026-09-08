@@ -6,7 +6,7 @@ if (process.platform !== "darwin") {
 }
 
 export default defineConfig({
-	testDir: ".",
+	testDir: "./tests",
 	testMatch: "**/*.e2e.ts",
 	use: {
 		channel: "chromium",

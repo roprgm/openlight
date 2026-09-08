@@ -120,3 +120,20 @@ export function undoFloatPrediction(
 		}
 	}
 }
+
+export type Codec = (
+	input: Uint8Array<ArrayBuffer>,
+	output: Uint8Array,
+) => void | Promise<void>;
+
+/** CPU decoders by TIFF compression code. A RAW loader adds its own here and, with a kernel, in `upload.ts`. */
+export const codecs: Record<number, Codec> = {
+	1: (input, output) => output.set(input.subarray(0, output.length)),
+	5: decodeLzw,
+	8: inflate,
+	32946: inflate,
+	32773: decodePackBits,
+};
+
+/** Compression codes that also have a GPU kernel. */
+export const gpuCodecs = new Set([5, 8, 32946]);

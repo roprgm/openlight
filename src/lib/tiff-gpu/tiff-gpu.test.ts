@@ -1,9 +1,30 @@
-import { expect, test } from "bun:test";
+import { afterAll, expect, test } from "bun:test";
+import { Readable, Writable } from "node:stream";
+import { createDeflate, createInflate, deflateSync } from "node:zlib";
+import { init } from "vgpu/node";
 import { decodeLzw, decodePackBits, inflate } from "./codecs";
-import { parseTiff, prepareTiff } from "./index";
+import { readProfile } from "./color";
+import { parseTiff, prepareTiff, readTiff } from "./index";
+import { benchmark, decodeAt, inflateOnGpu } from "./testing";
 
 const fixture = (name: string) =>
 	Bun.file(`${import.meta.dir}/fixtures/${name}`).arrayBuffer();
+
+// Bun lacks the compression stream globals the CPU codecs use; zlib streams stand in.
+const webStream = (create: () => import("node:stream").Duplex) =>
+	class {
+		readable = Readable.toWeb(create()) as unknown as ReadableStream;
+		writable: WritableStream;
+		constructor() {
+			const stream = create();
+			this.readable = Readable.toWeb(stream) as unknown as ReadableStream;
+			this.writable = Writable.toWeb(stream);
+		}
+	};
+Object.assign(globalThis, {
+	CompressionStream: webStream(createDeflate),
+	DecompressionStream: webStream(createInflate),
+});
 const strip = (
 	buffer: ArrayBuffer,
 	chunk: { offset: number; length: number },
@@ -11,6 +32,11 @@ const strip = (
 
 test("directories describe strips, tiles, planes, BigTIFF, palettes, and profiles", async () => {
 	const plain = parseTiff(await fixture("rgb16-le.tif"));
+	const tiff = readTiff(await fixture("rgb16-prophoto.tif"));
+	expect(tiff.directories).toHaveLength(1);
+	expect(tiff.value(tiff.directories[0], 256)).toEqual([19]);
+	expect(tiff.value(tiff.directories[0], 305)).toMatch(/^tifffile/);
+	expect(tiff.bytes(tiff.directories[0], 34675)?.length).toBeGreaterThan(128);
 	expect(plain).toMatchObject({
 		width: 19,
 		height: 17,
@@ -82,12 +108,16 @@ test("CPU codecs reproduce uncompressed strips", async () => {
 	expect(restored).toEqual(source);
 });
 
-test("prepare decodes on the CPU or hands parallel chunks to the GPU", async () => {
+test("prepare decodes on the CPU or hands parallel chunks to the GPU, with the file's color", async () => {
 	const file = await fixture("lzw-strips.tif");
 	const parallel = await prepareTiff(file);
-	expect(parallel.encoded).toBe("lzw");
+	expect(parallel.encoded).toBe(5);
 	expect(parallel.data.byteLength).toBe(file.byteLength);
 	expect(parallel.chunks).toHaveLength(130 * 6);
+	expect(parallel.curves).toHaveLength(3 * 1024);
+	expect(parallel.matrix.map((v) => Math.round(v * 100) / 100)).toEqual([
+		0.63, 0.07, 0.02, 0.33, 0.92, 0.09, 0.04, 0.01, 0.9,
+	]);
 	const serial = await prepareTiff(file, { gpuChunks: 1000 });
 	expect(serial.encoded).toBe(false);
 	expect([...new Uint16Array(serial.data.buffer, serial.chunks[0], 3)]).toEqual(
@@ -103,7 +133,143 @@ test("prepare decodes on the CPU or hands parallel chunks to the GPU", async () 
 	expect([half.info.predictor, ...half.data.subarray(0, 2)]).toEqual([
 		1, 0x00, 0xb0,
 	]);
+	expect(half.curves[512]).toBeCloseTo(512 / 1023, 6);
+	const srgb = await prepareTiff(await fixture("rgb16-le.tif"), {
+		colorSpace: "srgb",
+	});
+	expect(srgb.matrix.map((v) => Math.round(v * 100) / 100 + 0)).toEqual([
+		1, 0, 0, 0, 1, 0, 0, 0, 1,
+	]);
 	await expect(prepareTiff(await fixture("rgb8-jpeg.tif"))).rejects.toThrow(
 		"Unsupported TIFF",
 	);
 });
+
+test("profiles yield colorants and curves; anything else falls back to sRGB", async () => {
+	const prophoto = readProfile(
+		parseTiff(await fixture("rgb16-prophoto.tif")).icc ?? new Uint8Array(),
+	);
+	expect(
+		[...(prophoto?.colorants ?? [])].map((v) => Math.round(v * 1e4) / 1e4),
+	).toEqual([0.7977, 0.288, 0, 0.1352, 0.7119, 0, 0.0313, 0.0001, 0.8249]);
+	expect(prophoto?.curves[1](0.5)).toBeCloseTo(0.5 ** (461 / 256), 6);
+	const table = readProfile(
+		parseTiff(await fixture("rgb8-srgb-table.tif")).icc ?? new Uint8Array(),
+	);
+	expect(table?.curves[2](128 / 255)).toBeCloseTo(0.2158605, 4);
+	const gray = readProfile(
+		parseTiff(await fixture("gray16-para.tif")).icc ?? new Uint8Array(),
+	);
+	expect(gray?.curves[0](0.5)).toBeCloseTo(0.2140411, 5);
+	expect(readProfile(new Uint8Array(200))).toBeUndefined();
+	expect(
+		readProfile(new Uint8Array(await fixture("rgb16-le.tif"))),
+	).toBeUndefined();
+	const untagged = await prepareTiff(await fixture("gray16-para.tif"));
+	expect(
+		untagged.matrix.slice(0, 3).map((v) => Math.round(v * 100) / 100),
+	).toEqual([1, 1, 1]);
+});
+
+const gpu = await init().catch((error) => {
+	console.warn(`Skipping GPU tests: ${error}`);
+	return undefined;
+});
+afterAll(() => gpu?.dispose());
+
+type Reference = {
+	name: string;
+	size: number[];
+	tolerance: number;
+	points: { x: number; y: number; rgba: number[] }[];
+};
+const banded = [
+	"rgb16-le.tif",
+	"lzw-strips.tif",
+	"lzw-tiles.tif",
+	"rgb16-planar-tiled.tif",
+	"palette8.tif",
+	"half-predictor.tif",
+	"orientation-6.tif",
+];
+
+test.skipIf(!gpu)(
+	"GPU inflate handles stored, fixed, and dynamic blocks",
+	async () => {
+		if (!gpu) return;
+		const sources = [50, 700, 5000, 70000].flatMap((size) => [
+			Uint8Array.from({ length: size }, (_, i) => (i * 7919) % 256),
+			Uint8Array.from({ length: size }, (_, i) =>
+				"the quick brown fox ".charCodeAt(i % 20),
+			),
+		]);
+		const streams = sources.flatMap((source) =>
+			[0, 1, 9].map((level) => ({
+				bytes: new Uint8Array(deflateSync(source, { level })),
+				size: source.length,
+			})),
+		);
+		const results = await inflateOnGpu(gpu, streams);
+		results.forEach((result, i) => {
+			expect(result, `stream ${i}`).toEqual(sources[Math.floor(i / 3)]);
+		});
+	},
+);
+
+test.skipIf(!gpu)(
+	"every fixture decodes to its linear Rec.2020 reference, in row bands and with GPU codecs alike",
+	async () => {
+		if (!gpu) return;
+		const references: Reference[] = JSON.parse(
+			await Bun.file(`${import.meta.dir}/fixtures/reference.json`).text(),
+		);
+		const decoded = new Map<string, number[][]>();
+		for (const reference of references) {
+			const result = await decodeAt(
+				gpu,
+				await fixture(reference.name),
+				reference.points,
+			);
+			expect(result.size, reference.name).toEqual(reference.size);
+			reference.points.forEach((point, i) => {
+				point.rgba.forEach((value, channel) => {
+					expect(
+						Math.abs(result.values[i][channel] - value),
+						`${reference.name} point ${i} channel ${channel}`,
+					).toBeLessThan(reference.tolerance);
+				});
+			});
+			decoded.set(reference.name, result.values);
+		}
+		const [first, second] = decoded.get("precision16.tif") ?? [];
+		expect(second[0] - first[0]).toBeGreaterThan(0.0002);
+		// Raw values in a float32 target: exact 16-bit samples over 65535, no curve or matrix.
+		const raw = await decodeAt(
+			gpu,
+			await fixture("rgb16-le.tif"),
+			[{ x: 18, y: 16 }],
+			{ colorSpace: "none", format: "rgba32float" },
+		);
+		[54123, 56045, 57867, 65535].forEach((sample, channel) => {
+			expect(raw.values[0][channel]).toBeCloseTo(sample / 65535, 6);
+		});
+		for (const name of banded) {
+			// Tiny bands split every fixture into many uploads; a zero threshold forces LZW and Deflate onto the GPU,
+			// whose bands hold whole tile rows and need a little more room.
+			const row = await benchmark(
+				gpu,
+				await fixture(name),
+				{
+					reference: {},
+					banded: { limit: 4096 },
+					gpu: { limit: 8192, gpuChunks: 0 },
+				},
+				1,
+			);
+			expect(row, `${name} ${JSON.stringify(row)}`).toMatchObject({
+				"banded mismatches": 0,
+				"gpu mismatches": 0,
+			});
+		}
+	},
+);
