@@ -57,7 +57,7 @@ Camera raw formats are TIFF containers, so a RAW loader is a few pieces on top o
 
 ## Tests
 
-Everything the library needs lives in this folder: `fixtures/` with reference pixels, `testing.ts` with the helpers, and `tiff-gpu.test.ts`, which covers the directory reader, codecs, profiles, every fixture against its reference in linear Rec.2020, raw output, and row banding. The shaders run for real under `bun test` through vgpu's Node entry, so no page or browser is involved.
+Everything the library needs lives in this folder: `fixtures/` with reference pixels, `testing.ts` with the helpers, and `tiff-gpu.test.ts`, which covers the directory reader, codecs, profiles, every fixture against its reference in linear Rec.2020, raw output, and row banding. The shaders run for real under `bun run test:gpu` through vgpu's Node entry, so no page or browser is involved; plain `bun test` and CI skip them.
 
 ## Follow-ups
 

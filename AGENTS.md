@@ -66,4 +66,4 @@ Maintain a browser-side control API with semantic commands for loading, editing,
 
 ## Done
 
-`bun run check` formats and lints. `bun run build` type-checks. `bun run test` runs browser-free tests. `bun run test:browser` runs GPU/browser tests. Run all four after changing files and before a commit.
+`bun run check` formats and lints. `bun run build` type-checks. `bun run test` runs browser-free tests. `bun run test:gpu` also runs the shader tests of `lib/tiff-gpu` through vgpu's Node entry. `bun run test:browser` runs GPU/browser tests. Run all of them after changing files and before a commit; CI runs only the first three.

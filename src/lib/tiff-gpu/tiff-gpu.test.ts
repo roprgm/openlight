@@ -168,10 +168,13 @@ test("profiles yield colorants and curves; anything else falls back to sRGB", as
 	).toEqual([1, 1, 1]);
 });
 
-const gpu = await init().catch((error) => {
-	console.warn(`Skipping GPU tests: ${error}`);
-	return undefined;
-});
+// Shader tests run for real through vgpu's Node entry; `bun run test:gpu` opts in, so CI stays fast.
+const gpu = process.env.GPU
+	? await init().catch((error) => {
+			console.warn(`Skipping GPU tests: ${error}`);
+			return undefined;
+		})
+	: undefined;
 afterAll(() => gpu?.dispose());
 
 type Reference = {
