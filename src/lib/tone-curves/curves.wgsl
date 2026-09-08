@@ -4,13 +4,13 @@ import { linearToSrgb, srgbToLinear } from "@vgpu/wgsl-std/color";
 @group(0) @binding(1) var<storage, read> curve: array<f32>;
 
 // The graph uses sRGB transfer; input and output remain linear working RGB.
-// Samples outside 0..1 keep their distance from the curve's endpoints.
+// Samples above 1.0 keep their distance from the curve's white endpoint.
 fn lookup(linear: f32) -> f32 {
   let last = arrayLength(&curve) - 1u;
   let bounded = clamp(linear, 0.0, 1.0);
   let position = linearToSrgb(bounded) * f32(last);
   let lo = u32(position);
-  return srgbToLinear(mix(curve[lo], curve[min(lo + 1u, last)], fract(position))) + (linear - bounded);
+  return srgbToLinear(mix(curve[lo], curve[min(lo + 1u, last)], fract(position))) + max(linear - 1.0, 0.0);
 }
 
 // Film-like tone mapping: interpolate the middle channel between mapped extremes in linear RGB.

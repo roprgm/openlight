@@ -14,8 +14,8 @@ export struct Adjustments {
 // Source preparation in linear Rec.2020; retain the calibrated constants.
 fn adjustExposure(color: vec3f, stops: f32) -> vec3f {
   let bounded = clamp(color, vec3f(0.0), vec3f(1.0));
-  // Samples outside 0..1 keep their distance, scaled linearly by the exposure.
-  let headroom = (color - bounded) * exp2(stops);
+  // Samples above 1.0 keep their distance, scaled linearly by the exposure; negatives clip as before.
+  let headroom = max(color - 1.0, vec3f(0.0)) * exp2(stops);
   if stops < 0.0 {
     return headroom + exp2(stops * 1.09) * pow(bounded, vec3f(exp2(-stops * 0.14)));
   }
