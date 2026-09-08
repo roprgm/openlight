@@ -228,11 +228,11 @@ test.skipIf(!gpu)(
 			expect(raw.values[0][channel]).toBeCloseTo(sample / 65535, 6);
 		});
 		for (const name of banded) {
-			// Tiny bands split every fixture into many uploads.
+			// An 8 KB limit splits the wider fixtures into many bands; a transposed row alone pads to 256 bytes per column.
 			const row = await benchmark(
 				gpu,
 				await fixture(name),
-				{ reference: {}, banded: { limit: 4096 } },
+				{ reference: {}, banded: { limit: 8192 } },
 				1,
 			);
 			expect(row, `${name} ${JSON.stringify(row)}`).toMatchObject({

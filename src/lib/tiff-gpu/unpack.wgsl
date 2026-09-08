@@ -31,13 +31,14 @@ struct Chunk { offset: u32, length: u32, x: u32, y: u32, width: u32, height: u32
 fn byteAt(i: u32) -> u32 { return (data[i >> 2u] >> ((i & 3u) * 8u)) & 0xFFu; }
 
 // Sample bits at a byte offset plus a bit offset. Depths that are not whole bytes (1, 2, 4, 12, 14 bits)
-// form a most-significant-bit-first stream; whole-byte samples follow the file's byte order, and the
-// high word only matters for 64 bits.
+// form a most-significant-bit-first stream, read through a 40-bit window so any depth up to 32 fits at
+// any offset; whole-byte samples follow the file's byte order, and the high word only matters for 64 bits.
 fn sampleAt(byte: u32, bit: u32) -> vec2u {
   if params.bits % 8u != 0u {
     var window = 0u;
     for (var k = 0u; k < 4u; k++) { window = (window << 8u) | byteAt(byte + k); }
-    return vec2u((window >> (32u - bit - params.bits)) & ((1u << params.bits) - 1u), 0u);
+    let aligned = (window << bit) | (byteAt(byte + 4u) >> (8u - bit));
+    return vec2u(aligned >> (32u - params.bits), 0u);
   }
   let count = params.bits / 8u;
   var value = vec2u(0u);
