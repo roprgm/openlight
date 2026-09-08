@@ -29,12 +29,15 @@ test("DNG: the mosaic, its camera data, and lossless JPEG tiles", async () => {
 	expect(tiled).toMatchObject({ orientation: 6, crop: [4, 2, 56, 44] });
 	expect(tiled.image).toMatchObject({
 		compression: 7,
-		bitsPerSample: 16,
 		chunkHeight: 16,
 		across: 2,
 	});
 	const plain = await prepareDng(await fixture("bayer.dng"));
 	const jpeg = await prepareDng(await fixture("bayer-ljpeg.dng"));
+	expect(jpeg.prepared.info).toMatchObject({
+		bitsPerSample: 16,
+		littleEndian: true,
+	});
 	const samples = (
 		p: { prepared: { data: Uint8Array<ArrayBuffer>; chunks: Uint32Array } },
 		chunk: number,

@@ -15,7 +15,7 @@ export function developDng(gpu: Gpu, { prepared, raw }: PreparedDng): Target {
 		origin: [x, y],
 		size: [width, height],
 		orientation: raw.orientation,
-		scale: (1 << raw.image.bitsPerSample) - 1,
+		scale: (1 << prepared.info.bitsPerSample) - 1,
 		black: raw.black,
 		white: raw.white,
 		neutral: raw.neutral,

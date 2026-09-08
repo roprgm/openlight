@@ -100,8 +100,13 @@ export async function prepareTiff(
 	bytes: ArrayBuffer,
 	options: PrepareOptions = {},
 ): Promise<Prepared> {
-	const info = options.image ?? parseTiff(bytes);
-	check(info);
+	const layout = options.image ?? parseTiff(bytes);
+	check(layout);
+	// Lossless JPEG decodes to 16-bit little-endian samples whatever the tag says.
+	const info =
+		layout.compression === 7
+			? { ...layout, bitsPerSample: 16, littleEndian: true }
+			: layout;
 	const { chunks, compression, predictor } = info;
 	const { table: curves, matrix } = colorOf(
 		info.icc,
