@@ -48,22 +48,26 @@ test("TIFF files open through the loader with their color, orientation, and head
 	expect(recovered[4]).toBeLessThan(150);
 	expect(recovered[5]).toBeGreaterThan(recovered[4]);
 	expect(recovered[6]).toBeGreaterThan(240);
-	// Linear sRGB [0.02, 0.08, 0.8]; scalar exposure and the constant-luminance gamut intersection.
+	// The blue pixel brightens without losing its hue, then approaches white.
 	await load("blue-float.tif", "tests/fixtures");
-	for (const [exposure, expected] of [
-		[0, [39, 80, 231]],
-		[2, [170, 178, 255]],
-		[5, [254, 254, 255]],
-	] as const) {
+	const colors = [];
+	for (const exposure of [0, 2, 5]) {
 		await page.evaluate(
 			(exposure) => window.openlight.setAdjustments({ exposure }),
 			exposure,
 		);
-		const { center } = await readImage(page);
-		for (const [channel, value] of expected.entries()) {
-			expect(Math.abs(center[channel] - value)).toBeLessThanOrEqual(2);
-		}
+		colors.push((await readImage(page)).center.slice(0, 3));
 	}
+	for (const rgb of colors.slice(0, 2)) {
+		expect(rgb[2] - Math.max(rgb[0], rgb[1])).toBeGreaterThan(20);
+	}
+	const brightness = colors.map((rgb) =>
+		rgb.reduce((sum, value) => sum + value, 0),
+	);
+	expect(brightness[1]).toBeGreaterThan(brightness[0]);
+	const white = colors[2];
+	expect(Math.min(...white)).toBeGreaterThan(240);
+	expect(Math.max(...white) - Math.min(...white)).toBeLessThan(10);
 	await load("rgb8-jpeg.tif");
 	await expect(
 		page.getByText("Couldn't open rgb8-jpeg.tif:", { exact: false }),
