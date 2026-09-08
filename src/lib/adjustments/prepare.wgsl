@@ -14,9 +14,9 @@ export struct Adjustments {
 }
 
 // Source preparation in linear Rec.2020; retain the calibrated constants.
-// The fitted curve maps a gray level; a pixel scales all channels by its luminance's gain, so hue holds.
-fn exposureCurve(light: f32, stops: f32) -> f32 {
-  // Light above 1.0 keeps its headroom, scaled linearly by the exposure.
+
+// Fitted exposure of a gray level. Light above 1.0 is headroom and scales linearly with the stops.
+fn exposeGray(light: f32, stops: f32) -> f32 {
   let bounded = min(light, 1.0);
   let headroom = (light - bounded) * exp2(stops);
   if stops < 0.0 {
@@ -26,12 +26,13 @@ fn exposureCurve(light: f32, stops: f32) -> f32 {
   return headroom + 1.0 - pow(1.0 - pow(bounded, exp2(gain.y)), exp2(gain.x));
 }
 
+// Every channel scales by the gain of the pixel's luminance, so hue holds at any exposure.
+// Negatives, from wide-gamut sources or noise below black, clip here.
 fn adjustExposure(color: vec3f, stops: f32) -> vec3f {
-  // Negatives, from wide-gamut sources or noise below black, clip here as they always did.
   let clipped = max(color, vec3f(0.0));
   let light = luminance(clipped);
   if light <= 0.0 { return clipped; }
-  return clipped * (exposureCurve(light, stops) / light);
+  return clipped * (exposeGray(light, stops) / light);
 }
 
 fn adjustWhiteBalance(color: vec3f, temperature: f32, tint: f32) -> vec3f {
@@ -39,6 +40,7 @@ fn adjustWhiteBalance(color: vec3f, temperature: f32, tint: f32) -> vec3f {
     + (vec3f(1.55, 1.89, 2.93) + vec3f(-1.47, -1.05, -0.69) * temperature) * abs(temperature);
   let tintGain = (vec3f(0.53, -0.59, 1.02) + vec3f(0.64, 0.94, 1.35) * tint) * tint;
   let gain = warmth + tintGain;
+  // The fitted response covers 0..1; headroom above it passes through unchanged.
   let bounded = min(color, vec3f(1.0));
   return bounded / (bounded + (1.0 - bounded) * exp2(-gain)) + (color - bounded);
 }

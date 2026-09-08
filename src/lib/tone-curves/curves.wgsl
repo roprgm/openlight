@@ -4,7 +4,7 @@ import { linearToSrgb, srgbToLinear } from "@vgpu/wgsl-std/color";
 @group(0) @binding(1) var<storage, read> curve: array<f32>;
 
 // The graph uses sRGB transfer; input and output remain linear working RGB.
-// Samples above 1.0 keep their distance from the curve's white endpoint.
+// Headroom above 1.0 rides on the curve's white endpoint.
 fn lookup(linear: f32) -> f32 {
   let last = arrayLength(&curve) - 1u;
   let bounded = clamp(linear, 0.0, 1.0);
