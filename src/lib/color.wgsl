@@ -24,23 +24,29 @@ export const rec2020ToSrgb = mat3x3f(
 );
 
 /**
- * Working space to what the screen shows: sRGB, brought into its gamut, encoded. Colors the screen
- * cannot show slide toward their own luminance until they fit, so bright saturated light rolls off to
- * white and hue holds, instead of each channel clipping on its own into cyan, magenta, or yellow.
+ * Luminance-preserving gamut clip: a color the target cannot show slides toward the gray of its own
+ * luminance until it fits, so brightness and hue hold and only saturation is lost. This is the
+ * simplest member of the family the ACES gamut compressor belongs to; darktable and Krita offer the
+ * same clip as their "preserve luminance" mode.
  */
+fn clipToGamut(rgb: vec3f, light: f32) -> vec3f {
+  var color = rgb;
+  let low = min(color.r, min(color.g, color.b));
+  if (low < 0.0 && light > 0.0) {
+    color = mix(color, vec3f(light), -low / (light - low));
+  }
+  let high = max(color.r, max(color.g, color.b));
+  if (high > 1.0) {
+    color = mix(color, vec3f(light), (high - 1.0) / (high - light));
+  }
+  return clamp(color, vec3f(0.0), vec3f(1.0));
+}
+
+/** Working space to what the screen shows: sRGB, clipped to its gamut with hue and luminance kept, encoded. */
 export fn display(working: vec3f) -> vec3f {
   let light = luminance(working);
   if (light >= 1.0) {
     return vec3f(1.0);
   }
-  var rgb = rec2020ToSrgb * working;
-  let low = min(rgb.r, min(rgb.g, rgb.b));
-  if (low < 0.0 && light > 0.0) {
-    rgb = mix(rgb, vec3f(light), -low / (light - low));
-  }
-  let high = max(rgb.r, max(rgb.g, rgb.b));
-  if (high > 1.0) {
-    rgb = mix(rgb, vec3f(light), (high - 1.0) / (high - light));
-  }
-  return linearToSrgb3(clamp(rgb, vec3f(0.0), vec3f(1.0)));
+  return linearToSrgb3(clipToGamut(rec2020ToSrgb * working, light));
 }
