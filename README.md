@@ -37,9 +37,13 @@ Run `bun run check` to format and lint, `bun run build` to type-check and build,
 
 [MIT](LICENSE)
 
-TIFF import supports 8/16/32-bit unsigned samples and 16/32-bit floating-point HDR,
-including strips, tiles, alpha, orientation, PackBits/LZW/Deflate and matrix/TRC
-ICC profiles. JPEG-compressed TIFF, BigTIFF and ICC lookup-table profiles are
-not supported. Untagged integer TIFF uses sRGB; floating-point TIFF needs a
-profile or explicit primaries. Decoding lives in `src/lib/tiff`; samples stay
-in linear Rec.2020 `rgba16float` through editing, with display clipping deferred.
+TIFF import supports stripped 8/16-bit RGB and grayscale images, alpha,
+uncompressed or ZIP/Deflate pixels, and matrix/TRC ICC profiles. Untagged
+images use sRGB. LZW, PackBits, tiles, planar channels, rotated orientation tags,
+HDR TIFF, BigTIFF and ICC lookup-table profiles are outside this small loader's scope.
+
+`src/lib/formats/tiff/worker.ts` reads metadata with the MIT `tiff` package and decodes
+strips using native browser streams. `color.ts` prepares ICC transforms using
+`gl-matrix`; `index.ts` owns GPU upload and resources; `raster.wgsl` unpacks
+samples and applies color conversion. Editing retains linear Rec.2020
+`rgba16float` values, with display clipping deferred. Camera RAW is independent.

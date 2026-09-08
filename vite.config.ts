@@ -4,6 +4,6 @@ import react from "@vitejs/plugin-react";
 
 export default {
 	plugins: [react(), tailwindcss(), wgslVitePlugin()],
-	optimizeDeps: { include: ["gl-matrix"] },
+	optimizeDeps: { include: ["gl-matrix", "tiff"] },
 	resolve: { alias: { "@": "/src" } },
 };

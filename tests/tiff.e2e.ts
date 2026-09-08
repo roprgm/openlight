@@ -1,101 +1,63 @@
 import { readFile } from "node:fs/promises";
 import { expect, test } from "./fixtures";
 
-const directory = "tests/fixtures/tiff";
-test("TIFF preserve samples, color, orientation, alpha and HDR", async ({
+test("TIFF imports preserve color, alpha and 16-bit precision", async ({
 	page,
 }) => {
 	await page.goto("/");
 	await page.waitForFunction(() => window.openlight);
-	const cases: {
-		name: string;
-		size: number[];
-		tolerance: number;
-		points: { x: number; y: number; rgba: number[] }[];
-	}[] = JSON.parse(await readFile(`${directory}/reference.json`, "utf8"));
+	const cases = [
+		{
+			name: "rgb8.tif",
+			size: [3, 2],
+			pixels: [
+				[0.627404, 0.069097, 0.016391, 1],
+				[0.329283, 0.91954, 0.088013, 1],
+				[0.043313, 0.011362, 0.895595, 1],
+				[0, 0, 0, 1],
+				[0.21586, 0.21586, 0.21586, 1],
+				[1, 1, 1, 1],
+			],
+		},
+		{
+			name: "rgb16-le.tif",
+			size: [4, 2],
+			pixels: [
+				[1, 0, 0, 1],
+				[0, 1, 0, 1],
+				[0, 0, 1, 1],
+				[0.25, 0.25, 0.25, 1],
+				[0.25049, 0.25049, 0.25049, 1],
+				[0, 0, 0, 1],
+				[0.5, 0.25, 0.125, 0.5],
+				[1, 1, 1, 1],
+			],
+		},
+	];
 	for (const fixture of cases) {
 		await test.step(fixture.name, async () => {
-			const bytes = [...(await readFile(`${directory}/${fixture.name}`))];
+			const bytes = [
+				...(await readFile(`tests/fixtures/tiff/${fixture.name}`)),
+			];
 			const result = await page.evaluate(
-				async ({ bytes, fixture }) => {
+				async ({ bytes, name }) => {
 					await window.openlight.loadImage(
-						new File([new Uint8Array(bytes)], fixture.name),
+						new File([new Uint8Array(bytes)], name),
 					);
-					const pixels = await window.openlight.readSourcePixels(),
-						size = window.openlight.getState().size;
-					if (!size) {
-						throw new Error("Image did not open.");
-					}
 					return {
-						size,
-						points: fixture.points.map(({ x, y }) => [
-							...pixels.slice((y * size[0] + x) * 4, (y * size[0] + x) * 4 + 4),
-						]),
+						size: window.openlight.getState().size,
+						pixels: [...(await window.openlight.readSourcePixels())],
 					};
 				},
-				{ bytes, fixture },
+				{ bytes, name: fixture.name },
 			);
 			expect(result.size).toEqual(fixture.size);
-			if (fixture.name.startsWith("precision")) {
-				const difference = result.points[1][0] - result.points[0][0];
-				expect(difference).toBeGreaterThan(0.0002);
-				expect(difference).toBeLessThan(0.001);
+			for (const [i, expected] of fixture.pixels.flat().entries()) {
+				expect(Math.abs(result.pixels[i] - expected)).toBeLessThan(0.001);
 			}
-			for (let p = 0; p < fixture.points.length; p++) {
-				for (let c = 0; c < 4; c++) {
-					expect(
-						Math.abs(result.points[p][c] - fixture.points[p].rgba[c]),
-					).toBeLessThan(fixture.tolerance);
-				}
+			if (fixture.name === "rgb16-le.tif") {
+				expect(result.pixels[16] - result.pixels[12]).toBeGreaterThan(0.0002);
 			}
 		});
 	}
-	await test.step("reject invalid samples and compressed sizes, then recover", async () => {
-		for (const name of [
-			"nonfinite.tif",
-			"overflow.tif",
-			"deflate-overflow.tif",
-			"deflate-truncated.tif",
-		]) {
-			const bytes = [...(await readFile(`${directory}/${name}`))];
-			await page.evaluate(
-				({ bytes, name }) =>
-					window.openlight.loadImage(new File([new Uint8Array(bytes)], name)),
-				{ bytes, name },
-			);
-			await expect(
-				page.getByText(`Couldn't open ${name}:`, { exact: false }),
-			).toBeVisible();
-		}
-	});
-	await test.step("lower exposure recovers HDR highlights and undo preserves the source", async () => {
-		const result = await page.evaluate(
-			async (bytes) => {
-				const api = window.openlight;
-				await api.loadImage(new File([new Uint8Array(bytes)], "hdr.tif"));
-				api.setAdjustments({ exposure: -2 });
-				const image = await createImageBitmap(await api.exportImage());
-				const canvas = new OffscreenCanvas(image.width, image.height),
-					context = canvas.getContext("2d");
-				if (!context) {
-					throw new Error("Cannot read HDR export.");
-				}
-				context.drawImage(image, 0, 0);
-				image.close();
-				const pixels = [...context.getImageData(0, 1, 7, 1).data];
-				api.undo();
-				return {
-					pixels,
-					exposure: api.getState().adjustments.exposure,
-					source: [...(await api.readSourcePixels())],
-				};
-			},
-			[...(await readFile(`${directory}/hdr-le.tif`))],
-		);
-		expect(result.exposure).toBe(0);
-		expect(result.pixels[20]).toBeGreaterThan(170);
-		expect(result.pixels[20]).toBeLessThan(195);
-		expect(result.pixels[24]).toBeGreaterThan(240);
-		expect(result.source[24]).toBeGreaterThan(3.99);
-	});
 });

@@ -57,7 +57,7 @@ export function createDecoder(gpu: Gpu) {
 			throw Error(`Unsupported image: ${file.name}`);
 		}
 		if (!format.load) {
-			loader ??= import("@/lib/tiff").then((module) =>
+			loader ??= import("@/lib/formats/tiff").then((module) =>
 				module.createLoader(gpu),
 			);
 			return (await loader)(file);

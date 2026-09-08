@@ -1,21 +1,30 @@
-import { mat3, vec3 } from "gl-matrix";
+import { mat3 } from "gl-matrix";
 import { adaptation, d50, srgbToWorking, xyzToWorking } from "@/lib/color";
-import { check, type Directory } from "./tiff";
+
+function check(value: unknown, message: string): asserts value {
+	if (!value) {
+		throw new Error(message);
+	}
+}
 
 const curveSize = 4096;
-export function curves(functions: ((value: number) => number)[]) {
+function curves(functions: ((value: number) => number)[]) {
 	const data = Float32Array.from({ length: curveSize * 3 }, (_, i) =>
 		functions[Math.floor(i / curveSize)]((i % curveSize) / (curveSize - 1)),
 	);
 	check(data.every(Number.isFinite), "Invalid image transfer curve.");
 	return data;
 }
-export const linear = (v: number) => v;
+const linear = (v: number) => v;
 const srgb = (v: number) =>
 	v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
 
-function icc(bytes: number[]) {
-	const view = new DataView(Uint8Array.from(bytes).buffer);
+export function imageColor(bytes: unknown) {
+	if (bytes === undefined) {
+		return { matrix: srgbToWorking, curves: curves([srgb, srgb, srgb]) };
+	}
+	check(bytes instanceof Uint8Array, "Invalid ICC profile.");
+	const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
 	check(
 		bytes.length >= 132 &&
 			view.getUint32(0) >= 132 &&
@@ -118,68 +127,5 @@ function icc(bytes: number[]) {
 	const matrix = columns.flat();
 	mat3.multiply(matrix, adaptation(d50), matrix);
 	mat3.multiply(matrix, xyzToWorking, matrix);
-	return {
-		matrix,
-		curves: curves(functions),
-	};
-}
-
-function xyToXyz([x, y]: number[]) {
-	return [x / y, 1, (1 - x - y) / y];
-}
-
-export function imageColor(image: Directory) {
-	if (image.tags.has(34675)) {
-		return icc(image.get(34675));
-	}
-	const primaries = image.get(319),
-		white = image.get(318);
-	let matrix = srgbToWorking;
-	if (primaries.length === 6 && white.length === 2) {
-		const basis = [0, 2, 4].flatMap((i) => xyToXyz(primaries.slice(i, i + 2)));
-		const xyz = xyToXyz(white);
-		const inverse: number[] = [];
-		check(
-			Math.abs(mat3.determinant(basis)) >= 1e-10 && mat3.invert(inverse, basis),
-			"Singular image color matrix.",
-		);
-		const scale = vec3.transformMat3([], xyz, inverse);
-		matrix = basis.map((v, i) => v * scale[Math.floor(i / 3)]);
-		mat3.multiply(matrix, adaptation(xyz), matrix);
-		mat3.multiply(matrix, xyzToWorking, matrix);
-	}
-	check(
-		image.one(339, 1) !== 3 || primaries.length === 6,
-		"Floating-point TIFF needs an embedded ICC profile or explicit TIFF primaries and white point.",
-	);
-	const transfer = image.get(301),
-		bits = image.one(258, 8),
-		count = 2 ** bits;
-	if (transfer.length) {
-		check(
-			transfer.length === count || transfer.length === count * 3,
-			"Invalid TIFF transfer table.",
-		);
-		return {
-			matrix,
-			curves: curves(
-				[0, 1, 2].map((c) => (x: number) => {
-					const position = x * (count - 1),
-						lo = Math.floor(position),
-						t = position - lo,
-						offset = transfer.length === count ? 0 : c * count;
-					return (
-						(transfer[offset + lo] * (1 - t) +
-							transfer[offset + Math.min(lo + 1, count - 1)] * t) /
-						65535
-					);
-				}),
-			),
-		};
-	}
-	const transferCurve = image.one(339, 1) === 3 ? linear : srgb;
-	return {
-		matrix,
-		curves: curves([transferCurve, transferCurve, transferCurve]),
-	};
+	return { matrix, curves: curves(functions) };
 }
