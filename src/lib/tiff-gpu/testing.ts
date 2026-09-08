@@ -1,11 +1,10 @@
-import { compute, type Gpu } from "vgpu";
+import type { Gpu } from "vgpu";
 import {
 	type DecodeOptions,
 	decodeTiff,
 	prepareTiff,
 	uploadTiff,
 } from "./index";
-import inflateShader from "./inflate.wgsl";
 
 export function mismatches(a: Float32Array, b: Float32Array) {
 	let count = a.length === b.length ? 0 : Number.POSITIVE_INFINITY;
@@ -80,47 +79,4 @@ export async function decodeAt(
 	const size = [...image.size];
 	image.color.dispose();
 	return { size, values };
-}
-
-/** Runs the GPU inflater on zlib streams and returns their bytes. */
-export async function inflateOnGpu(
-	gpu: Gpu,
-	streams: { bytes: Uint8Array; size: number }[],
-) {
-	const align = (n: number) => (n + 3) & ~3;
-	const input = gpu.device.createBuffer({
-		size: align(streams.reduce((n, s) => n + align(s.bytes.length), 0)),
-		usage: ["storage", "copy_dst"],
-	});
-	const output = gpu.device.createBuffer({
-		size: align(streams.reduce((n, s) => n + align(s.size), 0)),
-		usage: ["storage", "copy_src"],
-	});
-	const jobs: number[] = [];
-	let at = 0;
-	let out = 0;
-	for (const stream of streams) {
-		const padded = new Uint8Array(align(stream.bytes.length));
-		padded.set(stream.bytes);
-		input.write(padded, at);
-		jobs.push(at, stream.bytes.length, out, stream.size);
-		at += padded.length;
-		out += align(stream.size);
-	}
-	const table = gpu.device.createBuffer({
-		size: jobs.length * 4,
-		usage: ["storage", "copy_dst"],
-	});
-	table.write(Uint32Array.from(jobs));
-	compute(gpu, inflateShader)
-		.set({ params: { count: streams.length }, input, output, jobs: table })
-		.dispatch(streams.length);
-	const bytes = new Uint8Array(await output.read(output.options.size));
-	const results = streams.map((s, i) =>
-		bytes.slice(jobs[i * 4 + 2], jobs[i * 4 + 2] + s.size),
-	);
-	for (const buffer of [input, output, table]) {
-		buffer.dispose();
-	}
-	return results;
 }

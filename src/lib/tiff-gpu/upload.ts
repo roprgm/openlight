@@ -10,9 +10,7 @@ import {
 	target,
 } from "vgpu";
 import blitShader from "./blit.wgsl";
-import inflateShader from "./inflate.wgsl";
-import lzwShader from "./lzw.wgsl";
-import { offsetsOf, type Prepared, rowBytes } from "./prepare";
+import { type Prepared, rowBytes } from "./prepare";
 import unpackShader from "./unpack.wgsl";
 
 export type UploadOptions = {
@@ -29,17 +27,11 @@ type Entry = {
 	y: number;
 	width: number;
 	height: number;
-	decoded: number;
 };
-type Band = {
-	y: number;
-	rows: number;
-	input: number;
-	decoded: number;
-	entries: Entry[];
-};
+type Band = { y: number; rows: number; entries: Entry[] };
 
 const align = (n: number) => (n + 3) & ~3;
+const pipelines = new WeakMap<Gpu, { unpack: Compute; blit: Effect }>();
 
 /**
  * writeBuffer takes multiples of 4: over-read up to 3 bytes of `data`, or pad at its end. Offsets are
@@ -69,128 +61,55 @@ function writeBytes(
 	}
 }
 
-const pipelines = new WeakMap<
-	Gpu,
-	{ codecs: Record<number, Compute>; unpack: Compute; blit: Effect }
->();
-
-/**
- * Row bands that fit the buffer limit, with entries in plane, chunk row, column order: whole chunks,
- * expanded in full so no codec phrase is cut at the image edge, while the GPU still has to expand
- * them, otherwise any run of rows.
- */
+/** Row bands that fit the buffer limit, each listing the rows it takes from every chunk in plane, chunk row, column order. */
 function bands(prepared: Prepared, bytesPerRow: number, limit: number): Band[] {
-	const { info, chunks, encoded } = prepared;
+	const { info, chunks } = prepared;
 	const { height, across, chunkHeight } = info;
 	const planes = info.planar === 2 ? info.samplesPerPixel : 1;
 	const perPlane = chunks.length / 6 / planes;
-	const groups = perPlane / across;
-	const entry = (i: number, from: number, to: number): Entry => {
-		const [offset, length, x, y, width] = chunks.subarray(i * 6, i * 6 + 5);
-		const bytes = rowBytes(info, width);
-		return encoded
-			? { offset, length, x, y, width, height: to, decoded: bytes * to }
-			: {
-					offset: offset + from * bytes,
-					length: (to - from) * bytes,
-					x,
-					y: y + from,
-					width,
-					height: to - from,
-					decoded: (to - from) * bytes,
-				};
-	};
-	const entriesFor = (from: number, to: number, y: number, end: number) => {
+	const rowInput = planes * across * rowBytes(info, chunks[4]);
+	const rowsPerBand = Math.floor(limit / Math.max(bytesPerRow, rowInput));
+	if (rowsPerBand < 1) {
+		throw new Error("TIFF row exceeds the GPU buffer limit.");
+	}
+	const result: Band[] = [];
+	for (let y = 0; y < height; y += rowsPerBand) {
+		const end = Math.min(y + rowsPerBand, height);
 		const entries: Entry[] = [];
 		for (let p = 0; p < planes; p++) {
-			for (let j = from; j < to; j++) {
+			for (let j = Math.floor(y / chunkHeight); j * chunkHeight < end; j++) {
 				const top = j * chunkHeight;
+				const from = Math.max(y, top) - top;
+				const to = Math.min(end, top + chunkHeight) - top;
 				for (let i = 0; i < across; i++) {
-					entries.push(
-						entry(
-							p * perPlane + j * across + i,
-							Math.max(y, top) - top,
-							encoded ? chunkHeight : Math.min(end, top + chunkHeight) - top,
-						),
-					);
+					const at = (p * perPlane + j * across + i) * 6;
+					const [offset, , x, chunkY, width] = chunks.subarray(at, at + 5);
+					const bytes = rowBytes(info, width);
+					entries.push({
+						offset: offset + from * bytes,
+						length: (to - from) * bytes,
+						x,
+						y: chunkY + from,
+						width,
+						height: to - from,
+					});
 				}
 			}
 		}
-		return entries;
-	};
-	const band = (y: number, rows: number, entries: Entry[]): Band => ({
-		y,
-		rows,
-		entries,
-		input: entries.reduce((n, e) => n + align(e.length), 0),
-		decoded: entries.reduce((n, e) => n + align(e.decoded), 0),
-	});
-	const fits = (b: Band) =>
-		b.input <= limit && b.decoded <= limit && b.rows * bytesPerRow <= limit;
-	const result: Band[] = [];
-	if (encoded) {
-		for (let from = 0; from < groups; ) {
-			let to = from + 1;
-			let current = band(
-				from * chunkHeight,
-				Math.min(chunkHeight, height - from * chunkHeight),
-				entriesFor(from, to, 0, height),
-			);
-			for (; to < groups; to++) {
-				const grown = band(
-					current.y,
-					Math.min((to + 1) * chunkHeight, height) - current.y,
-					entriesFor(from, to + 1, 0, height),
-				);
-				if (!fits(grown)) break;
-				current = grown;
-			}
-			result.push(current);
-			from = to;
-		}
-	} else {
-		const rowInput = planes * across * rowBytes(info, chunks[4]);
-		const rowsPerBand = Math.max(
-			1,
-			Math.floor(limit / Math.max(bytesPerRow, rowInput)),
-		);
-		for (let y = 0; y < height; y += rowsPerBand) {
-			const end = Math.min(y + rowsPerBand, height);
-			result.push(
-				band(
-					y,
-					end - y,
-					entriesFor(
-						Math.floor(y / chunkHeight),
-						Math.ceil(end / chunkHeight),
-						y,
-						end,
-					),
-				),
-			);
-		}
-	}
-	if (!result.every(fits)) {
-		throw new Error("TIFF chunk exceeds the GPU buffer limit.");
+		result.push({ y, rows: end - y, entries });
 	}
 	return result;
 }
 
-/** Expands LZW or Deflate where needed and unpacks samples on the GPU, one row band at a time, into a linear rgba16float target. */
+/** Unpacks the prepared rows on the GPU, one band at a time, into a linear target of the oriented size. */
 export function uploadTiff(
 	gpu: Gpu,
 	prepared: Prepared,
 	options: UploadOptions = {},
 ): Target {
-	const { info, data, encoded } = prepared;
+	const { info, data } = prepared;
 	const device = gpu.device;
 	const shaders = pipelines.get(gpu) ?? {
-		// GPU codecs by compression code; a RAW loader adds lossless JPEG here.
-		codecs: {
-			5: compute(gpu, lzwShader),
-			8: compute(gpu, inflateShader),
-			32946: compute(gpu, inflateShader),
-		},
 		unpack: compute(gpu, unpackShader),
 		blit: effect(gpu, blitShader),
 	};
@@ -238,16 +157,7 @@ export function uploadTiff(
 		orientation,
 		matrix: prepared.matrix,
 	};
-	bands(prepared, width * 8, limit).forEach((band, index) => {
-		const owned: Buffer[] = [];
-		const buffer = (
-			size: number,
-			usage: ("storage" | "copy_dst" | "copy_src")[],
-		) => {
-			const created = device.createBuffer({ size: align(size), usage });
-			owned.push(created);
-			return created;
-		};
+	bands(prepared, width * (wide ? 16 : 8), limit).forEach((band, index) => {
 		// Chunk bytes packed together: contiguous runs upload with one write, each starting 4-byte aligned.
 		const runs: { start: number; end: number; at: number }[] = [];
 		const packed = band.entries.map((entry) => {
@@ -264,43 +174,21 @@ export function uploadTiff(
 			return run.at + entry.offset - run.start;
 		});
 		const last = runs.at(-1);
-		const input = buffer(last ? last.at + last.end - last.start : 0, [
-			"storage",
-			"copy_dst",
-		]);
+		const input = device.createBuffer({
+			size: align(last ? last.at + last.end - last.start : 0),
+			usage: ["storage", "copy_dst"],
+		});
 		for (const run of runs) {
 			writeBytes(gpu, input, data, run.start, run.end, run.at);
 		}
-		let source = input;
-		let offsets = packed;
-		if (encoded) {
-			source = buffer(band.decoded, ["storage", "copy_dst"]);
-			offsets = offsetsOf(band.entries.map((e) => align(e.decoded)));
-			const jobs = buffer(band.entries.length * 16, ["storage", "copy_dst"]);
-			jobs.write(
-				Uint32Array.from(
-					band.entries.flatMap((e, i) => [
-						packed[i],
-						e.length,
-						offsets[i],
-						e.decoded,
-					]),
-				),
-			);
-			shaders.codecs[encoded]
-				.set({
-					params: { count: band.entries.length },
-					input,
-					output: source,
-					jobs,
-				})
-				.dispatch(band.entries.length);
-		}
-		const table = buffer(band.entries.length * 24, ["storage", "copy_dst"]);
+		const table = device.createBuffer({
+			size: band.entries.length * 24,
+			usage: ["storage", "copy_dst"],
+		});
 		table.write(
 			Uint32Array.from(
 				band.entries.flatMap((e, i) => [
-					offsets[i],
+					packed[i],
 					e.length,
 					e.x,
 					e.y,
@@ -315,7 +203,10 @@ export function uploadTiff(
 			? [along, 0, band.rows, width]
 			: [0, along, width, band.rows];
 		const rowWords = Math.ceil((rect[2] * (wide ? 16 : 8)) / 256) * 64;
-		const pixels = buffer(rowWords * 4 * rect[3], ["storage"]);
+		const pixels = device.createBuffer({
+			size: rowWords * 4 * rect[3],
+			usage: ["storage"],
+		});
 		const chunksPerPlane = band.entries.length / planes;
 		const maxRows = Math.max(...band.entries.map((e) => e.height));
 		shaders.unpack
@@ -327,7 +218,7 @@ export function uploadTiff(
 					rowWords,
 					origin: [rect[0], rect[1]],
 				},
-				data: source,
+				data: input,
 				chunks: table,
 				colorMap,
 				curves,
@@ -347,8 +238,8 @@ export function uploadTiff(
 				}),
 			);
 		});
-		for (const b of owned) {
-			b.dispose();
+		for (const buffer of [input, table, pixels]) {
+			buffer.dispose();
 		}
 	});
 	colorMap.dispose();

@@ -1,24 +1,20 @@
-import { type Codec, codecs, gpuCodecs, undoFloatPrediction } from "./codecs";
+import { codecs, undoFloatPrediction } from "./codecs";
 import { type ColorSpace, colorOf } from "./color";
 import { type Chunk, parseTiff, type TiffInfo } from "./ifd";
 
 export type PrepareOptions = {
 	/** Linear RGB primaries of the output; Rec.2020 by default, which holds every photo gamut. `none` keeps sample values as they are. */
 	colorSpace?: ColorSpace | "none";
-	/** LZW and Deflate expand on the GPU when at least this many strips or tiles can run in parallel. */
-	gpuChunks?: number;
 	/** Layout to decode instead of the file's first image, for example a DNG SubIFD. */
 	image?: TiffInfo;
 };
 
-/** CPU output: chunk bytes in `data`, either raw rows or streams the GPU expands. */
+/** CPU output: raw rows of every chunk in `data`, with the color conversion the GPU applies. */
 export type Prepared = {
 	info: TiffInfo;
 	data: Uint8Array<ArrayBuffer>;
 	/** Per chunk: offset and length in `data`, then x, y, width, height. */
 	chunks: Uint32Array<ArrayBuffer>;
-	/** Compression code the GPU still has to expand, or false for raw rows. */
-	encoded: number | false;
 	/** Transfer curves sampled over 0..1, three channels, and the matrix into the output primaries. */
 	curves: Float32Array<ArrayBuffer>;
 	matrix: number[];
@@ -99,7 +95,7 @@ function table(chunks: Chunk[], offsets: number[], lengths: number[]) {
 	);
 }
 
-/** Reads the layout and decodes on the CPU whatever the GPU will not: codecs without a kernel, float prediction, and files with few chunks. */
+/** Reads the layout, resolves the color, and decompresses every chunk; uncompressed files are used in place. */
 export async function prepareTiff(
 	bytes: ArrayBuffer,
 	options: PrepareOptions = {},
@@ -113,10 +109,7 @@ export async function prepareTiff(
 		options.colorSpace ?? "rec2020",
 	);
 	const file = new Uint8Array(bytes);
-	const parallel =
-		chunks.length >= (options.gpuChunks ?? 128) && predictor !== 3;
-	const encoded = parallel && gpuCodecs.has(compression) ? compression : false;
-	if ((compression === 1 && predictor !== 3) || encoded) {
+	if (compression === 1 && predictor !== 3) {
 		return {
 			info,
 			data: file,
@@ -125,12 +118,11 @@ export async function prepareTiff(
 				chunks.map((c) => c.offset),
 				chunks.map((c) => c.length),
 			),
-			encoded,
 			curves,
 			matrix,
 		};
 	}
-	const decode: Codec = codecs[compression];
+	const decode = codecs[compression];
 	const sizes = chunks.map((c) => rowBytes(info, c.width) * c.height);
 	const offsets = offsetsOf(sizes);
 	const data = new Uint8Array(sizes.reduce((total, size) => total + size, 3));
@@ -153,7 +145,6 @@ export async function prepareTiff(
 		info: { ...info, predictor: predictor === 3 ? 1 : predictor },
 		data,
 		chunks: table(chunks, offsets, sizes),
-		encoded: false,
 		curves,
 		matrix,
 	};

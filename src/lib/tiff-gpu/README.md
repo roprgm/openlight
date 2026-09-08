@@ -1,6 +1,6 @@
 # tiff-gpu
 
-Decodes TIFF files into a linear RGB texture, the way a browser hands you a JPEG: color profile applied, orientation applied, alpha straight. The CPU reads the directory; the GPU does the pixels and, when a file has enough strips or tiles to run in parallel, expands LZW and Deflate too. Built on [vgpu](https://vgpu.sh); internal to OpenLight for now.
+Decodes TIFF files into a linear RGB texture, the way a browser hands you a JPEG: color profile applied, orientation applied, alpha straight. The CPU reads the directory and decompresses; the GPU does everything about pixels. Built on [vgpu](https://vgpu.sh); internal to OpenLight for now.
 
 ## Usage
 
@@ -11,7 +11,7 @@ const image = await decodeTiff(gpu, await file.arrayBuffer());
 // a vgpu Target: rgba16float, linear Rec.2020 by default
 ```
 
-Options: `colorSpace` picks the output primaries, `"rec2020"` (default, holds every photo gamut), `"srgb"`, `"display-p3"`, or `"none"` to keep sample values as they are; `format` can be `"rgba32float"` to keep those values exact; `gpuChunks` sets how many strips a file needs before its codec runs on the GPU; `image` decodes a layout other than the first, such as a DNG SubIFD. `prepareTiff(bytes, options)` is the CPU half and runs in a worker, returning transferable buffers; `uploadTiff(gpu, prepared, options)` is the GPU half and returns synchronously once its work is queued.
+Options: `colorSpace` picks the output primaries, `"rec2020"` (default, holds every photo gamut), `"srgb"`, `"display-p3"`, or `"none"` to keep sample values as they are; `format` can be `"rgba32float"` to keep those values exact; `image` decodes a layout other than the first, such as a DNG SubIFD. `prepareTiff(bytes, options)` is the CPU half and runs in a worker, returning transferable buffers; `uploadTiff(gpu, prepared, options)` is the GPU half and returns synchronously once its work is queued.
 
 Color comes from the file's ICC profile when it is the matrix/TRC kind every photo editor writes, otherwise samples are treated as sRGB; float samples are taken as linear. Values above 1.0 and below 0.0 pass through.
 
@@ -27,39 +27,38 @@ Color comes from the file's ICC profile when it is the matrix/TRC kind every pho
 
 Not supported: JPEG, CMYK, YCbCr, Lab, signed integers, sub-byte fill order.
 
-## How it decides
+## How it works
 
-Every path ends in one compute pass that walks each chunk row: byte order, bit depth, horizontal prediction, plane interleaving, palette lookup, alpha, the transfer curve, the matrix into the output primaries, and orientation. Rows are uploaded in bands sized to the device's buffer limits, so file size is not bounded by them; a small render pass places each band in the target.
+`prepareTiff` parses the directory, turns the ICC profile into a curve table and a matrix, and decompresses every strip or tile into raw rows with the CPU codecs; uncompressed files are used in place. Codecs are serial per strip, and a worker keeps them off the page.
 
-LZW and Deflate are serial per strip, so the GPU wins only when many strips decode at once. With fewer than 128 chunks the CPU decodes: our LZW, or the browser's native `DecompressionStream`. PackBits and floating-point prediction always run on the CPU.
+`uploadTiff` splits the rows into bands sized to the device's buffer limits, so file size is not bounded by them, and runs one compute pass per band that walks each chunk row: byte order, bit depth, horizontal prediction, plane interleaving, palette lookup, alpha, the transfer curve, the matrix into the output primaries, and orientation. A small render pass places each band in the target.
 
 ## Benchmarks
 
 24 MP RGB, Apple M-series, Chromium, median of 3, file bytes to GPU texture. The geotiff.js column is a JavaScript decoder measured for reference.
 
-| File | geotiff.js | CPU codec + GPU unpack | GPU codec + GPU unpack |
-| --- | --- | --- | --- |
-| 16-bit uncompressed, 144 MB | 882 ms | 42 ms | |
-| 16-bit LZW, 4000 strips | 4216 ms | 846 ms | 237 ms |
-| 16-bit LZW, 63 strips | crash | 828 ms | 1470 ms |
-| 8-bit LZW, 500 strips | hang | 333 ms | 116 ms |
-| 16-bit ZIP, 4000 strips | 2504 ms | 1093 ms | 463 ms |
-| 16-bit ZIP, 63 strips | 2583 ms | 539 ms | 3594 ms |
+| File | geotiff.js | tiff-gpu |
+| --- | --- | --- |
+| 16-bit uncompressed, 144 MB | 882 ms | 42 ms |
+| 16-bit LZW | 4216 ms, crashes on large strips | ~850 ms |
+| 16-bit ZIP | ~2500 ms | 540 to 1100 ms |
 
-Run it on your own files with `bun run src/lib/tiff-gpu/bench.ts /folder/of/tiffs`; it checks that the CPU and GPU codecs produce identical pixels while timing them.
+Compressed files spend their time in the CPU codec. GPU kernels for LZW and Deflate were built and measured too: 2 to 4× faster on files with thousands of strips, slower on files with few, and about 350 lines. They were removed for simplicity and live in this branch's history (commit `ac6d140`); splitting strips at LZW clear codes would let them win on every file.
+
+Run the benchmark on your own files with `bun run --preload ./tests/setup.ts src/lib/tiff-gpu/bench.ts /folder/of/tiffs`.
 
 ## Building a RAW loader on top
 
 Camera raw formats are TIFF containers, so a RAW loader is a few pieces on top of this one:
 
 - `readTiff(bytes)` lists every directory with its SubIFDs and gives typed access to any tag, so a DNG loader can find the raw image (photometric CFA or linear raw) and read its black level, white level, and color matrices. `parseTiff(bytes, directory)` turns that directory into a layout, passed to `prepareTiff` as `image`.
-- Codecs are tables keyed by compression code: `codecs` and `gpuCodecs` in `codecs.ts` for the CPU side, and the `codecs` map of kernels in `upload.ts`. Lossless JPEG (code 7) fits the same one-strip-per-workgroup model as LZW and Deflate.
+- Codecs are a table keyed by compression code in `codecs.ts`; lossless JPEG (code 7) is one entry away.
 - Raw mosaics decode as gray with `colorSpace: "none"` and `format: "rgba32float"`, which yields the exact sample values in a target; demosaicing and camera color then run as passes of their own.
 
 ## Tests
 
-Everything the library needs lives in this folder: `fixtures/` with reference pixels, `testing.ts` with the helpers, and `tiff-gpu.test.ts`, which covers the directory reader, CPU codecs, profiles, the GPU inflater, every fixture against its reference, row banding, and the GPU codecs. The shaders run for real under `bun test` through vgpu's Node entry, so no page or browser is involved.
+Everything the library needs lives in this folder: `fixtures/` with reference pixels, `testing.ts` with the helpers, and `tiff-gpu.test.ts`, which covers the directory reader, codecs, profiles, every fixture against its reference in linear Rec.2020, raw output, and row banding. The shaders run for real under `bun test` through vgpu's Node entry, so no page or browser is involved.
 
 ## Follow-ups
 
-Splitting large LZW strips at their clear codes would keep few-strip files on the GPU. A worker for the CPU codecs would keep the page responsive on such files; OpenLight already runs `prepareTiff` in one.
+A persistent worker would save the spawn cost per file; OpenLight already runs `prepareTiff` in a fresh one.

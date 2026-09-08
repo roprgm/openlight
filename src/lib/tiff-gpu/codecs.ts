@@ -126,7 +126,7 @@ export type Codec = (
 	output: Uint8Array,
 ) => void | Promise<void>;
 
-/** CPU decoders by TIFF compression code. A RAW loader adds its own here and, with a kernel, in `upload.ts`. */
+/** Decoders by TIFF compression code; a RAW loader adds its own here. */
 export const codecs: Record<number, Codec> = {
 	1: (input, output) => output.set(input.subarray(0, output.length)),
 	5: decodeLzw,
@@ -134,6 +134,3 @@ export const codecs: Record<number, Codec> = {
 	32946: inflate,
 	32773: decodePackBits,
 };
-
-/** Compression codes that also have a GPU kernel. */
-export const gpuCodecs = new Set([5, 8, 32946]);

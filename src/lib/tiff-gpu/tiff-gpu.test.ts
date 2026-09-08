@@ -1,11 +1,11 @@
 import { afterAll, expect, test } from "bun:test";
 import { Readable, Writable } from "node:stream";
-import { createDeflate, createInflate, deflateSync } from "node:zlib";
+import { createDeflate, createInflate } from "node:zlib";
 import { init } from "vgpu/node";
 import { decodeLzw, decodePackBits, inflate } from "./codecs";
 import { readProfile } from "./color";
 import { parseTiff, prepareTiff, readTiff } from "./index";
-import { benchmark, decodeAt, inflateOnGpu } from "./testing";
+import { benchmark, decodeAt } from "./testing";
 
 const fixture = (name: string) =>
 	Bun.file(`${import.meta.dir}/fixtures/${name}`).arrayBuffer();
@@ -108,27 +108,24 @@ test("CPU codecs reproduce uncompressed strips", async () => {
 	expect(restored).toEqual(source);
 });
 
-test("prepare decodes on the CPU or hands parallel chunks to the GPU, with the file's color", async () => {
+test("prepare decompresses on the CPU and carries the file's color", async () => {
 	const file = await fixture("lzw-strips.tif");
-	const parallel = await prepareTiff(file);
-	expect(parallel.encoded).toBe(5);
-	expect(parallel.data.byteLength).toBe(file.byteLength);
-	expect(parallel.chunks).toHaveLength(130 * 6);
-	expect(parallel.curves).toHaveLength(3 * 1024);
-	expect(parallel.matrix.map((v) => Math.round(v * 100) / 100)).toEqual([
+	const strips = await prepareTiff(file);
+	expect(strips.chunks).toHaveLength(130 * 6);
+	expect(strips.curves).toHaveLength(3 * 1024);
+	expect(strips.matrix.map((v) => Math.round(v * 100) / 100)).toEqual([
 		0.63, 0.07, 0.02, 0.33, 0.92, 0.09, 0.04, 0.01, 0.9,
 	]);
-	const serial = await prepareTiff(file, { gpuChunks: 1000 });
-	expect(serial.encoded).toBe(false);
-	expect([...new Uint16Array(serial.data.buffer, serial.chunks[0], 3)]).toEqual(
+	expect([...new Uint16Array(strips.data.buffer, strips.chunks[0], 3)]).toEqual(
 		[123, 45, 67],
 	);
+	const plain = await fixture("rgb16-le.tif");
+	expect((await prepareTiff(plain)).data.byteLength).toBe(plain.byteLength);
 	const planar = await prepareTiff(await fixture("rgb16-planar-tiled.tif"));
-	expect([
-		planar.encoded,
-		planar.chunks.length,
-		planar.data.byteLength,
-	]).toEqual([false, 72, 12 * 16 * 16 * 2 + 3]);
+	expect([planar.chunks.length, planar.data.byteLength]).toEqual([
+		72,
+		12 * 16 * 16 * 2 + 3,
+	]);
 	const half = await prepareTiff(await fixture("half-predictor.tif"));
 	expect([half.info.predictor, ...half.data.subarray(0, 2)]).toEqual([
 		1, 0x00, 0xb0,
@@ -194,30 +191,7 @@ const banded = [
 ];
 
 test.skipIf(!gpu)(
-	"GPU inflate handles stored, fixed, and dynamic blocks",
-	async () => {
-		if (!gpu) return;
-		const sources = [50, 700, 5000, 70000].flatMap((size) => [
-			Uint8Array.from({ length: size }, (_, i) => (i * 7919) % 256),
-			Uint8Array.from({ length: size }, (_, i) =>
-				"the quick brown fox ".charCodeAt(i % 20),
-			),
-		]);
-		const streams = sources.flatMap((source) =>
-			[0, 1, 9].map((level) => ({
-				bytes: new Uint8Array(deflateSync(source, { level })),
-				size: source.length,
-			})),
-		);
-		const results = await inflateOnGpu(gpu, streams);
-		results.forEach((result, i) => {
-			expect(result, `stream ${i}`).toEqual(sources[Math.floor(i / 3)]);
-		});
-	},
-);
-
-test.skipIf(!gpu)(
-	"every fixture decodes to its linear Rec.2020 reference, in row bands and with GPU codecs alike",
+	"every fixture decodes to its linear Rec.2020 reference, in row bands alike",
 	async () => {
 		if (!gpu) return;
 		const references: Reference[] = JSON.parse(
@@ -254,21 +228,15 @@ test.skipIf(!gpu)(
 			expect(raw.values[0][channel]).toBeCloseTo(sample / 65535, 6);
 		});
 		for (const name of banded) {
-			// Tiny bands split every fixture into many uploads; a zero threshold forces LZW and Deflate onto the GPU,
-			// whose bands hold whole tile rows and need a little more room.
+			// Tiny bands split every fixture into many uploads.
 			const row = await benchmark(
 				gpu,
 				await fixture(name),
-				{
-					reference: {},
-					banded: { limit: 4096 },
-					gpu: { limit: 8192, gpuChunks: 0 },
-				},
+				{ reference: {}, banded: { limit: 4096 } },
 				1,
 			);
 			expect(row, `${name} ${JSON.stringify(row)}`).toMatchObject({
 				"banded mismatches": 0,
-				"gpu mismatches": 0,
 			});
 		}
 	},
