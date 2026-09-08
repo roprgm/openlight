@@ -1,3 +1,5 @@
+import type { Prepared } from "@/lib/tiff-gpu";
+
 /** Raw interleaved rgba8, for decoders that don't go through the browser's image pipeline. */
 export type Pixels = {
 	width: number;
@@ -12,5 +14,5 @@ export type Frames = {
 	columns: number;
 	rotation: number;
 };
-export type Decoded = ImageBitmap | Pixels | Frames;
+export type Decoded = ImageBitmap | Pixels | Frames | Prepared;
 export type Decoder = (file: Blob) => Promise<Decoded>;

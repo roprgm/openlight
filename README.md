@@ -16,6 +16,7 @@ Image processing runs locally with WebGPU. Built with TypeScript and React.
 - Highlight and shadow clipping overlays
 - Pan and zoom
 - Camera Raw XMP import
+- TIFF import at 16-bit and floating-point precision, decoded on the GPU
 - PNG and JPEG export
 
 Requires a WebGPU-capable browser.
@@ -27,7 +28,7 @@ bun install
 bun dev
 ```
 
-Run `bun run check` to format and lint, `bun run build` to type-check and build, and `bun run test` for integration tests. GPU and UI tests run with `bun run test:browser` and require Chromium with WebGPU.
+Run `bun run check` to format and lint, `bun run build` to type-check and build, and `bun run test` for integration tests. Shader tests run with `bun run test:gpu`, and GPU and UI tests with `bun run test:browser`, which requires Chromium with WebGPU.
 
 ## Scripting
 
