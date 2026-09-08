@@ -17,6 +17,7 @@ Image processing runs locally with WebGPU. Built with TypeScript and React.
 - Pan and zoom
 - Camera Raw XMP import
 - TIFF import at 16-bit and floating-point precision, decoded on the GPU
+- Bayer DNG import, developed on the GPU
 - PNG and JPEG export
 
 Requires a WebGPU-capable browser.

@@ -3,6 +3,8 @@ import { type PrepareOptions, prepareTiff } from "./prepare";
 import { type UploadOptions, uploadTiff } from "./upload";
 
 export type { ColorSpace } from "./color";
+export { developDng } from "./develop";
+export { type PreparedDng, prepareDng, type RawImage, readDng } from "./dng";
 export {
 	type Directory,
 	parseTiff,

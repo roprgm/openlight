@@ -4,7 +4,7 @@ import { readImage } from "./images";
 
 const directory = "src/lib/tiff-gpu/fixtures";
 
-test("TIFF files open through the loader with their color, orientation, and headroom", async ({
+test("TIFF and DNG files open through the loader with their color, orientation, and headroom", async ({
 	page,
 }) => {
 	await page.goto("/");
@@ -68,6 +68,11 @@ test("TIFF files open through the loader with their color, orientation, and head
 	const white = colors[2];
 	expect(Math.min(...white)).toBeGreaterThan(240);
 	expect(Math.max(...white) - Math.min(...white)).toBeLessThan(10);
+	// Bayer DNG files develop through the same loader; the second is lossless JPEG, rotated, and cropped.
+	await load("bayer.dng");
+	expect((await readImage(page)).size).toEqual([64, 48]);
+	await load("bayer-ljpeg.dng");
+	expect((await readImage(page)).size).toEqual([44, 56]);
 	await load("rgb8-jpeg.tif");
 	await expect(
 		page.getByText("Couldn't open rgb8-jpeg.tif:", { exact: false }),

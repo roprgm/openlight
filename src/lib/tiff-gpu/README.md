@@ -22,7 +22,7 @@ Color comes from the file's ICC profile when it is the matrix/TRC kind every pho
 | Container | TIFF and BigTIFF, both byte orders, strips and tiles, chunky and planar, first image |
 | Samples | Unsigned integers of any depth up to 32 bits, packed or byte-aligned; 16, 32, 64-bit floats |
 | Color | RGB, grayscale (black or white is zero), palette, camera raw mosaics, alpha as an extra sample |
-| Compression | None, LZW, Deflate (8 and 32946), PackBits |
+| Compression | None, LZW, Deflate (8 and 32946), PackBits, lossless JPEG (7) |
 | Predictors | Horizontal (GPU) and floating point (CPU) |
 
 Not supported: JPEG, CMYK, YCbCr, Lab, signed integers, sub-byte fill order.
@@ -47,9 +47,15 @@ Compressed files spend their time in the CPU codec. GPU kernels for LZW and Defl
 
 Run the benchmark on your own files with `bun run --preload ./tests/setup.ts src/lib/tiff-gpu/bench.ts /folder/of/tiffs`.
 
+## DNG
+
+`decodeDng`-style use is two calls, like TIFF: `prepareDng(bytes)` finds the Bayer mosaic among the directories, reads black and white levels, the CFA pattern, the as-shot neutral, and the color matrix for daylight, and decompresses the tiles; `developDng(gpu, prepared)` uploads the mosaic as a float texture and runs one pass that demosaics (bilinear), white-balances, clips at the sensor's white, and converts camera RGB to linear Rec.2020, oriented and cropped to the default crop. Lossless JPEG (compression 7) is the codec DNG files use, added to the table.
+
+Not yet: linearization tables, linear raw (demosaiced) DNG, X-Trans and other non-2×2 patterns, opcode lists, and lens corrections. Camera-native formats (ARW, NEF, CR2) need their own codecs and a matrix table; see below.
+
 ## Building a RAW loader on top
 
-Camera raw formats are TIFF containers, so a RAW loader is a few pieces on top of this one:
+Camera raw formats are TIFF containers, so a native-format loader is a few pieces on top of the DNG path:
 
 - `readTiff(bytes)` lists every directory with its SubIFDs and gives typed access to any tag, so a DNG loader can find the raw image (photometric CFA or linear raw) and read its black level, white level, and color matrices. `parseTiff(bytes, directory)` turns that directory into a layout, passed to `prepareTiff` as `image`.
 - Codecs are a table keyed by compression code in `codecs.ts`; lossless JPEG (code 7) is one entry away.

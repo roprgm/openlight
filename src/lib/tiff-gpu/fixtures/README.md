@@ -24,3 +24,4 @@ Most files hold a 19×17 RGB gradient where red is `x·3000 + 123`, green `y·35
 | `precision16.tif` | 2×1 gray with adjacent values 32768 and 32800 |
 | `packed12.tif` | 9×5 gray `(x·397 + y·811) % 4096` in packed 12-bit samples, as raw camera files store them |
 | `rgb8-jpeg.tif` | JPEG compression, which the decoder must reject |
+| `bayer.dng`, `bayer-ljpeg.dng` | 64×48 RGGB mosaics of four flat blocks with black 512, white 15000, an as-shot neutral, and a daylight color matrix; the second uses lossless JPEG tiles, orientation 6, and a default crop. `dng.json` holds each block's developed linear Rec.2020 color. |

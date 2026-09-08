@@ -1,5 +1,5 @@
 import type { Gpu, Target } from "vgpu";
-import { uploadTiff } from "@/lib/tiff-gpu";
+import { developDng, uploadTiff } from "@/lib/tiff-gpu";
 import { decodeHeic } from "./heic";
 import linearize from "./linearize";
 import decodeSvg from "./svg";
@@ -16,10 +16,10 @@ export function workerDecoder(
 		return (file) =>
 			new Promise((resolve, reject) => {
 				const worker = new Spawn();
-				worker.onmessage = ({
-					data,
-				}: MessageEvent<Decoded | { error: string }>) => {
-					"error" in data ? reject(new Error(data.error)) : resolve(data);
+				worker.onmessage = ({ data }: MessageEvent<unknown>) => {
+					typeof data === "object" && data !== null && "error" in data
+						? reject(new Error(String(data.error)))
+						: resolve(data);
 					worker.terminate();
 				};
 				worker.postMessage(file);
@@ -27,22 +27,33 @@ export function workerDecoder(
 	};
 }
 
+/** A format: how to recognize it, decode it, and turn the result into a working-space target. */
 type Format = {
 	types: string[];
 	extensions: string[];
 	load: () => Promise<Decoder>;
+	/** GPU leg; browser-decoded sRGB output goes through `linearize` by default. */
+	upload?(gpu: Gpu, decoded: never): Target;
 };
 
 const native = async () => createImageBitmap;
 const svg = async () => decodeSvg;
 const heic = async () => decodeHeic;
 const tiff = workerDecoder(() => import("./tiff.worker?worker"));
+const dng = workerDecoder(() => import("./dng.worker?worker"));
 
 const formats: Format[] = [
 	{
 		types: ["image/tiff", "image/x-tiff"],
 		extensions: ["tif", "tiff"],
 		load: tiff,
+		upload: uploadTiff,
+	},
+	{
+		types: ["image/x-adobe-dng", "image/dng"],
+		extensions: ["dng"],
+		load: dng,
+		upload: developDng,
 	},
 	{ types: ["image/png"], extensions: ["png"], load: native },
 	{ types: ["image/jpeg"], extensions: ["jpg", "jpeg"], load: native },
@@ -81,7 +92,7 @@ export default async function decode(gpu: Gpu, file: File): Promise<Target> {
 	}
 	const decoder = await format.load();
 	const decoded = await decoder(file);
-	return "chunks" in decoded
-		? uploadTiff(gpu, decoded)
-		: linearize(gpu, decoded);
+	return format.upload
+		? format.upload(gpu, decoded as never)
+		: linearize(gpu, decoded as Decoded);
 }

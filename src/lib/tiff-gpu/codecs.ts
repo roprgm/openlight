@@ -1,3 +1,5 @@
+import { decodeLosslessJpeg } from "./ljpeg";
+
 /** TIFF LZW (MSB-first, early change) into a preallocated output. */
 export function decodeLzw(input: Uint8Array, output: Uint8Array) {
 	const prefix = new Uint16Array(4096);
@@ -130,6 +132,7 @@ export type Codec = (
 export const codecs: Record<number, Codec> = {
 	1: (input, output) => output.set(input.subarray(0, output.length)),
 	5: decodeLzw,
+	7: decodeLosslessJpeg,
 	8: inflate,
 	32946: inflate,
 	32773: decodePackBits,
