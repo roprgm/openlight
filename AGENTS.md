@@ -56,7 +56,8 @@ All React bindings come from `vgpu-react`; everything else comes from `vgpu`.
 - Shader code lives in `.wgsl` files beside the module that owns it, or in `lib/` for reusable GPU operations. The Vite loader and ambient types are already configured.
 - The working space is linear Rec.2020 in `rgba16float`. Decoders convert into it, the editor shader converts out of it; nothing in between assumes a format or primaries, so both can change (an 8-bit variant is planned).
 - `lib/adjustments/adjustments.wgsl` works in that space; its `Adjustments` struct mirrors the TypeScript type in the UI's units, and its constants were fitted against reference exports; treat them as data, not formulas to tidy.
-- Retain `workerDecoder` for the upcoming RAW decoding implementation.
+- `lib/decode` converts every format into the working space. Browser-decoded formats go through `linearize`. TIFF uses `lib/tiff-gpu`: `prepareTiff` (directory and CPU codecs) runs in the worker, `uploadTiff` expands LZW or Deflate and unpacks samples on the GPU into an `rgba16uint` texture, and `raster` turns any such texture into the working space using an ICC matrix/TRC profile or sRGB. Reuse `workerDecoder` and `raster` for decoders to come (16-bit PNG, RAW).
+- Samples outside 0..1 (HDR or wide gamut) pass through exposure, curves, and vibrance unchanged in shape; only the display and histogram clip.
 
 ## Testing
 

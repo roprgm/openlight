@@ -1,15 +1,14 @@
 import type { Gpu, Target } from "vgpu";
+import { uploadTiff } from "@/lib/tiff-gpu";
 import { decodeHeic } from "./heic";
 import linearize from "./linearize";
+import { importRaster } from "./raster";
 import decodeSvg from "./svg";
-import type { Decoder, Pixels } from "./types";
+import type { Decoded, Decoder } from "./types";
 
 export type { Target };
 
-/**
- * Decoder backed by a worker module: post the file, receive transferred pixels or an error.
- * Unused since HEIC moved to WebCodecs; kept for CPU-heavy decoders to come (RAW).
- */
+/** Decoder backed by a worker module: post the file, receive transferred pixels or an error. */
 export function workerDecoder(
 	load: () => Promise<{ default: new () => Worker }>,
 ) {
@@ -20,7 +19,7 @@ export function workerDecoder(
 				const worker = new Spawn();
 				worker.onmessage = ({
 					data,
-				}: MessageEvent<Pixels | { error: string }>) => {
+				}: MessageEvent<Decoded | { error: string }>) => {
 					"error" in data ? reject(new Error(data.error)) : resolve(data);
 					worker.terminate();
 				};
@@ -38,8 +37,14 @@ type Format = {
 const native = async () => createImageBitmap;
 const svg = async () => decodeSvg;
 const heic = async () => decodeHeic;
+const tiff = workerDecoder(() => import("./tiff.worker?worker"));
 
 const formats: Format[] = [
+	{
+		types: ["image/tiff", "image/x-tiff"],
+		extensions: ["tif", "tiff"],
+		load: tiff,
+	},
 	{ types: ["image/png"], extensions: ["png"], load: native },
 	{ types: ["image/jpeg"], extensions: ["jpg", "jpeg"], load: native },
 	{ types: ["image/gif"], extensions: ["gif"], load: native },
@@ -76,5 +81,12 @@ export default async function decode(gpu: Gpu, file: File): Promise<Target> {
 		throw new Error(`Unsupported image: ${file.name}`);
 	}
 	const decoder = await format.load();
-	return linearize(gpu, await decoder(file));
+	const decoded = await decoder(file);
+	if (!("chunks" in decoded)) {
+		return linearize(gpu, decoded);
+	}
+	const source = uploadTiff(gpu, decoded);
+	const image = importRaster(gpu, source);
+	source.texture.dispose();
+	return image;
 }

@@ -47,6 +47,13 @@ export function createControls(gpu: Gpu, workspace: Workspace) {
 		redo: () => workspace.getDocument().history.redo(),
 		exportImage: (options?: ExportOptions) =>
 			exportImage(gpu, workspace.getDocument(), options),
+		readSourcePixels() {
+			const document = workspace.getDocument();
+			const { image } = document.resources.get(
+				document.scene.getState().source,
+			);
+			return image.readFloats();
+		},
 		getState() {
 			const { file, document } = workspace.state.getState();
 			const scene = document?.scene.getState();

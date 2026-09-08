@@ -27,6 +27,7 @@ fn adjustSaturation(color: vec3f, amount: f32) -> vec3f {
 }
 
 fn adjustVibrance(color: vec3f, amount: f32) -> vec3f {
+  if amount == 0.0 { return color; }
   let high = max(max(color.r, color.g), color.b);
   let low = max(0.0, min(min(color.r, color.g), color.b));
   let saturation = 1.0 - sqrt(low / max(high, 0.000001));
