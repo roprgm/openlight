@@ -1,5 +1,6 @@
 import { useRef } from "react";
 import Button from "@/components/ui/button";
+import { rawAccept } from "@/features/camera-raw";
 import { accept } from "@/lib/decode";
 import Backdrop from "./backdrop";
 
@@ -13,7 +14,7 @@ function OpenImage({ onOpen }: OpenProps) {
 				Open image
 			</Button>
 			<input
-				accept={accept}
+				accept={`${accept},${rawAccept}`}
 				hidden
 				multiple
 				onChange={(event) => {

@@ -15,6 +15,7 @@ Image processing runs locally with WebGPU. Built with TypeScript and React.
 - RGB histogram
 - Highlight and shadow clipping overlays
 - Pan and zoom
+- Camera RAW import with editable temperature and tint
 - Camera Raw XMP import
 - TIFF import at 16-bit and floating-point precision, decoded on the GPU
 - PNG and JPEG export
@@ -36,4 +37,7 @@ Run `bun run check` to format and lint, `bun run build` to type-check and build,
 
 ## License
 
-[MIT](LICENSE)
+OpenLight's own code is [MIT](LICENSE). Built with [vgpu](https://vgpu.sh)
+(MIT, Vercel). Camera RAW decoding uses LibRaw 0.22.2 under CDDL 1.0. The
+unmodified [source and license](https://www.libraw.org/data/LibRaw-0.22.2.tar.gz)
+are available upstream. See [NOTICE](NOTICE).

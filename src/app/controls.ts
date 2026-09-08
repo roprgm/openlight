@@ -7,6 +7,8 @@ import { createCameraRawXmpLoader } from "@/app/loaders/camera-raw-xmp";
 import { createImageLoader } from "@/app/loaders/image";
 import { createLoaderRegistry } from "@/app/loaders/registry";
 import type { Workspace } from "@/app/workspace";
+import { createRawDecoder } from "@/features/camera-raw";
+import { setWhiteBalance } from "@/features/camera-raw/controls";
 import type { Preview } from "@/lib/editor/document";
 import { setAdjustments, setToneCurve } from "@/lib/editor/document/edits";
 import {
@@ -18,7 +20,7 @@ import { defaultCurve, type ToneCurve } from "@/lib/tone-curves/curve";
 
 /** Imperative commands bound to an explicit workspace, usable without React. */
 export function createControls(gpu: Gpu, workspace: Workspace) {
-	const image = createImageLoader(gpu, workspace);
+	const image = createImageLoader(gpu, workspace, [createRawDecoder(gpu)]);
 	const xmp = createCameraRawXmpLoader(workspace);
 	const files = createLoaderRegistry(
 		[xmp, image],
@@ -32,6 +34,8 @@ export function createControls(gpu: Gpu, workspace: Workspace) {
 		importXmp: (file: File) => files.loadFile(xmp, file),
 		setAdjustments: (change: Partial<Adjustments>) =>
 			setAdjustments(workspace.getDocument(), change),
+		setWhiteBalance: (change: Record<string, number>) =>
+			setWhiteBalance(workspace.getDocument(), change),
 		setToneCurve: (curve?: ToneCurve) =>
 			setToneCurve(workspace.getDocument(), curve),
 		editScene(change: Partial<Scene>) {
@@ -47,6 +51,12 @@ export function createControls(gpu: Gpu, workspace: Workspace) {
 		redo: () => workspace.getDocument().history.redo(),
 		exportImage: (options?: ExportOptions) =>
 			exportImage(gpu, workspace.getDocument(), options),
+		readSourcePixels() {
+			const document = workspace.getDocument();
+			return document.resources
+				.get(document.scene.getState().source)
+				.image.readFloats();
+		},
 		getState() {
 			const { file, document } = workspace.state.getState();
 			const scene = document?.scene.getState();
@@ -54,6 +64,7 @@ export function createControls(gpu: Gpu, workspace: Workspace) {
 				file,
 				preview: document?.preview.getState(),
 				documentId: document?.id,
+				sourceSettings: scene?.sourceSettings,
 				size: scene?.frame.size,
 				frame: scene?.frame,
 				adjustments: scene?.adjustments ?? defaultAdjustments,

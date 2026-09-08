@@ -49,6 +49,7 @@ export const adjustmentMinimums: Partial<Adjustments> = {
 export type Scene = {
 	readonly frame: ImageFrame;
 	readonly source: string;
+	readonly sourceSettings?: Readonly<Record<string, number>>;
 	readonly adjustments: Readonly<Adjustments>;
 	readonly toneCurve: ToneCurve;
 };

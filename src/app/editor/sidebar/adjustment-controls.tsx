@@ -2,6 +2,7 @@ import type { ComponentProps, ReactNode } from "react";
 import { useDocument, useScene } from "@/components/editor/session";
 import { Collapsible } from "@/components/ui/collapsible";
 import { Slider } from "@/components/ui/slider";
+import { RawControls } from "@/features/camera-raw/controls";
 import { setAdjustments } from "@/lib/editor/document/edits";
 import {
 	type Adjustments,
@@ -60,16 +61,18 @@ export default function AdjustmentControls({ curves }: { curves: ReactNode }) {
 			</Collapsible>
 			<Collapsible title="Color">
 				<div className="flex flex-col gap-2">
-					<AdjustmentSlider
-						name="incrementalTemperature"
-						label="Temp"
-						stops={stops.incrementalTemperature}
-					/>
-					<AdjustmentSlider
-						name="incrementalTint"
-						label="Tint"
-						stops={stops.incrementalTint}
-					/>
+					<RawControls>
+						<AdjustmentSlider
+							name="incrementalTemperature"
+							label="Temp"
+							stops={stops.incrementalTemperature}
+						/>
+						<AdjustmentSlider
+							name="incrementalTint"
+							label="Tint"
+							stops={stops.incrementalTint}
+						/>
+					</RawControls>
 					<AdjustmentSlider
 						name="vibrance"
 						label="Vibrance"

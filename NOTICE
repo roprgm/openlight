@@ -1,0 +1,28 @@
+OpenLight
+Copyright (c) 2026 roprgm
+
+OpenLight application code is licensed under the MIT License. See LICENSE.
+Built with vgpu: https://vgpu.sh
+
+Third-party notices
+-------------------
+
+vgpu
+  Copyright (c) 2025 Vercel, Inc.
+  MIT License
+  https://github.com/vercel-labs/vgpu
+  https://vgpu.sh
+
+Geist font
+  Packaged as @fontsource-variable/geist
+  Copyright (c) Vercel, Inc.
+  SIL Open Font License 1.1
+  https://github.com/vercel/geist-font
+
+LibRaw 0.22.2 (Camera RAW)
+  Copyright (C) 2008-2025 LibRaw LLC
+  https://www.libraw.org
+  Used under the Common Development and Distribution License (CDDL) 1.0.
+  Includes work derived from dcraw by Dave Coffin.
+  Unmodified source and licenses:
+    https://www.libraw.org/data/LibRaw-0.22.2.tar.gz

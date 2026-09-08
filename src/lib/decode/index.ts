@@ -4,28 +4,9 @@ import { decodeHeic } from "./heic";
 import linearize from "./linearize";
 import decodeSvg from "./svg";
 import type { Decoded, Decoder } from "./types";
+import { workerDecoder } from "./worker-decoder";
 
 export type { Target };
-
-/** Decoder backed by a worker module: post the file, receive transferred pixels or an error. */
-export function workerDecoder(
-	load: () => Promise<{ default: new () => Worker }>,
-) {
-	return async (): Promise<Decoder> => {
-		const { default: Spawn } = await load();
-		return (file) =>
-			new Promise((resolve, reject) => {
-				const worker = new Spawn();
-				worker.onmessage = ({
-					data,
-				}: MessageEvent<Decoded | { error: string }>) => {
-					"error" in data ? reject(new Error(data.error)) : resolve(data);
-					worker.terminate();
-				};
-				worker.postMessage(file);
-			});
-	};
-}
 
 type Format = {
 	types: string[];
@@ -36,7 +17,7 @@ type Format = {
 const native = async () => createImageBitmap;
 const svg = async () => decodeSvg;
 const heic = async () => decodeHeic;
-const tiff = workerDecoder(() => import("./tiff.worker?worker"));
+const tiff = workerDecoder<Decoded>(() => import("./tiff.worker?worker"));
 
 const formats: Format[] = [
 	{

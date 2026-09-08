@@ -15,6 +15,7 @@ export type Preview = {
 function equal(a: Scene, b: Scene) {
 	return (
 		a.source === b.source &&
+		shallow(a.sourceSettings, b.sourceSettings) &&
 		shallow(frameValues(a.frame), frameValues(b.frame)) &&
 		shallow(a.adjustments, b.adjustments) &&
 		a.toneCurve.length === b.toneCurve.length &&

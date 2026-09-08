@@ -27,8 +27,11 @@ export function RendererProvider({ children }: RendererProviderProps) {
 	const gpu = useGpu();
 	const document = useDocument();
 	const sourceId = useScene((scene) => scene.source);
-	const source = document.resources.get(sourceId).image;
-	const renderer = useMemo(() => createRenderer(gpu, source), [gpu, source]);
+	const { image: source, development } = document.resources.get(sourceId);
+	const renderer = useMemo(
+		() => createRenderer(gpu, source, development),
+		[gpu, source, development],
+	);
 	useEffect(() => {
 		const render = () => renderer.update(document.scene.getState());
 		const unsubscribe = document.scene.subscribe(render);

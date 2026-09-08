@@ -1,13 +1,19 @@
 import { frame, type Gpu, type Target } from "vgpu";
 import { createAdjustments } from "@/lib/adjustments";
+import type { Development } from "@/lib/editor/document/resources";
 import type { Scene } from "@/lib/editor/scene";
 import { createImageFrame } from "@/lib/image-frame";
 import { createToneCurves } from "@/lib/tone-curves";
 import { createUnsharpMask } from "@/lib/unsharp-mask";
 
 /** Owns scene passes and intermediate textures for one decoded source. */
-export function createRenderer(gpu: Gpu, source: Target) {
-	const adjust = createAdjustments(gpu, source);
+export function createRenderer(
+	gpu: Gpu,
+	source: Target,
+	development?: Development,
+) {
+	const developed = development?.create();
+	const adjust = createAdjustments(gpu, developed?.image ?? source);
 	const adjusted = adjust.output;
 	const toneCurves = createToneCurves(gpu, adjusted);
 	const clarity = createUnsharpMask(gpu, source, 16);
@@ -36,6 +42,9 @@ export function createRenderer(gpu: Gpu, source: Target) {
 		},
 		update(scene: Scene) {
 			frame(gpu, (frame) => {
+				if (developed && development) {
+					developed.render(frame, scene.sourceSettings ?? development.defaults);
+				}
 				adjust.render(frame, scene.adjustments);
 				const curved = toneCurves.render(frame, scene.toneCurve);
 				const {
@@ -65,6 +74,7 @@ export function createRenderer(gpu: Gpu, source: Target) {
 		dispose() {
 			listeners.clear();
 			adjust.dispose();
+			developed?.dispose();
 			toneCurves.dispose();
 			clarity.dispose();
 			sharpen.dispose();
