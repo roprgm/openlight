@@ -33,9 +33,9 @@ LZW and Deflate are serial per strip, so the GPU wins only when many strips deco
 
 ## Benchmarks
 
-24 MP RGB, Apple M-series, Chromium, median of 3. `geotiff` is the library the shipped decoder used before.
+24 MP RGB, Apple M-series, Chromium, median of 3, file bytes to GPU texture. The geotiff.js column is a JavaScript decoder measured for reference.
 
-| File | geotiff | CPU codec + GPU unpack | GPU codec + GPU unpack |
+| File | geotiff.js | CPU codec + GPU unpack | GPU codec + GPU unpack |
 | --- | --- | --- | --- |
 | 16-bit uncompressed, 144 MB | 882 ms | 42 ms | |
 | 16-bit LZW, 4000 strips | 4216 ms | 846 ms | 237 ms |
@@ -44,7 +44,11 @@ LZW and Deflate are serial per strip, so the GPU wins only when many strips deco
 | 16-bit ZIP, 4000 strips | 2504 ms | 1093 ms | 463 ms |
 | 16-bit ZIP, 63 strips | 2583 ms | 539 ms | 3594 ms |
 
-Run it on your own files with `BENCH_DIR=/folder/of/tiffs bun run test:browser tests/tiff-bench.e2e.ts`. `bench.ts` compares variants and checks that they produce identical pixels.
+Run it on your own files with `BENCH_DIR=/folder/of/tiffs bun run test:browser src/lib/tiff-gpu/bench.e2e.ts`. `testing.ts` holds the browser-side helpers that time variants and check that they produce identical pixels.
+
+## Tests
+
+Everything the library needs lives in this folder: `fixtures/` with reference samples, `tiff-gpu.test.ts` for the directory reader, CPU codecs, and prepare stage in Bun, and `tiff-gpu.e2e.ts` for the GPU inflater, stored-sample checks, row banding, and GPU codecs in Playwright. Run `bun test tiff-gpu` and `bun run test:browser src/lib/tiff-gpu`.
 
 ## Follow-ups
 

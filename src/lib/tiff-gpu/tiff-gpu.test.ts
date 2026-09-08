@@ -1,9 +1,9 @@
 import { expect, test } from "bun:test";
-import { parseTiff, prepareTiff } from "@/lib/tiff-gpu";
-import { decodeLzw, decodePackBits, inflate } from "@/lib/tiff-gpu/codecs";
+import { decodeLzw, decodePackBits, inflate } from "./codecs";
+import { parseTiff, prepareTiff } from "./index";
 
 const fixture = (name: string) =>
-	Bun.file(`tests/fixtures/tiff/${name}`).arrayBuffer();
+	Bun.file(`${import.meta.dir}/fixtures/${name}`).arrayBuffer();
 const strip = (
 	buffer: ArrayBuffer,
 	chunk: { offset: number; length: number },

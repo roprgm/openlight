@@ -7,7 +7,7 @@ type Reference = {
 	tolerance: number;
 	points: { x: number; y: number; rgba: number[] }[];
 };
-const directory = "tests/fixtures/tiff";
+const directory = "src/lib/tiff-gpu/fixtures";
 
 test("TIFF samples keep precision, color, orientation, alpha, and HDR headroom", async ({
 	page,

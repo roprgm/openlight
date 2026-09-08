@@ -35,11 +35,10 @@ test("benchmark tiff-gpu variants", async ({ page }) => {
 	});
 	try {
 		await page.goto("/");
-		await page.waitForFunction(() => window.openlight);
 		for (const name of names) {
 			const result = await page.evaluate(
 				async ({ url, variants }) => {
-					const path = "/src/lib/tiff-gpu/bench.ts";
+					const path = "/src/lib/tiff-gpu/testing.ts";
 					const { benchmark } = await import(/* @vite-ignore */ path);
 					return benchmark([url], variants);
 				},

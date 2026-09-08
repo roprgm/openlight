@@ -1,6 +1,7 @@
 import type { Texture } from "@vgpu/core";
 import { compute, type Gpu, init } from "vgpu";
 import {
+	decodeTiff,
 	type PrepareOptions,
 	prepareTiff,
 	type UploadOptions,
@@ -97,6 +98,26 @@ export async function benchmark(
 	}
 	gpu.dispose();
 	return results;
+}
+
+/** Decoded 16-bit rgba samples at the given pixels, for tests. */
+export async function samplesAt(
+	url: string,
+	points: { x: number; y: number }[],
+) {
+	const gpu = await init();
+	const image = await decodeTiff(gpu, await (await fetch(url)).arrayBuffer());
+	const bytes = await readTexture(gpu, image.texture);
+	const samples = new Uint16Array(bytes.buffer);
+	const result = points.map(({ x, y }) => [
+		...samples.subarray(
+			(y * image.width + x) * 4,
+			(y * image.width + x + 1) * 4,
+		),
+	]);
+	image.texture.dispose();
+	gpu.dispose();
+	return result;
 }
 
 /** Runs the GPU inflater on zlib streams and returns their bytes, for tests. */
