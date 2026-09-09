@@ -83,6 +83,40 @@ test("edit a photo, inspect the preview and histograms, undo changes, and export
 		}
 	});
 
+	await test.step("Magic Wand selects a flat patch and keeps its mask outside scene history", async () => {
+		await page.getByRole("button", { name: "Magic Wand", exact: true }).click();
+		await expect(page.getByRole("status")).toHaveText(
+			"Click the photo to select.",
+		);
+		const viewport = await box(canvas);
+		const scale = Math.min(
+			(viewport.width - 48) / 1200,
+			(viewport.height - 48) / 800,
+			2,
+		);
+		await page.mouse.click(
+			viewport.x + viewport.width / 2 + (300 - 600) * scale,
+			viewport.y + viewport.height / 2 + (150 - 400) * scale,
+		);
+		await expect
+			.poll(() => page.evaluate(() => window.openlight.getSelection().active))
+			.toBe(true);
+		const selection = await page.evaluate(() =>
+			window.openlight.getSelection(),
+		);
+		expect(selection.count).toBeGreaterThan(100);
+		expect(selection.count).toBeLessThan(1200 * 800);
+		expect((await state()).history).toEqual(initial.history);
+		await page.getByRole("button", { name: "Apply", exact: true }).click();
+		expect(
+			await page.evaluate(() => window.openlight.getSelection().active),
+		).toBe(true);
+		await page.evaluate(() => window.openlight.clearSelection());
+		expect(
+			await page.evaluate(() => window.openlight.getSelection().active),
+		).toBe(false);
+	});
+
 	await test.step("zoomed rendering reaches the edges of the editor viewport", async () => {
 		const viewport = await page
 			.getByRole("region", { name: "Image canvas" })

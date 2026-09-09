@@ -3,8 +3,14 @@ import type { Target } from "vgpu";
 /** Owns the document's image files and GPU targets, outside scene history. */
 export function createResources() {
 	const images = new Map<string, { file: File; image: Target }>();
+	const owned = new Set<{ dispose(): void }>();
 	let disposed = false;
 	return {
+		/** Transient feature resources share the document lifetime, outside history. */
+		own(resource: { dispose(): void }) {
+			if (disposed) throw new Error("Document is closed.");
+			owned.add(resource);
+		},
 		add(file: File, image: Target) {
 			if (disposed) {
 				throw new Error("Document is closed.");
@@ -30,6 +36,8 @@ export function createResources() {
 		},
 		dispose() {
 			disposed = true;
+			for (const resource of owned) resource.dispose();
+			owned.clear();
 			for (const { image } of images.values()) {
 				image.color.dispose();
 			}

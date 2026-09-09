@@ -49,6 +49,20 @@ Loading calls are queued. XMP import requires a loaded document and is skipped i
 
 `editScene(change)` shallowly merges a partial [Scene](src/lib/editor/scene.ts) into the document as an undoable edit. Supply complete values for nested fields such as `frame`. Prefer `setAdjustments` and `setToneCurve` for their validation.
 
+## Selection
+
+The Magic Wand samples the edited output in linear Rec.2020. Selection is a document resource outside scene history and is not included in exports.
+
+| Method | Behavior |
+| --- | --- |
+| `enterWand()` | Opens Magic Wand mode and prepares the affinity field. |
+| `getSelection()` | Returns `{ open, status, active, count, bounds }`. Wait for `status === "ready"` before seeding. Bounds are `[left, top, right, bottom]` in output pixels, or `null`. Count measures mask coverage at least 0.5. |
+| `await selectAt([x, y], operation?)` | Seeds in edited output pixels and finishes an exact grow. Operation is `"replace"` (default), `"add"`, `"subtract"`, or `"intersect"`. |
+| `setSelectionOptions(change)` | Updates `tolerance` (0.01–2, default 0.32), `contiguous` (default true), `sampleSize` (1/3/5, default 3), or `feather` (0–20 output pixels, default 1). Applies to the current drag or the next click. |
+| `clearSelection()` | Cancels any grow and removes the mask. |
+
+`status` is `idle`, `preparing`, `ready`, `preview`, `growing`, or `error`. A new seed, Escape, an image change, or document replacement cancels stale work. A frame/source change clears the selection; adjustment changes preserve a committed mask and rebuild the affinity field while the tool is open. Apply/Enter keeps the mask visible in the editor. UI modifiers are Shift/add, Alt/subtract, and Ctrl/⌘/intersect.
+
 ## History
 
 Each edit creates an undo step unless a group is open. Preview changes are outside history.

@@ -7,6 +7,8 @@ import { createCameraRawXmpLoader } from "@/app/loaders/camera-raw-xmp";
 import { createImageLoader } from "@/app/loaders/image";
 import { createLoaderRegistry } from "@/app/loaders/registry";
 import type { Workspace } from "@/app/workspace";
+import type { Operation, SelectionOptions } from "@/features/select/cost";
+import { getSelection } from "@/features/select/session";
 import type { Preview } from "@/lib/editor/document";
 import { setAdjustments, setToneCurve } from "@/lib/editor/document/edits";
 import {
@@ -26,6 +28,25 @@ export function createControls(gpu: Gpu, workspace: Workspace) {
 	);
 
 	return {
+		enterWand: () => getSelection(gpu, workspace.getDocument()).enter(),
+		selectAt: (point: readonly [number, number], operation?: Operation) =>
+			getSelection(gpu, workspace.getDocument()).selectAt(point, operation),
+		setSelectionOptions: (options: Partial<SelectionOptions>) =>
+			getSelection(gpu, workspace.getDocument()).configure(options),
+		clearSelection: () => getSelection(gpu, workspace.getDocument()).clear(),
+		getSelection() {
+			const { open, status, count, bounds } = getSelection(
+				gpu,
+				workspace.getDocument(),
+			).state.getState();
+			return {
+				open,
+				status,
+				active: count > 0,
+				count,
+				bounds: bounds?.slice() ?? null,
+			};
+		},
 		openFiles: files.openFiles,
 		openFile: (file: File) => files.openFiles([file]),
 		loadImage: (file: File) => files.loadFile(image, file),
