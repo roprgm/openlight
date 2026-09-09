@@ -1,0 +1,3 @@
+OpenLight uses raw-webgpu, including LibRaw, Adobe DNG SDK and JPEG XL.
+See raw-webgpu/NOTICE and raw-webgpu/THIRD_PARTY_LICENSES.txt for bundled notices,
+and raw-webgpu/native/build.py for pinned upstream sources and the rebuild recipe.

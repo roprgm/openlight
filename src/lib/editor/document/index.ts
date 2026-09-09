@@ -1,6 +1,7 @@
 import { createStore } from "zustand/vanilla";
 import { shallow } from "zustand/vanilla/shallow";
 import type { Scene } from "@/lib/editor/scene";
+import { validateWhiteBalance } from "@/lib/editor/white-balance";
 import { createHistory } from "@/lib/history";
 import { frameValues, validateFrame } from "@/lib/image-frame/geometry";
 import { createResources } from "./resources";
@@ -17,6 +18,7 @@ function equal(a: Scene, b: Scene) {
 		a.source === b.source &&
 		shallow(frameValues(a.frame), frameValues(b.frame)) &&
 		shallow(a.adjustments, b.adjustments) &&
+		shallow(a.whiteBalance, b.whiteBalance) &&
 		a.toneCurve.length === b.toneCurve.length &&
 		a.toneCurve.every((point, i) => shallow(point, b.toneCurve[i]))
 	);
@@ -54,6 +56,12 @@ export function createDocument(initial: Scene, resources = createResources()) {
 				throw new Error("Document is closed.");
 			}
 			validateFrame(next.frame);
+			if (next.whiteBalance) {
+				validateWhiteBalance(
+					next.whiteBalance,
+					resources.get(next.source).raw?.asShot,
+				);
+			}
 			update(next);
 		},
 		dispose() {

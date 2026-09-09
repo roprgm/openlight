@@ -36,8 +36,8 @@ export function createAdjustments(gpu: Gpu, source: Target) {
 	});
 	return {
 		output,
-		render(frame: Frame, adjustments: Adjustments) {
-			frame.pass(output, apply.set({ adjustments }));
+		render(frame: Frame, adjustments: Adjustments, input = source) {
+			frame.pass(output, apply.set({ adjustments, source: input.color }));
 		},
 		dispose() {
 			output.color.dispose();

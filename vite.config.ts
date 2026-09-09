@@ -4,5 +4,6 @@ import react from "@vitejs/plugin-react";
 
 export default {
 	plugins: [react(), tailwindcss(), wgslVitePlugin()],
+	server: { fs: { allow: [".", "../raw-webgpu/dist"] } },
 	resolve: { alias: { "@": "/src" } },
 };

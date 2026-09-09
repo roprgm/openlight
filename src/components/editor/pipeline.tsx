@@ -4,6 +4,7 @@ import {
 	useContext,
 	useEffect,
 	useMemo,
+	useState,
 } from "react";
 import { useGpu } from "vgpu-react";
 import { useDocument, useScene } from "@/components/editor/session";
@@ -23,20 +24,44 @@ export function useRenderer() {
 
 type RendererProviderProps = { children: ReactNode };
 
+function RendererError({ error }: { error: string }) {
+	return (
+		<p className="fixed bottom-4 left-4 rounded bg-neutral-900 px-3 py-2 text-red-300 text-sm">
+			Renderer error: {error}
+		</p>
+	);
+}
+
 export function RendererProvider({ children }: RendererProviderProps) {
 	const gpu = useGpu();
 	const document = useDocument();
 	const sourceId = useScene((scene) => scene.source);
-	const source = document.resources.get(sourceId).image;
+	const source = document.resources.get(sourceId);
 	const renderer = useMemo(() => createRenderer(gpu, source), [gpu, source]);
+	const [error, setError] = useState<string>();
+
 	useEffect(() => {
-		const render = () => renderer.update(document.scene.getState());
+		let active = true;
+		const render = () => {
+			setError(undefined);
+			renderer.update(document.scene.getState()).catch((error) => {
+				if (active) {
+					setError(String(error));
+				}
+			});
+		};
 		const unsubscribe = document.scene.subscribe(render);
 		render();
 		return () => {
+			active = false;
 			unsubscribe();
 			renderer.dispose();
 		};
 	}, [renderer, document]);
+
+	if (error) {
+		return <RendererError error={error} />;
+	}
+
 	return <RendererContext value={renderer}>{children}</RendererContext>;
 }

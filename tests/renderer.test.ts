@@ -1,18 +1,124 @@
 import { expect, mock, test } from "bun:test";
+import type { Target } from "vgpu";
 import {
 	frame,
 	getMockGPUDeviceInstrumentation,
 	init,
 	target,
 } from "vgpu/mock";
+import { setWhiteBalance } from "@/features/white-balance/edits";
 import { createDocument } from "@/lib/editor/document";
 import { setAdjustments, setToneCurve } from "@/lib/editor/document/edits";
+import { createResources } from "@/lib/editor/document/resources";
 import { createRenderer } from "@/lib/editor/renderer";
 import { defaultAdjustments } from "@/lib/editor/scene";
 import { createDisplay } from "@/lib/image-display";
 import { imageFrame } from "@/lib/image-frame/geometry";
+import { createImageSource } from "@/lib/image-source";
 import { defaultCurve } from "@/lib/tone-curves/curve";
 import { createUnsharpMask } from "@/lib/unsharp-mask";
+
+test("RAW edits coalesce, recover from failure, and retain an exporting source after document replacement", async () => {
+	const gpu = await init();
+	const image = target(gpu, { size: [8, 8], format: "rgba16float" });
+	const asShot = { temperature: 5000, tint: 10 };
+	const requests: ReturnType<typeof Promise.withResolvers<void>>[] = [];
+	const outputs: Target[] = [];
+	const started = Promise.withResolvers<void>();
+	const close = mock(() => {});
+	const develop = mock(() => {
+		const request = Promise.withResolvers<void>();
+		requests.push(request);
+		started.resolve();
+		return request.promise;
+	});
+	const source = createImageSource(image, {
+		asShot,
+		createPass() {
+			const output = target(gpu, { size: image.size, format: image.format });
+			outputs.push(output);
+			return {
+				prepare: (balance) =>
+					balance.temperature === asShot.temperature &&
+					balance.tint === asShot.tint
+						? Promise.resolve()
+						: develop(),
+				render: () => output,
+				dispose: () => output.color.dispose(),
+			};
+		},
+		dispose: close,
+	});
+	const resources = createResources();
+	const id = resources.add(new File([], "photo.nef"), source);
+	const document = createDocument(
+		{
+			source: id,
+			frame: imageFrame(image.size),
+			adjustments: { ...defaultAdjustments },
+			toneCurve: defaultCurve,
+			whiteBalance: asShot,
+		},
+		resources,
+	);
+	const preview = createRenderer(gpu, source);
+	const exported = createRenderer(gpu, source);
+	const notify = mock(() => {});
+	preview.subscribe(notify);
+	try {
+		// An edit in the same tick as the initial render must not be lost.
+		const initial = preview.update(document.scene.getState());
+		setWhiteBalance(document, { temperature: 2000 });
+		preview.update(document.scene.getState());
+		await started.promise;
+		expect(develop).toHaveBeenCalledTimes(1);
+		setWhiteBalance(document, { temperature: 3000 });
+		preview.update(document.scene.getState());
+		setWhiteBalance(document);
+		preview.update(document.scene.getState());
+		requests[0].resolve();
+		await initial;
+		expect(develop).toHaveBeenCalledTimes(1);
+		expect(notify).toHaveBeenCalledTimes(2);
+		expect(outputs).toHaveLength(2);
+		document.history.undo();
+		expect(document.scene.getState().whiteBalance?.temperature).toBe(3000);
+		const failed = preview.update(document.scene.getState());
+		requests[1].reject(Error("Decode failure"));
+		await expect(failed).rejects.toThrow("Decode failure");
+		const superseded = preview.update(document.scene.getState());
+		setWhiteBalance(document);
+		preview.update(document.scene.getState());
+		requests[2].reject(Error("Superseded failure"));
+		await superseded;
+		setWhiteBalance(document, { temperature: 6500 });
+		const recovered = preview.update(document.scene.getState());
+		requests[3].resolve();
+		await recovered;
+		expect(() => setWhiteBalance(document, { temperature: NaN })).toThrow(
+			"Invalid",
+		);
+		const exporting = exported.update(document.scene.getState());
+		preview.dispose();
+		document.dispose();
+		expect(close).not.toHaveBeenCalled();
+		expect(() => image.color.view).not.toThrow();
+		requests[4].resolve();
+		await exporting;
+		expect(exported.outputImage().size).toEqual([8, 8]);
+		exported.dispose();
+		expect(close).toHaveBeenCalledTimes(1);
+		expect(() => image.color.view).toThrow("destroyed");
+		for (const output of outputs) {
+			expect(() => output.color.view).toThrow("destroyed");
+		}
+	} finally {
+		preview.dispose();
+		exported.dispose();
+		document.dispose();
+		gpu.dispose();
+	}
+});
 
 test.each([1, 16])(
 	"unsharp mask at reduction %s bypasses zero, reuses pipelines, and owns its outputs",
@@ -68,7 +174,8 @@ test("rendering follows grouped edits and undo, reuses pipelines, and releases o
 		adjustments: { ...defaultAdjustments },
 		toneCurve: defaultCurve,
 	});
-	const renderer = createRenderer(gpu, source);
+	const resource = createImageSource(source);
+	const renderer = createRenderer(gpu, resource);
 	const notify = mock(() => {});
 	const detach = renderer.subscribe(notify);
 	const unsubscribe = document.scene.subscribe(renderer.update);
@@ -156,6 +263,7 @@ test("rendering follows grouped edits and undo, reuses pipelines, and releases o
 		detach();
 		renderer.dispose();
 		document.dispose();
+		resource.dispose();
 		gpu.dispose();
 	}
 });

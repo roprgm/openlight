@@ -1,4 +1,6 @@
 import type { Gpu, Target } from "vgpu";
+import { createImageSource, type ImageSource } from "@/lib/image-source";
+import { decodeRaw } from "@/lib/raw";
 import { uploadTiff } from "@/lib/tiff-gpu";
 import { decodeHeic } from "./heic";
 import linearize from "./linearize";
@@ -21,6 +23,15 @@ export function workerDecoder(
 				}: MessageEvent<Decoded | { error: string }>) => {
 					"error" in data ? reject(new Error(data.error)) : resolve(data);
 					worker.terminate();
+				};
+				worker.onerror = (event) => {
+					event.preventDefault();
+					worker.terminate();
+					reject(new Error(event.message || "Image decoding worker failed."));
+				};
+				worker.onmessageerror = () => {
+					worker.terminate();
+					reject(new Error("Could not read the decoded image."));
 				};
 				worker.postMessage(file);
 			});
@@ -58,6 +69,39 @@ const formats: Format[] = [
 	},
 ];
 
+const rawExtensions = [
+	"dng",
+	"cr2",
+	"cr3",
+	"crw",
+	"nef",
+	"nrw",
+	"arw",
+	"sr2",
+	"srf",
+	"raf",
+	"orf",
+	"rw2",
+	"raw",
+	"rwl",
+	"pef",
+	"ptx",
+	"srw",
+	"3fr",
+	"fff",
+	"iiq",
+	"kdc",
+	"dcr",
+	"mos",
+	"mef",
+	"erf",
+	"mrw",
+	"x3f",
+];
+const isRaw = (file: File) =>
+	rawExtensions.includes(file.name.split(".").pop()?.toLowerCase() ?? "") ||
+	["image/x-adobe-dng", "image/dng"].includes(file.type);
+
 /** Matches by MIME type, then by extension for files the OS doesn't type. */
 function formatOf(file: File) {
 	const extension = file.name.split(".").pop()?.toLowerCase() ?? "";
@@ -67,21 +111,29 @@ function formatOf(file: File) {
 }
 
 /** Types and extensions `decode` accepts, for `<input accept>`. */
-export const accept = formats
-	.flatMap((f) => [...f.types, ...f.extensions.map((e) => `.${e}`)])
-	.join(",");
+export const accept = [
+	...formats.flatMap((f) => [...f.types, ...f.extensions.map((e) => `.${e}`)]),
+	...rawExtensions.map((extension) => `.${extension}`),
+].join(",");
 
-export const canDecode = (file: File) => formatOf(file) !== undefined;
+export const canDecode = (file: File) =>
+	isRaw(file) || formatOf(file) !== undefined;
 
 /** Decodes the file into a linear rgba16float target: the format's decoder, then its GPU leg. */
-export default async function decode(gpu: Gpu, file: File): Promise<Target> {
+export default async function decode(
+	gpu: Gpu,
+	file: File,
+): Promise<ImageSource> {
+	if (isRaw(file)) {
+		return decodeRaw(gpu, file);
+	}
 	const format = formatOf(file);
 	if (!format) {
 		throw new Error(`Unsupported image: ${file.name}`);
 	}
 	const decoder = await format.load();
 	const decoded = await decoder(file);
-	return "chunks" in decoded
-		? uploadTiff(gpu, decoded)
-		: linearize(gpu, decoded);
+	return createImageSource(
+		"chunks" in decoded ? uploadTiff(gpu, decoded) : linearize(gpu, decoded),
+	);
 }

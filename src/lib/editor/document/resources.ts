@@ -1,16 +1,16 @@
-import type { Target } from "vgpu";
+import type { ImageSource } from "@/lib/image-source";
 
 /** Owns the document's image files and GPU targets, outside scene history. */
 export function createResources() {
-	const images = new Map<string, { file: File; image: Target }>();
+	const images = new Map<string, { file: File } & ImageSource>();
 	let disposed = false;
 	return {
-		add(file: File, image: Target) {
+		add(file: File, source: ImageSource) {
 			if (disposed) {
 				throw new Error("Document is closed.");
 			}
 			const id = crypto.randomUUID();
-			images.set(id, { file, image });
+			images.set(id, { file, ...source });
 			return id;
 		},
 		get(id: string) {
@@ -21,17 +21,17 @@ export function createResources() {
 			return resource;
 		},
 		retain(ids: ReadonlySet<string>) {
-			for (const [id, { image }] of images) {
+			for (const [id, source] of images) {
 				if (!ids.has(id)) {
-					image.color.dispose();
+					source.dispose();
 					images.delete(id);
 				}
 			}
 		},
 		dispose() {
 			disposed = true;
-			for (const { image } of images.values()) {
-				image.color.dispose();
+			for (const source of images.values()) {
+				source.dispose();
 			}
 			images.clear();
 		},
