@@ -12,12 +12,12 @@ export function createToneCurves(gpu: Gpu, source: Target) {
 	});
 	const apply = effect(gpu, shader, { set: { source: source.color, curve } });
 	return {
-		render(frame: Frame, points: ToneCurve) {
+		render(frame: Frame, points: ToneCurve, input: Target = source) {
 			if (points.every((point) => point.x === point.y)) {
-				return source;
+				return input;
 			}
 			curve.write(sampleCurve(points, curveSize));
-			frame.pass(output, apply);
+			frame.pass(output, apply.set({ source: input.color }));
 			return output;
 		},
 		dispose() {

@@ -12,6 +12,8 @@ self.onmessage = async ({ data }: MessageEvent<Blob>) => {
 			],
 		});
 	} catch (error) {
-		self.postMessage({ error: String(error) });
+		self.postMessage({
+			error: error instanceof Error ? error.message : String(error),
+		});
 	}
 };

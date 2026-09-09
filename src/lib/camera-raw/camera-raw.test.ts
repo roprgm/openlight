@@ -20,8 +20,9 @@ test("DNG: the mosaic, its camera data, and lossless JPEG tiles", async () => {
 		orientation: 1,
 		crop: [0, 0, 64, 48],
 		pattern: [0, 1, 1, 2],
-		black: 512,
-		white: 15000,
+		kind: "bayer",
+		black: [512],
+		white: [15000],
 		neutral: [0.5, 1, 0.7],
 	});
 	expect(raw.matrix.map((v) => Math.round(v * 1000) / 1000)).toHaveLength(9);
@@ -92,6 +93,80 @@ test.skipIf(!gpu)(
 				});
 			}
 			image.color.dispose();
+		}
+	},
+);
+
+test("LinearRaw selects the full RGB SubIFD, retains its channels and companding metadata", async () => {
+	for (const name of ["linear.dng", "linear-ljpeg.dng"]) {
+		const { raw, prepared } = await prepareDng(await fixture(name));
+		expect(raw).toMatchObject({
+			kind: "linear",
+			crop: [2, 2, 12, 8],
+			orientation: 6,
+			black: [64, 128, 256],
+			white: [16383, 16383, 16383],
+			blackRepeat: [1, 1],
+		});
+		expect(raw.image.samplesPerPixel).toBe(3);
+		expect(raw.linearization).toHaveLength(4096);
+		const pixels = new Uint16Array(prepared.data.buffer, prepared.chunks[0], 6);
+		expect([...pixels]).toEqual([900, 1800, 2300, 1700, 2100, 1200]);
+	}
+});
+
+test.skipIf(!gpu)(
+	"linear DNG stages linearize before black subtraction and never demosaic",
+	async () => {
+		if (!gpu) return;
+		const { frame } = await import("vgpu");
+		const { createDevelopment } = await import("./develop");
+		const reference = JSON.parse(
+			await Bun.file(`${import.meta.dir}/fixtures/linear.json`).text(),
+		);
+		for (const name of ["linear.dng", "linear-ljpeg.dng"]) {
+			const pipeline = createDevelopment(
+				gpu,
+				await prepareDng(await fixture(name)),
+			);
+			try {
+				expect(pipeline.stages.map((stage) => stage.id)).toEqual([
+					"normalize",
+					"working-color",
+				]);
+				frame(gpu, (f) => {
+					pipeline.render(f, undefined);
+				});
+				const normalized = await pipeline.output("normalize").readFloats();
+				reference.pixels.forEach(
+					(pixel: { normalized: number[] }, x: number) => {
+						pixel.normalized.forEach((v, c) => {
+							expect(Math.abs(normalized[x * 4 + c] - v)).toBeLessThan(0.00001);
+						});
+					},
+				);
+				const image = pipeline.output("working-color");
+				expect(image.size).toEqual(reference.size);
+				const pixels = await image.readFloats();
+				for (let y = 0; y < 12; y++)
+					for (let x = 0; x < 8; x++) {
+						// Inverse orientation 6: stored (2+y, 9-x), preserving the checkerboard exactly.
+						const expected = reference.pixels[(11 + y - x) % 2].rgb;
+						expected.forEach((v: number, c: number) => {
+							expect(Math.abs(pixels[(y * 8 + x) * 4 + c] - v)).toBeLessThan(
+								0.002,
+							);
+						});
+					}
+				const source = pipeline.output("source");
+				const kept = pipeline.takeOutput();
+				pipeline.dispose();
+				expect(() => source.color.view).toThrow("destroyed");
+				expect(() => kept.color.view).not.toThrow();
+				kept.color.dispose();
+			} finally {
+				pipeline.dispose();
+			}
 		}
 	},
 );

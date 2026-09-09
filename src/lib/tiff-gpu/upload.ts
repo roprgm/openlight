@@ -153,7 +153,12 @@ export function uploadTiff(
 		width,
 		height,
 		samples: info.samplesPerPixel,
-		colors: info.photometric === 2 ? 3 : 1,
+		colors:
+			info.photometric === 34892
+				? info.samplesPerPixel
+				: info.photometric === 2
+					? 3
+					: 1,
 		bits: info.bitsPerSample,
 		littleEndian: Number(info.littleEndian),
 		float: Number(info.sampleFormat === 3),

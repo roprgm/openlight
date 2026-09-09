@@ -1,26 +1,36 @@
 # camera-raw
 
-Develops camera raw files into a linear RGB texture, on top of [tiff-gpu](../tiff-gpu/README.md), which reads the container and decompresses the sensor data. Bayer DNG is the first format; internal to OpenLight for now.
-
-## Usage
+Develops Bayer and LinearRaw DNG files into an oriented, cropped, linear Rec.2020 `rgba16float` texture. [tiff-gpu](../tiff-gpu/README.md) reads the container and decompresses the samples in a worker; development runs on WebGPU without React.
 
 ```ts
 import { developDng, prepareDng } from "@/lib/camera-raw";
 
 const image = developDng(gpu, await prepareDng(await file.arrayBuffer()));
-// a vgpu Target: rgba16float, linear Rec.2020, oriented and cropped
+// The caller owns image.color and must dispose it.
 ```
 
-`prepareDng(bytes)` is the CPU half and runs in a worker: it finds the Bayer mosaic among the directories, reads black and white levels, the CFA pattern, the as-shot neutral, the default crop, the orientation, and the color matrix for daylight, and has tiff-gpu decompress the tiles. `developDng(gpu, prepared)` uploads the mosaic as a float texture and runs one pass that demosaics (bilinear), white-balances, clips at the sensor's white, converts camera RGB to linear Rec.2020, and undoes the orientation within the crop.
+## Development stages
 
-## How it uses tiff-gpu
+`createDevelopment(gpu, prepared)` exposes an ordered [image pipeline](../pipeline.ts):
 
-`readTiff` finds the mosaic directory and its tags, `parseTiff` turns it into a layout, `prepareTiff` decompresses it with `colorSpace: "none"`, and `uploadTiff` places it in a float32 texture that the develop pass reads. Native formats such as ARW, NEF, or CR2 would add their codecs to tiff-gpu's table and their readers here; CR2 already has its codec, since it uses lossless JPEG.
+1. `normalize`: expand the optional linearization table, subtract repeated/per-channel black levels and row/column deltas, and normalize by each channel's white level. Negative samples are retained.
+2. `demosaic`: bilinear interpolation, present only for a 2×2 RGB Bayer CFA. LinearRaw already contains complete color samples and skips this stage.
+3. `working-color`: as-shot white balance, camera-to-Rec.2020 conversion, crop, and orientation. These pointwise operations share a pass to avoid another full-size texture. This preserves the existing post-white-balance highlight clipping policy.
 
-## Not yet
+The data's PhotometricInterpretation and sample layout select the stages, never the camera make or model. The reader searches IFDs and SubIFDs for the largest non-preview CFA or LinearRaw image. LinearRaw supports one or three channels, including lossless JPEG RGB. TIFF upload preserves these color channels instead of treating them as gray plus alpha.
 
-Linearization tables, linear-raw (demosaiced) DNG, non-2×2 patterns such as X-Trans, opcode lists, lens corrections, and a better demosaic than bilinear. Camera-native formats (ARW, NEF, CR2) need their own codecs in tiff-gpu's table and a per-camera matrix table, which DNG carries in the file.
+Call `pipeline.render(frame, undefined)` inside a vgpu frame. Afterwards, `pipeline.output("normalize")` exposes normalized stored samples and `pipeline.output("working-color")` exposes the final image. `takeOutput()` transfers ownership of the final texture; `dispose()` releases the remaining textures and level buffer. `developDng` performs this one-shot lifecycle for the loader.
+
+A future RAW denoiser belongs after normalization and before demosaic; RGB denoising can use linear samples or the editor's working-space source. This preparation change does not implement denoising or retain RAW data in the document for interactive redevelopment.
+
+## Scope and cost
+
+Supported compression is inherited from tiff-gpu. LinearRaw fixes the Bayer-only rejection for demosaiced DNG, a representation used by Apple ProRAW. It does not add JPEG XL decoding, DNG opcode lists, gain maps, full camera profile rendering, X-Trans demosaic, or native ARW/NEF/CR2 readers. Therefore it is not a claim of complete ProRAW support or a match to Apple's rendering.
+
+Development retains float32 source and intermediate textures for precision and inspection, then releases them after loading. This costs additional passes and temporary memory compared with the former fused shader: about 40 bytes per stored pixel for LinearRaw and 56 for Bayer, assuming an uncropped output, excluding upload/decompression buffers. Large images need physical-GPU memory/performance measurements; tiled processing or selective retention should precede a memory-heavy denoiser. Software GPU tests establish correctness, not interactive performance.
 
 ## Tests
 
-`camera-raw.test.ts` checks the reader's tags and the decoded samples of both fixtures, and under `bun run test:gpu` the developed color of every block, including the rotated and cropped positions.
+`camera-raw.test.ts` checks directory selection, sample layout, decoded values, and metadata. `bun run test:gpu` also executes the real shaders and compares pixels against independent references for Bayer and LinearRaw, including companding, per-channel black levels, orientation, crop, and ownership transfer. The LinearRaw checkerboard makes unwanted demosaic visible. The browser TIFF/DNG session covers loading and export through the worker and document pipeline.
+
+References: [Adobe DNG specification](https://helpx.adobe.com/camera-raw/desktop/dng-and-file-formats/digital-negative.html), [Apple's ProRAW format overview](https://developer.apple.com/videos/play/wwdc2021/10160/).

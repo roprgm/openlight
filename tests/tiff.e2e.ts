@@ -73,6 +73,17 @@ test("TIFF and DNG files open through the loader with their color, orientation, 
 	expect((await readImage(page)).size).toEqual([64, 48]);
 	await load("bayer-ljpeg.dng", "src/lib/camera-raw/fixtures");
 	expect((await readImage(page)).size).toEqual([44, 56]);
+	// LinearRaw contains complete RGB pixels; both codecs must preserve the same colors without interpolation.
+	await load("linear.dng", "src/lib/camera-raw/fixtures");
+	const linear = await readImage(page);
+	expect(linear.size).toEqual([8, 12]);
+	expect(linear.center[3]).toBe(255);
+	expect(
+		Math.max(...linear.center.slice(0, 3)) -
+			Math.min(...linear.center.slice(0, 3)),
+	).toBeGreaterThan(20);
+	await load("linear-ljpeg.dng", "src/lib/camera-raw/fixtures");
+	expect(await readImage(page)).toEqual(linear);
 	await load("rgb8-jpeg.tif");
 	await expect(
 		page.getByText("Couldn't open rgb8-jpeg.tif:", { exact: false }),
