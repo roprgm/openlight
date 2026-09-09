@@ -113,7 +113,7 @@ test("DNG profile baseline and gain tables survive parsing and develop in active
 	const reference = await Bun.file(
 		`${import.meta.dir}/fixtures/profile.json`,
 	).json();
-	const image = developDng(gpu, prepared);
+	const { image, whiteBalance } = developDng(gpu, prepared);
 	try {
 		expect(image.size).toEqual(reference.size);
 		const pixels = await image.readFloats();
@@ -126,6 +126,7 @@ test("DNG profile baseline and gain tables survive parsing and develop in active
 		expect(Math.max(...pixels)).toBeGreaterThan(2);
 	} finally {
 		image.color.dispose();
+		whiteBalance?.dispose();
 	}
 });
 
@@ -149,7 +150,10 @@ test.skipIf(!gpu)(
 				(bx: number, by: number) => [33 - by * 22, 14 + bx * 28],
 			],
 		] as const) {
-			const image = developDng(gpu, await prepareDng(await fixture(name)));
+			const { image, whiteBalance } = developDng(
+				gpu,
+				await prepareDng(await fixture(name)),
+			);
 			expect([...image.size], name).toEqual([...size]);
 			const pixels = await image.readFloats();
 			for (const [block, rgba] of Object.entries(reference.blocks) as [
@@ -172,6 +176,7 @@ test.skipIf(!gpu)(
 				});
 			}
 			image.color.dispose();
+			whiteBalance?.dispose();
 		}
 	},
 );

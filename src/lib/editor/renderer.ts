@@ -2,7 +2,7 @@ import { type Frame, frame, type Gpu, type Target } from "vgpu";
 import { createAdjustments } from "@/lib/adjustments";
 import type { Scene } from "@/lib/editor/scene";
 import { createImageFrame } from "@/lib/image-frame";
-import type { WhiteBalanceSource } from "@/lib/image-source";
+import type { ImageSource } from "@/lib/image-source";
 import { createPipeline } from "@/lib/pipeline";
 import { createToneCurves } from "@/lib/tone-curves";
 import { createUnsharpMask } from "@/lib/unsharp-mask";
@@ -10,8 +10,7 @@ import { createUnsharpMask } from "@/lib/unsharp-mask";
 /** Owns scene passes and intermediate textures for one decoded source. */
 export function createRenderer(
 	gpu: Gpu,
-	source: Target,
-	whiteBalance?: WhiteBalanceSource,
+	{ image: source, whiteBalance }: ImageSource,
 ) {
 	const develop = whiteBalance?.create(gpu);
 	const adjust = createAdjustments(gpu, source);

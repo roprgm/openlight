@@ -68,7 +68,7 @@ test("rendering follows grouped edits and undo, reuses pipelines, and releases o
 		adjustments: { ...defaultAdjustments },
 		toneCurve: defaultCurve,
 	});
-	const renderer = createRenderer(gpu, source);
+	const renderer = createRenderer(gpu, { image: source });
 	const notify = mock(() => {});
 	const detach = renderer.subscribe(notify);
 	const unsubscribe = document.scene.subscribe(renderer.update);
@@ -186,7 +186,8 @@ test("absolute white balance is a source capability, with independent render sta
 			};
 		},
 	};
-	const id = resources.add(new File([], "custom.camera"), source, capability);
+	const decoded = { image: source, whiteBalance: capability };
+	const id = resources.add(new File([], "custom.camera"), decoded);
 	const document = createDocument(
 		{
 			source: id,
@@ -197,8 +198,8 @@ test("absolute white balance is a source capability, with independent render sta
 		},
 		resources,
 	);
-	const preview = createRenderer(gpu, source, capability);
-	const exported = createRenderer(gpu, source, capability);
+	const preview = createRenderer(gpu, decoded);
+	const exported = createRenderer(gpu, decoded);
 	try {
 		document.history.begin();
 		setWhiteBalance(document, { temperature: 2000 });

@@ -45,6 +45,8 @@ Loading calls are queued. XMP import requires a loaded document and is skipped i
 | `sharpening` | 0 to 150 | 0 |
 | `sharpenRadius` | 0.5 to 3 | 1 |
 
+`setWhiteBalance({ temperature, tint })` changes absolute white balance when the source supports it; either field may be omitted. Temperature is in Kelvin (2000–25000), tint uses OpenLight's green–magenta scale (−150–150). The ranges expand to include an outlying As Shot value. `setWhiteBalance()` restores As Shot. Images without this capability use `incrementalTemperature` and `incrementalTint` instead.
+
 `setToneCurve(points)` replaces the tone curve. Each point is `{ x, y }` with coordinates between 0 and 1. Supply at least two points, ordered by `x` with a minimum gap of `1/1024`. The first point must have `x = 0` or `y = 0`; the last must have `x = 1` or `y = 1`. Call `setToneCurve()` to reset it.
 
 `editScene(change)` shallowly merges a partial [Scene](src/lib/editor/scene.ts) into the document as an undoable edit. Supply complete values for nested fields such as `frame`. Prefer `setAdjustments` and `setToneCurve` for their validation.
@@ -81,6 +83,6 @@ Each edit creates an undo step unless a group is open. Preview changes are outsi
 
 ## State
 
-`getState()` returns a detached snapshot containing `file`, `documentId`, `size`, `frame`, `adjustments`, `toneCurve`, `preview`, and `history`. `file` is the filename, and `history` contains `undoCount` and `redoCount`.
+`getState()` returns a detached snapshot containing `file`, `documentId`, `size`, `frame`, `adjustments`, `whiteBalance`, `asShotWhiteBalance`, `toneCurve`, `preview`, and `history`. `file` is the filename, and `history` contains `undoCount` and `redoCount`.
 
 Without a document, `documentId`, `size`, `frame`, and `preview` are undefined. Adjustments and the tone curve use their defaults, and history counts are zero. Mutating the snapshot does not edit the document.

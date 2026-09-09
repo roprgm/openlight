@@ -1,17 +1,16 @@
-import type { Target } from "vgpu";
-import type { ImageSource, WhiteBalanceSource } from "@/lib/image-source";
+import type { ImageSource } from "@/lib/image-source";
 
 /** Owns the document's image files and GPU targets, outside scene history. */
 export function createResources() {
 	const images = new Map<string, { file: File } & ImageSource>();
 	let disposed = false;
 	return {
-		add(file: File, image: Target, whiteBalance?: WhiteBalanceSource) {
+		add(file: File, source: ImageSource) {
 			if (disposed) {
 				throw new Error("Document is closed.");
 			}
 			const id = crypto.randomUUID();
-			images.set(id, { file, image, whiteBalance });
+			images.set(id, { file, ...source });
 			return id;
 		},
 		get(id: string) {

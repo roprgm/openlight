@@ -22,7 +22,7 @@ Color comes from the file's ICC profile when it is the matrix/TRC kind every pho
 | Container | TIFF and BigTIFF, both byte orders, strips and tiles, chunky and planar, first image |
 | Samples | Unsigned integers of any depth up to 32 bits, packed or byte-aligned; 16, 32, 64-bit floats |
 | Color | RGB, grayscale (black or white is zero), palette, TIFF/EP sensor mosaics (CFA, linear raw), alpha as an extra sample |
-| Compression | None, LZW, Deflate (8 and 32946), PackBits, lossless JPEG (7) |
+| Compression | None, LZW, Deflate (8 and 32946), PackBits, lossless JPEG (7), JPEG XL (52546) |
 | Predictors | Horizontal (GPU) and floating point (CPU) |
 
 Not supported: JPEG, CMYK, YCbCr, Lab, signed integers, sub-byte fill order.
@@ -61,6 +61,6 @@ A persistent worker would save the spawn cost per file; OpenLight already runs `
 
 ## JPEG XL
 
-Compression 52546 uses a lazy-loaded libjxl 0.12.0 WebAssembly decoder in the loading worker. DNG integer samples use the JPEG XL storage range (byte for codestreams up to 8 bits, full uint16 otherwise), independently of the TIFF bit-depth tag; ordinary RGB/gray TIFF scales to full uint16; 16-bit floating-point samples decode to float32, preserving headroom. Tile dimensions and channels are checked before decoding. WASM temporary buffers are freed after each tile, and the loader terminates the worker after each file. Color development remains on WebGPU.
+Compression 52546 loads the precompiled `jpeg-xl/decoder.wasm` in the file's worker. The adjacent generated JS and type declaration are its runtime adapter; no compilation tools or build scripts are needed. The asset is about 796 KiB (299 KiB gzip), fetched only for JPEG XL input. Attribution is in `NOTICE`.
 
-The decoder asset is about 796 KiB (299 KiB gzip); it is fetched only for JPEG XL input. The compiled decoder, build source, and provenance are in `scripts/jpeg-xl/README.md`; distributed notices are at `/codecs/jpeg-xl.LICENSE.txt`.
+DNG integer output follows the codestream's storage range, independently of the TIFF bit-depth tag; floating output preserves headroom as float32. This distinction is required before DNG linearization. The decoder checks tile dimensions/channels, frees temporary buffers after each tile, and the worker releases WASM memory when the file finishes.

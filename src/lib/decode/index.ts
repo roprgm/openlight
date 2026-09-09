@@ -1,5 +1,5 @@
 import type { Gpu, Target } from "vgpu";
-import { developEditableDng } from "@/lib/camera-raw/develop";
+import { developDng } from "@/lib/camera-raw/develop";
 import type { ImageSource } from "@/lib/image-source";
 import { uploadTiff } from "@/lib/tiff-gpu";
 import { decodeHeic } from "./heic";
@@ -33,7 +33,7 @@ const heic = withUpload(decodeHeic, linearize);
 const tiff = withUpload(workerDecoder("tiff"), uploadTiff);
 const decodeDng = workerDecoder("dng");
 const dng = async (gpu: Gpu, file: Blob) =>
-	developEditableDng(gpu, await decodeDng(file));
+	developDng(gpu, await decodeDng(file));
 
 const formats: Format[] = [
 	{

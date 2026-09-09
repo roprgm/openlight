@@ -1,0 +1,18 @@
+OpenLight includes a precompiled JPEG XL decoder based on libjxl 0.12.0
+(a7a9c787341cf703dede03c2009fa460cae5e5df), built with Emscripten 6.0.9.
+No codec compilation is needed to build or run the app.
+
+Third-party projects, copyright holders, and license references:
+
+- libjxl: JPEG XL Project Authors — BSD-3-Clause, with Google's patent grant.
+  https://github.com/libjxl/libjxl/tree/v0.12.0
+- Highway 1.2.0: Highway Project Authors — BSD-3-Clause.
+  https://github.com/google/highway/blob/1.2.0/LICENSE
+- Brotli 1.2.0: Brotli Authors — MIT.
+  https://github.com/google/brotli/blob/v1.2.0/LICENSE
+- Emscripten: Emscripten Authors — MIT.
+  https://github.com/emscripten-core/emscripten/blob/6.0.9/LICENSE
+- musl: Rich Felker and contributors — MIT.
+  https://git.musl-libc.org/cgit/musl/tree/COPYRIGHT
+- LLVM runtime: LLVM Project contributors — Apache-2.0 with LLVM exceptions.
+  https://github.com/llvm/llvm-project/blob/main/compiler-rt/LICENSE.TXT

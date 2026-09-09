@@ -113,7 +113,8 @@ test("documents edit independently without React, retain bounded history, and re
 	const gpu = await init();
 	const resources = createResources();
 	const file = new File(["fixture"], "image.png");
-	const add = () => resources.add(file, target(gpu, { size: [2, 2] }));
+	const add = () =>
+		resources.add(file, { image: target(gpu, { size: [2, 2] }) });
 	const source = add();
 	const doc = createDocument(
 		{ ...document().scene.getState(), source },

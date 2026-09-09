@@ -1,4 +1,4 @@
-import { effect, frame, type Gpu, type Target, target } from "vgpu";
+import { effect, frame, type Gpu, target } from "vgpu";
 import type { ImageSource } from "@/lib/image-source";
 import { createPipeline, type ImageStage } from "@/lib/pipeline";
 import { uploadTiff } from "@/lib/tiff-gpu";
@@ -18,25 +18,19 @@ export function createDevelopment(gpu: Gpu, { prepared, raw }: PreparedDng) {
 			...raw.blackDeltaV,
 			...raw.linearization,
 		]);
-		function storage(data: Float32Array<ArrayBuffer>) {
-			const buffer = gpu.device.createBuffer({
-				size: data.byteLength,
-				usage: ["storage", "copy_dst"],
-			});
-			owned.add(buffer);
-			buffer.write(data);
-			return buffer;
-		}
-		const levels = storage(data);
+		const levels = gpu.device.createBuffer({
+			size: data.byteLength,
+			usage: ["storage", "copy_dst"],
+		});
+		owned.add(levels);
+		levels.write(data);
 		const stages: ImageStage<void>[] = [];
 		function pass(
 			id: string,
 			shader: Parameters<typeof effect>[1],
 			values: Record<string, unknown>,
-			size: readonly [number, number] = source.size,
-			format: Target["format"] = "rgba32float",
 		) {
-			const output = target(gpu, { size, format });
+			const output = target(gpu, { size: source.size, format: "rgba32float" });
 			owned.add(output.color);
 			const apply = effect(gpu, shader).set(values);
 			stages.push({
@@ -87,9 +81,7 @@ export function createDevelopment(gpu: Gpu, { prepared, raw }: PreparedDng) {
 		return {
 			...pipeline,
 			/** Transfer the final texture to a decoded image resource; scratch stays owned here. */
-			takeOutput() {
-				return color.takeOutput();
-			},
+			takeOutput: color.takeOutput,
 			takeCamera() {
 				const image = pipeline.output(
 					raw.kind === "bayer" ? "demosaic" : "normalize",
@@ -109,24 +101,8 @@ export function createDevelopment(gpu: Gpu, { prepared, raw }: PreparedDng) {
 	}
 }
 
-/** Decode uses a single development run; retain only its returned working-space texture. */
-export function developDng(gpu: Gpu, prepared: PreparedDng): Target {
-	const pipeline = createDevelopment(gpu, prepared);
-	try {
-		frame(gpu, (f) => {
-			pipeline.render(f, undefined);
-		});
-		return pipeline.takeOutput();
-	} finally {
-		pipeline.dispose();
-	}
-}
-
 /** Expose editable white balance through a format-independent image capability. */
-export function developEditableDng(
-	gpu: Gpu,
-	prepared: PreparedDng,
-): ImageSource {
+export function developDng(gpu: Gpu, prepared: PreparedDng): ImageSource {
 	const pipeline = createDevelopment(gpu, prepared);
 	try {
 		frame(gpu, (f) => pipeline.render(f, undefined));
