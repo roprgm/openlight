@@ -188,6 +188,14 @@ test("rendering follows grouped edits and undo, reuses pipelines, and releases o
 		);
 	try {
 		expect(notify).not.toHaveBeenCalled();
+		await expect(
+			renderer.update({
+				...document.scene.getState(),
+				get adjustments(): never {
+					throw Error("Render failure");
+				},
+			}),
+		).rejects.toThrow("Render failure");
 		renderer.update(document.scene.getState());
 		const adjusted = renderer.inputImage();
 		expect(adjusted.size).toEqual(source.size);

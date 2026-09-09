@@ -1,7 +1,7 @@
 # RAW fixtures
 
-These generated images belong to OpenLight and use the repository's MIT license. They contain no camera photographs. Run `python3 generate.py` with NumPy, tifffile and imagecodecs installed to regenerate them.
+These two synthetic MIT-licensed fixtures are copied unchanged from [raw-webgpu](https://github.com/roprgm/raw-webgpu/tree/7aa3573e23c1cfd71cb4f7227beff82484a9d1fd/tests/fixtures), which owns their generator and codec tests. They contain no camera photographs.
 
-Both files describe an sRGB-like synthetic camera with a known XYZ-to-camera matrix, unit As Shot neutral, 16-bit white level 65535, and orientation 6. The image is 128 by 96 before orientation and 96 by 128 afterwards. `bayer.dng` stores uncompressed RGGB samples. `linear-jxl.dng` stores the equivalent linear camera RGB using lossless JPEG XL.
+`bayer.dng` stores RGGB samples; `linear-jxl.dng` stores equivalent linear RGB with JPEG XL compression. Both use an sRGB-like camera profile, samples `[32768, 16384, 8192]`, white level 65535 and orientation 6. Expected output is 96×128 with sRGB pixels approximately `[188, 137, 99]`.
 
-The camera samples are R=32768, G=16384, B=8192. `reference.json` records the independently calculated linear Rec.2020 values. The corresponding sRGB export should be approximately [188, 137, 99]. This checks transfer function, channel order, matrix conversion, bit depth, orientation and JPEG XL decoding without a photographic reference whose expected pixels are unknown.
+OpenLight tests loading, white-balance edits, preview/export agreement, history and resource lifetime with these files.

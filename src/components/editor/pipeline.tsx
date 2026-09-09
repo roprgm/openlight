@@ -24,14 +24,6 @@ export function useRenderer() {
 
 type RendererProviderProps = { children: ReactNode };
 
-function RendererError({ error }: { error: string }) {
-	return (
-		<p className="fixed bottom-4 left-4 rounded bg-neutral-900 px-3 py-2 text-red-300 text-sm">
-			Renderer error: {error}
-		</p>
-	);
-}
-
 export function RendererProvider({ children }: RendererProviderProps) {
 	const gpu = useGpu();
 	const document = useDocument();
@@ -59,9 +51,17 @@ export function RendererProvider({ children }: RendererProviderProps) {
 		};
 	}, [renderer, document]);
 
-	if (error) {
-		return <RendererError error={error} />;
-	}
-
-	return <RendererContext value={renderer}>{children}</RendererContext>;
+	return (
+		<RendererContext value={renderer}>
+			{children}
+			{error && (
+				<p
+					role="alert"
+					className="fixed bottom-4 left-4 rounded bg-neutral-900 px-3 py-2 text-red-300 text-sm"
+				>
+					Renderer error: {error}
+				</p>
+			)}
+		</RendererContext>
+	);
 }

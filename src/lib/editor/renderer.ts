@@ -34,7 +34,7 @@ export function createRenderer(gpu: Gpu, resource: ImageSource) {
 	let disposed = false;
 	function render(scene: Scene) {
 		frame(gpu, (frame) => {
-			const developed = raw?.render(frame) ?? source;
+			const developed = raw?.render() ?? source;
 			adjust.render(frame, scene.adjustments, developed);
 			const curved = toneCurves.render(frame, scene.toneCurve);
 			const { clarity: amount, sharpening, sharpenRadius } = scene.adjustments;
@@ -74,13 +74,13 @@ export function createRenderer(gpu: Gpu, resource: ImageSource) {
 			}
 		}
 	}
-	function update(scene: Scene): Promise<void> {
+	async function update(scene: Scene): Promise<void> {
 		if (disposed) {
-			return Promise.reject(Error("Renderer is closed."));
+			throw Error("Renderer is closed.");
 		}
 		if (!resource.raw) {
 			render(scene);
-			return Promise.resolve();
+			return;
 		}
 		next = scene;
 		pending ??= develop()

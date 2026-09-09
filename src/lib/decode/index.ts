@@ -24,15 +24,6 @@ export function workerDecoder(
 					"error" in data ? reject(new Error(data.error)) : resolve(data);
 					worker.terminate();
 				};
-				worker.onerror = (event) => {
-					event.preventDefault();
-					worker.terminate();
-					reject(new Error(event.message || "Image decoding worker failed."));
-				};
-				worker.onmessageerror = () => {
-					worker.terminate();
-					reject(new Error("Could not read the decoded image."));
-				};
 				worker.postMessage(file);
 			});
 	};

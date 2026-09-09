@@ -9,4 +9,4 @@ Keep the current TIFF loader until raw-webgpu covers the TIFF formats already su
 - Compare loading time and memory on the large compressed and uncompressed TIFF files in `public/debug`. The measured raw-webgpu path was slower; shared RAW infrastructure alone is not a reason to accept that regression.
 - Once coverage and performance are accepted, route TIFF through raw-webgpu and remove the superseded loader and dependencies. Keep the integration small and preserve regression coverage.
 
-The raw-webgpu repository retains `TIFF-BENCHMARK.md` and `DIRECT-BYTES-BENCHMARK.md` with the historical measurements, and provides `bun run test:tiff` and `bun run benchmark:tiff` for verification.
+Verify with `bun run test:tiff` and `bun run benchmark:tiff` in raw-webgpu.

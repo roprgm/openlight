@@ -22,7 +22,7 @@ Image processing runs locally with WebGPU. Built with TypeScript and React.
 
 Requires a WebGPU-capable browser.
 
-The `raw-webgpu` npm package owns RAW decoding, camera calibration and GPU development; editing runs on WebGPU. See [RAW support](src/lib/raw/README.md) for the supported processing path and its limitations.
+RAW decoding and GPU development use [raw-webgpu](https://github.com/roprgm/raw-webgpu), which documents format support and limitations. OpenLight owns editing, history and preview/export lifetimes.
 
 ## Development
 

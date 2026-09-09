@@ -1,11 +1,11 @@
-import type { Frame, Target } from "vgpu";
+import type { Target } from "vgpu";
 
 export type WhiteBalance = { temperature: number; tint: number };
 export type RawDevelopment = {
 	asShot: WhiteBalance;
 	createPass(): {
 		prepare(balance: WhiteBalance): Promise<void>;
-		render(frame: Frame): Target;
+		render(): Target;
 		dispose(): void;
 	};
 	dispose(): void;

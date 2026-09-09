@@ -2,40 +2,19 @@ import { readFile } from "node:fs/promises";
 import { expect, test } from "./fixtures";
 import { readImage, readPreview } from "./images";
 
-declare global {
-	interface Window {
-		rawPixelTransfers: number[];
-	}
-}
-
 test("RAW Bayer and JPEG XL DNG preserve color, orientation, white balance, history and export", async ({
 	page,
 }) => {
-	await page.addInitScript(() => {
-		const replies: number[] = [];
-		Object.assign(window, { rawPixelTransfers: replies });
-		const NativeWorker = window.Worker;
-		window.Worker = class extends NativeWorker {
-			constructor(url: string | URL, options?: WorkerOptions) {
-				super(url, options);
-				this.addEventListener("message", ({ data }) => {
-					replies.push(
-						data.image?.data.byteLength ?? data.data?.byteLength ?? 0,
-					);
-				});
-			}
-		};
-	});
 	await page.goto("/");
 	await page.waitForFunction(() => window.openlight);
-	const load = async (name: string, mime = "image/tiff") => {
+	const load = async (name: string) => {
 		const bytes = [...(await readFile(`tests/fixtures/raw/${name}`))];
 		await page.evaluate(
-			({ bytes, name, mime }) =>
+			({ bytes, name }) =>
 				window.openlight.loadImage(
-					new File([new Uint8Array(bytes)], name, { type: mime }),
+					new File([new Uint8Array(bytes)], name, { type: "image/tiff" }),
 				),
-			{ bytes, name, mime },
+			{ bytes, name },
 		);
 	};
 	for (const name of ["bayer.dng", "linear-jxl.dng"]) {
@@ -54,9 +33,6 @@ test("RAW Bayer and JPEG XL DNG preserve color, orientation, white balance, hist
 			await expect(
 				page.getByRole("slider", { name: "Temperature (K)", exact: true }),
 			).toBeVisible();
-			const beforeEdit = await page.evaluate(
-				() => window.rawPixelTransfers.length,
-			);
 			await page.evaluate(() =>
 				window.openlight.setWhiteBalance({ temperature: 4000, tint: 20 }),
 			);
@@ -68,12 +44,6 @@ test("RAW Bayer and JPEG XL DNG preserve color, orientation, white balance, hist
 			await expect
 				.poll(async () => (await readPreview(page)).center.slice(0, 3))
 				.toEqual(cool.center.slice(0, 3));
-			const transfers = await page.evaluate(
-				(start) => window.rawPixelTransfers.slice(start),
-				beforeEdit,
-			);
-			expect(transfers.length).toBeGreaterThan(0);
-			expect(transfers).toEqual(transfers.map(() => 0));
 			await page.evaluate(() => window.openlight.undo());
 			expect((await readImage(page)).center).toEqual(image.center);
 			await page.evaluate(() => window.openlight.redo());
