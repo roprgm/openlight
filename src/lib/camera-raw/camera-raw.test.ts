@@ -1,6 +1,7 @@
 import { afterAll, expect, test } from "bun:test";
 import { init } from "vgpu/node";
 import { readTiff } from "@/lib/tiff-gpu/ifd";
+import { decodeLosslessJpeg } from "@/lib/tiff-gpu/ljpeg";
 import { readGainMap } from "./gain-map";
 import { developDng, prepareDng, readDng } from "./index";
 
@@ -51,6 +52,31 @@ test("DNG: the mosaic, its camera data, and lossless JPEG tiles", async () => {
 	expect(samples(plain, 0)).toEqual([3000, 6000, 3000, 6000]);
 	expect(samples(jpeg, 0)).toEqual([3000, 6000, 3000, 6000]);
 	expect(samples(jpeg, 5)).toEqual([1000, 2000, 1000, 2000]);
+	const rgbBytes = await fixture("linear-ljpeg.dng");
+	const chunk = readDng(rgbBytes).image.chunks[0];
+	const encoded = new Uint8Array(
+		rgbBytes.slice(chunk.offset, chunk.offset + chunk.length),
+	);
+	const output = new Uint8Array(16 * 12 * 3 * 2);
+	for (const length of [0, 3, encoded.length - 16]) {
+		expect(() =>
+			decodeLosslessJpeg(encoded.subarray(0, length), output),
+		).toThrow("lossless JPEG");
+	}
+	// Increase precision and point transform together: the entropy data stays unchanged, codes double.
+	for (let at = 2; at < encoded.length; ) {
+		const marker = encoded[at + 1];
+		if (marker === 0xc3) encoded[at + 4]++;
+		if (marker === 0xda) {
+			encoded[at + 7 + encoded[at + 4] * 2] = 1;
+			break;
+		}
+		at += 2 + ((encoded[at + 2] << 8) | encoded[at + 3]);
+	}
+	decodeLosslessJpeg(encoded, output);
+	expect([...new Uint16Array(output.buffer).slice(0, 6)]).toEqual([
+		1800, 3600, 4600, 3400, 4200, 2400,
+	]);
 });
 
 test("DNG profile baseline and gain tables survive parsing and develop in active-area coordinates", async () => {

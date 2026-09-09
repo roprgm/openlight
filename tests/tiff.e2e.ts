@@ -103,6 +103,23 @@ test("TIFF and DNG files open through the loader with their color, orientation, 
 			Math.abs(developed.center[c] - profile.center[c]),
 		).toBeLessThanOrEqual(2);
 	}
+	// A crashed worker must report its error and allow the next file to open.
+	const workerScript = (url: URL) =>
+		url.searchParams.has("worker_file") ||
+		/\/image.worker-[^/]+\.js$/.test(url.pathname);
+	await page.route(workerScript, (route) =>
+		route.fulfill({
+			contentType: "text/javascript",
+			body: 'throw new Error("Synthetic worker failure");',
+		}),
+	);
+	await load("linear.dng", "src/lib/camera-raw/fixtures");
+	await expect(
+		page.getByText("Synthetic worker failure", { exact: false }),
+	).toBeVisible();
+	await page.unroute(workerScript);
+	await load("linear.dng", "src/lib/camera-raw/fixtures");
+	expect(await readImage(page)).toEqual(linear);
 	await load("rgb8-jpeg.tif");
 	await expect(
 		page.getByText("Couldn't open rgb8-jpeg.tif:", { exact: false }),

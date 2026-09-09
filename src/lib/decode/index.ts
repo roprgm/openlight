@@ -4,69 +4,54 @@ import { uploadTiff } from "@/lib/tiff-gpu";
 import { decodeHeic } from "./heic";
 import linearize from "./linearize";
 import decodeSvg from "./svg";
-import type { Decoded, Decoder } from "./types";
+import type { Decoder } from "./types";
+import { workerDecoder } from "./worker";
 
 export type { Target };
 
-/** Decoder backed by a worker module: post the file, receive transferred pixels or an error. */
-export function workerDecoder(
-	load: () => Promise<{ default: new () => Worker }>,
+/** Pair each decoder with its GPU upload while its output type is still known. */
+function withUpload<T>(
+	decode: Decoder<T>,
+	upload: (gpu: Gpu, data: T) => Target,
 ) {
-	return async (): Promise<Decoder> => {
-		const { default: Spawn } = await load();
-		return (file) =>
-			new Promise((resolve, reject) => {
-				const worker = new Spawn();
-				worker.onmessage = ({ data }: MessageEvent<unknown>) => {
-					typeof data === "object" && data !== null && "error" in data
-						? reject(new Error(String(data.error)))
-						: resolve(data);
-					worker.terminate();
-				};
-				worker.postMessage(file);
-			});
-	};
+	return async (gpu: Gpu, file: Blob) => upload(gpu, await decode(file));
 }
 
 /** A format: how to recognize it, decode it, and turn the result into a working-space target. */
 type Format = {
 	types: string[];
 	extensions: string[];
-	load: () => Promise<Decoder>;
-	/** GPU leg; browser-decoded sRGB output goes through `linearize` by default. */
-	upload?(gpu: Gpu, decoded: never): Target;
+	decode(gpu: Gpu, file: Blob): Promise<Target>;
 };
 
-const native = async () => createImageBitmap;
-const svg = async () => decodeSvg;
-const heic = async () => decodeHeic;
-const tiff = workerDecoder(() => import("./tiff.worker?worker"));
-const dng = workerDecoder(() => import("./dng.worker?worker"));
+const native = withUpload((file) => createImageBitmap(file), linearize);
+const svg = withUpload(decodeSvg, linearize);
+const heic = withUpload(decodeHeic, linearize);
+const tiff = withUpload(workerDecoder("tiff"), uploadTiff);
+const dng = withUpload(workerDecoder("dng"), developDng);
 
 const formats: Format[] = [
 	{
 		types: ["image/tiff", "image/x-tiff"],
 		extensions: ["tif", "tiff"],
-		load: tiff,
-		upload: uploadTiff,
+		decode: tiff,
 	},
 	{
 		types: ["image/x-adobe-dng", "image/dng"],
 		extensions: ["dng"],
-		load: dng,
-		upload: developDng,
+		decode: dng,
 	},
-	{ types: ["image/png"], extensions: ["png"], load: native },
-	{ types: ["image/jpeg"], extensions: ["jpg", "jpeg"], load: native },
-	{ types: ["image/gif"], extensions: ["gif"], load: native },
-	{ types: ["image/webp"], extensions: ["webp"], load: native },
-	{ types: ["image/avif"], extensions: ["avif"], load: native },
-	{ types: ["image/bmp"], extensions: ["bmp"], load: native },
-	{ types: ["image/svg+xml"], extensions: ["svg"], load: svg },
+	{ types: ["image/png"], extensions: ["png"], decode: native },
+	{ types: ["image/jpeg"], extensions: ["jpg", "jpeg"], decode: native },
+	{ types: ["image/gif"], extensions: ["gif"], decode: native },
+	{ types: ["image/webp"], extensions: ["webp"], decode: native },
+	{ types: ["image/avif"], extensions: ["avif"], decode: native },
+	{ types: ["image/bmp"], extensions: ["bmp"], decode: native },
+	{ types: ["image/svg+xml"], extensions: ["svg"], decode: svg },
 	{
 		types: ["image/heic", "image/heif"],
 		extensions: ["heic", "heif"],
-		load: heic,
+		decode: heic,
 	},
 ];
 
@@ -91,9 +76,5 @@ export default async function decode(gpu: Gpu, file: File): Promise<Target> {
 	if (!format) {
 		throw new Error(`Unsupported image: ${file.name}`);
 	}
-	const decoder = await format.load();
-	const decoded = await decoder(file);
-	return format.upload
-		? format.upload(gpu, decoded as never)
-		: linearize(gpu, decoded as Decoded);
+	return format.decode(gpu, file);
 }

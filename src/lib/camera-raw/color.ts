@@ -45,12 +45,9 @@ export function cameraMatrix(
 		mat3.create(),
 		Float32Array.from(chosen.matrix),
 	);
-	const rec2020ToCamera = mat3.multiply(
-		mat3.create(),
-		xyzToCamera,
-		invert(xyzToRec2020),
-	);
-	const matrix = [...invert(rec2020ToCamera)];
+	const matrix = [
+		...mat3.multiply(mat3.create(), xyzToRec2020, invert(xyzToCamera)),
+	];
 	for (let r = 0; r < 3; r++) {
 		const sum = matrix[r] + matrix[r + 3] + matrix[r + 6];
 		for (const c of [r, r + 3, r + 6]) matrix[c] /= sum;

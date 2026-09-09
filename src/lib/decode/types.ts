@@ -14,4 +14,4 @@ export type Frames = {
 };
 export type Decoded = ImageBitmap | Pixels | Frames;
 /** Formats with their own GPU leg return whatever it consumes. */
-export type Decoder = (file: Blob) => Promise<unknown>;
+export type Decoder<T = Decoded> = (file: Blob) => Promise<T>;

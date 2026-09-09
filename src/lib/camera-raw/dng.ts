@@ -70,6 +70,23 @@ function directories(all: Directory[]): Directory[] {
 	]);
 }
 
+/** TIFF rectangles are top, left, bottom, right; crops use the same bounds check. */
+function checkBounds(area: number[], image: TiffInfo, name: string) {
+	const [top, left, bottom, right] = area;
+	if (
+		area.length !== 4 ||
+		!area.every(Number.isInteger) ||
+		top < 0 ||
+		left < 0 ||
+		bottom > image.height ||
+		right > image.width ||
+		bottom <= top ||
+		right <= left
+	) {
+		throw Error(`Invalid DNG ${name}.`);
+	}
+}
+
 /** Select full-resolution CFA or LinearRaw data by tags, never by camera make/model. */
 export function readDng(bytes: ArrayBuffer): RawImage {
 	const tiff = readTiff(bytes);
@@ -113,23 +130,18 @@ export function readDng(bytes: ArrayBuffer): RawImage {
 			`Unsupported LinearRaw channel count: ${image.samplesPerPixel}.`,
 		);
 	const active = numbers(tags.activeArea, [0, 0, image.height, image.width]);
-	if (
-		active.length !== 4 ||
-		active.some((n) => !Number.isInteger(n)) ||
-		active[0] < 0 ||
-		active[1] < 0 ||
-		active[2] > image.height ||
-		active[3] > image.width ||
-		active[2] <= active[0] ||
-		active[3] <= active[1]
-	)
-		throw Error("Invalid DNG active area.");
+	checkBounds(active, image, "active area");
 	const [top, left] = active;
 	const [x, y] = numbers(tags.cropOrigin, [0, 0]);
 	const [width, height] = numbers(tags.cropSize, [
 		active[3] - left - x,
 		active[2] - top - y,
 	]);
+	checkBounds(
+		[top + y, left + x, top + y + height, left + x + width],
+		image,
+		"crop",
+	);
 	const blackRepeat = numbers(tags.blackRepeat, [1, 1]);
 	if (
 		blackRepeat.length !== 2 ||
@@ -141,10 +153,8 @@ export function readDng(bytes: ArrayBuffer): RawImage {
 		)
 	)
 		throw Error("Invalid DNG black-level repeat dimensions.");
-	const black = numbers(
-		tags.black,
-		Array(blackRepeat[0] * blackRepeat[1] * image.samplesPerPixel).fill(0),
-	);
+	const blackCount = blackRepeat[0] * blackRepeat[1] * image.samplesPerPixel;
+	const black = numbers(tags.black, Array(blackCount).fill(0));
 	const white = numbers(
 		tags.white,
 		Array(image.samplesPerPixel).fill(
@@ -154,16 +164,14 @@ export function readDng(bytes: ArrayBuffer): RawImage {
 	const linearization = numbers(tags.linearization);
 	const blackDeltaH = numbers(tags.blackDeltaH);
 	const blackDeltaV = numbers(tags.blackDeltaV);
+	const maximumBlack = black.reduce(
+		(max, value) => Math.max(max, value),
+		-Infinity,
+	);
 	if (
-		blackRepeat.length !== 2 ||
-		blackRepeat.some((n) => !Number.isInteger(n) || n < 1) ||
-		black.length !== blackRepeat[0] * blackRepeat[1] * image.samplesPerPixel ||
+		black.length !== blackCount ||
 		white.length !== image.samplesPerPixel ||
-		white.some(
-			(n) =>
-				!Number.isFinite(n) ||
-				n <= black.reduce((max, value) => Math.max(max, value), -Infinity),
-		) ||
+		white.some((n) => !Number.isFinite(n) || n <= maximumBlack) ||
 		![...black, ...blackDeltaH, ...blackDeltaV].every(Number.isFinite)
 	)
 		throw Error("Invalid DNG black/white levels.");
@@ -179,16 +187,6 @@ export function readDng(bytes: ArrayBuffer): RawImage {
 		neutral.some((n) => !Number.isFinite(n) || n <= 0)
 	)
 		throw Error("Invalid DNG as-shot neutral.");
-	if (
-		[left + x, top + y, width, height].some((n) => !Number.isInteger(n)) ||
-		width < 1 ||
-		height < 1 ||
-		left + x < 0 ||
-		top + y < 0 ||
-		left + x + width > image.width ||
-		top + y + height > image.height
-	)
-		throw Error("Invalid DNG crop.");
 	const exposure =
 		numbers(tags.baselineExposure, [0])[0] +
 		numbers(tags.baselineExposureOffset, [0])[0];

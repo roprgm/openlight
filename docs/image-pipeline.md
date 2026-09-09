@@ -5,6 +5,7 @@ This change is based on PR14 and intentionally precedes denoising. It introduces
 ## Responsibilities
 
 - `lib/pipeline.ts` runs ordered stages. Each stage names its input, returns a target, and disposes its own resources. Inputs can refer to any earlier stage, allowing branches. Bypassing a stage returns its input, so downstream stages resolve the current target on every render. Invalid or forward dependencies are rejected at construction.
+- `lib/decode` pairs each decoder with its GPU upload through a typed function. TIFF and DNG share one lazy worker entry; buffers are transferred, and the worker is terminated on success or failure.
 - `lib/camera-raw` composes DNG normalization, optional Bayer demosaic, and working-color conversion. The loader still runs CPU decoding in a worker and transfers the resulting texture into the document.
 - `lib/editor/renderer.ts` composes adjustments → curves → clarity → sharpening, then frames the original, adjusted, and final images for the editor. Display, histogram, and export consume engine outputs. Frame submission and notifications remain with the renderer.
 - React bindings mount engine outputs and connect lifecycles. The stage runner, development, and renderer import no React and can be constructed directly in tests or browser commands.

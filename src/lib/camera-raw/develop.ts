@@ -17,12 +17,16 @@ export function createDevelopment(gpu: Gpu, { prepared, raw }: PreparedDng) {
 			...raw.blackDeltaV,
 			...raw.linearization,
 		]);
-		const levels = gpu.device.createBuffer({
-			size: data.byteLength,
-			usage: ["storage", "copy_dst"],
-		});
-		owned.add(levels);
-		levels.write(data);
+		function storage(data: Float32Array<ArrayBuffer>) {
+			const buffer = gpu.device.createBuffer({
+				size: data.byteLength,
+				usage: ["storage", "copy_dst"],
+			});
+			owned.add(buffer);
+			buffer.write(data);
+			return buffer;
+		}
+		const levels = storage(data);
 		const [x, y, width, height] = raw.crop;
 		const stages: ImageStage<void>[] = [];
 		function pass(
@@ -73,12 +77,7 @@ export function createDevelopment(gpu: Gpu, { prepared, raw }: PreparedDng) {
 		if (raw.kind === "bayer")
 			pass("demosaic", demosaicShader, { pattern: raw.pattern });
 		const map = raw.gainMap;
-		const gains = gpu.device.createBuffer({
-			size: map?.values.byteLength ?? 4,
-			usage: ["storage", "copy_dst"],
-		});
-		owned.add(gains);
-		gains.write(map?.values ?? new Float32Array([1]));
+		const gains = storage(map?.values ?? new Float32Array([1]));
 		pass(
 			"working-color",
 			developShader,

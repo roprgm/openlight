@@ -33,6 +33,8 @@ function readTable(bytes: Uint8Array, at: number): Table {
 }
 
 export function decodeLosslessJpeg(input: Uint8Array, output: Uint8Array) {
+	const invalid = () => Error("Invalid or unsupported lossless JPEG tile.");
+	if (input[0] !== 0xff || input[1] !== 0xd8) throw invalid();
 	const tables: Table[] = [];
 	const tableOf: number[] = [];
 	let at = 2;
@@ -44,6 +46,8 @@ export function decodeLosslessJpeg(input: Uint8Array, output: Uint8Array) {
 	// Markers up to the scan; everything after SOS is entropy-coded data.
 	for (let marker = input[at + 1]; marker !== 0xda; marker = input[at + 1]) {
 		const length = (input[at + 2] << 8) | input[at + 3];
+		if (input[at] !== 0xff || length < 2 || at + 2 + length > input.length)
+			throw invalid();
 		const body = at + 4;
 		if (marker === 0xc4) {
 			for (let p = body; p < at + 2 + length; ) {
@@ -59,12 +63,29 @@ export function decodeLosslessJpeg(input: Uint8Array, output: Uint8Array) {
 		at += 2 + length;
 	}
 	const scan = at + 4;
+	if (
+		!width ||
+		!height ||
+		!tableOf.length ||
+		input[scan] !== tableOf.length ||
+		scan + 4 + tableOf.length * 2 > input.length
+	)
+		throw invalid();
 	for (let c = 0; c < tableOf.length; c++) {
 		tableOf[c] = input[scan + 2 + c * 2] >> 4;
 	}
 	predictor = input[scan + 1 + tableOf.length * 2];
 	shift = input[scan + 3 + tableOf.length * 2] & 15;
 	at = scan + 4 + tableOf.length * 2;
+	if (
+		precision < 2 ||
+		precision > 16 ||
+		shift >= precision ||
+		predictor < 1 ||
+		predictor > 7 ||
+		tableOf.some((id) => !tables[id])
+	)
+		throw invalid();
 
 	const count = tableOf.length;
 	const samples = new Uint16Array(
@@ -76,13 +97,14 @@ export function decodeLosslessJpeg(input: Uint8Array, output: Uint8Array) {
 	let bits = 0;
 	const bit = () => {
 		if (bits === 0) {
-			held = input[at++] ?? 0;
+			if (at >= input.length) throw invalid();
+			held = input[at++];
 			// A data 0xFF is followed by a stuffed zero; any other follower is a marker, so the stream ended.
 			if (held === 0xff) {
 				if (input[at] === 0) {
 					at++;
 				} else {
-					held = 0;
+					throw invalid();
 				}
 			}
 			bits = 8;
@@ -93,11 +115,13 @@ export function decodeLosslessJpeg(input: Uint8Array, output: Uint8Array) {
 		let code = bit();
 		let length = 1;
 		while (code > table.maxCode[length]) {
+			if (length === 16) throw invalid();
 			code = (code << 1) | bit();
 			length++;
 		}
 		const size =
 			table.sizes[table.first[length] + code - table.minCode[length]];
+		if (size === undefined || size > 16) throw invalid();
 		if (size === 16) {
 			return 32768;
 		}
@@ -132,7 +156,8 @@ export function decodeLosslessJpeg(input: Uint8Array, output: Uint8Array) {
 				(left + above) >> 1,
 			][predictor - 1];
 		}
-		samples[i] =
-			((prediction + difference(tables[tableOf[i % count]])) << shift) & 0xffff;
+		samples[i] = (prediction + difference(tables[tableOf[i % count]])) & 0xffff;
 	}
+	// Predictors use reduced-precision samples; restore the point transform only after decoding.
+	if (shift) for (let i = 0; i < samples.length; i++) samples[i] <<= shift;
 }
