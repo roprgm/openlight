@@ -262,9 +262,12 @@ test("JPEG XL preserves integer precision and floating headroom, and rejects mal
 	const input = new Uint8Array(await fixture("codes12.jxl"));
 	const output = new Uint8Array(12);
 	await decodeJpegXL(input, output, { image, chunk });
-	expect([...new Uint16Array(output.buffer)]).toEqual([
-		0, 1, 255, 256, 900, 4095,
-	]);
+	// DNG SDK reads >8-bit JPEG XL into the full uint16 range, independent of the TIFF tag.
+	expect([...new Uint16Array(output.buffer)]).toEqual(
+		[0, 1, 255, 256, 900, 4095].map((value) =>
+			Math.round((value * 65535) / 4095),
+		),
+	);
 	await decodeJpegXL(input, output, {
 		image: { ...image, photometric: 2 },
 		chunk,

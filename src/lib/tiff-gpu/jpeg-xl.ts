@@ -24,8 +24,8 @@ export async function decodeJpegXL(
 ) {
 	const { image, chunk } = context;
 	const floating = image.sampleFormat === 3;
-	// Raw levels refer to original codes. Ordinary TIFF upload expects the full unpacked range.
-	const bits = image.photometric >= 32803 ? image.bitsPerSample : 16;
+	// DNG uses the JPEG XL storage range; its TIFF bit depth may describe compacted samples.
+	const raw = image.photometric >= 32803;
 	if (
 		![1, 3].includes(image.samplesPerPixel) ||
 		image.predictor !== 1 ||
@@ -50,7 +50,7 @@ export async function decodeJpegXL(
 			chunk.width,
 			chunk.height,
 			image.planar === 2 ? 1 : image.samplesPerPixel,
-			bits,
+			Number(raw),
 			Number(floating),
 		);
 		if (result !== 0)

@@ -61,6 +61,6 @@ A persistent worker would save the spawn cost per file; OpenLight already runs `
 
 ## JPEG XL
 
-Compression 52546 uses a lazy-loaded libjxl 0.12.0 WebAssembly decoder in the loading worker. Raw integer samples (8–16 bits) keep the TIFF-declared range in a 16-bit output buffer, while ordinary RGB/gray TIFF scales to the full output range; 16-bit floating-point samples decode to float32, preserving headroom. Tile dimensions and channels are checked before decoding. WASM temporary buffers are freed after each tile, and the loader terminates the worker after each file. Color development remains on WebGPU.
+Compression 52546 uses a lazy-loaded libjxl 0.12.0 WebAssembly decoder in the loading worker. DNG integer samples use the JPEG XL storage range (byte for codestreams up to 8 bits, full uint16 otherwise), independently of the TIFF bit-depth tag; ordinary RGB/gray TIFF scales to full uint16; 16-bit floating-point samples decode to float32, preserving headroom. Tile dimensions and channels are checked before decoding. WASM temporary buffers are freed after each tile, and the loader terminates the worker after each file. Color development remains on WebGPU.
 
 The decoder asset is about 796 KiB (299 KiB gzip); it is fetched only for JPEG XL input. The compiled decoder, build source, and provenance are in `scripts/jpeg-xl/README.md`; distributed notices are at `/codecs/jpeg-xl.LICENSE.txt`.

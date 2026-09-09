@@ -2,14 +2,15 @@
 #include <stdint.h>
 #include <stddef.h>
 
-// Decode one TIFF strip/tile. The caller owns both buffers and specifies the TIFF sample scale.
+// Decode one TIFF strip/tile. The caller owns both buffers and selects DNG or ordinary TIFF output scaling.
 extern "C" int decode(const uint8_t* input, size_t input_size,
                       void* output, size_t output_size, uint32_t width,
-                      uint32_t height, uint32_t channels, uint32_t bits,
+                      uint32_t height, uint32_t channels, uint32_t raw,
                       uint32_t floating) {
   JxlDecoder* decoder = JxlDecoderCreate(nullptr);
   if (!decoder) return 1;
   int result = 2;
+  uint32_t output_bits = 16;
   JxlPixelFormat format = {channels, floating ? JXL_TYPE_FLOAT : JXL_TYPE_UINT16,
                            JXL_LITTLE_ENDIAN, 0};
   JxlDecoderSetKeepOrientation(decoder, JXL_TRUE);
@@ -23,6 +24,7 @@ extern "C" int decode(const uint8_t* input, size_t input_size,
     if (status == JXL_DEC_BASIC_INFO) {
       JxlBasicInfo info;
       if (JxlDecoderGetBasicInfo(decoder, &info) != JXL_DEC_SUCCESS) break;
+      if (raw && info.bits_per_sample <= 8) output_bits = 8;
       if (info.xsize != width || info.ysize != height ||
           info.num_color_channels != channels || info.num_extra_channels ||
           info.have_animation || bool(info.exponent_bits_per_sample) != bool(floating)) {
@@ -37,9 +39,10 @@ extern "C" int decode(const uint8_t* input, size_t input_size,
         result = 3;
         break;
       }
-      // Match the TIFF's declared range, rather than scaling N-bit samples to 65535.
-      if (!floating) {
-        JxlBitDepth depth = {JXL_BIT_DEPTH_CUSTOM, bits, 0};
+      // Match DNG SDK storage: byte for <=8-bit codestreams, full uint16 otherwise.
+      // A 12-bit TIFF tag can wrap a 16-bit codestream; scaling it to 12 bits darkens the image.
+      if (!floating && output_bits == 8) {
+        JxlBitDepth depth = {JXL_BIT_DEPTH_CUSTOM, 8, 0};
         if (JxlDecoderSetImageOutBitDepth(decoder, &depth) != JXL_DEC_SUCCESS) break;
       }
     } else if (status == JXL_DEC_FULL_IMAGE) {

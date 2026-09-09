@@ -10,7 +10,7 @@ export type Decoder = {
 		width: number,
 		height: number,
 		channels: number,
-		bits: number,
+		raw: number,
 		floating: number,
 	): number;
 };
