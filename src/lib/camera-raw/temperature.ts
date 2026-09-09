@@ -1,4 +1,4 @@
-import { temperatureRange, type WhiteBalance } from "@/lib/white-balance";
+import { temperatureRange, type WhiteBalance } from "@/lib/image-source";
 
 export function xyzToUv([x, y, z]: readonly number[]) {
 	const sum = x + 15 * y + 3 * z;

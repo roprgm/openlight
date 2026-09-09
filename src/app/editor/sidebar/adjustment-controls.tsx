@@ -2,6 +2,7 @@ import type { ComponentProps, ReactNode } from "react";
 import { useDocument, useScene } from "@/components/editor/session";
 import { Collapsible } from "@/components/ui/collapsible";
 import { Slider } from "@/components/ui/slider";
+import { WhiteBalanceControls } from "@/features/white-balance/controls";
 import { setAdjustments } from "@/lib/editor/document/edits";
 import {
 	type Adjustments,
@@ -9,19 +10,14 @@ import {
 	adjustmentMinimums,
 	defaultAdjustments,
 } from "@/lib/editor/scene";
-import { AbsoluteWhiteBalanceControls } from "./absolute-white-balance-controls";
 
-const stops = {
-	incrementalTemperature: ["#4a6fc3", "#c3b84a"],
-	incrementalTint: ["#5ab34a", "#b34ab3"],
-	saturation: [
-		"#7b7d85",
-		"#868686 50%",
-		"#7fa066 68%",
-		"#b8a75c 84%",
-		"#c25a48",
-	],
-};
+const saturationStops = [
+	"#7b7d85",
+	"#868686 50%",
+	"#7fa066 68%",
+	"#b8a75c 84%",
+	"#c25a48",
+];
 
 type AdjustmentSliderProps = Pick<
 	ComponentProps<typeof Slider>,
@@ -45,27 +41,6 @@ function AdjustmentSlider({ name, ...props }: AdjustmentSliderProps) {
 	);
 }
 
-function WhiteBalanceControls() {
-	const document = useDocument();
-	const source = useScene((scene) => scene.source);
-	const profile = document.resources.get(source).whiteBalance;
-	if (profile) return <AbsoluteWhiteBalanceControls asShot={profile.asShot} />;
-	return (
-		<>
-			<AdjustmentSlider
-				name="incrementalTemperature"
-				label="Temp"
-				stops={stops.incrementalTemperature}
-			/>
-			<AdjustmentSlider
-				name="incrementalTint"
-				label="Tint"
-				stops={stops.incrementalTint}
-			/>
-		</>
-	);
-}
-
 export default function AdjustmentControls({ curves }: { curves: ReactNode }) {
 	return (
 		<>
@@ -86,12 +61,12 @@ export default function AdjustmentControls({ curves }: { curves: ReactNode }) {
 					<AdjustmentSlider
 						name="vibrance"
 						label="Vibrance"
-						stops={stops.saturation}
+						stops={saturationStops}
 					/>
 					<AdjustmentSlider
 						name="saturation"
 						label="Saturation"
-						stops={stops.saturation}
+						stops={saturationStops}
 					/>
 				</div>
 			</Collapsible>

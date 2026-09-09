@@ -8,7 +8,6 @@ import {
 	type ToneCurve,
 	validateCurve,
 } from "@/lib/tone-curves/curve";
-import type { WhiteBalance } from "@/lib/white-balance";
 import type { EditorDocument } from "./index";
 
 export function setAdjustments(
@@ -40,19 +39,4 @@ export function setToneCurve(
 		...document.scene.getState(),
 		toneCurve: points.map((point) => ({ ...point })),
 	});
-}
-
-/** Omit the change to restore the exact camera-recorded white balance. */
-export function setWhiteBalance(
-	document: EditorDocument,
-	change?: Partial<WhiteBalance>,
-) {
-	const scene = document.scene.getState();
-	const profile = document.resources.get(scene.source).whiteBalance;
-	if (!profile)
-		throw Error("This image does not support absolute white balance.");
-	const next = change
-		? { ...(scene.whiteBalance ?? profile.asShot), ...change }
-		: profile.asShot;
-	document.edit({ ...scene, whiteBalance: next });
 }

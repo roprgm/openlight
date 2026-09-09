@@ -7,19 +7,16 @@ import { createCameraRawXmpLoader } from "@/app/loaders/camera-raw-xmp";
 import { createImageLoader } from "@/app/loaders/image";
 import { createLoaderRegistry } from "@/app/loaders/registry";
 import type { Workspace } from "@/app/workspace";
+import { setWhiteBalance } from "@/features/white-balance/edits";
 import type { Preview } from "@/lib/editor/document";
-import {
-	setAdjustments,
-	setToneCurve,
-	setWhiteBalance,
-} from "@/lib/editor/document/edits";
+import { setAdjustments, setToneCurve } from "@/lib/editor/document/edits";
 import {
 	type Adjustments,
 	defaultAdjustments,
 	type Scene,
 } from "@/lib/editor/scene";
+import type { WhiteBalance } from "@/lib/image-source";
 import { defaultCurve, type ToneCurve } from "@/lib/tone-curves/curve";
-import type { WhiteBalance } from "@/lib/white-balance";
 
 /** Imperative commands bound to an explicit workspace, usable without React. */
 export function createControls(gpu: Gpu, workspace: Workspace) {

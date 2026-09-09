@@ -1,5 +1,5 @@
 import { effect, type Frame, type Gpu, type Target, target } from "vgpu";
-import type { WhiteBalance } from "@/lib/white-balance";
+import type { WhiteBalance } from "@/lib/image-source";
 import shader from "./develop.wgsl";
 import type { RawImage } from "./dng";
 import { neutralForWhiteBalance } from "./white-balance";

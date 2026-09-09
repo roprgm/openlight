@@ -1,7 +1,7 @@
 import type { Adjustments as ToneAdjustments } from "@/lib/adjustments";
 import type { ImageFrame } from "@/lib/image-frame/geometry";
+import type { WhiteBalance } from "@/lib/image-source";
 import type { ToneCurve } from "@/lib/tone-curves/curve";
-import type { WhiteBalance } from "@/lib/white-balance";
 
 export type Adjustments = ToneAdjustments & {
 	clarity: number;

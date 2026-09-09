@@ -3,7 +3,7 @@ import { shallow } from "zustand/vanilla/shallow";
 import type { Scene } from "@/lib/editor/scene";
 import { createHistory } from "@/lib/history";
 import { frameValues, validateFrame } from "@/lib/image-frame/geometry";
-import { validateWhiteBalance } from "@/lib/white-balance";
+import { validateWhiteBalance } from "@/lib/image-source";
 import { createResources } from "./resources";
 
 export type Preview = {

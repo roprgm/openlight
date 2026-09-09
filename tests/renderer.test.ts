@@ -164,7 +164,7 @@ test("absolute white balance is a source capability, with independent render sta
 	const gpu = await init();
 	const source = target(gpu, { size: [8, 8], format: "rgba16float" });
 	const { createResources } = await import("@/lib/editor/document/resources");
-	const { setWhiteBalance } = await import("@/lib/editor/document/edits");
+	const { setWhiteBalance } = await import("@/features/white-balance/edits");
 	const resources = createResources();
 	const asShot = { temperature: 5100, tint: 12 };
 	const released = mock(() => {});

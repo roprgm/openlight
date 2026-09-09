@@ -1,5 +1,5 @@
 import { mat3, vec3 } from "gl-matrix";
-import type { WhiteBalance } from "@/lib/white-balance";
+import type { WhiteBalance } from "@/lib/image-source";
 import { whiteBalanceToXyz, xyzToWhiteBalance } from "./temperature";
 
 export type Calibration = {
