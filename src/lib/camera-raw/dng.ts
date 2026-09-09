@@ -7,6 +7,7 @@ import {
 } from "@/lib/tiff-gpu/ifd";
 import { type Prepared, prepareTiff } from "@/lib/tiff-gpu/prepare";
 import { cameraMatrix } from "./color";
+import { type GainMap, readGainMap } from "./gain-map";
 
 /** The image layout, sample corrections, and camera calibration described by a DNG. */
 export type RawImage = {
@@ -29,6 +30,9 @@ export type RawImage = {
 	neutral: number[];
 	/** Camera RGB to linear Rec.2020, column-major. */
 	matrix: number[];
+	/** Camera/profile baseline compensation in stops, independent of the editor's exposure. */
+	exposure: number;
+	gainMap?: GainMap;
 };
 
 export type PreparedDng = { prepared: Prepared; raw: RawImage };
@@ -52,6 +56,9 @@ const tags = {
 	cropSize: 50720,
 	neutral: 50728,
 	activeArea: 50829,
+	baselineExposure: 50730,
+	baselineExposureOffset: 51109,
+	profileGainTableMap: 52525,
 };
 const cfa = 32803;
 const linearRaw = 34892;
@@ -182,8 +189,18 @@ export function readDng(bytes: ArrayBuffer): RawImage {
 		top + y + height > image.height
 	)
 		throw Error("Invalid DNG crop.");
+	const exposure =
+		numbers(tags.baselineExposure, [0])[0] +
+		numbers(tags.baselineExposureOffset, [0])[0];
+	if (!Number.isFinite(exposure) || !Number.isFinite(2 ** exposure))
+		throw Error("Invalid DNG baseline exposure.");
+	const gainBytes =
+		tiff.bytes(directory, tags.profileGainTableMap) ??
+		tiff.bytes(tiff.directories[0], tags.profileGainTableMap);
 	return {
 		kind,
+		exposure,
+		gainMap: gainBytes ? readGainMap(gainBytes, tiff.littleEndian) : undefined,
 		active,
 		linearization,
 		blackRepeat,

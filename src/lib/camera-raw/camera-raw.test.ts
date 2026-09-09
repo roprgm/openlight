@@ -1,5 +1,7 @@
 import { afterAll, expect, test } from "bun:test";
 import { init } from "vgpu/node";
+import { readTiff } from "@/lib/tiff-gpu/ifd";
+import { readGainMap } from "./gain-map";
 import { developDng, prepareDng, readDng } from "./index";
 
 const fixture = (name: string) =>
@@ -21,6 +23,7 @@ test("DNG: the mosaic, its camera data, and lossless JPEG tiles", async () => {
 		crop: [0, 0, 64, 48],
 		pattern: [0, 1, 1, 2],
 		kind: "bayer",
+		exposure: 0,
 		black: [512],
 		white: [15000],
 		neutral: [0.5, 1, 0.7],
@@ -48,6 +51,56 @@ test("DNG: the mosaic, its camera data, and lossless JPEG tiles", async () => {
 	expect(samples(plain, 0)).toEqual([3000, 6000, 3000, 6000]);
 	expect(samples(jpeg, 0)).toEqual([3000, 6000, 3000, 6000]);
 	expect(samples(jpeg, 5)).toEqual([1000, 2000, 1000, 2000]);
+});
+
+test("DNG profile baseline and gain tables survive parsing and develop in active-area coordinates", async () => {
+	const bytes = await fixture("profile.dng");
+	const prepared = await prepareDng(bytes);
+	if (!prepared.raw.gainMap) throw Error("Missing parsed gain map");
+	expect(prepared.raw.exposure).toBe(1);
+	expect(prepared.raw.gainMap).toMatchObject({
+		points: [2, 2, 4],
+		spacing: [0.5, 0.5],
+		origin: [0.25, 0.25],
+	});
+	const tiff = readTiff(bytes);
+	const map = tiff.bytes(tiff.directories[0].subdirectories[0], 52525);
+	if (!map) throw Error("Missing gain map fixture");
+	// Re-encode the packed fields in the other TIFF byte order.
+	const big = new DataView(new ArrayBuffer(map.length));
+	const little = new DataView(map.buffer, map.byteOffset, map.length);
+	for (const at of [0, 4, 40]) big.setUint32(at, little.getUint32(at, true));
+	for (const at of [8, 16, 24, 32])
+		big.setFloat64(at, little.getFloat64(at, true));
+	for (let at = 44; at < map.length; at += 4)
+		big.setFloat32(at, little.getFloat32(at, true));
+	expect(readGainMap(new Uint8Array(big.buffer), false)).toEqual(
+		prepared.raw.gainMap,
+	);
+	expect(() => readGainMap(map.subarray(0, 60), true)).toThrow("Invalid DNG");
+	expect(() => readGainMap(map.subarray(0, -4), true)).toThrow("Invalid DNG");
+	big.setFloat32(64, Number.NaN);
+	expect(() => readGainMap(new Uint8Array(big.buffer), false)).toThrow(
+		"Invalid DNG",
+	);
+	if (!gpu) return;
+	const reference = await Bun.file(
+		`${import.meta.dir}/fixtures/profile.json`,
+	).json();
+	const image = developDng(gpu, prepared);
+	try {
+		expect(image.size).toEqual(reference.size);
+		const pixels = await image.readFloats();
+		// Independent expected pixels cover all 3 interpolation axes, rotated crop, and HDR headroom.
+		reference.pixels.forEach((value: number, i: number) => {
+			expect(Math.abs(pixels[i] - value), `profile sample ${i}`).toBeLessThan(
+				0.003,
+			);
+		});
+		expect(Math.max(...pixels)).toBeGreaterThan(2);
+	} finally {
+		image.color.dispose();
+	}
 });
 
 test.skipIf(!gpu)(

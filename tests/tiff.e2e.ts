@@ -92,6 +92,17 @@ test("TIFF and DNG files open through the loader with their color, orientation, 
 	await load("linear-jxl.dng", "src/lib/camera-raw/fixtures");
 	expect(await readImage(page)).toEqual(linear);
 	expect(wasmRequests).toHaveLength(1);
+	// Profile exposure and the spatial gain map must also survive worker transfer and export.
+	await load("profile-reference.tif", "src/lib/camera-raw/fixtures");
+	const profile = await readImage(page);
+	await load("profile.dng", "src/lib/camera-raw/fixtures");
+	const developed = await readImage(page);
+	expect(developed.size).toEqual(profile.size);
+	for (let c = 0; c < 4; c++) {
+		expect(
+			Math.abs(developed.center[c] - profile.center[c]),
+		).toBeLessThanOrEqual(2);
+	}
 	await load("rgb8-jpeg.tif");
 	await expect(
 		page.getByText("Couldn't open rgb8-jpeg.tif:", { exact: false }),

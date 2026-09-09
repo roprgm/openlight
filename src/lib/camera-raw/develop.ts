@@ -72,16 +72,39 @@ export function createDevelopment(gpu: Gpu, { prepared, raw }: PreparedDng) {
 		});
 		if (raw.kind === "bayer")
 			pass("demosaic", demosaicShader, { pattern: raw.pattern });
+		const map = raw.gainMap;
+		const gains = gpu.device.createBuffer({
+			size: map?.values.byteLength ?? 4,
+			usage: ["storage", "copy_dst"],
+		});
+		owned.add(gains);
+		gains.write(map?.values ?? new Float32Array([1]));
 		pass(
 			"working-color",
 			developShader,
 			{
+				gains,
+				gainParams: {
+					area: [
+						raw.active[1],
+						raw.active[0],
+						raw.active[3] - raw.active[1],
+						raw.active[2] - raw.active[0],
+					],
+					points: map?.points ?? [1, 1, 0],
+					spacing: map?.spacing ?? [1, 1],
+					origin: map?.origin ?? [0, 0],
+					weights: map?.weights.slice(0, 3) ?? [0, 0, 0],
+					minimum: map?.weights[3] ?? 0,
+					maximum: map?.weights[4] ?? 0,
+				},
 				params: {
 					origin: [x, y],
 					size: [width, height],
 					orientation: raw.orientation,
 					matrix: raw.matrix,
 					neutral: raw.neutral,
+					exposure: 2 ** raw.exposure,
 				},
 			},
 			raw.orientation >= 5 ? [height, width] : [width, height],
