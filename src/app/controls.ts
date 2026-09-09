@@ -8,13 +8,18 @@ import { createImageLoader } from "@/app/loaders/image";
 import { createLoaderRegistry } from "@/app/loaders/registry";
 import type { Workspace } from "@/app/workspace";
 import type { Preview } from "@/lib/editor/document";
-import { setAdjustments, setToneCurve } from "@/lib/editor/document/edits";
+import {
+	setAdjustments,
+	setToneCurve,
+	setWhiteBalance,
+} from "@/lib/editor/document/edits";
 import {
 	type Adjustments,
 	defaultAdjustments,
 	type Scene,
 } from "@/lib/editor/scene";
 import { defaultCurve, type ToneCurve } from "@/lib/tone-curves/curve";
+import type { WhiteBalance } from "@/lib/white-balance";
 
 /** Imperative commands bound to an explicit workspace, usable without React. */
 export function createControls(gpu: Gpu, workspace: Workspace) {
@@ -32,6 +37,8 @@ export function createControls(gpu: Gpu, workspace: Workspace) {
 		importXmp: (file: File) => files.loadFile(xmp, file),
 		setAdjustments: (change: Partial<Adjustments>) =>
 			setAdjustments(workspace.getDocument(), change),
+		setWhiteBalance: (change?: Partial<WhiteBalance>) =>
+			setWhiteBalance(workspace.getDocument(), change),
 		setToneCurve: (curve?: ToneCurve) =>
 			setToneCurve(workspace.getDocument(), curve),
 		editScene(change: Partial<Scene>) {
@@ -57,6 +64,9 @@ export function createControls(gpu: Gpu, workspace: Workspace) {
 				size: scene?.frame.size,
 				frame: scene?.frame,
 				adjustments: scene?.adjustments ?? defaultAdjustments,
+				whiteBalance: scene?.whiteBalance,
+				asShotWhiteBalance:
+					scene && document?.resources.get(scene.source).whiteBalance?.asShot,
 				toneCurve: scene?.toneCurve ?? defaultCurve,
 				history: document?.history.status.getState() ?? {
 					undoCount: 0,

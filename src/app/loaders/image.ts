@@ -17,13 +17,14 @@ export function createImageLoader(gpu: Gpu, workspace: Workspace): FileLoader {
 				throw new Error("loadImage requires a File.");
 			}
 			await workspace.open(file.name, async () => {
-				const image = await decode(gpu, file);
+				const { image, whiteBalance } = await decode(gpu, file);
 				const resources = createResources();
-				const source = resources.add(file, image);
+				const source = resources.add(file, image, whiteBalance);
 				return createDocument(
 					{
 						frame: imageFrame(image.size),
 						source,
+						whiteBalance: whiteBalance?.asShot,
 						adjustments: { ...defaultAdjustments },
 						toneCurve: defaultCurve,
 					},

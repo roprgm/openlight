@@ -70,8 +70,8 @@ fn stored(output: vec2u) -> vec2i {
  let p = stored(vec2u(position.xy));
  let rgb = textureLoad(source, p, 0).rgb;
  // Fuse pointwise white balance and color conversion to avoid an extra full-size texture.
- // Preserve the existing development highlight policy.
- let balanced = min(rgb / params.neutral, vec3f(1.0));
+ // Keep channel headroom: display mapping happens after exposure and color conversion.
+ let balanced = rgb / params.neutral;
  let working = (params.matrix * balanced) * params.exposure;
  return vec4f(working * profileGain(working, vec2f(p)), 1.0);
 }

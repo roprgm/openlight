@@ -3,6 +3,7 @@ import { shallow } from "zustand/vanilla/shallow";
 import type { Scene } from "@/lib/editor/scene";
 import { createHistory } from "@/lib/history";
 import { frameValues, validateFrame } from "@/lib/image-frame/geometry";
+import { validateWhiteBalance } from "@/lib/white-balance";
 import { createResources } from "./resources";
 
 export type Preview = {
@@ -17,6 +18,7 @@ function equal(a: Scene, b: Scene) {
 		a.source === b.source &&
 		shallow(frameValues(a.frame), frameValues(b.frame)) &&
 		shallow(a.adjustments, b.adjustments) &&
+		shallow(a.whiteBalance, b.whiteBalance) &&
 		a.toneCurve.length === b.toneCurve.length &&
 		a.toneCurve.every((point, i) => shallow(point, b.toneCurve[i]))
 	);
@@ -54,6 +56,12 @@ export function createDocument(initial: Scene, resources = createResources()) {
 				throw new Error("Document is closed.");
 			}
 			validateFrame(next.frame);
+			if (next.whiteBalance) {
+				const profile = resources.get(next.source).whiteBalance;
+				if (!profile)
+					throw Error("This image does not support absolute white balance.");
+				validateWhiteBalance(next.whiteBalance, profile.asShot);
+			}
 			update(next);
 		},
 		dispose() {

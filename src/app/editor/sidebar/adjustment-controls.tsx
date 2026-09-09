@@ -9,6 +9,7 @@ import {
 	adjustmentMinimums,
 	defaultAdjustments,
 } from "@/lib/editor/scene";
+import { AbsoluteWhiteBalanceControls } from "./absolute-white-balance-controls";
 
 const stops = {
 	incrementalTemperature: ["#4a6fc3", "#c3b84a"],
@@ -44,6 +45,27 @@ function AdjustmentSlider({ name, ...props }: AdjustmentSliderProps) {
 	);
 }
 
+function WhiteBalanceControls() {
+	const document = useDocument();
+	const source = useScene((scene) => scene.source);
+	const profile = document.resources.get(source).whiteBalance;
+	if (profile) return <AbsoluteWhiteBalanceControls asShot={profile.asShot} />;
+	return (
+		<>
+			<AdjustmentSlider
+				name="incrementalTemperature"
+				label="Temp"
+				stops={stops.incrementalTemperature}
+			/>
+			<AdjustmentSlider
+				name="incrementalTint"
+				label="Tint"
+				stops={stops.incrementalTint}
+			/>
+		</>
+	);
+}
+
 export default function AdjustmentControls({ curves }: { curves: ReactNode }) {
 	return (
 		<>
@@ -60,16 +82,7 @@ export default function AdjustmentControls({ curves }: { curves: ReactNode }) {
 			</Collapsible>
 			<Collapsible title="Color">
 				<div className="flex flex-col gap-2">
-					<AdjustmentSlider
-						name="incrementalTemperature"
-						label="Temp"
-						stops={stops.incrementalTemperature}
-					/>
-					<AdjustmentSlider
-						name="incrementalTint"
-						label="Tint"
-						stops={stops.incrementalTint}
-					/>
+					<WhiteBalanceControls />
 					<AdjustmentSlider
 						name="vibrance"
 						label="Vibrance"

@@ -159,3 +159,85 @@ test("rendering follows grouped edits and undo, reuses pipelines, and releases o
 		gpu.dispose();
 	}
 });
+
+test("absolute white balance is a source capability, with independent render stages and reversible edits", async () => {
+	const gpu = await init();
+	const source = target(gpu, { size: [8, 8], format: "rgba16float" });
+	const { createResources } = await import("@/lib/editor/document/resources");
+	const { setWhiteBalance } = await import("@/lib/editor/document/edits");
+	const resources = createResources();
+	const asShot = { temperature: 5100, tint: 12 };
+	const released = mock(() => {});
+	const updates: unknown[] = [];
+	const outputs: (typeof source)[] = [];
+	// A source from an arbitrary loader: neither DNG metadata nor a filename controls this capability.
+	const capability = {
+		asShot,
+		dispose: released,
+		create() {
+			const output = target(gpu, { size: source.size, format: source.format });
+			outputs.push(output);
+			return {
+				render(_frame: unknown, balance = asShot) {
+					updates.push(balance);
+					return output;
+				},
+				dispose: () => output.color.dispose(),
+			};
+		},
+	};
+	const id = resources.add(new File([], "custom.camera"), source, capability);
+	const document = createDocument(
+		{
+			source: id,
+			frame: imageFrame(source.size),
+			adjustments: { ...defaultAdjustments },
+			toneCurve: defaultCurve,
+			whiteBalance: asShot,
+		},
+		resources,
+	);
+	const preview = createRenderer(gpu, source, capability);
+	const exported = createRenderer(gpu, source, capability);
+	try {
+		document.history.begin();
+		setWhiteBalance(document, { temperature: 2000 });
+		setWhiteBalance(document, { tint: 30 });
+		document.history.commit();
+		const scene = document.scene.getState();
+		preview.update(scene);
+		exported.update(scene);
+		expect(updates).toEqual([
+			{ temperature: 2000, tint: 30 },
+			{ temperature: 2000, tint: 30 },
+		]);
+		expect(outputs[0]).not.toBe(outputs[1]);
+		expect(preview.stages[0].id).toBe("white-balance");
+		document.history.undo();
+		expect(document.scene.getState().whiteBalance).toEqual(asShot);
+		document.history.redo();
+		expect(document.scene.getState().whiteBalance).toEqual(scene.whiteBalance);
+		setWhiteBalance(document);
+		expect(document.scene.getState().whiteBalance).toEqual(asShot);
+		for (const temperature of [0, Number.NaN, Infinity, 25001])
+			expect(() => setWhiteBalance(document, { temperature })).toThrow(
+				"Invalid white balance",
+			);
+		expect(() =>
+			document.edit({ ...scene, whiteBalance: { temperature: 0, tint: 0 } }),
+		).toThrow("Invalid white balance");
+		preview.dispose();
+		exported.dispose();
+		for (const output of outputs)
+			expect(() => output.color.view).toThrow("destroyed");
+		expect(released).not.toHaveBeenCalled();
+		expect(() => source.color.view).not.toThrow();
+		document.dispose();
+		expect(released).toHaveBeenCalledTimes(1);
+	} finally {
+		preview.dispose();
+		exported.dispose();
+		document.dispose();
+		gpu.dispose();
+	}
+});

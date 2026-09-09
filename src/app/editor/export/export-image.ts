@@ -25,14 +25,14 @@ export async function exportImage(
 		throw new Error("JPEG quality must be between 1 and 100.");
 	}
 	const scene = document.scene.getState();
-	const { image } = document.resources.get(scene.source);
+	const { image, whiteBalance } = document.resources.get(scene.source);
 	let output: ReturnType<typeof surface> | undefined;
 	let renderer: ReturnType<typeof createRenderer> | undefined;
 	try {
 		const [width, height] = scene.frame.size.map(Math.round);
 		const canvas = new OffscreenCanvas(width, height);
 		output = surface(gpu, canvas, { size: [width, height], dpr: 1 });
-		renderer = createRenderer(gpu, image);
+		renderer = createRenderer(gpu, image, whiteBalance);
 		renderer.update(scene);
 		const draw = createDisplay(gpu);
 		const texture = renderer.outputImage();

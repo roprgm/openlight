@@ -1,10 +1,11 @@
 import { effect, frame, type Gpu, type Target, target } from "vgpu";
+import type { ImageSource } from "@/lib/image-source";
 import { createPipeline, type ImageStage } from "@/lib/pipeline";
 import { uploadTiff } from "@/lib/tiff-gpu";
 import demosaicShader from "./demosaic.wgsl";
-import developShader from "./develop.wgsl";
 import type { PreparedDng } from "./dng";
 import normalizeShader from "./normalize.wgsl";
+import { createWorkingColor } from "./working-color";
 
 /** Reusable development stages. The caller can inspect normalized samples before interpolation. */
 export function createDevelopment(gpu: Gpu, { prepared, raw }: PreparedDng) {
@@ -27,7 +28,6 @@ export function createDevelopment(gpu: Gpu, { prepared, raw }: PreparedDng) {
 			return buffer;
 		}
 		const levels = storage(data);
-		const [x, y, width, height] = raw.crop;
 		const stages: ImageStage<void>[] = [];
 		function pass(
 			id: string,
@@ -76,45 +76,24 @@ export function createDevelopment(gpu: Gpu, { prepared, raw }: PreparedDng) {
 		});
 		if (raw.kind === "bayer")
 			pass("demosaic", demosaicShader, { pattern: raw.pattern });
-		const map = raw.gainMap;
-		const gains = storage(map?.values ?? new Float32Array([1]));
-		pass(
-			"working-color",
-			developShader,
-			{
-				gains,
-				gainParams: {
-					area: [
-						raw.active[1],
-						raw.active[0],
-						raw.active[3] - raw.active[1],
-						raw.active[2] - raw.active[0],
-					],
-					points: map?.points ?? [1, 1, 0],
-					spacing: map?.spacing ?? [1, 1],
-					origin: map?.origin ?? [0, 0],
-					weights: map?.weights.slice(0, 3) ?? [0, 0, 0],
-					minimum: map?.weights[3] ?? 0,
-					maximum: map?.weights[4] ?? 0,
-				},
-				params: {
-					origin: [x, y],
-					size: [width, height],
-					orientation: raw.orientation,
-					matrix: raw.matrix,
-					neutral: raw.neutral,
-					exposure: 2 ** raw.exposure,
-				},
-			},
-			raw.orientation >= 5 ? [height, width] : [width, height],
-			"rgba16float",
-		);
+		const color = createWorkingColor(gpu, raw);
+		stages.push({
+			id: "working-color",
+			input: raw.kind === "bayer" ? "demosaic" : "normalize",
+			dispose: color.dispose,
+			render: (frame, input) => color.render(frame, input),
+		});
 		const pipeline = createPipeline(source, stages);
 		return {
 			...pipeline,
 			/** Transfer the final texture to a decoded image resource; scratch stays owned here. */
 			takeOutput() {
-				const image = pipeline.output("working-color");
+				return color.takeOutput();
+			},
+			takeCamera() {
+				const image = pipeline.output(
+					raw.kind === "bayer" ? "demosaic" : "normalize",
+				);
 				owned.delete(image.color);
 				return image;
 			},
@@ -138,6 +117,38 @@ export function developDng(gpu: Gpu, prepared: PreparedDng): Target {
 			pipeline.render(f, undefined);
 		});
 		return pipeline.takeOutput();
+	} finally {
+		pipeline.dispose();
+	}
+}
+
+/** Expose editable white balance through a format-independent image capability. */
+export function developEditableDng(
+	gpu: Gpu,
+	prepared: PreparedDng,
+): ImageSource {
+	const pipeline = createDevelopment(gpu, prepared);
+	try {
+		frame(gpu, (f) => pipeline.render(f, undefined));
+		const image = pipeline.takeOutput();
+		const raw = prepared.raw;
+		const profile = raw.whiteBalance;
+		if (!profile) return { image };
+		const camera = pipeline.takeCamera();
+		return {
+			image,
+			whiteBalance: {
+				asShot: profile.asShot,
+				create(gpu) {
+					const color = createWorkingColor(gpu, raw);
+					return {
+						render: (frame, balance) => color.render(frame, camera, balance),
+						dispose: color.dispose,
+					};
+				},
+				dispose: () => camera.color.dispose(),
+			},
+		};
 	} finally {
 		pipeline.dispose();
 	}

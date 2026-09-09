@@ -75,6 +75,61 @@ test("TIFF and DNG files open through the loader with their color, orientation, 
 	// Bayer DNG files develop through the same loader; the second is lossless JPEG, rotated, and cropped.
 	await load("bayer.dng", "src/lib/camera-raw/fixtures");
 	expect((await readImage(page)).size).toEqual([64, 48]);
+	await test.step("RAW Kelvin/tint changes reach export, reset, and undo", async () => {
+		const asShot = await page.evaluate(
+			() => window.openlight.getState().whiteBalance,
+		);
+		expect(asShot?.temperature).toBeGreaterThanOrEqual(2000);
+		const original = await readImage(page);
+		await page.evaluate(() =>
+			window.openlight.setWhiteBalance({ temperature: 2000, tint: 0 }),
+		);
+		const cold = await readImage(page);
+		await page.evaluate(() =>
+			window.openlight.setWhiteBalance({ temperature: 12000, tint: 0 }),
+		);
+		const warm = await readImage(page);
+		const blueMinusRed = (image: typeof cold) =>
+			image.center[2] - image.center[0];
+		expect(blueMinusRed(cold)).toBeGreaterThan(blueMinusRed(warm) + 20);
+		await page.evaluate(() => window.openlight.setWhiteBalance({ tint: 80 }));
+		const magenta = await readImage(page);
+		await page.evaluate(() => window.openlight.setWhiteBalance({ tint: -80 }));
+		const green = await readImage(page);
+		const greenExcess = (image: typeof cold) =>
+			image.center[1] - (image.center[0] + image.center[2]) / 2;
+		expect(greenExcess(green)).toBeGreaterThan(greenExcess(magenta) + 10);
+		await expect(
+			page.getByRole("slider", { name: "Temperature (K)", exact: true }),
+		).toBeVisible();
+		await page.getByRole("button", { name: "As Shot", exact: true }).click();
+		expect(await readImage(page)).toEqual(original);
+		expect(
+			await page.evaluate(() => window.openlight.getState().whiteBalance),
+		).toEqual(asShot);
+		await page.evaluate(() => window.openlight.undo());
+		expect(await readImage(page)).toEqual(green);
+		await page.evaluate(() => window.openlight.redo());
+		expect(await readImage(page)).toEqual(original);
+		// A normal image exposes relative controls again, even when the previous source was RAW.
+		await load("gray16-para.tif");
+		expect(
+			await page.evaluate(() => window.openlight.getState().whiteBalance),
+		).toBeUndefined();
+		await expect(
+			page.getByRole("slider", { name: "Temperature (K)", exact: true }),
+		).toHaveCount(0);
+		expect(
+			await page.evaluate(() => {
+				try {
+					window.openlight.setWhiteBalance({ temperature: 5000 });
+					return false;
+				} catch {
+					return true;
+				}
+			}),
+		).toBe(true);
+	});
 	await load("bayer-ljpeg.dng", "src/lib/camera-raw/fixtures");
 	expect((await readImage(page)).size).toEqual([44, 56]);
 	// LinearRaw contains complete RGB pixels; both codecs must preserve the same colors without interpolation.

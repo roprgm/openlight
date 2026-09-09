@@ -8,6 +8,7 @@ import {
 import { type Prepared, prepareTiff } from "@/lib/tiff-gpu/prepare";
 import { cameraMatrix } from "./color";
 import { type GainMap, readGainMap } from "./gain-map";
+import { readWhiteBalance, type WhiteBalanceProfile } from "./white-balance";
 
 /** The image layout, sample corrections, and camera calibration described by a DNG. */
 export type RawImage = {
@@ -30,6 +31,7 @@ export type RawImage = {
 	neutral: number[];
 	/** Camera RGB to linear Rec.2020, column-major. */
 	matrix: number[];
+	whiteBalance?: WhiteBalanceProfile;
 	/** Camera/profile baseline compensation in stops, independent of the editor's exposure. */
 	exposure: number;
 	gainMap?: GainMap;
@@ -106,9 +108,14 @@ export function readDng(bytes: ArrayBuffer): RawImage {
 				(value(a, tags.width) ?? 0) * (value(a, tags.height) ?? 0),
 		)[0];
 	if (!directory) throw Error("DNG has no supported CFA or LinearRaw image.");
+	const metadata = (tag: number) =>
+		tiff.value(directory, tag) ?? tiff.value(tiff.directories[0], tag);
+	const calibrationMatches = metadata(50931) === metadata(50932);
 	const numbers = (tag: number, fallback: number[] = []) => {
-		const value =
-			tiff.value(directory, tag) ?? tiff.value(tiff.directories[0], tag);
+		// Individual-camera calibration is valid only for the profile with the matching signature.
+		if ((tag === 50723 || tag === 50724) && !calibrationMatches)
+			return fallback;
+		const value = metadata(tag);
 		return typeof value === "string" || !value ? fallback : value;
 	};
 	const image = parseTiff(bytes, directory);
@@ -187,6 +194,10 @@ export function readDng(bytes: ArrayBuffer): RawImage {
 		neutral.some((n) => !Number.isFinite(n) || n <= 0)
 	)
 		throw Error("Invalid DNG as-shot neutral.");
+	const monochrome = image.samplesPerPixel === 1 && kind === "linear";
+	const whiteBalance = monochrome
+		? undefined
+		: readWhiteBalance(numbers, neutral);
 	const exposure =
 		numbers(tags.baselineExposure, [0])[0] +
 		numbers(tags.baselineExposureOffset, [0])[0];
@@ -210,11 +221,9 @@ export function readDng(bytes: ArrayBuffer): RawImage {
 		pattern,
 		black,
 		white,
-		neutral,
-		matrix:
-			image.samplesPerPixel === 1 && kind === "linear"
-				? [1, 0, 0, 0, 1, 0, 0, 0, 1]
-				: cameraMatrix(numbers),
+		neutral: whiteBalance?.neutral ?? neutral,
+		whiteBalance,
+		matrix: monochrome ? [1, 0, 0, 0, 1, 0, 0, 0, 1] : cameraMatrix(numbers),
 	};
 }
 
