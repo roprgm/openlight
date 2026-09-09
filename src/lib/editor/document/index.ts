@@ -1,7 +1,6 @@
 import { createStore } from "zustand/vanilla";
 import { shallow } from "zustand/vanilla/shallow";
 import type { Scene } from "@/lib/editor/scene";
-import { validateWhiteBalance } from "@/lib/editor/white-balance";
 import { createHistory } from "@/lib/history";
 import { frameValues, validateFrame } from "@/lib/image-frame/geometry";
 import { createResources } from "./resources";
@@ -56,12 +55,6 @@ export function createDocument(initial: Scene, resources = createResources()) {
 				throw new Error("Document is closed.");
 			}
 			validateFrame(next.frame);
-			if (next.whiteBalance) {
-				validateWhiteBalance(
-					next.whiteBalance,
-					resources.get(next.source).raw?.asShot,
-				);
-			}
 			update(next);
 		},
 		dispose() {

@@ -1,7 +1,6 @@
 import { useDocument, useScene } from "@/components/editor/session";
 import { Slider } from "@/components/ui/slider";
-import { whiteBalanceLimits } from "@/lib/editor/white-balance";
-import { setWhiteBalance } from "./edits";
+import { setWhiteBalance, whiteBalanceLimits } from "./edits";
 
 export function WhiteBalanceControls() {
 	const document = useDocument();

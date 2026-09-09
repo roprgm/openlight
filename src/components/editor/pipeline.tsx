@@ -22,6 +22,17 @@ export function useRenderer() {
 	return renderer;
 }
 
+function RendererError({ message }: { message: string }) {
+	return (
+		<p
+			role="alert"
+			className="fixed bottom-4 left-4 rounded bg-neutral-900 px-3 py-2 text-red-300 text-sm"
+		>
+			Renderer error: {message}
+		</p>
+	);
+}
+
 type RendererProviderProps = { children: ReactNode };
 
 export function RendererProvider({ children }: RendererProviderProps) {
@@ -54,14 +65,7 @@ export function RendererProvider({ children }: RendererProviderProps) {
 	return (
 		<RendererContext value={renderer}>
 			{children}
-			{error && (
-				<p
-					role="alert"
-					className="fixed bottom-4 left-4 rounded bg-neutral-900 px-3 py-2 text-red-300 text-sm"
-				>
-					Renderer error: {error}
-				</p>
-			)}
+			{error && <RendererError message={error} />}
 		</RendererContext>
 	);
 }
