@@ -22,13 +22,11 @@ Image processing runs locally with WebGPU. Built with TypeScript and React.
 
 Requires a WebGPU-capable browser.
 
-The locally linked `raw-webgpu` package owns RAW decoding, camera calibration and GPU development; editing runs on WebGPU. See [RAW support](src/lib/raw/README.md) for the supported processing path and its limitations.
+The `raw-webgpu` npm package owns RAW decoding, camera calibration and GPU development; editing runs on WebGPU. See [RAW support](src/lib/raw/README.md) for the supported processing path and its limitations.
 
 ## Development
 
 ```sh
-# Register the sibling package once before installing OpenLight.
-(cd ../raw-webgpu && bun install && bun run build && bun link)
 bun install
 bun dev
 ```
