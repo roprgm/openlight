@@ -1,0 +1,6 @@
+OpenLight uses raw-webgpu, including LibRaw, Adobe DNG SDK and JPEG XL.
+Bundled notices and the pinned native build recipe ship in the installed package:
+node_modules/raw-webgpu/NOTICE
+node_modules/raw-webgpu/THIRD_PARTY_LICENSES.txt
+node_modules/raw-webgpu/native/build.py
+Upstream package: https://github.com/roprgm/raw-webgpu

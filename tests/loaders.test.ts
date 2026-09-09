@@ -2,6 +2,7 @@ import { expect, test } from "bun:test";
 import { createCameraRawXmpLoader } from "@/app/loaders/camera-raw-xmp";
 import { createLoaderRegistry, type FileLoader } from "@/app/loaders/registry";
 import { createWorkspace } from "@/app/workspace";
+import { canDecode } from "@/lib/decode";
 import { createDocument } from "@/lib/editor/document";
 import { setAdjustments } from "@/lib/editor/document/edits";
 import { defaultAdjustments } from "@/lib/editor/scene";
@@ -18,6 +19,9 @@ function settings(attributes: string, name = "photo.xmp") {
 }
 
 test("file batches preserve ordering, group imports, recover from failures, and discard stale settings", async () => {
+	for (const name of ["mamiya.MEF", "epson.erf", "fuji.raf", "iphone.dng"]) {
+		expect(canDecode(new File([], name))).toBe(true);
+	}
 	const workspace = createWorkspace();
 	// Substitute decoding only; the registry, workspace, XMP parser, and documents are real.
 	const image: FileLoader = {

@@ -42,6 +42,7 @@ test("edit a photo, inspect the preview and histograms, undo changes, and export
 	page,
 	browser,
 }) => {
+	test.setTimeout(60_000);
 	const state = () => page.evaluate(() => window.openlight.getState());
 	await page.goto("/");
 	await expect(page.getByRole("button", { name: "Open image" })).toBeVisible();

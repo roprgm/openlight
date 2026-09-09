@@ -17,9 +17,12 @@ Image processing runs locally with WebGPU. Built with TypeScript and React.
 - Pan and zoom
 - Camera Raw XMP import
 - TIFF import at 16-bit and floating-point precision, decoded on the GPU
+- Camera RAW and DNG import through LibRaw, with absolute white balance and As Shot reset
 - PNG and JPEG export
 
 Requires a WebGPU-capable browser.
+
+RAW decoding and GPU development use [raw-webgpu](https://github.com/roprgm/raw-webgpu), which documents format support and limitations. OpenLight owns editing, history and preview/export lifetimes.
 
 ## Development
 
@@ -37,3 +40,5 @@ Run `bun run check` to format and lint, `bun run build` to type-check and build,
 ## License
 
 [MIT](LICENSE)
+
+The bundled RAW decoder includes separately licensed libraries. See [NOTICE](NOTICE).

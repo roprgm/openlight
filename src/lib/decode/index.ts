@@ -1,4 +1,5 @@
 import type { Gpu, Target } from "vgpu";
+import { createImageSource, type ImageSource } from "@/lib/image-source";
 import { uploadTiff } from "@/lib/tiff-gpu";
 import { decodeHeic } from "./heic";
 import linearize from "./linearize";
@@ -30,31 +31,77 @@ export function workerDecoder(
 type Format = {
 	types: string[];
 	extensions: string[];
-	load: () => Promise<Decoder>;
+	decode: (gpu: Gpu, file: File) => Promise<ImageSource>;
 };
 
-const native = async () => createImageBitmap;
-const svg = async () => decodeSvg;
-const heic = async () => decodeHeic;
-const tiff = workerDecoder(() => import("./tiff.worker?worker"));
+/** A format whose decoder yields pixels needing the GPU leg into the working space. */
+function pixelFormat(load: () => Promise<Decoder>) {
+	return async (gpu: Gpu, file: File) => {
+		const decoder = await load();
+		const decoded = await decoder(file);
+		return createImageSource(
+			"chunks" in decoded ? uploadTiff(gpu, decoded) : linearize(gpu, decoded),
+		);
+	};
+}
+
+const native = pixelFormat(async () => createImageBitmap);
+const svg = pixelFormat(async () => decodeSvg);
+const heic = pixelFormat(async () => decodeHeic);
+const tiff = pixelFormat(workerDecoder(() => import("./tiff.worker?worker")));
+const raw = async (gpu: Gpu, file: File) =>
+	(await import("@/lib/raw")).decodeRaw(gpu, file);
 
 const formats: Format[] = [
 	{
+		types: ["image/x-adobe-dng", "image/dng"],
+		extensions: [
+			"dng",
+			"cr2",
+			"cr3",
+			"crw",
+			"nef",
+			"nrw",
+			"arw",
+			"sr2",
+			"srf",
+			"raf",
+			"orf",
+			"rw2",
+			"raw",
+			"rwl",
+			"pef",
+			"ptx",
+			"srw",
+			"3fr",
+			"fff",
+			"iiq",
+			"kdc",
+			"dcr",
+			"mos",
+			"mef",
+			"erf",
+			"mrw",
+			"x3f",
+		],
+		decode: raw,
+	},
+	{
 		types: ["image/tiff", "image/x-tiff"],
 		extensions: ["tif", "tiff"],
-		load: tiff,
+		decode: tiff,
 	},
-	{ types: ["image/png"], extensions: ["png"], load: native },
-	{ types: ["image/jpeg"], extensions: ["jpg", "jpeg"], load: native },
-	{ types: ["image/gif"], extensions: ["gif"], load: native },
-	{ types: ["image/webp"], extensions: ["webp"], load: native },
-	{ types: ["image/avif"], extensions: ["avif"], load: native },
-	{ types: ["image/bmp"], extensions: ["bmp"], load: native },
-	{ types: ["image/svg+xml"], extensions: ["svg"], load: svg },
+	{ types: ["image/png"], extensions: ["png"], decode: native },
+	{ types: ["image/jpeg"], extensions: ["jpg", "jpeg"], decode: native },
+	{ types: ["image/gif"], extensions: ["gif"], decode: native },
+	{ types: ["image/webp"], extensions: ["webp"], decode: native },
+	{ types: ["image/avif"], extensions: ["avif"], decode: native },
+	{ types: ["image/bmp"], extensions: ["bmp"], decode: native },
+	{ types: ["image/svg+xml"], extensions: ["svg"], decode: svg },
 	{
 		types: ["image/heic", "image/heif"],
 		extensions: ["heic", "heif"],
-		load: heic,
+		decode: heic,
 	},
 ];
 
@@ -74,14 +121,13 @@ export const accept = formats
 export const canDecode = (file: File) => formatOf(file) !== undefined;
 
 /** Decodes the file into a linear rgba16float target: the format's decoder, then its GPU leg. */
-export default async function decode(gpu: Gpu, file: File): Promise<Target> {
+export default async function decode(
+	gpu: Gpu,
+	file: File,
+): Promise<ImageSource> {
 	const format = formatOf(file);
 	if (!format) {
 		throw new Error(`Unsupported image: ${file.name}`);
 	}
-	const decoder = await format.load();
-	const decoded = await decoder(file);
-	return "chunks" in decoded
-		? uploadTiff(gpu, decoded)
-		: linearize(gpu, decoded);
+	return format.decode(gpu, file);
 }

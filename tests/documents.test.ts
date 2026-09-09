@@ -6,6 +6,7 @@ import { setAdjustments, setToneCurve } from "@/lib/editor/document/edits";
 import { createResources } from "@/lib/editor/document/resources";
 import { defaultAdjustments } from "@/lib/editor/scene";
 import { imageFrame } from "@/lib/image-frame/geometry";
+import { createImageSource } from "@/lib/image-source";
 import { defaultCurve } from "@/lib/tone-curves/curve";
 
 function document() {
@@ -113,7 +114,8 @@ test("documents edit independently without React, retain bounded history, and re
 	const gpu = await init();
 	const resources = createResources();
 	const file = new File(["fixture"], "image.png");
-	const add = () => resources.add(file, target(gpu, { size: [2, 2] }));
+	const add = () =>
+		resources.add(file, createImageSource(target(gpu, { size: [2, 2] })));
 	const source = add();
 	const doc = createDocument(
 		{ ...document().scene.getState(), source },

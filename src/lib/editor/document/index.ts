@@ -17,6 +17,7 @@ function equal(a: Scene, b: Scene) {
 		a.source === b.source &&
 		shallow(frameValues(a.frame), frameValues(b.frame)) &&
 		shallow(a.adjustments, b.adjustments) &&
+		shallow(a.whiteBalance, b.whiteBalance) &&
 		a.toneCurve.length === b.toneCurve.length &&
 		a.toneCurve.every((point, i) => shallow(point, b.toneCurve[i]))
 	);

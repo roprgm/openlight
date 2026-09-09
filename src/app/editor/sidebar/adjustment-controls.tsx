@@ -2,6 +2,7 @@ import type { ComponentProps, ReactNode } from "react";
 import { useDocument, useScene } from "@/components/editor/session";
 import { Collapsible } from "@/components/ui/collapsible";
 import { Slider } from "@/components/ui/slider";
+import { WhiteBalanceControls } from "@/features/white-balance/controls";
 import { setAdjustments } from "@/lib/editor/document/edits";
 import {
 	type Adjustments,
@@ -44,6 +45,28 @@ function AdjustmentSlider({ name, ...props }: AdjustmentSliderProps) {
 	);
 }
 
+function ColorTemperatureControls() {
+	const document = useDocument();
+	const source = useScene((scene) => scene.source);
+	if (document.resources.get(source).raw) {
+		return <WhiteBalanceControls />;
+	}
+	return (
+		<>
+			<AdjustmentSlider
+				name="incrementalTemperature"
+				label="Temp"
+				stops={stops.incrementalTemperature}
+			/>
+			<AdjustmentSlider
+				name="incrementalTint"
+				label="Tint"
+				stops={stops.incrementalTint}
+			/>
+		</>
+	);
+}
+
 export default function AdjustmentControls({ curves }: { curves: ReactNode }) {
 	return (
 		<>
@@ -60,16 +83,7 @@ export default function AdjustmentControls({ curves }: { curves: ReactNode }) {
 			</Collapsible>
 			<Collapsible title="Color">
 				<div className="flex flex-col gap-2">
-					<AdjustmentSlider
-						name="incrementalTemperature"
-						label="Temp"
-						stops={stops.incrementalTemperature}
-					/>
-					<AdjustmentSlider
-						name="incrementalTint"
-						label="Tint"
-						stops={stops.incrementalTint}
-					/>
+					<ColorTemperatureControls />
 					<AdjustmentSlider
 						name="vibrance"
 						label="Vibrance"

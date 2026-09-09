@@ -1,5 +1,6 @@
 import type { Adjustments as ToneAdjustments } from "@/lib/adjustments";
 import type { ImageFrame } from "@/lib/image-frame/geometry";
+import type { WhiteBalance } from "@/lib/image-source";
 import type { ToneCurve } from "@/lib/tone-curves/curve";
 
 export type Adjustments = ToneAdjustments & {
@@ -49,6 +50,7 @@ export const adjustmentMinimums: Partial<Adjustments> = {
 export type Scene = {
 	readonly frame: ImageFrame;
 	readonly source: string;
+	readonly whiteBalance?: Readonly<WhiteBalance>;
 	readonly adjustments: Readonly<Adjustments>;
 	readonly toneCurve: ToneCurve;
 };
