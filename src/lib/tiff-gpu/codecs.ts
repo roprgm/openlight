@@ -1,3 +1,5 @@
+import type { Chunk, TiffInfo } from "./ifd";
+import { decodeJpegXL } from "./jpeg-xl";
 import { decodeLosslessJpeg } from "./ljpeg";
 
 /** TIFF LZW (MSB-first, early change) into a preallocated output. */
@@ -126,6 +128,7 @@ export function undoFloatPrediction(
 export type Codec = (
 	input: Uint8Array<ArrayBuffer>,
 	output: Uint8Array,
+	context: { image: TiffInfo; chunk: Chunk },
 ) => void | Promise<void>;
 
 /** Decoders by TIFF compression code; further codecs register here. */
@@ -136,4 +139,5 @@ export const codecs: Record<number, Codec> = {
 	8: inflate,
 	32946: inflate,
 	32773: decodePackBits,
+	52546: decodeJpegXL,
 };

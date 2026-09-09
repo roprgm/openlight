@@ -5,6 +5,7 @@ import { init } from "vgpu/node";
 import { decodeLzw, decodePackBits, inflate } from "./codecs";
 import { readProfile } from "./color";
 import { parseTiff, prepareTiff, readTiff } from "./index";
+import { decodeJpegXL } from "./jpeg-xl";
 import { benchmark, decodeAt } from "./testing";
 
 const fixture = (name: string) =>
@@ -244,3 +245,49 @@ test.skipIf(!gpu)(
 		}
 	},
 );
+
+test("JPEG XL preserves integer precision and floating headroom, and rejects malformed tiles", async () => {
+	const image = {
+		...parseTiff(await fixture("rgb16-le.tif")),
+		width: 2,
+		height: 1,
+		samplesPerPixel: 3,
+		photometric: 34892,
+		bitsPerSample: 12,
+		sampleFormat: 1,
+		predictor: 1,
+		planar: 1,
+	};
+	const chunk = { x: 0, y: 0, width: 2, height: 1, offset: 0, length: 0 };
+	const input = new Uint8Array(await fixture("codes12.jxl"));
+	const output = new Uint8Array(12);
+	await decodeJpegXL(input, output, { image, chunk });
+	expect([...new Uint16Array(output.buffer)]).toEqual([
+		0, 1, 255, 256, 900, 4095,
+	]);
+	await decodeJpegXL(input, output, {
+		image: { ...image, photometric: 2 },
+		chunk,
+	});
+	for (const [i, value] of [0, 1, 255, 256, 900, 4095].entries()) {
+		expect(
+			Math.abs(
+				new Uint16Array(output.buffer)[i] - Math.round((value * 65535) / 4095),
+			),
+		).toBeLessThanOrEqual(1);
+	}
+	await expect(
+		decodeJpegXL(input.subarray(0, 4), output, { image, chunk }),
+	).rejects.toThrow("incomplete JPEG XL");
+	await expect(
+		decodeJpegXL(input, output, { image, chunk: { ...chunk, width: 3 } }),
+	).rejects.toThrow("does not match");
+	const floating = new Uint8Array(24);
+	await decodeJpegXL(new Uint8Array(await fixture("hdr.jxl")), floating, {
+		image: { ...image, bitsPerSample: 16, sampleFormat: 3 },
+		chunk,
+	});
+	expect([...new Float32Array(floating.buffer)]).toEqual([
+		0, 0.125, 0.5, 1, 2, 4,
+	]);
+});

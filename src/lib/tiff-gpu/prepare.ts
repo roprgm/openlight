@@ -102,11 +102,15 @@ export async function prepareTiff(
 ): Promise<Prepared> {
 	const layout = options.image ?? parseTiff(bytes);
 	check(layout);
-	// Lossless JPEG decodes to 16-bit little-endian samples whatever the tag says.
-	const info =
-		layout.compression === 7
-			? { ...layout, bitsPerSample: 16, littleEndian: true }
-			: layout;
+	// JPEG codecs return unpacked samples; retain the original layout for codec scaling.
+	let info = layout;
+	if (layout.compression === 7 || layout.compression === 52546) {
+		info = {
+			...layout,
+			bitsPerSample: layout.sampleFormat === 3 ? 32 : 16,
+			littleEndian: true,
+		};
+	}
 	const { chunks, compression, predictor } = info;
 	const { table: curves, matrix } = colorOf(
 		info.icc,
@@ -134,7 +138,7 @@ export async function prepareTiff(
 	await forEachLimited(chunks, 64, async (chunk, i) => {
 		const input = file.subarray(chunk.offset, chunk.offset + chunk.length);
 		const output = data.subarray(offsets[i], offsets[i] + sizes[i]);
-		await decode(input, output);
+		await decode(input, output, { image: layout, chunk });
 		if (predictor === 3) {
 			const stride = info.planar === 2 ? 1 : info.samplesPerPixel;
 			undoFloatPrediction(

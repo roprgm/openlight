@@ -98,7 +98,7 @@ test.skipIf(!gpu)(
 );
 
 test("LinearRaw selects the full RGB SubIFD, retains its channels and companding metadata", async () => {
-	for (const name of ["linear.dng", "linear-ljpeg.dng"]) {
+	for (const name of ["linear.dng", "linear-ljpeg.dng", "linear-jxl.dng"]) {
 		const { raw, prepared } = await prepareDng(await fixture(name));
 		expect(raw).toMatchObject({
 			kind: "linear",
@@ -124,7 +124,7 @@ test.skipIf(!gpu)(
 		const reference = JSON.parse(
 			await Bun.file(`${import.meta.dir}/fixtures/linear.json`).text(),
 		);
-		for (const name of ["linear.dng", "linear-ljpeg.dng"]) {
+		for (const name of ["linear.dng", "linear-ljpeg.dng", "linear-jxl.dng"]) {
 			const pipeline = createDevelopment(
 				gpu,
 				await prepareDng(await fixture(name)),

@@ -19,4 +19,4 @@ Bayer samples can be denoised after normalization, before interpolation spreads 
 
 The pipeline lifecycle test exercises a branch, bypass changes across frames, invalid dependencies, and disposal using `vgpu/mock`. Existing document/renderer tests cover edits, history, resource reuse, and framing without React. DNG GPU tests execute real WGSL and compare synthetic fixtures against independent pixel references. Browser coverage loads and exports both LinearRaw codecs through the actual worker path.
 
-No new runtime dependency or model weights are introduced. This work leaves the existing denoiser on its separate branch.
+JPEG XL compression adds a lazy-loaded libjxl WebAssembly decoder; no model weights are used. This work leaves the existing denoiser on its separate branch.

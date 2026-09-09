@@ -7,6 +7,10 @@ const directory = "src/lib/tiff-gpu/fixtures";
 test("TIFF and DNG files open through the loader with their color, orientation, and headroom", async ({
 	page,
 }) => {
+	const wasmRequests: string[] = [];
+	page.on("request", (request) => {
+		if (request.url().endsWith(".wasm")) wasmRequests.push(request.url());
+	});
 	await page.goto("/");
 	await page.waitForFunction(() => window.openlight);
 	const load = async (name: string, folder = directory) => {
@@ -84,6 +88,10 @@ test("TIFF and DNG files open through the loader with their color, orientation, 
 	).toBeGreaterThan(20);
 	await load("linear-ljpeg.dng", "src/lib/camera-raw/fixtures");
 	expect(await readImage(page)).toEqual(linear);
+	expect(wasmRequests).toHaveLength(0);
+	await load("linear-jxl.dng", "src/lib/camera-raw/fixtures");
+	expect(await readImage(page)).toEqual(linear);
+	expect(wasmRequests).toHaveLength(1);
 	await load("rgb8-jpeg.tif");
 	await expect(
 		page.getByText("Couldn't open rgb8-jpeg.tif:", { exact: false }),

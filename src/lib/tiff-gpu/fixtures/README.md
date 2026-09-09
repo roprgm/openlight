@@ -24,3 +24,5 @@ Most files hold a 19×17 RGB gradient where red is `x·3000 + 123`, green `y·35
 | `precision16.tif` | 2×1 gray with adjacent values 32768 and 32800 |
 | `packed12.tif` | 9×5 gray `(x·397 + y·811) % 4096` in packed 12-bit samples, as raw camera files store them |
 | `rgb8-jpeg.tif` | JPEG compression, which the decoder must reject |
+
+`codes12.jxl` and `hdr.jxl` are original synthetic 2×1 RGB tiles encoded losslessly with native libjxl 0.11.1 and linear RGB metadata. They contain integer codes [0, 1, 255, 256, 900, 4095] at 12 bits, and floating values [0, 0.125, 0.5, 1, 2, 4] at 16-bit floating precision, respectively. They test code scaling, sub-8-bit precision, and HDR preservation against explicit values.

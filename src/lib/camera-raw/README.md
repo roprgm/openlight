@@ -25,7 +25,7 @@ A future RAW denoiser belongs after normalization and before demosaic; RGB denoi
 
 ## Scope and cost
 
-Supported compression is inherited from tiff-gpu. LinearRaw fixes the Bayer-only rejection for demosaiced DNG, a representation used by Apple ProRAW. It does not add JPEG XL decoding, DNG opcode lists, gain maps, full camera profile rendering, X-Trans demosaic, or native ARW/NEF/CR2 readers. Therefore it is not a claim of complete ProRAW support or a match to Apple's rendering.
+Supported compression is inherited from tiff-gpu. LinearRaw fixes the Bayer-only rejection for demosaiced DNG, a representation used by Apple ProRAW. JPEG XL (compression 52546) is decoded locally by the lazy-loaded libjxl worker module. It does not add DNG opcode lists, gain maps, full camera profile rendering, X-Trans demosaic, or native ARW/NEF/CR2 readers. Therefore it is not a claim of complete ProRAW support or a match to Apple's rendering.
 
 Development retains float32 source and intermediate textures for precision and inspection, then releases them after loading. This costs additional passes and temporary memory compared with the former fused shader: about 40 bytes per stored pixel for LinearRaw and 56 for Bayer, assuming an uncropped output, excluding upload/decompression buffers. Large images need physical-GPU memory/performance measurements; tiled processing or selective retention should precede a memory-heavy denoiser. Software GPU tests establish correctness, not interactive performance.
 
