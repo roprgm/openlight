@@ -9,6 +9,13 @@ test("loads a HEIC image with the expected dimensions and pixels", async ({
 	);
 	await page.goto("/");
 	await page.waitForFunction(() => window.openlight);
+	const hevc = await page.evaluate(async () => {
+		const { supported } = await VideoDecoder.isConfigSupported({
+			codec: "hvc1.1.6.L93.B0",
+		});
+		return supported;
+	});
+	test.skip(!hevc, "HEIC needs the browser's HEVC decoder.");
 	const result = await page.evaluate(
 		async (bytes) => {
 			await window.openlight.loadImage(

@@ -33,6 +33,8 @@ bun dev
 
 Run `bun run check` to format and lint, `bun run build` to type-check and build, and `bun run test` for integration tests. GPU and UI tests run with `bun run test:browser`, which requires Chromium with WebGPU.
 
+On Linux the browser tests need a Vulkan driver such as `mesa-vulkan-drivers` and run headed, so use `xvfb-run` without a display.
+
 ## Scripting
 
 `window.openlight` exposes commands for loading, editing, undo/redo, and export. See the [API reference](API.md).
