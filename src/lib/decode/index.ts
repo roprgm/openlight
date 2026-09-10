@@ -1,32 +1,11 @@
 import type { Gpu, Target } from "vgpu";
 import { createImageSource, type ImageSource } from "@/lib/image-source";
-import { uploadTiff } from "@/lib/tiff-gpu";
 import { decodeHeic } from "./heic";
 import linearize from "./linearize";
 import decodeSvg from "./svg";
-import type { Decoded, Decoder } from "./types";
+import type { Decoder } from "./types";
 
 export type { Target };
-
-/** Decoder backed by a worker module: post the file, receive transferred pixels or an error. */
-export function workerDecoder(
-	load: () => Promise<{ default: new () => Worker }>,
-) {
-	return async (): Promise<Decoder> => {
-		const { default: Spawn } = await load();
-		return (file) =>
-			new Promise((resolve, reject) => {
-				const worker = new Spawn();
-				worker.onmessage = ({
-					data,
-				}: MessageEvent<Decoded | { error: string }>) => {
-					"error" in data ? reject(new Error(data.error)) : resolve(data);
-					worker.terminate();
-				};
-				worker.postMessage(file);
-			});
-	};
-}
 
 type Format = {
 	types: string[];
@@ -39,16 +18,15 @@ function pixelFormat(load: () => Promise<Decoder>) {
 	return async (gpu: Gpu, file: File) => {
 		const decoder = await load();
 		const decoded = await decoder(file);
-		return createImageSource(
-			"chunks" in decoded ? uploadTiff(gpu, decoded) : linearize(gpu, decoded),
-		);
+		return createImageSource(linearize(gpu, decoded));
 	};
 }
 
 const native = pixelFormat(async () => createImageBitmap);
 const svg = pixelFormat(async () => decodeSvg);
 const heic = pixelFormat(async () => decodeHeic);
-const tiff = pixelFormat(workerDecoder(() => import("./tiff.worker?worker")));
+const tiff = async (gpu: Gpu, file: File) =>
+	(await import("./tiff")).decodeTiff(gpu, file);
 const raw = async (gpu: Gpu, file: File) =>
 	(await import("@/lib/raw")).decodeRaw(gpu, file);
 

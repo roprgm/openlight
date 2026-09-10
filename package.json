@@ -7,7 +7,6 @@
 		"build": "tsc && vite build",
 		"check": "biome check --write",
 		"test": "bun test",
-		"test:gpu": "GPU=1 bun test",
 		"test:browser": "playwright test"
 	},
 	"dependencies": {
@@ -17,8 +16,7 @@
 		"@vercel/speed-insights": "^2.0.0",
 		"class-variance-authority": "^0.7.1",
 		"cn": "^0.2.4",
-		"gl-matrix": "^3.4.4",
-		"raw-webgpu": "0.1.0-alpha.1",
+		"raw-webgpu": "0.1.0-alpha.2",
 		"react": "^19.2.8",
 		"react-dom": "^19.2.8",
 		"tailwindcss": "^4.3.3",

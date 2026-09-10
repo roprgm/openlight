@@ -1,5 +1,4 @@
 import { effect, frame, type Gpu, target } from "vgpu";
-import type { Prepared } from "@/lib/tiff-gpu";
 import shader from "./linearize.wgsl";
 import type { Decoded } from "./types";
 
@@ -19,7 +18,7 @@ function staging(gpu: Gpu, size: Size) {
 }
 
 /** Uploads the decoded image into a staging texture, tiles laid out on their grid. */
-function stage(gpu: Gpu, decoded: Exclude<Decoded, Prepared>) {
+function stage(gpu: Gpu, decoded: Decoded) {
 	const queue = gpu.gpu.queue;
 	const size: Size = [decoded.width, decoded.height];
 	if (decoded instanceof ImageBitmap) {
@@ -66,10 +65,7 @@ function stage(gpu: Gpu, decoded: Exclude<Decoded, Prepared>) {
 }
 
 /** GPU leg for sRGB-encoded decoders: renders the decoded image into a linear Rec.2020 rgba16float target. */
-export default function linearize(
-	gpu: Gpu,
-	decoded: Exclude<Decoded, Prepared>,
-) {
+export default function linearize(gpu: Gpu, decoded: Decoded) {
 	const frames = "tiles" in decoded ? decoded : undefined;
 	const rotation = frames?.rotation ?? 0;
 	const p3 = Number(isP3(frames?.tiles[0]));

@@ -31,7 +31,7 @@ bun install
 bun dev
 ```
 
-Run `bun run check` to format and lint, `bun run build` to type-check and build, and `bun run test` for integration tests. Shader tests run with `bun run test:gpu`, and GPU and UI tests with `bun run test:browser`, which requires Chromium with WebGPU.
+Run `bun run check` to format and lint, `bun run build` to type-check and build, and `bun run test` for integration tests. GPU and UI tests run with `bun run test:browser`, which requires Chromium with WebGPU.
 
 ## Scripting
 
