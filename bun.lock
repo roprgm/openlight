@@ -11,8 +11,7 @@
         "@vercel/speed-insights": "^2.0.0",
         "class-variance-authority": "^0.7.1",
         "cn": "^0.2.4",
-        "gl-matrix": "^3.4.4",
-        "raw-webgpu": "0.1.0-alpha.1",
+        "raw-webgpu": "0.1.0-alpha.2",
         "react": "^19.2.8",
         "react-dom": "^19.2.8",
         "tailwindcss": "^4.3.3",
@@ -223,8 +222,6 @@
 
     "fsevents": ["fsevents@2.3.3", "", { "os": "darwin" }, "sha512-5xoDfX+fL7faATnagmWPpbFtwh/R77WmMMqqHGS65C3vvB0YHrgF+B1YmZ3441tMj5n63k0212XNoJwzlhffQw=="],
 
-    "gl-matrix": ["gl-matrix@3.4.4", "", {}, "sha512-latSnyDNt/8zYUB6VIJ6PCh2jBjJX6gnDsoCZ7LyW7GkqrD51EWwa9qCoGixj8YqBtETQK/xY7OmpTF8xz1DdQ=="],
-
     "graceful-fs": ["graceful-fs@4.2.11", "", {}, "sha512-RbJ5/jmFcNNCcDV5o9eTnBLJ/HszWV0P73bc+Ff4nS/rJj+YaS6IGyiOL0VoBYX+l1Wrl3k63h/KrH+nhJ0XvQ=="],
 
     "jiti": ["jiti@2.7.0", "", { "bin": { "jiti": "lib/jiti-cli.mjs" } }, "sha512-AC/7JofJvZGrrneWNaEnJeOLUx+JlGt7tNa0wZiRPT4MY1wmfKjt2+6O2p2uz2+skll8OZZmJMNqeke7kKbNgQ=="],
@@ -273,7 +270,7 @@
 
     "postcss": ["postcss@8.5.26", "", { "dependencies": { "nanoid": "^3.3.17", "picocolors": "^1.1.1", "source-map-js": "^1.2.1" } }, "sha512-u82N74LFzG8ca+dD8puPnplTXoGH4fTPpVGuIbt36G3qvNlkvfD0lEAZSxaly3KX8TS/L1A1gsCEmvKmBcVbkQ=="],
 
-    "raw-webgpu": ["raw-webgpu@0.1.0-alpha.1", "", {}, "sha512-sDPYERiNCRO6OhyvH62lgD1CBmRon2GrbeJaAt12nCCnVivd5ROzBHTH94o7dAS7hmLScGlsHSk6L35iFZX9hw=="],
+    "raw-webgpu": ["raw-webgpu@0.1.0-alpha.2", "", {}, "sha512-YajtCnv1h/KUDPQdsn+nuYvs9IGBoVvlR6YNJveIP4gwh54rfYMDmGv8nG+SWtWhnUyoLMX0xDhwkvOjBUpzzA=="],
 
     "react": ["react@19.2.8", "", {}, "sha512-PWaYA1L/q9u2u7xYQi+Y3L3Yfnie7XyLeaJICV1MGD6LprsBxcAqGjYyr0eY3p+QdsA+x/Irkt4Qif8D63+Sbw=="],
 

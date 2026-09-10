@@ -2,15 +2,15 @@ import { readFile } from "node:fs/promises";
 import { expect, test } from "./fixtures";
 import { readImage } from "./images";
 
-const directory = "src/lib/tiff-gpu/fixtures";
+const directory = "tests/fixtures";
 
-test("TIFF files open through the loader with their color, orientation, and headroom", async ({
+test("TIFF files open through the loader with their color, orientation, headroom, alpha, and error recovery", async ({
 	page,
 }) => {
 	await page.goto("/");
 	await page.waitForFunction(() => window.openlight);
-	const load = async (name: string, folder = directory) => {
-		const bytes = [...(await readFile(`${folder}/${name}`))];
+	const load = async (name: string) => {
+		const bytes = [...(await readFile(`${directory}/${name}`))];
 		await page.evaluate(
 			({ bytes, name }) =>
 				window.openlight.loadImage(new File([new Uint8Array(bytes)], name)),
@@ -49,7 +49,7 @@ test("TIFF files open through the loader with their color, orientation, and head
 	expect(recovered[5]).toBeGreaterThan(recovered[4]);
 	expect(recovered[6]).toBeGreaterThan(240);
 	// The blue pixel brightens without losing its hue, then approaches white.
-	await load("blue-float.tif", "tests/fixtures");
+	await load("blue-float.tif");
 	const colors = [];
 	for (const exposure of [0, 2, 5]) {
 		await page.evaluate(
@@ -72,4 +72,15 @@ test("TIFF files open through the loader with their color, orientation, and head
 	await expect(
 		page.getByText("Couldn't open rgb8-jpeg.tif:", { exact: false }),
 	).toBeVisible();
+	// Recover in the same session after the package rejects an unsupported TIFF.
+	await load("alpha16.tif");
+	const alpha = await readImage(page);
+	expect(alpha.size).toEqual([7, 5]);
+	// Export composites 50% alpha over the editor's 0.09 display background.
+	for (const [i, expected] of [43, 75, 107, 255].entries()) {
+		expect(Math.abs(alpha.center[i] - expected)).toBeLessThanOrEqual(1);
+	}
+	await expect(
+		page.getByText("Couldn't open rgb8-jpeg.tif:", { exact: false }),
+	).toBeHidden();
 });
