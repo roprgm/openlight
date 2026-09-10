@@ -20,3 +20,7 @@ One reversible change to document content. A continuous slider or curve drag is 
 
 **Workspace**:
 The application's open-document session. It currently contains at most one document, replaced when another image is opened.
+
+**Mode**:
+One of the editor's task areas: Adjust, Layers, Retouch, Crop, or Export. Switching modes changes the visible tools and panel, not the document.
+_Avoid_: Tab, page, persona, tool

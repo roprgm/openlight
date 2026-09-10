@@ -1,4 +1,5 @@
 import { useEffect, useMemo } from "react";
+import type { Target } from "vgpu";
 import { useCanvas, useFrame, useGpu } from "vgpu-react";
 import { useStore } from "zustand";
 import { fitScale } from "@/hooks/use-pan-zoom";
@@ -10,13 +11,14 @@ import { useViewport } from "./viewport";
 
 type Output = "fullImage" | "inputImage" | "outputImage" | "originalImage";
 
-/** Mount a pipeline output; a supplied frame places the full source behind it. */
+/** Mount a pipeline output or any target; a supplied frame places the full source behind it. */
 export function Image({
 	image = "outputImage",
 	geometry,
 	original,
 }: {
-	image?: Output;
+	/** A renderer output, or a target such as an export preview. */
+	image?: Output | Target;
 	geometry?: ImageFrame;
 	original?: Output;
 }) {
@@ -28,8 +30,9 @@ export function Image({
 	const display = useMemo(() => createDisplay(gpu), [gpu]);
 	const render = useFrame((frame) => {
 		const before = original && renderer[original]();
+		const target = typeof image === "string" ? renderer[image]() : image;
 		const source =
-			preview.comparison === "original" && before ? before : renderer[image]();
+			preview.comparison === "original" && before ? before : target;
 		const size = geometry?.size ?? source.size;
 		const view = {
 			...camera.view,
@@ -45,6 +48,6 @@ export function Image({
 		});
 	});
 	useEffect(() => renderer.subscribe(render), [renderer, render]);
-	useEffect(() => render(), [render, camera, preview, geometry]);
+	useEffect(() => render(), [render, camera, preview, geometry, image]);
 	return null;
 }

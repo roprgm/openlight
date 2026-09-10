@@ -182,6 +182,15 @@ export function usePanZoom(
 		fitZoom.current = next.zoom;
 		state.setState(next, true);
 	};
+	const zoomBy = (factor: number) =>
+		update((view) =>
+			zoomAt(
+				view,
+				[0, 0],
+				view.zoom * factor,
+				constrain ? 1 : fitZoom.current * 0.1,
+			),
+		);
 	function startDrag(event: PointerEvent<HTMLElement>) {
 		if (event.button !== 0 || pointers.current.size === 2) {
 			return;
@@ -243,6 +252,7 @@ export function usePanZoom(
 		viewport,
 		handlers,
 		resetView,
+		zoomBy,
 		panMode,
 		scale: fitScale(content, viewport) * view.zoom,
 	};

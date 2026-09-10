@@ -1,8 +1,7 @@
 import { useState } from "react";
 import { Image } from "@/components/editor/image";
-import { RendererProvider } from "@/components/editor/pipeline";
 import {
-	EditorPanel,
+	PanelContent,
 	useDocument,
 	useEditorSession,
 } from "@/components/editor/session";
@@ -84,7 +83,7 @@ export function CropEditor({ onClose }: { onClose: () => void }) {
 		}
 	}
 	return (
-		<RendererProvider>
+		<>
 			<EditorViewport size={reference} constrain={false}>
 				<Image image="fullImage" geometry={frame} />
 				<CropOverlay
@@ -94,10 +93,10 @@ export function CropEditor({ onClose }: { onClose: () => void }) {
 					onChange={setFrame}
 				/>
 			</EditorViewport>
-			<EditorPanel>
+			<PanelContent>
 				<section
 					aria-label="Crop tool"
-					className="flex h-full flex-col bg-panel"
+					className="flex min-h-0 flex-1 flex-col bg-panel"
 					onKeyDown={(event) => {
 						if (
 							event.key === "Enter" &&
@@ -109,7 +108,6 @@ export function CropEditor({ onClose }: { onClose: () => void }) {
 					}}
 				>
 					<div className="flex-1 space-y-5 overflow-y-auto p-4">
-						<h2 className="text-sm text-neutral-100">Crop & rotate</h2>
 						<label className="flex items-center justify-between text-sm text-neutral-400">
 							Aspect ratio
 							<Field className="relative w-24">
@@ -186,7 +184,7 @@ export function CropEditor({ onClose }: { onClose: () => void }) {
 						<Button onClick={apply}>Apply crop</Button>
 					</div>
 				</section>
-			</EditorPanel>
-		</RendererProvider>
+			</PanelContent>
+		</>
 	);
 }
