@@ -18,7 +18,7 @@ Image processing runs locally with WebGPU. Built with TypeScript and React.
 - Camera Raw XMP import
 - TIFF import at 16-bit and floating-point precision, decoded on the GPU
 - Camera RAW and DNG import through LibRaw, with absolute white balance and As Shot reset
-- PNG and JPEG export
+- PNG, JPEG, and WebP export with resizing, a live preview, and file size
 
 Requires a WebGPU-capable browser.
 

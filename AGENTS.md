@@ -31,7 +31,7 @@ Prefer named exports (`export function`) and named imports. Use default exports 
 
 The `src/` root holds entrypoints, ambient types, and global styles. Import across folders through the `@/` alias (`@/hooks/use-pointer`); relative paths stay inside a folder. Source modules belong to these folders:
 
-- `app/`: application shell, app-wide state, and composition. It may import every folder below; no folder imports it.
+- `app/`: application shell, app-wide state, and composition. It may import every folder below; no folder imports it. `app/editor/modes.tsx` registers the editor modes: each mode is a `Panel` rendered into the shared panel over the shared canvas, or a `View` that brings its own viewport, like Crop.
 - `features/`: removable product capabilities. A feature owns its UI, state, and behavior; removing its folder and `app/` composition leaves the rest working. Features never import each other.
 - `components/`: generic React presentation grouped by role, such as `ui/` and `layout/`. It contains no product workflows.
 - `hooks/`: generic React hooks without OpenLight business logic.

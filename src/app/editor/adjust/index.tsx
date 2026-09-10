@@ -1,10 +1,9 @@
-import { type ReactNode, useEffect, useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import { useGpu } from "vgpu-react";
-import { ExportButton } from "@/app/editor/export/export-button";
-import { HistoryControls } from "@/app/editor/history";
+import { EditorActions } from "@/app/editor/actions";
 import { useRenderer } from "@/components/editor/pipeline";
 import {
-	EditorPanel,
+	PanelContent,
 	useDocument,
 	useScene,
 } from "@/components/editor/session";
@@ -15,7 +14,6 @@ import { useEditGesture } from "@/hooks/use-edit-gesture";
 import { setToneCurve } from "@/lib/editor/document/edits";
 import AdjustmentControls from "./adjustment-controls";
 import { ClippingControls } from "./clipping-controls";
-import { ComparisonControl } from "./comparison-control";
 
 const histogramColors = ["#f25445", "#6bd175", "#5c8ffa"] as const;
 const curveHistogramColors = ["#a3a3a3"] as const;
@@ -47,7 +45,7 @@ function ToneCurvesPanel({
 	);
 }
 
-export function Sidebar({ children }: { children?: ReactNode }) {
+export function AdjustPanel() {
 	const gpu = useGpu();
 	const document = useDocument();
 	const gesture = useEditGesture(document.history);
@@ -55,8 +53,8 @@ export function Sidebar({ children }: { children?: ReactNode }) {
 	const histogram = useMemo(() => createHistogram(gpu), [gpu]);
 	useEffect(() => () => histogram.dispose(), [histogram]);
 	return (
-		<EditorPanel>
-			<div className="flex h-full flex-col divide-y divide-black">
+		<PanelContent>
+			<div className="flex min-h-0 flex-1 flex-col divide-y divide-black">
 				<div
 					{...gesture}
 					className="min-h-0 flex-1 divide-y divide-black overflow-y-auto"
@@ -77,13 +75,8 @@ export function Sidebar({ children }: { children?: ReactNode }) {
 						curves={<ToneCurvesPanel histogram={histogram} />}
 					/>
 				</div>
-				<div className="flex shrink-0 items-center gap-2 bg-panel p-3">
-					<HistoryControls />
-					<ComparisonControl />
-					{children}
-					<ExportButton />
-				</div>
+				<EditorActions />
 			</div>
-		</EditorPanel>
+		</PanelContent>
 	);
 }

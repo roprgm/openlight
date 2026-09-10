@@ -76,10 +76,15 @@ Each edit creates an undo step unless a group is open. Preview changes are outsi
 
 ## Export
 
-`exportImage(options)` returns `Promise<File>` containing the edited image at the document's dimensions. Preview settings do not affect export.
+`exportImage(options)` returns `Promise<File>` containing the edited image, named after the source file. Preview settings do not affect export.
 
-- `exportImage()` or `exportImage({ format: "png" })` exports PNG.
-- `exportImage({ format: "jpeg", quality: 90 })` exports JPEG. Quality must be between 1 and 100.
+| Option | Values | Default |
+| --- | --- | --- |
+| `format` | `"png"`, `"jpeg"`, `"webp"` | `"png"` |
+| `quality` | 1 to 100 for JPEG and WebP; PNG ignores it | 80 |
+| `longEdge` | Longest output side in pixels, from 1 to the document's longest side | The document size |
+
+The image renders at the document dimensions and downsamples to `longEdge` with high-quality smoothing. Invalid values throw, as does a format the browser cannot encode.
 
 ## State
 

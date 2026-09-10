@@ -1,32 +1,32 @@
-import { type ReactNode, useState } from "react";
 import type { Workspace } from "@/app/workspace";
 import { RendererProvider } from "@/components/editor/pipeline";
-import { DocumentProvider } from "@/components/editor/session";
+import { DocumentProvider, EditorPanel } from "@/components/editor/session";
 import ResizablePanel from "@/components/ui/resizable-panel";
 import Spinner from "@/components/ui/spinner";
-import { CropButton } from "@/features/crop/button";
-import { CropEditor } from "@/features/crop/view";
 import { EditorCanvas } from "./canvas";
-import { Sidebar } from "./sidebar";
+import { ModeRail } from "./mode-rail";
+import { ModeProvider, useMode } from "./modes";
 
-function AdjustmentEditor({ children }: { children: ReactNode }) {
+function ModeView() {
+	const { mode } = useMode();
+	if ("View" in mode) {
+		return <mode.View />;
+	}
 	return (
-		<RendererProvider>
+		<>
 			<EditorCanvas />
-			<Sidebar>{children}</Sidebar>
-		</RendererProvider>
+			<mode.Panel />
+		</>
 	);
 }
 
 function DocumentEditor() {
-	const [cropping, setCropping] = useState(false);
-	if (cropping) {
-		return <CropEditor onClose={() => setCropping(false)} />;
-	}
 	return (
-		<AdjustmentEditor>
-			<CropButton onClick={() => setCropping(true)} />
-		</AdjustmentEditor>
+		<ModeProvider>
+			<ModeView />
+			<EditorPanel />
+			<ModeRail />
+		</ModeProvider>
 	);
 }
 
@@ -45,7 +45,9 @@ function EditorContent({ state }: EditorProps) {
 	if (state.status === "ready") {
 		return (
 			<DocumentProvider key={state.document.id} value={state.document}>
-				<DocumentEditor />
+				<RendererProvider>
+					<DocumentEditor />
+				</RendererProvider>
 			</DocumentProvider>
 		);
 	}

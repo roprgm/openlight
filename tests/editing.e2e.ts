@@ -438,7 +438,27 @@ test("edit a photo, inspect the preview and histograms, undo changes, and export
 		}
 	});
 
-	const open = page.getByRole("button", { name: "Crop and rotate" });
+	await test.step("mode bar switches panels by click, arrow keys, and letters", async () => {
+		const modes = page.getByRole("tablist", { name: "Editor mode" });
+		const selected = modes.getByRole("tab", { selected: true });
+		await expect(selected).toHaveText("Adjust");
+		await modes.getByRole("tab", { name: "Layers" }).click();
+		await expect(selected).toHaveText("Layers");
+		await expect(page.getByText("Coming soon")).toBeVisible();
+		await page.keyboard.press("ArrowRight");
+		await expect(selected).toHaveText("Retouch");
+		await expect(selected).toBeFocused();
+		await page.keyboard.press("ArrowLeft");
+		await page.keyboard.press("ArrowLeft");
+		await expect(selected).toHaveText("Adjust");
+		await page.keyboard.press("l");
+		await expect(selected).toHaveText("Layers");
+		await page.keyboard.press("a");
+		await expect(selected).toHaveText("Adjust");
+		await expect(page.getByRole("slider", { name: "Exposure" })).toBeVisible();
+	});
+
+	const open = page.getByRole("tab", { name: "Crop" });
 	const panel = page.getByRole("region", { name: "Crop tool" });
 	const selection = page.getByRole("application", { name: "Crop selection" });
 	const corner = page.getByRole("button", { name: "Resize crop bottom right" });
@@ -899,43 +919,56 @@ test("edit a photo, inspect the preview and histograms, undo changes, and export
 		expect(expected.corner[3]).toBe(255);
 		await canvas.hover();
 		await zoom(page, Math.E);
-		const trigger = page.getByRole("button", { name: "Export", exact: true });
-		const dialog = page.getByRole("dialog", { name: "Export image" });
-		const sizes: number[] = [];
-		for (const quality of [null, 20, 95]) {
-			await trigger.click();
-			if (quality !== null) {
-				await dialog.getByText("Smaller files", { exact: true }).click();
-				const field = dialog.getByRole("textbox", { name: "Quality" });
-				await field.fill(String(quality));
-				await field.press("Enter");
-			}
+		const panel = page.getByRole("region", { name: "Export settings" });
+		await page.getByRole("tab", { name: "Export" }).click();
+		const quality = panel.getByRole("textbox", { name: "Quality" });
+		async function save(name: string) {
 			const pending = page.waitForEvent("download");
-			await dialog.getByRole("button", { name: "Save image" }).click();
+			await panel.getByRole("button", { name: "Save image" }).click();
 			const download = await pending;
-			expect(download.suggestedFilename()).toBe(
-				quality === null ? "export.png" : "export.jpg",
-			);
+			expect(download.suggestedFilename()).toBe(name);
 			const path = await download.path();
 			if (!path) throw new Error("Missing image download.");
-			const bytes = await readFile(path);
+			return readFile(path);
+		}
+		const format = panel.getByRole("combobox", { name: "Format" });
+		await format.selectOption("png");
+		await expect(panel.getByRole("textbox", { name: "Width" })).toHaveValue(
+			"1200",
+		);
+		await expect(panel.getByText(/kB|MB/)).toBeVisible();
+		expect(await readImage(page, await save("photo.png"))).toEqual(expected);
+		await format.selectOption("jpeg");
+		await expect(format).toHaveValue("jpeg");
+		await quality.fill("20");
+		await quality.press("Enter");
+		const small = await save("photo.jpg");
+		await quality.fill("95");
+		await quality.press("Enter");
+		const large = await save("photo.jpg");
+		for (const bytes of [small, large]) {
 			const actual = await readImage(page, bytes);
 			expect(actual.size).toEqual([1200, 800]);
 			expect(
 				Math.abs(actual.center[0] - expected.center[0]),
 			).toBeLessThanOrEqual(3);
-			if (quality === null) expect(actual).toEqual(expected);
-			else sizes.push(bytes.length);
-			await expect(dialog).toBeHidden();
-			await expect(trigger).toBeFocused();
 		}
-		expect(sizes[1]).toBeGreaterThan(sizes[0]);
-		await trigger.click();
-		await expect(dialog.getByRole("slider", { name: "Quality" })).toHaveValue(
-			"95",
+		expect(large.length).toBeGreaterThan(small.length);
+		await format.selectOption("webp");
+		const width = panel.getByRole("textbox", { name: "Width" });
+		await width.fill("600");
+		await width.press("Enter");
+		await expect(panel.getByRole("textbox", { name: "Height" })).toHaveValue(
+			"400",
 		);
-		await page.keyboard.press("Escape");
-		await expect(dialog).toBeHidden();
+		const resized = await readImage(page, await save("photo.webp"));
+		expect(resized.size).toEqual([600, 400]);
+		expect(
+			Math.abs(resized.center[0] - expected.center[0]),
+		).toBeLessThanOrEqual(3);
+		await expect(quality).toHaveValue("95");
+		await page.keyboard.press("a");
+		await expect(panel).toBeHidden();
 	});
 
 	await test.step("mobile slider targets accept taps above and below the visible track", async () => {

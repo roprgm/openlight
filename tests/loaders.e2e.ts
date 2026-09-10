@@ -51,7 +51,7 @@ test("decode an image, apply XMP, recover from failure, and replace a document d
 	expect(await readImage(page)).toEqual(baseline);
 	await page.evaluate(() => window.openlight.redo());
 	expect(await readImage(page)).toEqual(expected);
-	await page.getByRole("button", { name: "Crop and rotate" }).click();
+	await page.getByRole("tab", { name: "Crop" }).click();
 	await page
 		.getByRole("combobox", { name: "Aspect ratio" })
 		.selectOption({ label: "Square" });
