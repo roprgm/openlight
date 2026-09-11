@@ -63,7 +63,8 @@ Each cached result and each active blend adds a full-resolution RGBA16F texture
 input. Tiling bounds scratch memory, not total image memory. Hardware latency
 still needs measurement; software-WebGPU tests are correctness checks.
 
-Bun tests cover shared preparation, white-balance isolation, cache disposal,
-coalesced edits, failure recovery, zero and history. Browser tests check known
-clean/noisy PNG, RGB16 TIFF and Bayer DNG pixels, including tile seams, texture,
-alpha, HDR, sub-8-bit precision, white-balance changes and linear JPEG XL DNG.
+The browser test loads clean/noisy fixture pairs, applies NR, and compares the
+exported pixels. It checks lower squared error, limited color bias, retained
+fine detail, the tile boundary, dimensions, alpha and exact bypass at zero.
+The same flow runs for PNG, RGB16 TIFF and Bayer DNG. One small Bun test covers
+shared cache ownership across preview/export white-balance changes.

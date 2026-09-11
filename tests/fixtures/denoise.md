@@ -1,5 +1,13 @@
 # Denoising fixtures
 
+`denoise-clean.png` and `denoise-noisy.png` are 401×49 RGBA8 images with two
+color patches, a sharp boundary at x=196, and fine sinusoidal stripes below y=32.
+The left eight columns have alpha 128. The noisy copy adds Gaussian noise with
+sigma 10 using the LCG `seed = (1664525 * seed + 1013904223) mod 2^32`, starting
+at 42, and the Box–Muller transform in row/pixel/channel order. The width crosses
+the denoiser's 384-pixel tile boundary. These are stored fixtures, not generated
+inside the test.
+
 `denoise-clean.tif` and `denoise-noisy.tif` are 64×48 uncompressed RGB16 TIFFs
 with two flat color patches. Clean values are `[18000, 21000, 25000]` on the left
 and `[30000, 24000, 20000]` on the right. The noisy copy adds rounded Gaussian
