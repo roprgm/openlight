@@ -120,8 +120,9 @@ fn main(@builtin(workgroup_id) group: vec3u, @builtin(local_invocation_index) la
         let d = sample - reference[k];
         let variance = noiseVariance((sample + reference[k]) * 0.5);
         // A few extreme samples must not exclude an otherwise matching patch.
-        // Broad edges still contribute across many pixels; isolated spikes have bounded influence.
-        sum += dot(min(d * d / variance, vec4f(16.0)), vec4f(1.0));
+        // Keep enough influence to reject a different small light or color feature,
+        // even after coarse chroma cleanup makes the surrounding patches match.
+        sum += dot(min(d * d / variance, vec4f(256.0)), vec4f(1.0));
       }
       distance = sum / 192.0;
     }

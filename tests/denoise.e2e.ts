@@ -58,7 +58,7 @@ function difference(
 	};
 }
 
-for (const format of ["png", "tif", "dng"]) {
+for (const format of ["png", "tif", "dng", "correlated.png"]) {
 	test(`noise reduction cleans ${format} without distorting the image`, async ({
 		page,
 	}) => {
@@ -85,6 +85,22 @@ for (const format of ["png", "tif", "dng"]) {
 		expect(filtered.pixels.filter((_, i) => i % 4 === 3)).toEqual(
 			clean.pixels.filter((_, i) => i % 4 === 3),
 		);
+		if (format === "correlated.png") {
+			// Smooth sky, fine texture, a color boundary, and a tiny red light.
+			expect(difference(filtered, clean).mse).toBeLessThan(
+				difference(noisy, clean).mse * 0.25,
+			);
+			expect(difference(filtered, clean, [8, 8, 240, 40]).mse).toBeLessThan(6);
+			expect(difference(filtered, clean, [16, 128, 64, 48]).mse).toBeLessThan(
+				25,
+			);
+			expect(difference(filtered, clean, [16, 80, 64, 32]).mse).toBeLessThan(
+				40,
+			);
+			expect(difference(filtered, clean, [159, 59, 3, 3]).mse).toBeLessThan(
+				100,
+			);
+		}
 		if (format === "png") {
 			// Fine stripes must survive; replacing them with a flat blur must fail.
 			const stripes = [32, 34, 148, 13];
