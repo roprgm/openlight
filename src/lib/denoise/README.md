@@ -11,21 +11,25 @@ This is not a bit-exact implementation of reference BM3D or CBM3D.
 
 Algorithm background: Dabov et al., [Image denoising by sparse 3D transform-domain
 collaborative filtering](https://webpages.tuni.fi/foi/GCF-BM3D/), IEEE TIP 2007.
-No GALOSH helpers, reference implementation, model weights, or new dependency is
-included. The implementation uses OpenLight's license.
+The RGB path is original OpenLight code and uses no model weights or new
+dependency. The integer Bayer path also uses substantially modified
+GALOSH-derived noise fitting and variance stabilization; its Apache-2.0 notice
+and license are in `public/licenses/galosh/`. The complete GALOSH pipeline is not
+bundled.
 
 ## Pipeline and ownership
 
-RAW development / image decoding → denoise → amount blend → exposure and other
-adjustments → curves → clarity / sharpening → framing → display / export.
+RAW sensor decoding → Bayer denoise (when supported) → demosaic / development →
+RGB denoise (other sources) → amount blend → exposure and other adjustments →
+curves → clarity / sharpening → framing → display / export.
 
-The input is linear Rec.2020 RGB from the existing loaders. RAW development,
-demosaic, TIFF decoding and white balance remain owned by `raw-webgpu`. This
-integration operates **after demosaic**, and also handles linear DNG and
-CPU-prepared RAW without a mosaic. The package currently offers no public
-filtered-input override for its development pass. Pre-demosaic filtering requires
-that extension; mutating its retained sensor texture would invalidate assumptions
-such as the package's X-Trans RGB cache.
+The RGB path receives linear Rec.2020 output from the existing loaders. For an
+integer 2×2 Bayer source, a private second `raw-webgpu` source is filtered in its
+sensor domain before development. The original source is never mutated; this
+keeps X-Trans, camera-RGB and other package caches safe. The filtered sensor
+source then goes through the normal white balance and demosaic pass. TIFF, RGB
+DNG and RAW layouts that cannot safely expose an integer Bayer mosaic use the
+post-development RGB path.
 
 `index.ts` owns one calculation and its scratch textures. `cache.ts` shares
 results between renderers, keyed by source and absolute white balance. Each RAW
@@ -41,13 +45,18 @@ The Details slider always stays available, including at zero and across modes.
 
 ## Noise model and precision
 
-Filtering uses signed sRGB-encoded opponent channels internally. Robust diagonal
-Haar differences estimate each channel's variance over 16 brightness bins.
-Samples two pixels apart capture some demosaic correlation; a stride of three
-covers all Bayer phases. This is a measured RGB model, not a sensor shot/read
-model. Demosaic produces spatially correlated noise that a single fine-scale
-estimate can miss. Downsampling makes broader chroma noise measurable and
-filterable; coarse-to-fine correction supplements the existing patch filter.
+The RGB path filters signed sRGB-encoded opponent channels internally. Robust
+diagonal Haar differences estimate each channel's variance over 16 brightness
+bins. Samples two pixels apart capture some demosaic correlation; a stride of
+three covers all Bayer phases. This is a measured RGB model, not a sensor
+shot/read model. Demosaic produces spatially correlated noise that a single
+fine-scale estimate can miss. Downsampling makes broader chroma noise measurable
+and filterable; coarse-to-fine correction supplements the existing patch filter.
+
+The Bayer path estimates a per-CFA-channel Poisson-Gaussian model from robust
+same-phase second differences, applies a generalized Anscombe transform, filters
+the four physical CFA planes together, and inverts the transform before the
+demosaic. It uses the GALOSH-derived stabilization helpers described above.
 See Mäkinen et al., [transform-domain noise variance](https://webpages.tuni.fi/foi/papers/ICIP2019_Ymir.pdf),
 for the importance of correlation in collaborative filtering. This implementation
 does not model the full covariance or implement their exact-variance method.
@@ -82,7 +91,7 @@ The browser test loads clean/noisy fixture pairs, applies NR, and compares the
 exported pixels. It checks lower squared error, limited color bias, retained
 fine detail, the tile boundary, dimensions, alpha and exact bypass at zero.
 The same flow runs for PNG, RGB16 TIFF, Bayer DNG and a correlated-color-noise
-fixture. That fixture also measures smooth sky, a color boundary and a tiny red
+fixture. The Bayer DNG exercises the pre-demosaic path. That fixture also measures smooth sky, a color boundary and a tiny red
 light: a globally blurred or desaturated result must fail. In software WebGPU,
 its RGB MSE fell from 66.39 in the previous version to 13.08 (noisy input: 77.88).
 This is a regression check, not a general photographic benchmark. One small Bun

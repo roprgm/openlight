@@ -1,6 +1,6 @@
 // Two-stage BM3D-style collaborative filtering: DCT8 x DCT8 x Walsh.
 // Independent implementation from the published algorithm; no reference binaries.
-struct Params { origin: vec2i, size: vec2i, stage: u32, variance: array<vec4f, 16> }
+struct Params { origin: vec2i, size: vec2i, stage: u32, bayer: u32, variance: array<vec4f, 16> }
 struct Accumulator { value: array<atomic<u32>, 8> }
 @group(0) @binding(0) var noisy: texture_2d<f32>;
 @group(0) @binding(1) var guide: texture_2d<f32>;
@@ -23,10 +23,14 @@ const BASIS = array<f32, 64>(
   0.1913417162, -0.4619397663, 0.4619397663, -0.1913417162, -0.1913417162, 0.4619397663, -0.4619397663, 0.1913417162,
   0.0975451610, -0.2777851165, 0.4157348062, -0.4903926402, 0.4903926402, -0.4157348062, 0.2777851165, -0.0975451610
 );
+// Kaiser window from GALOSH (Copyright 2026 luxgrain), Apache-2.0.
+// See /licenses/galosh/NOTICE and /licenses/galosh/LICENSE.
+const WINDOW = array<f32, 8>(0.34012, 0.59885, 0.84123, 0.97659, 0.97659, 0.84123, 0.59885, 0.34012);
 // Positive triangular window sampled at pixel centers: 1 - abs((2*i+1)/8 - 1).
-fn window(i: u32) -> f32 { return 1.0 - abs((2.0 * f32(i) + 1.0) / 8.0 - 1.0); }
+fn window(i: u32) -> f32 { return select(1.0 - abs((2.0 * f32(i) + 1.0) / 8.0 - 1.0), WINDOW[i], params.bayer != 0u); }
 // The packed image is already in an orthonormal RGB opponent basis.
 fn noiseVariance(signal: vec4f) -> vec4f {
+  if params.bayer != 0u { return vec4f(1.0); }
   let position = clamp(signal.x * 0.5773502692, 0.0, 1.0) * 15.0;
   let lower = u32(position);
   return max(mix(params.variance[lower], params.variance[min(lower + 1u, 15u)], fract(position)), vec4f(1e-10));
@@ -52,8 +56,8 @@ fn transformVariance(lane: u32) {
   }
 }
 
-fn loadNoisy(p: vec2i) -> vec4f { return vec4f(textureLoad(noisy, clamp(p, vec2i(0), params.size - 1), 0).rgb, 0.0); }
-fn loadGuide(p: vec2i) -> vec4f { return vec4f(textureLoad(guide, clamp(p, vec2i(0), params.size - 1), 0).rgb, 0.0); }
+fn loadNoisy(p: vec2i) -> vec4f { let v = textureLoad(noisy, clamp(p, vec2i(0), params.size - 1), 0); return vec4f(v.rgb, select(0.0, v.a, params.bayer != 0u)); }
+fn loadGuide(p: vec2i) -> vec4f { let v = textureLoad(guide, clamp(p, vec2i(0), params.size - 1), 0); return vec4f(v.rgb, select(0.0, v.a, params.bayer != 0u)); }
 
 fn spatial(lane: u32, inverse: bool) {
   let x = lane % 8u;
@@ -122,9 +126,9 @@ fn main(@builtin(workgroup_id) group: vec3u, @builtin(local_invocation_index) la
         // A few extreme samples must not exclude an otherwise matching patch.
         // Keep enough influence to reject a different small light or color feature,
         // even after coarse chroma cleanup makes the surrounding patches match.
-        sum += dot(min(d * d / variance, vec4f(256.0)), vec4f(1.0));
+        sum += dot(min(d * d / variance, vec4f(select(256.0, 16.0, params.bayer != 0u))), vec4f(1.0));
       }
-      distance = sum / 192.0;
+      distance = sum / select(192.0, 256.0, params.bayer != 0u);
     }
     distances[candidate] = distance;
   }
@@ -195,7 +199,7 @@ fn main(@builtin(workgroup_id) group: vec3u, @builtin(local_invocation_index) la
   }
   groups(lane);
   spatial(lane, true);
-  let weight = window(lane % 8u) * window(lane / 8u) / max(energies[0], vec4f(1e-10));
+  let weight = window(lane % 8u) * window(lane / 8u) / max(energies[0], vec4f(select(1e-10, 1.0, params.bayer != 0u)));
   for (var g = 0u; g < 8u; g++) {
     let p = matches[g] + pixel - params.origin;
     if g < count && all(p >= vec2i(0)) && all(p < vec2i(128)) && all(p + params.origin < params.size) {

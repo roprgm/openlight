@@ -8,25 +8,32 @@ function createEntry(gpu: Gpu, resource: ImageSource, balance?: WhiteBalance) {
 		balance &&
 		(balance.temperature !== asShot?.temperature ||
 			balance.tint !== asShot?.tint);
-	const raw = changed ? resource.raw?.createPass() : undefined;
+	const denoised = resource.raw?.createDenoisedPass?.();
+	const raw = denoised ?? (changed ? resource.raw?.createPass() : undefined);
+	let ready = false;
 	let filter: ReturnType<typeof createDenoising> | undefined;
 	let pending: Promise<void> | undefined;
 	let disposed = false;
 	async function prepare() {
-		if (!filter) {
-			if (raw && balance) {
-				await raw.prepare(balance);
-			}
-			if (disposed) {
-				throw Error("Noise reduction was cancelled.");
-			}
-			filter = createDenoising(gpu, raw?.render() ?? resource.image);
+		if (ready) {
+			return;
 		}
-		await filter.prepare(100);
+		if (raw && balance) {
+			await raw.prepare(balance);
+		}
+		if (disposed) {
+			throw Error("Noise reduction was cancelled.");
+		}
+		if (!denoised) {
+			filter ??= createDenoising(gpu, raw?.render() ?? resource.image);
+			await filter.prepare(100);
+		}
+		ready = true;
 	}
 	return {
 		users: 0,
-		texture: () => filter?.texture(),
+		texture: () =>
+			ready ? (denoised?.render() ?? filter?.texture()) : undefined,
 		prepare() {
 			pending ??= prepare().finally(() => {
 				pending = undefined;

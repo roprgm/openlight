@@ -87,7 +87,7 @@ async function denoise(
 							filter
 								.set({
 									guide: stage === 0 ? noisy : pilot,
-									params: { origin, size, stage, variance },
+									params: { origin, size, stage, bayer: 0, variance },
 								})
 								.dispatch(40, 40);
 							frame(gpu, (f) =>
