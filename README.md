@@ -13,6 +13,7 @@ Image processing runs locally with WebGPU. Built with TypeScript and React.
 - Undo and redo
 - Before/after comparison
 - RGB histogram
+- Local GPU noise reduction for RAW, TIFF, and ordinary images
 - Highlight and shadow clipping overlays
 - Pan and zoom
 - Camera Raw XMP import

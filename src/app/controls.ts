@@ -7,6 +7,7 @@ import { createCameraRawXmpLoader } from "@/app/loaders/camera-raw-xmp";
 import { createImageLoader } from "@/app/loaders/image";
 import { createLoaderRegistry } from "@/app/loaders/registry";
 import type { Workspace } from "@/app/workspace";
+import { setNoiseReduction } from "@/features/noise-reduction/edits";
 import { setWhiteBalance } from "@/features/white-balance/edits";
 import type { Preview } from "@/lib/editor/document";
 import { setAdjustments, setToneCurve } from "@/lib/editor/document/edits";
@@ -36,6 +37,8 @@ export function createControls(gpu: Gpu, workspace: Workspace) {
 			setAdjustments(workspace.getDocument(), change),
 		setWhiteBalance: (change?: Partial<WhiteBalance>) =>
 			setWhiteBalance(workspace.getDocument(), change),
+		setNoiseReduction: (amount: number) =>
+			setNoiseReduction(workspace.getDocument(), amount),
 		setToneCurve: (curve?: ToneCurve) =>
 			setToneCurve(workspace.getDocument(), curve),
 		editScene(change: Partial<Scene>) {
@@ -58,6 +61,7 @@ export function createControls(gpu: Gpu, workspace: Workspace) {
 				file,
 				preview: document?.preview.getState(),
 				documentId: document?.id,
+				noiseReduction: scene?.noiseReduction ?? 0,
 				size: scene?.frame.size,
 				frame: scene?.frame,
 				adjustments: scene?.adjustments ?? defaultAdjustments,

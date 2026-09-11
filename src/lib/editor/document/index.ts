@@ -15,6 +15,7 @@ export type Preview = {
 function equal(a: Scene, b: Scene) {
 	return (
 		a.source === b.source &&
+		(a.noiseReduction ?? 0) === (b.noiseReduction ?? 0) &&
 		shallow(frameValues(a.frame), frameValues(b.frame)) &&
 		shallow(a.adjustments, b.adjustments) &&
 		shallow(a.whiteBalance, b.whiteBalance) &&
@@ -55,6 +56,14 @@ export function createDocument(initial: Scene, resources = createResources()) {
 				throw new Error("Document is closed.");
 			}
 			validateFrame(next.frame);
+			const noiseReduction = next.noiseReduction ?? 0;
+			if (
+				!Number.isFinite(noiseReduction) ||
+				noiseReduction < 0 ||
+				noiseReduction > 100
+			) {
+				throw Error("Noise reduction must be between 0 and 100.");
+			}
 			update(next);
 		},
 		dispose() {
