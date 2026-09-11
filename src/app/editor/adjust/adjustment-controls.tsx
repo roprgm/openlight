@@ -2,6 +2,7 @@ import type { ComponentProps, ReactNode } from "react";
 import { useDocument, useScene } from "@/components/editor/session";
 import { Collapsible } from "@/components/ui/collapsible";
 import { Slider } from "@/components/ui/slider";
+import { NoiseReductionControls } from "@/features/noise-reduction/controls";
 import { WhiteBalanceControls } from "@/features/white-balance/controls";
 import { setAdjustments } from "@/lib/editor/document/edits";
 import {
@@ -98,6 +99,7 @@ export default function AdjustmentControls({ curves }: { curves: ReactNode }) {
 			</Collapsible>
 			<Collapsible title="Details">
 				<div className="flex flex-col gap-2">
+					<NoiseReductionControls />
 					<AdjustmentSlider name="clarity" label="Clarity" />
 					<AdjustmentSlider name="sharpening" label="Sharpening" />
 					<AdjustmentSlider name="sharpenRadius" label="Radius" step={0.1} />

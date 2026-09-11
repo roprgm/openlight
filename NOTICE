@@ -4,3 +4,7 @@ node_modules/raw-webgpu/NOTICE
 node_modules/raw-webgpu/THIRD_PARTY_LICENSES.txt
 node_modules/raw-webgpu/native/build.py
 Upstream package: https://github.com/roprgm/raw-webgpu
+
+Bayer noise reduction includes helpers adapted from GALOSH (Copyright 2026
+luxgrain), Apache-2.0: https://github.com/luxgrain/GALOSH
+License, attribution and modification notes: public/licenses/galosh/
