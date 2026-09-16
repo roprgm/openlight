@@ -34,6 +34,8 @@ Loading calls are queued. XMP import requires a loaded document and is skipped i
 
 ## Editing
 
+`setNoiseReduction(amount)` sets noise reduction from 0 to 100 as an undoable edit. Zero bypasses it exactly. The first nonzero edit computes a local GPU result; subsequent amounts blend that result. RAW white-balance changes require a new result. The command updates the scene immediately; `exportImage()` waits for processing of its captured scene.
+
 `setAdjustments(change)` updates only the supplied adjustments. Values must be finite numbers within these inclusive ranges. Unknown names and invalid values throw.
 
 | Adjustment | Range | Default |

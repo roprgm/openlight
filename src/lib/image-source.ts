@@ -1,13 +1,16 @@
 import type { Target } from "vgpu";
 
 export type WhiteBalance = { temperature: number; tint: number };
+export type RawPass = {
+	prepare(balance: WhiteBalance): Promise<void>;
+	render(): Target;
+	dispose(): void;
+};
 export type RawDevelopment = {
 	asShot: WhiteBalance;
-	createPass(): {
-		prepare(balance: WhiteBalance): Promise<void>;
-		render(): Target;
-		dispose(): void;
-	};
+	createPass(): RawPass;
+	/** Optional sensor-domain denoising, prepared before demosaic and white balance. */
+	createDenoisedPass?(): RawPass;
 	dispose(): void;
 };
 

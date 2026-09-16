@@ -42,16 +42,26 @@ export function RendererProvider({ children }: RendererProviderProps) {
 	const source = document.resources.get(sourceId);
 	const renderer = useMemo(() => createRenderer(gpu, source), [gpu, source]);
 	const [error, setError] = useState<string>();
+	const [processing, setProcessing] = useState(false);
 
 	useEffect(() => {
 		let active = true;
 		const render = () => {
+			const scene = document.scene.getState();
 			setError(undefined);
-			renderer.update(document.scene.getState()).catch((error) => {
-				if (active) {
-					setError(String(error));
-				}
-			});
+			setProcessing((scene.noiseReduction ?? 0) > 0);
+			renderer
+				.update(scene)
+				.catch((error) => {
+					if (active) {
+						setError(String(error));
+					}
+				})
+				.finally(() => {
+					if (active && document.scene.getState() === scene) {
+						setProcessing(false);
+					}
+				});
 		};
 		const unsubscribe = document.scene.subscribe(render);
 		render();
@@ -65,6 +75,14 @@ export function RendererProvider({ children }: RendererProviderProps) {
 	return (
 		<RendererContext value={renderer}>
 			{children}
+			{processing && (
+				<p
+					role="status"
+					className="fixed bottom-4 left-4 rounded bg-neutral-900 px-3 py-2 text-neutral-300 text-sm"
+				>
+					Reducing noise…
+				</p>
+			)}
 			{error && <RendererError message={error} />}
 		</RendererContext>
 	);
