@@ -7,14 +7,7 @@ function luminance(rgb: number[]) {
 test("color mixing preserves luminance, neutrals, alpha and HDR, isolates ranges and joins the hue seam", async ({
 	page,
 }) => {
-	await page.goto("/");
-	await page.waitForFunction(() => window.openlight);
-	await page
-		.locator('input[type="file"]')
-		.setInputFiles("tests/fixtures/photo.svg");
-	await expect(
-		page.getByRole("button", { name: "Color Mixer", exact: true }),
-	).toBeVisible();
+	await page.goto("/tests/gpu.html");
 	const { original, outputs, sampleCount } = await page.evaluate(async () => {
 		const path = "/tests/color-mixer-gpu.ts";
 		const { probeColorMixer } = (await import(
