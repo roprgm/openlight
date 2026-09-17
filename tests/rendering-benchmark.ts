@@ -6,7 +6,12 @@ import { imageFrame } from "@/lib/image-frame/geometry";
 import { createImageSource } from "@/lib/image-source";
 import { defaultCurve } from "@/lib/tone-curves/curve";
 
-export type Workload = "baseline" | "neutral" | "active";
+export type Workload =
+	| "baseline"
+	| "neutral"
+	| "active"
+	| "vignette-neutral"
+	| "vignette-active";
 
 function summarize(values: number[]) {
 	const sorted = values.toSorted((a, b) => a - b);
@@ -33,6 +38,9 @@ export async function benchmarkRendering(
 			"No WebGPU adapter. Use the project's Playwright configuration.",
 		);
 	}
+	const isVignette = workload.startsWith("vignette-");
+	const active = workload === "active" || workload === "vignette-active";
+	const passName = isVignette ? "vignette" : "color-mixer";
 	const timestamps = adapter.features.has("timestamp-query");
 	const gpu = await init({
 		requiredFeatures: timestamps ? ["timestamp-query"] : [],
@@ -44,13 +52,15 @@ export async function benchmarkRendering(
 	const clock = timestamps ? timer(gpu) : undefined;
 	let passMs: number | undefined;
 	clock?.onResults((spans) => {
-		passMs = spans["color-mixer"];
+		passMs = spans[passName];
 	});
+	const intensity = active ? 80 : 0;
 	const scene: Scene = {
 		source: "benchmark",
 		frame: imageFrame(size),
 		adjustments: { ...defaultAdjustments, exposure: 0.25, contrast: 10 },
 		toneCurve: defaultCurve,
+		vignette: isVignette ? { intensity, softness: 60 } : undefined,
 		colorMixer:
 			workload === "active"
 				? {
@@ -70,10 +80,28 @@ export async function benchmarkRendering(
 						/* @vite-ignore */ path
 					)) as typeof import("@/features/color-mixer/pass")
 				).createColorMixer;
+	const vignettePath = "/src/features/vignette/pass.ts";
+	const createVignette = isVignette
+		? (
+				(await import(
+					/* @vite-ignore */ vignettePath
+				)) as typeof import("@/features/vignette/pass")
+			).createVignette
+		: undefined;
+	const editorPath = "/src/app/editor/renderer.ts";
+	const createEditorRenderer = isVignette
+		? (
+				(await import(
+					/* @vite-ignore */ editorPath
+				)) as typeof import("@/app/editor/renderer")
+			).createEditorRenderer
+		: undefined;
 	const setupStart = performance.now();
-	const renderer = createRenderer(gpu, source, createMixer);
+	const renderer = createEditorRenderer
+		? createEditorRenderer(gpu, source)
+		: createRenderer(gpu, source, createMixer);
 	const rendererSetupMs = performance.now() - setupStart;
-	const mixer = createMixer?.(gpu, input);
+	const isolatedEffect = (createVignette ?? createMixer)?.(gpu, input);
 	async function measure(render: () => void | Promise<void>, timed: boolean) {
 		const encoding: number[] = [];
 		const completed: number[] = [];
@@ -124,23 +152,23 @@ export async function benchmarkRendering(
 		await gpu.settled();
 		const firstRenderMs = performance.now() - start;
 		const rendering = await measure(() => renderer.update(scene), false);
-		const renderMixer = (f: Frame) => {
+		const renderEffect = (f: Frame) => {
 			// Instrument this owned frame only; execute the feature's actual pass unchanged.
 			const pass = f.pass.bind(f);
 			f.pass = (options, body) =>
 				pass(
 					{
 						...("target" in options ? options : { target: options }),
-						timer: clock?.span("color-mixer"),
+						timer: clock?.span(passName),
 					},
 					body,
 				);
-			mixer?.render(f, input, scene);
+			isolatedEffect?.render(f, input, scene);
 		};
-		const isolated = mixer
+		const isolated = isolatedEffect
 			? await measure(() => {
-					frame(gpu, renderMixer);
-				}, workload === "active")
+					frame(gpu, renderEffect);
+				}, active)
 			: null;
 		const pixels = await renderer.outputImage().readFloats();
 		if (!pixels.every(Number.isFinite)) {
@@ -165,11 +193,11 @@ export async function benchmarkRendering(
 			firstRenderMs,
 			rendering,
 			isolated,
-			outputBytes: workload === "active" ? size[0] * size[1] * 8 : 0,
+			outputBytes: active ? size[0] * size[1] * 8 : 0,
 			image: [...new Uint8Array(await blob.arrayBuffer())],
 		};
 	} finally {
-		mixer?.dispose();
+		isolatedEffect?.dispose();
 		renderer.dispose();
 		source.dispose();
 		clock?.dispose();

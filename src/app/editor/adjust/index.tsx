@@ -11,6 +11,7 @@ import { ColorMixerControls } from "@/features/color-mixer/controls";
 import { Histogram } from "@/features/histogram";
 import { createHistogram } from "@/features/histogram/histogram";
 import { ToneCurves } from "@/features/tone-curves/tone-curves";
+import { VignetteControls } from "@/features/vignette/controls";
 import { useEditGesture } from "@/hooks/use-edit-gesture";
 import { setToneCurve } from "@/lib/editor/document/edits";
 import AdjustmentControls from "./adjustment-controls";
@@ -76,6 +77,7 @@ export function AdjustPanel() {
 						curves={<ToneCurvesPanel histogram={histogram} />}
 						colorMixer={<ColorMixerControls />}
 					/>
+					<VignetteControls />
 				</div>
 				<EditorActions />
 			</div>

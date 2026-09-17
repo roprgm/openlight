@@ -1,0 +1,12 @@
+{
+	"src/app/controls.ts": "bb558fd82a76f9612e0cfbf0db2e4b6f4c61c38a18a4ac4cabf4464d7a50f7eb",
+	"src/app/editor/adjust/index.tsx": "f7c17fba31cf409e66a0267bb9a6cbffe19a33bbad063f7e9288f75972155b9d",
+	"src/app/editor/renderer.ts": "6a42886604ec2536fbd2369728f68e677604fd985c15261251b6a816fb33769a",
+	"src/features/vignette/controls.tsx": "b3ad41491bc1c5f99e77eb16965fc44256c7ece2934acdc379b1c4468feab29c",
+	"src/features/vignette/edits.ts": "93b8224c68f0e6dab1ca92f83ffec87ed9f456daf8a5070950c8210a6866c93c",
+	"src/features/vignette/model.ts": "5701d4c550957a2a11cc5c979a4917b44aaa2ce0faf7d0254ea3e83676604c98",
+	"src/features/vignette/pass.ts": "3c8182f5fdbf3585e8a546b2aa3e385685bc15d8a67ca76aea2d91a8737cac22",
+	"src/features/vignette/vignette.wgsl": "ff39473dec02c6f17efdefe7238acd7fb3e05f7c790fbed135838042a04da158",
+	"src/lib/editor/document/index.ts": "bad26a70de30d72239c08ba2507c26926eebe98c345e253d10fc15fd7fa806fc",
+	"src/lib/editor/scene.ts": "40b60ba27f3f16dc864a8f5a16f0bfc70ebdcaca01b4699db92049d00a4bc5db"
+}

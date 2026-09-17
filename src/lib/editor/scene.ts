@@ -53,6 +53,12 @@ export type ColorMixer = {
 	readonly luminance: readonly number[];
 };
 
+/** Source-centered darkening in 0..100 UI units. */
+export type Vignette = {
+	readonly intensity: number;
+	readonly softness: number;
+};
+
 /** Serializable document content. Image bytes and GPU resources live elsewhere. */
 export type Scene = {
 	readonly frame: ImageFrame;
@@ -61,4 +67,5 @@ export type Scene = {
 	readonly adjustments: Readonly<Adjustments>;
 	readonly toneCurve: ToneCurve;
 	readonly colorMixer?: ColorMixer;
+	readonly vignette?: Vignette;
 };
