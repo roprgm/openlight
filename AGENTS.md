@@ -1,70 +1,69 @@
 # OpenLight
 
-A Vite, React, and vgpu app. Bun for install and scripts. Biome for format and lint.
+Build a professional photo editor with little, readable code. Vite, React, vgpu, Bun, and Biome.
 
-Demonstrate a professional photo editor with little, readable code.
+Write committed code, comments, documentation, and UI text in English. Use [CONTEXT.md](CONTEXT.md) for domain terms. [README.md](README.md#development) covers setup; [API.md](API.md) documents browser commands; [REVIEW.md](REVIEW.md) guides reviews.
 
-`src/main.tsx` owns runtime and provider composition.
+## Simplicity
 
-Write committed code, comments, documentation, and UI text in English. Research drafts may use another language while uncommitted.
-Use `CONTEXT.md` for document, scene, and image-source terminology.
+- Give each module, function, and component one coherent responsibility. Entry points compose; resource owners manage their own lifecycles.
+- Judge simplicity across the complete operation, including callers and cleanup. Moving lines into forwarding helpers does not simplify it. Keep cohesive work together; use no arbitrary file-size limits.
+- Start with direct functions and library calls. Add abstractions, dependencies, validation, scheduling, or caching for a current requirement. Prefer a few repeated lines over coupling unrelated behavior.
+- Extract a component when a region owns distinct state, refs, or behavior. Keep helpers local unless they have a separate responsibility or a real shared use. Define functions above their consumers.
+- Keep control flow linear: guard clauses, braces, and `const` by default. Avoid nested ternaries and dense logic in JSX; use early returns or components for meaningful branches.
+- Model actual states with precise types and explicit dependencies. Keep one source of truth; avoid casts and permissive types that conceal mismatches. Validate external input at its boundary and preserve useful errors.
+- Prefer named exports and imports. Use a default export when an integration requires or clearly benefits from it.
 
-## Size
+## Layers and ownership
 
-Keep each file focused on one responsibility and one abstraction level. Entry points compose; providers, hooks, and domain modules own lifecycles and policy.
-Start with direct functions and thin UI composition. Add a layer only when it owns a distinct responsibility or removes duplication.
-Evaluate simplicity across the whole feature, including lifecycle code and consumers. Keep cohesive work together; moving lines into forwarding helpers is not a reduction.
-Prefer direct vgpu operations. Add wrappers, validation, scheduling, or caching only for a current requirement.
-One component per responsibility: when a component holds state or refs that only part of its markup uses, extract that part into its own component. Within a file, define a function above the function that uses it.
+| Layer | Owns |
+| --- | --- |
+| 0 — `lib/` | Low-level code independent of OpenLight: math and utilities that could be standalone libraries. Keep it here when maintaining the small implementation is cheaper than a dependency, or when it is a candidate for extraction. |
+| 1 — shared primitives | Infrastructure generic within OpenLight: engine contracts, document and resource management, reusable `components/` and `hooks/`. Engine code works without React; React bindings depend on it. |
+| 2 — `features/` | Removable product capabilities. A feature owns its processing, shaders, parameters, commands, components, and hooks as needed. Most product behavior belongs here. |
+| 3 — `app/` | Application shell, user entry points, and explicit composition of features and shared primitives. |
+
+Dependencies between layers point downward. Features do not import each other; `app/` connects them. Shared primitives must not import concrete features. Being reusable within OpenLight or independent of React does not qualify code for `lib/`.
+
+The current layout predates these boundaries: `lib/editor` contains shared engine code, and some feature processing still lives in `lib/`. Follow ownership for new code and migrate existing code when the task needs that boundary; do not turn an unrelated change into a directory reorganization.
+
+Keep ordinary feature changes in the feature, its tests, and explicit app composition. Change shared primitives when a concrete requirement needs a new capability. Features need neither identical file layouts nor a universal plugin interface. Keep the histogram in its feature.
+
+`src/` holds entrypoints, ambient types, and global styles. Use `@/` across folders and relative imports within a folder. `src/main.tsx` mounts the runtime and providers. `app/editor/modes.tsx` composes modes: a `Panel` uses the shared canvas; a `View` supplies its own viewport.
 
 ## Engine and React
 
-React owns UI composition, controls, and mounting engine outputs. Commands perform decoding and other processing imperatively, with explicit workspace or document dependencies. The engine owns GPU resources, rendering, and derived data such as histogram bins; frame data stays outside React state and props.
+Keep document edits and rendering callable without React, a mounted UI, or an implicit active document. Pass workspace, document, and GPU dependencies explicitly. Feature processing must be importable without its React panel; keep browser input and display adapters outside processing.
 
-Hooks and providers connect stable imperative instances to mounting and cleanup. Each resource owner disposes what it creates. Canvas and histogram components attach engine outputs to the UI.
+Each document owns a vanilla Zustand scene store, history, and image resources. Scenes contain immutable, serializable content and image-source IDs; files and GPU resources stay outside history. The workspace owns document replacement and loading state.
 
-Each document owns a vanilla Zustand scene store, history, and image resources. The scene contains serializable data and refers to image sources by ID; files and GPU targets stay outside history. The workspace owns document replacement and loading state. UI interactions and browser commands use the same imperative edits; history groups them without knowing loaders or tools.
+UI controls and browser commands call the same imperative edits. History groups changes without knowing loaders or tools: a slider or curve gesture is one edit; cancellation restores the previous scene. Preview settings and navigation stay outside content history.
 
-## Structure
-
-Prefer named exports (`export function`) and named imports. Use default exports only when a concrete integration requires or clearly benefits from them, such as a worker loader or dynamic-import consumer that expects a default export.
-
-The `src/` root holds entrypoints, ambient types, and global styles. Import across folders through the `@/` alias (`@/hooks/use-pointer`); relative paths stay inside a folder. Source modules belong to these folders:
-
-- `app/`: application shell, app-wide state, and composition. It may import every folder below; no folder imports it. `app/editor/modes.tsx` registers the editor modes: each mode is a `Panel` rendered into the shared panel over the shared canvas, or a `View` that brings its own viewport, like Crop.
-- `features/`: removable product capabilities. A feature owns its UI, state, and behavior; removing its folder and `app/` composition leaves the rest working. Features never import each other.
-- `components/`: generic React presentation grouped by role, such as `ui/` and `layout/`. It contains no product workflows.
-- `hooks/`: generic React hooks without OpenLight business logic.
-- `lib/`: framework-independent low-level code that could become an external package.
-
-Dependencies point downward: `app/` may import every folder; `features/` may import `components/`, `hooks/`, and `lib/`; `components/` and `hooks/` may import `lib/`.
-Keep feature-specific components, hooks, and helpers inside their feature. Move them to a generic folder only when their interface no longer contains feature concepts.
-Keep the histogram in `features/`; revisit its placement only when its responsibilities change.
+React composes controls and mounts engine outputs. The engine owns GPU resources, rendering, and derived data such as histogram bins; frame data stays outside React state and props. Hooks and providers connect stable instances to mounting and cleanup. Every resource owner disposes what it creates.
 
 ## Styling
 
-Tailwind classes stay inline in the component that renders them; reuse styling by composing React components or repeating classes (whichever is fewer lines), never by sharing class-string constants across files. Use `cva` for a component's variants; promote a style to a token in `src/index.css` only when it is app-global, like a shadow or a font style.
+Keep Tailwind classes inline. Reuse presentation through components or repeat classes, whichever is simpler; do not share class-string constants across files. Use `cva` for variants and `src/index.css` for app-global tokens such as shadows and typography.
 
-## GPU
+## GPU invariants
 
-All React bindings come from `vgpu-react`; everything else comes from `vgpu`.
+- Use `vgpu-react` for React bindings and `vgpu` for GPU operations. Create pipelines once per engine instance and reuse them.
+- Keep `.wgsl` beside its owner. The Vite loader and ambient types are configured.
+- The working space is linear Rec.2020 in `rgba16float`. Decoders convert into it; display converts out. Processing outputs preserve the input format and primaries unless the operation explicitly converts them.
+- The adjustment shader's parameters use UI units. Its fitted constants are calibration data; preserve them when reorganizing code.
+- Preserve HDR headroom through exposure, curves, and vibrance. Exposure clips negatives and applies one luminance gain to all channels. `display()` in `lib/color.wgsl` maps out-of-gamut colors toward their luminance.
+- TIFF and camera RAW use `raw-webgpu`. OpenLight adapts package resources to document ownership; codec implementation and coverage belong to the package.
 
-- `useGpu()` returns the `Gpu`. Every vgpu call takes it as the first argument.
-- Build pipelines once per engine instance and reuse them across frames.
-- `useSurface(canvasRef, options)` turns a `<canvas>` into a render target and disposes it on cleanup. Changing `clearColor` updates the surface in place; changing other options recreates it.
-- `useFrameLoop` renders every animation frame. `useFrame` returns a function that renders once, for pointer and other events.
-- Shader code lives in `.wgsl` files beside the module that owns it, or in `lib/` for reusable GPU operations. The Vite loader and ambient types are already configured.
-- The working space is linear Rec.2020 in `rgba16float`. Decoders convert into it, the editor shader converts out of it; nothing in between assumes a format or primaries, so both can change (an 8-bit variant is planned).
-- `lib/adjustments/adjustments.wgsl` works in that space; its `Adjustments` struct mirrors the TypeScript type in the UI's units, and its constants were fitted against reference exports; treat them as data, not formulas to tidy.
-- `lib/decode` converts every format into the working space. Browser-decoded formats go through `linearize`. TIFF and camera RAW use `raw-webgpu`; OpenLight adapts the returned GPU resources to document ownership. Codec implementation and coverage belong to the package.
-- Samples above 1.0 (HDR) keep their headroom through exposure, curves, and vibrance; negatives clip at exposure. Exposure scales all channels by one luminance gain so hue holds, and `display()` in `lib/color.wgsl` maps out-of-gamut colors toward their luminance, so bright saturated light rolls off to white instead of clipping per channel.
+## Tests and completion
 
-## Testing
+Prefer a few broad integration tests. Use Bun and real application modules with `vgpu/mock` for document, history, loader, and renderer orchestration. The mock does not execute shaders. Use Playwright for GPU pixels, browser interaction, and real format fixtures.
 
-Prefer a few broad integration tests over many granular tests. Run document, history, loader, and renderer orchestration checks in Bun using real application modules and `vgpu/mock`. Keep GPU pixel, browser UI, and codec checks in Playwright; the mock does not execute shaders. Keep one main editing session that opens a fixture, changes controls, checks the preview and histogram, edits curves, uses undo/redo, and exports. Extend that session with named steps instead of adding a test per control. Check actual pixels against known values, with a small tolerance when needed; changed state or a changed screenshot alone does not prove correct rendering. Keep independent loading and rendering checks separate, and load real files for format coverage. Use browser-free tests for invariants that the editing session cannot meaningfully exercise. Codec libraries keep their tests and fixtures outside OpenLight; the app keeps only integration fixtures.
+Extend the main editing session with named steps for controls, preview, histogram, undo/redo, and export. Steps may live in separate modules. Keep independent rendering and loading checks separate. Assert known pixel values with appropriate tolerances; changed state or screenshots alone do not establish rendering correctness.
 
-Maintain a browser-side control API with semantic commands for loading, editing, and reading state. Extend it with new workflows; it must work in local browsers, CI, and remote sessions. Use DOM interaction when testing the UI itself. Wait for visible results without adding production completion tracking.
+Maintain the semantic [control API](API.md) for local, CI, and remote use. Exercise UI behavior through the DOM. Wait for observable results; avoid production completion tracking added only for tests. Test the behavior being changed rather than forcing every feature through the same test structure.
 
-## Done
+Run `bun run check`, `bun run build`, `bun run test`, and `bun run test:browser` after changes and before a commit. Browser setup and focused commands are in [README.md](README.md#validation).
 
-`bun run check` formats and lints. `bun run build` type-checks. `bun run test` runs browser-free tests. `bun run test:browser` runs GPU/browser tests. Run all of them after changing files and before a commit; CI runs only the first three.
+Every PR includes an actual application screenshot or rendered output demonstrating the result. Show before/after images for visual changes and the affected workflow for nonvisual code changes. Assess performance on every code change; changes affecting GPU work require reproducible before/after evidence under [PERFORMANCE.md](PERFORMANCE.md). Report unavailable checks and measurements as verification gaps.
+
+Keep documentation close to its purpose and link rather than duplicate rules. Describe existing APIs accurately and label unimplemented designs explicitly.
