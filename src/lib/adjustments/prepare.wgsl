@@ -11,6 +11,7 @@ export struct Adjustments {
   blacks: f32,
   vibrance: f32,
   saturation: f32,
+  mixer: array<vec3f, 8>,
 }
 
 // Source preparation in linear Rec.2020; retain the calibrated constants.

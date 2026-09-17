@@ -1,5 +1,6 @@
 import { luminance } from "../color.wgsl";
 import { adjustBlacks } from "./blacks.wgsl";
+import { adjustMixer } from "./mixer.wgsl";
 import { adjustHighlights } from "./highlights.wgsl";
 import { adjustShadows } from "./shadows.wgsl";
 import { adjustWhites } from "./whites.wgsl";
@@ -45,5 +46,6 @@ fn fs_main(@location(0) uv: vec2f) -> @location(0) vec4f {
   color = adjustContrast(color, 1.0 + adjustments.contrast / 100.0);
   color = adjustVibrance(color, adjustments.vibrance / 100.0);
   color = adjustSaturation(color, 1.0 + adjustments.saturation / 100.0);
+  color = adjustMixer(color, adjustments);
   return vec4f(color, input.a);
 }

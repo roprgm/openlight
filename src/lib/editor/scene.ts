@@ -1,4 +1,5 @@
 import type { Adjustments as ToneAdjustments } from "@/lib/adjustments";
+import { defaultMixer } from "@/lib/adjustments/mixer";
 import type { ImageFrame } from "@/lib/image-frame/geometry";
 import type { WhiteBalance } from "@/lib/image-source";
 import type { ToneCurve } from "@/lib/tone-curves/curve";
@@ -8,6 +9,9 @@ export type Adjustments = ToneAdjustments & {
 	sharpening: number;
 	sharpenRadius: number;
 };
+
+/** Adjustments editable one number at a time. */
+export type ScalarAdjustments = Omit<Adjustments, "mixer">;
 
 export const defaultAdjustments: Adjustments = {
 	exposure: 0,
@@ -23,9 +27,10 @@ export const defaultAdjustments: Adjustments = {
 	clarity: 0,
 	sharpening: 0,
 	sharpenRadius: 1,
+	mixer: defaultMixer,
 };
 
-export const adjustmentLimits: Adjustments = {
+export const adjustmentLimits: ScalarAdjustments = {
 	exposure: 5,
 	incrementalTemperature: 100,
 	incrementalTint: 100,
@@ -41,7 +46,7 @@ export const adjustmentLimits: Adjustments = {
 	sharpenRadius: 3,
 };
 
-export const adjustmentMinimums: Partial<Adjustments> = {
+export const adjustmentMinimums: Partial<ScalarAdjustments> = {
 	sharpening: 0,
 	sharpenRadius: 0.5,
 };

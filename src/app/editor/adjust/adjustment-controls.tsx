@@ -2,13 +2,14 @@ import type { ComponentProps, ReactNode } from "react";
 import { useDocument, useScene } from "@/components/editor/session";
 import { Collapsible } from "@/components/ui/collapsible";
 import { Slider } from "@/components/ui/slider";
+import { ColorMixer } from "@/features/color-mixer/color-mixer";
 import { WhiteBalanceControls } from "@/features/white-balance/controls";
 import { setAdjustments } from "@/lib/editor/document/edits";
 import {
-	type Adjustments,
 	adjustmentLimits,
 	adjustmentMinimums,
 	defaultAdjustments,
+	type ScalarAdjustments,
 } from "@/lib/editor/scene";
 
 const stops = {
@@ -27,7 +28,7 @@ type AdjustmentSliderProps = Pick<
 	ComponentProps<typeof Slider>,
 	"label" | "step" | "stops"
 > & {
-	name: keyof Adjustments;
+	name: keyof ScalarAdjustments;
 };
 
 function AdjustmentSlider({ name, ...props }: AdjustmentSliderProps) {
@@ -94,6 +95,9 @@ export default function AdjustmentControls({ curves }: { curves: ReactNode }) {
 						label="Saturation"
 						stops={stops.saturation}
 					/>
+				</div>
+				<div className="pt-3">
+					<ColorMixer />
 				</div>
 			</Collapsible>
 			<Collapsible title="Details">

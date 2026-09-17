@@ -7,6 +7,7 @@ import {
 	target,
 } from "vgpu";
 import shader from "./adjustments.wgsl";
+import type { ColorMixer } from "./mixer";
 
 /** UI units: exposure in stops, every other adjustment in -100..100. */
 export type Adjustments = {
@@ -20,6 +21,7 @@ export type Adjustments = {
 	blacks: number;
 	vibrance: number;
 	saturation: number;
+	mixer: ColorMixer;
 };
 
 /** Owns the adjustment pass and output for one source. */

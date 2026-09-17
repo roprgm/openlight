@@ -44,6 +44,9 @@ Loading calls are queued. XMP import requires a loaded document and is skipped i
 | `clarity` | -100 to 100 | 0 |
 | `sharpening` | 0 to 150 | 0 |
 | `sharpenRadius` | 0.5 to 3 | 1 |
+| `mixer` | 8 channels of `[hue, saturation, luminance]`, each -100 to 100 | all zero |
+
+`mixer` replaces the color mixer's eight hue-ordered channels (red, orange, yellow, green, aqua, blue, purple, magenta). A full shift of 100 rotates hue by up to 60°, doubles saturation, or doubles the channel's gain. Pixels are weighted by their distance to each channel's center hue, so neutrals are unaffected.
 
 `setToneCurve(points)` replaces the tone curve. Each point is `{ x, y }` with coordinates between 0 and 1. Supply at least two points, ordered by `x` with a minimum gap of `1/1024`. The first point must have `x = 0` or `y = 0`; the last must have `x = 1` or `y = 1`. Call `setToneCurve()` to reset it.
 

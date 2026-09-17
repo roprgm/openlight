@@ -27,8 +27,12 @@ test("documents edit independently without React, retain bounded history, and re
 		{ sharpenRadius: 0 },
 		{ sharpenRadius: 3.1 },
 		{ sharpenRadius: NaN },
+		{ mixer: [] },
+		{ mixer: [[0, 0, 0]] },
+		{ mixer: Array.from({ length: 8 }, () => [0, 0, 101]) },
+		{ mixer: Array.from({ length: 8 }, () => [0, 0, 0, 0]) },
 	]) {
-		expect(() => setAdjustments(first, change)).toThrow("Invalid adjustment");
+		expect(() => setAdjustments(first, change)).toThrow(/Invalid/);
 	}
 
 	setAdjustments(first, { exposure: 1 });

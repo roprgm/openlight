@@ -1,3 +1,4 @@
+import { validateMixer } from "@/lib/adjustments/mixer";
 import {
 	type Adjustments,
 	adjustmentLimits,
@@ -15,6 +16,10 @@ export function setAdjustments(
 	change: Partial<Adjustments>,
 ) {
 	for (const [name, value] of Object.entries(change)) {
+		if (name === "mixer") {
+			validateMixer(value);
+			continue;
+		}
 		const limit = Reflect.get(adjustmentLimits, name);
 		if (
 			typeof limit !== "number" ||

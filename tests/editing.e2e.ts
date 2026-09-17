@@ -317,6 +317,70 @@ test("edit a photo, inspect the preview and histograms, undo changes, and export
 		await expect.poll(() => canvas.screenshot()).toEqual(original);
 	});
 
+	await test.step("color mixer shifts hue, saturation, and luminance per channel", async () => {
+		const viewport = await canvas.boundingBox();
+		if (!viewport) throw new Error("Missing canvas.");
+		const scale = Math.min(
+			(viewport.width - 48) / 1200,
+			(viewport.height - 48) / 800,
+			2,
+		);
+		const blue = {
+			x: viewport.x + viewport.width / 2 + (350 - 600) * scale,
+			y: viewport.y + viewport.height / 2 + (200 - 400) * scale,
+			width: 1,
+			height: 1,
+		};
+		expect(await readPixel(page, blue)).toEqual([48, 80, 128, 255]);
+
+		const mixer = page.getByRole("region", { name: "Color mixer" });
+		await mixer.scrollIntoViewIfNeeded();
+		const blueHue = mixer.getByRole("slider", {
+			name: "Blue Hue",
+			exact: true,
+		});
+		await blueHue.focus();
+		await page.keyboard.press("ArrowUp");
+		await page.keyboard.press("ArrowUp");
+		expect((await state()).adjustments.mixer[5]).toEqual([2, 0, 0]);
+		await blueHue.press("ArrowDown");
+		await blueHue.press("ArrowDown");
+
+		await mixer.getByRole("tab", { name: "Saturation" }).click();
+		const blueSat = mixer.getByRole("slider", {
+			name: "Blue Saturation",
+			exact: true,
+		});
+		const bounds = await box(blueSat);
+		const undoCount = (await state()).history.undoCount;
+		await drag(
+			page,
+			[bounds.x + bounds.width / 2, bounds.y + bounds.height / 2],
+			[bounds.x + bounds.width / 2, bounds.y + bounds.height],
+		);
+		expect((await state()).history.undoCount).toBe(undoCount + 1);
+		expect((await state()).adjustments.mixer[5][1]).toBeLessThan(-50);
+		const muted = await readPixel(page, blue);
+		expect(muted[2]).toBeLessThan(110);
+		expect(muted[0]).toBeGreaterThan(55);
+		expect((await readImage(page)).center).toEqual([128, 128, 128, 255]);
+
+		await mixer.getByRole("tab", { name: "Hue" }).click();
+		const hueBounds = await box(blueHue);
+		await drag(
+			page,
+			[hueBounds.x + hueBounds.width / 2, hueBounds.y + hueBounds.height / 2],
+			[hueBounds.x + hueBounds.width / 2, hueBounds.y],
+		);
+		expect((await state()).adjustments.mixer[5][0]).toBeGreaterThan(50);
+		const shifted = await readPixel(page, blue);
+		expect(shifted[0]).toBeGreaterThan(shifted[2]);
+
+		await mixer.getByRole("button", { name: "Reset color mixer" }).click();
+		expect((await state()).adjustments.mixer[5]).toEqual([0, 0, 0]);
+		await expect.poll(() => readPixel(page, blue)).toEqual([48, 80, 128, 255]);
+	});
+
 	await test.step("clarity changes local contrast and histogram, then undoes and resets", async () => {
 		const field = page.getByRole("textbox", { name: "Clarity", exact: true });
 		const slider = page.getByRole("slider", { name: "Clarity", exact: true });
