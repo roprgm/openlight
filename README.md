@@ -7,6 +7,7 @@ Image processing runs locally with WebGPU. Built with TypeScript and React.
 ## Features
 
 - Light and color adjustments
+- Color Mixer with eight hue, saturation, and luminance ranges
 - Tone curves
 - Clarity and sharpening
 - Crop, rotate, straighten, and flip

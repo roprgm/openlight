@@ -47,6 +47,8 @@ Loading calls are queued. XMP import requires a loaded document and is skipped i
 
 `setToneCurve(points)` replaces the tone curve. Each point is `{ x, y }` with coordinates between 0 and 1. Supply at least two points, ordered by `x` with a minimum gap of `1/1024`. The first point must have `x = 0` or `y = 0`; the last must have `x = 1` or `y = 1`. Call `setToneCurve()` to reset it.
 
+`setColorMixer(color, change)` updates one of `red`, `orange`, `yellow`, `green`, `aqua`, `blue`, `purple`, or `magenta`. Supply any of `hue`, `saturation`, and `luminance`, each a finite number from -100 to 100. Other colors and unspecified channels keep their values. `resetColorMixer()` resets every color as one undoable edit. The [Color Mixer](src/features/color-mixer/README.md) describes the processing ranges.
+
 For RAW sources, `setWhiteBalance({ temperature, tint })` sets absolute Kelvin and DNG tint, preserving unspecified values. Temperature accepts 2000–25000 K and tint accepts -150–150, with either range extended to include the file's As Shot value. `setWhiteBalance()` restores the source's initial balance. When camera multipliers are unavailable, that initial balance is the decoder's daylight fallback. The command throws for non-RAW sources or invalid values. Edits enter history immediately; preview development runs asynchronously, and export waits for the captured scene's development. The incremental temperature/tint adjustments remain separate RGB adjustments.
 
 `editScene(change)` shallowly merges a partial [Scene](src/lib/editor/scene.ts) into the document as an undoable edit. Supply complete values for nested fields such as `frame`. Prefer `setAdjustments` and `setToneCurve` for their validation.
@@ -88,6 +90,6 @@ The image renders at the document dimensions and downsamples to `longEdge` with 
 
 ## State
 
-`getState()` returns a detached snapshot containing `file`, `documentId`, `size`, `frame`, `adjustments`, `whiteBalance`, `toneCurve`, `preview`, and `history`. `whiteBalance` contains absolute temperature/tint for RAW sources and is undefined for other sources. `file` is the filename, and `history` contains `undoCount` and `redoCount`.
+`getState()` returns a detached snapshot containing `file`, `documentId`, `size`, `frame`, `adjustments`, `whiteBalance`, `toneCurve`, `colorMixer`, `preview`, and `history`. `colorMixer` contains eight-value `hue`, `saturation`, and `luminance` arrays in the color order above, defaulting to zero. `whiteBalance` contains absolute temperature/tint for RAW sources and is undefined for other sources. `file` is the filename, and `history` contains `undoCount` and `redoCount`.
 
 Without a document, `documentId`, `size`, `frame`, and `preview` are undefined. Adjustments and the tone curve use their defaults, and history counts are zero. Mutating the snapshot does not edit the document.

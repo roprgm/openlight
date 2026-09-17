@@ -1,6 +1,6 @@
 import { frame, type Gpu, surface, type Target } from "vgpu";
+import { createEditorRenderer } from "@/app/editor/renderer";
 import type { EditorDocument } from "@/lib/editor/document";
-import { createRenderer } from "@/lib/editor/renderer";
 import { createDisplay } from "@/lib/image-display";
 import type { Point } from "@/lib/image-frame/geometry";
 
@@ -112,7 +112,7 @@ export async function exportImage(
 ) {
 	const scene = document.scene.getState();
 	const source = document.resources.get(scene.source);
-	const renderer = createRenderer(gpu, source);
+	const renderer = createEditorRenderer(gpu, source);
 	try {
 		await renderer.update(scene);
 		// The renderer retains the source until encoding finishes.

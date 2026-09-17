@@ -1,4 +1,5 @@
 import { cva } from "class-variance-authority";
+import { cn } from "cn";
 import {
 	type ComponentProps,
 	type PointerEvent,
@@ -45,6 +46,7 @@ export function ScrubInput({
 	max,
 	step = 1,
 	variant = "box",
+	className,
 	...props
 }: ScrubInputProps) {
 	const decimals = `${step}`.split(".")[1]?.length ?? 0;
@@ -97,9 +99,14 @@ export function ScrubInput({
 	};
 
 	return (
-		<label className="flex items-center gap-2 text-neutral-400 text-sm">
+		<label
+			className={cn(
+				"flex items-center gap-2 text-neutral-400 text-sm",
+				className,
+			)}
+		>
 			{label}
-			<Field className="w-16" variant={variant}>
+			<Field className="w-16 max-w-full" variant={variant}>
 				<input
 					{...props}
 					className={input({ variant })}
