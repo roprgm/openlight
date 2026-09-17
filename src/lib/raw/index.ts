@@ -1,7 +1,6 @@
 import { createRawDecoder, type RawDecoder } from "raw-webgpu";
 import { type Gpu, type Target, target } from "vgpu";
 import { createImageSource } from "@/lib/image-source";
-import { createBayerDenoising } from "./denoise";
 import { createDevelopment } from "./development";
 
 const decoders = new WeakMap<Gpu, RawDecoder>();
@@ -26,17 +25,23 @@ export async function decodeRaw(gpu: Gpu, file: File) {
 		} finally {
 			initial.dispose();
 		}
-		const denoising = createBayerDenoising(gpu, decoder, file, source.metadata);
+		const loader = decoder;
 		return createImageSource(original, {
 			asShot: source.asShot,
 			createPass: () => createDevelopment(gpu, source),
-			createDenoisedPass: denoising
-				? () => createDevelopment(gpu, source, denoising.prepare)
-				: undefined,
-			dispose() {
-				denoising?.dispose();
-				source.dispose();
+			sensor: {
+				metadata: source.metadata,
+				async clone(signal) {
+					const copy = await loader.load(file, { signal });
+					return {
+						metadata: copy.metadata,
+						texture: copy.texture,
+						createPass: () => createDevelopment(gpu, copy),
+						dispose: () => copy.dispose(),
+					};
+				},
 			},
+			dispose: () => source.dispose(),
 		});
 	} catch (error) {
 		original?.color.dispose();

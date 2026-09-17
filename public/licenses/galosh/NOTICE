@@ -23,9 +23,9 @@ noise-statistics and transform sources as references for:
 - a continuous signed-shadow extension of the generalized Anscombe transform;
 - the eight-sample Kaiser window used for overlap aggregation.
 
-The related OpenLight files are src/lib/denoise/bayer/noise.ts,
+The related OpenLight files are src/features/noise-reduction/processing/bayer/noise.ts,
 bayer/statistics.wgsl, bayer/variance.wgsl, and the WINDOW constants in
-src/lib/denoise/collaborative.wgsl. These are substantially modified TypeScript/WGSL adaptations:
+src/features/noise-reduction/processing/collaborative.wgsl. These are substantially modified TypeScript/WGSL adaptations:
 per-phase sampled fitting replaces the upstream estimator, the forward transform
 is offset and numerically rearranged, the inverse is asymptotic rather than the
 upstream lookup table, and GPU statistics use cooperative bitonic sorting.

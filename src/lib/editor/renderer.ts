@@ -1,27 +1,43 @@
-import { frame, type Gpu } from "vgpu";
+import { type Frame, frame, type Gpu, type Target } from "vgpu";
 import { createAdjustments } from "@/lib/adjustments";
-import { createDenoiseBlend } from "@/lib/denoise/blend";
-import { createCachedDenoising } from "@/lib/denoise/cache";
 import type { Scene } from "@/lib/editor/scene";
 import { createImageFrame } from "@/lib/image-frame";
 import type { ImageSource, WhiteBalance } from "@/lib/image-source";
 import { createToneCurves } from "@/lib/tone-curves";
 import { createUnsharpMask } from "@/lib/unsharp-mask";
 
+/** A renderer-owned operation; preparation may cache expensive work outside a frame. */
+export type SceneEffect = {
+	prepare?(scene: Scene): void | Promise<void>;
+	render(frame: Frame, input: Target, scene: Scene): Target;
+	dispose(): void;
+};
+
+type EffectFactory = (gpu: Gpu, source: ImageSource) => SceneEffect;
+
+type RendererEffects = {
+	beforeAdjustments?: EffectFactory;
+	afterCurves?: EffectFactory;
+};
+
 function sameBalance(a: WhiteBalance | undefined, b: WhiteBalance | undefined) {
 	return a?.temperature === b?.temperature && a?.tint === b?.tint;
 }
 
 /** Owns scene passes and intermediate textures for one decoded source. */
-export function createRenderer(gpu: Gpu, resource: ImageSource) {
+export function createRenderer(
+	gpu: Gpu,
+	resource: ImageSource,
+	effects: RendererEffects = {},
+) {
 	const source = resource.image;
-	const denoising = createCachedDenoising(gpu, resource);
-	const denoise = createDenoiseBlend(gpu, source, denoising);
+	const inputEffect = effects.beforeAdjustments?.(gpu, resource);
 	const adjust = createAdjustments(gpu, source);
 	const adjusted = adjust.output;
 	const toneCurves = createToneCurves(gpu, adjusted);
 	const clarity = createUnsharpMask(gpu, source, 16);
 	const sharpen = createUnsharpMask(gpu, source);
+	const effect = effects.afterCurves?.(gpu, resource);
 
 	const transform = createImageFrame(gpu);
 	const release = resource.retain();
@@ -39,15 +55,13 @@ export function createRenderer(gpu: Gpu, resource: ImageSource) {
 	function render(scene: Scene) {
 		frame(gpu, (frame) => {
 			const developed = raw?.render() ?? source;
-			const filtered = denoise.render(
-				frame,
-				scene.noiseReduction ?? 0,
-				developed,
-			);
+			const filtered =
+				inputEffect?.render(frame, developed, scene) ?? developed;
 			adjust.render(frame, scene.adjustments, filtered);
 			const curved = toneCurves.render(frame, scene.toneCurve);
+			const colored = effect?.render(frame, curved, scene) ?? curved;
 			const { clarity: amount, sharpening, sharpenRadius } = scene.adjustments;
-			const clarified = clarity.render(frame, curved, amount / 200, 64);
+			const clarified = clarity.render(frame, colored, amount / 200, 64);
 			fullImage = sharpen.render(
 				frame,
 				clarified,
@@ -65,7 +79,7 @@ export function createRenderer(gpu: Gpu, resource: ImageSource) {
 			listener();
 		}
 	}
-	/** Coalesce edits while calibration or shared denoising is pending. */
+	/** Coalesce edits while calibration or effect preparation is pending. */
 	async function develop() {
 		while (next && !disposed) {
 			const scene = next;
@@ -78,11 +92,17 @@ export function createRenderer(gpu: Gpu, resource: ImageSource) {
 				}
 				balance = selected;
 			}
-			if ((scene.noiseReduction ?? 0) > 0 && !next) {
-				await denoising.prepare(selected);
-				if (disposed) {
-					return;
+			for (const operation of [inputEffect, effect]) {
+				if (next || disposed) {
+					break;
 				}
+				const preparation = operation?.prepare?.(scene);
+				if (preparation) {
+					await preparation;
+				}
+			}
+			if (disposed) {
+				return;
 			}
 			if (!next) {
 				render(scene);
@@ -93,7 +113,12 @@ export function createRenderer(gpu: Gpu, resource: ImageSource) {
 		if (disposed) {
 			throw Error("Renderer is closed.");
 		}
-		if (!resource.raw && !pending && !(scene.noiseReduction ?? 0)) {
+		if (
+			!resource.raw &&
+			!inputEffect?.prepare &&
+			!effect?.prepare &&
+			!pending
+		) {
 			render(scene);
 			return;
 		}
@@ -135,11 +160,11 @@ export function createRenderer(gpu: Gpu, resource: ImageSource) {
 			disposed = true;
 			listeners.clear();
 			adjust.dispose();
-			denoise.dispose();
-			denoising.dispose();
+			inputEffect?.dispose();
 			toneCurves.dispose();
 			clarity.dispose();
 			sharpen.dispose();
+			effect?.dispose();
 			transform.dispose();
 			raw?.dispose();
 			release();

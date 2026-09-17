@@ -1,6 +1,7 @@
-import type { RawMetadata, RawSource } from "raw-webgpu";
+import type { RawMetadata } from "raw-webgpu";
 import { compute, effect, frame, type Gpu, type Target, target } from "vgpu";
-import collaborative from "@/lib/denoise/collaborative.wgsl";
+import collaborative from "@/features/noise-reduction/processing/collaborative.wgsl";
+import type { RawSensor } from "@/lib/image-source";
 import { estimateNoise } from "./noise";
 import packShader from "./pack.wgsl";
 import resolveShader from "./resolve.wgsl";
@@ -16,10 +17,10 @@ export function supportsBayerDenoising(metadata: RawMetadata) {
 	);
 }
 
-/** Restore the checkpoint filter on an exclusively owned, undeveloped Bayer source. */
+/** Filter an exclusively owned, undeveloped Bayer sensor. */
 export async function denoiseBayer(
 	gpu: Gpu,
-	source: RawSource,
+	source: Pick<RawSensor, "metadata" | "texture">,
 	signal: AbortSignal,
 ) {
 	const { size: dimensions, cfa, black, white } = source.metadata;

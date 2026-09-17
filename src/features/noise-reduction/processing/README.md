@@ -19,9 +19,15 @@ bundled.
 
 ## Pipeline and ownership
 
+`../pass.ts` exposes preparation, rendering and disposal without React. The app's
+renderer factory inserts it before adjustments; the shared renderer and RAW
+adapter do not import noise reduction. `RawDevelopment.sensor.clone()` supplies
+an owned sensor copy. `bayer/source.ts` filters it lazily, shares concurrent work,
+releases failures, and permits retries. The feature owns its cache and commands.
+
 RAW sensor decoding → Bayer denoise (when supported) → demosaic / development →
 RGB denoise (other sources) → amount blend → exposure and other adjustments →
-curves → clarity / sharpening → framing → display / export.
+curves → color mixer → clarity / sharpening → framing → display / export.
 
 The RGB path receives linear Rec.2020 output from the existing loaders. For an
 integer 2×2 Bayer source, a private second `raw-webgpu` source is filtered in its
@@ -36,7 +42,8 @@ results between renderers, keyed by source and absolute white balance. Each RAW
 result uses an immutable development snapshot; As Shot reuses the original image.
 The cache keeps one idle result plus snapshots still in use by a preview/export,
 and closes when its last renderer closes. Slider changes, exposure, cropping and
-curves reuse the result. A RAW Kelvin/tint change recalculates it.
+curves reuse the result. A RAW Kelvin/tint change develops a new snapshot of the
+filtered Bayer sensor, or recalculates RGB filtering for other RAW layouts.
 
 `blend.ts` owns each renderer's amount-blend output. Zero returns the unfiltered
 input. The scene stores only the amount, so undo/redo does not copy image data.
@@ -74,13 +81,17 @@ opaque statistics also bypass it. Input precision still depends on the loader.
 ## Cost and checks
 
 The first calculation is expensive. Work is submitted in small batches with a
-GPU completion wait between them. Scratch tiles stay below 9 MiB: two 512×512
+GPU completion wait between them. RGB scratch tiles stay below 9 MiB: two 512×512
 RGBA32F tiles and a 128×128 accumulation buffer. The pyramid additionally holds
 its reduced input and filtered result (about 92 MiB at 24 MP, at peak). Deeper
 levels finish and release their scratch before finer levels allocate theirs.
 Output tiles cover 384×384 pixels with a 64-pixel halo for both filtering stages.
 The three reduced resolutions add roughly 33% to the image area processed;
 small images have proportionally greater tile/halo overhead.
+
+Bayer filtering uses three packed RGBA32F images (about 275 MiB at 24 MP),
+a 512 KiB accumulation buffer and a temporary 46 MiB integer output, in addition
+to its private decoded sensor and developed images.
 
 Each cached result and each active blend adds a full-resolution RGBA16F texture
 (about 183 MiB at 24 MP). A changed RAW white point also retains its developed
@@ -91,8 +102,19 @@ The browser test loads clean/noisy fixture pairs, applies NR, and compares the
 exported pixels. It checks lower squared error, limited color bias, retained
 fine detail, the tile boundary, dimensions, alpha and exact bypass at zero.
 The same flow runs for PNG, RGB16 TIFF, Bayer DNG and a correlated-color-noise
-fixture. The Bayer DNG exercises the pre-demosaic path. That fixture also measures smooth sky, a color boundary and a tiny red
-light: a globally blurred or desaturated result must fail. In software WebGPU,
-its RGB MSE fell from 66.39 in the previous version to 13.08 (noisy input: 77.88).
-This is a regression check, not a general photographic benchmark. One small Bun
-test covers shared cache ownership across preview/export white-balance changes.
+fixture. The Bayer DNG exercises the pre-demosaic path. The correlated RGB fixture also
+checks smooth sky, a color boundary and a tiny red light; a globally blurred or
+desaturated result must fail. These are regression fixtures, not general
+photographic benchmarks. Bun tests cover cache ownership, grouped edits,
+coalesced preparation, retries and cancellation.
+
+## Reproducing measurements
+
+Run `bun run test:browser --config playwright.bench.config.ts denoise.bench.ts`.
+The offscreen benchmark records decoding and first-use latency separately from
+repeated completed renders (8 warmups, 40 samples), then times the actual blend
+pass on 5000×4000 RGBA16F textures. React, display, export encoding and timing
+readback are outside the repeated-render interval. The expensive filter's compute
+dispatches are not timestamped; its first-use figure is a single diagnostic sample.
+See [the comparison and environment](../../../../docs/benchmarks/noise-reduction.md).
+Use hardware measurements to assess the 120 FPS budget; SwiftShader is not a proxy.

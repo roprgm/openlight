@@ -1,6 +1,7 @@
 import { readFile } from "node:fs/promises";
 import type { Page } from "@playwright/test";
 import { expect, test } from "./fixtures";
+import { noiseReductionEditing } from "./noise-reduction-editing";
 
 async function loadFixture(page: Page, name: string) {
 	const bytes = [...(await readFile(`tests/fixtures/${name}`))];
@@ -63,15 +64,32 @@ for (const format of ["png", "tif", "dng", "correlated.png"]) {
 		page,
 	}) => {
 		test.setTimeout(120_000);
+		await page.setViewportSize({ width: 1440, height: 1000 });
 		await page.goto("/");
 		await page.waitForFunction(() => window.openlight);
 		await loadFixture(page, `denoise-clean.${format}`);
 		const clean = await readPixels(page);
 		await loadFixture(page, `denoise-noisy.${format}`);
 		const noisy = await readPixels(page);
+		const details = page.locator("section").filter({
+			has: page.getByRole("button", { name: "Details", exact: true }),
+		});
+		if (format === "png") {
+			await details.screenshot({
+				path: test.info().outputPath("noise-reduction-neutral-ui.png"),
+			});
+		}
 
 		await page.evaluate(() => window.openlight.setNoiseReduction(100));
 		const filtered = await readPixels(page);
+		if (format === "png") {
+			await expect(
+				page.getByText("Processing image…", { exact: true }),
+			).toBeHidden();
+			await details.screenshot({
+				path: test.info().outputPath("noise-reduction-active-ui.png"),
+			});
+		}
 
 		expect([filtered.width, filtered.height]).toEqual([
 			clean.width,
@@ -112,5 +130,8 @@ for (const format of ["png", "tif", "dng", "correlated.png"]) {
 		}
 		await page.evaluate(() => window.openlight.setNoiseReduction(0));
 		expect(await readPixels(page)).toEqual(noisy);
+		if (format === "png") {
+			await noiseReductionEditing(page);
+		}
 	});
 }

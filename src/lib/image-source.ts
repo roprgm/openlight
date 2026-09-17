@@ -1,3 +1,4 @@
+import type { RawMetadata } from "raw-webgpu";
 import type { Target } from "vgpu";
 
 export type WhiteBalance = { temperature: number; tint: number };
@@ -9,8 +10,18 @@ export type RawPass = {
 export type RawDevelopment = {
 	asShot: WhiteBalance;
 	createPass(): RawPass;
-	/** Optional sensor-domain denoising, prepared before demosaic and white balance. */
-	createDenoisedPass?(): RawPass;
+	/** A private sensor copy that processing can modify without changing the original. */
+	sensor?: {
+		metadata: RawMetadata;
+		clone(signal: AbortSignal): Promise<RawSensor>;
+	};
+	dispose(): void;
+};
+
+export type RawSensor = {
+	metadata: RawMetadata;
+	texture: GPUTexture;
+	createPass(): RawPass;
 	dispose(): void;
 };
 

@@ -1,15 +1,12 @@
 import { readFile } from "node:fs/promises";
-import type { Locator, Page } from "@playwright/test";
+import type { Page } from "@playwright/test";
 import { type ImageFrame, imageFrame } from "@/lib/image-frame/geometry";
 import { interpolatePchip } from "@/lib/math";
+import { colorMixerEditing } from "./color-mixer-editing";
 import { expect, test } from "./fixtures";
 import { readImage, readPixel, readPreview } from "./images";
-
-async function box(locator: Locator) {
-	const bounds = await locator.boundingBox();
-	if (!bounds) throw new Error(`Missing bounds for ${locator}`);
-	return bounds;
-}
+import { noiseReductionEditing } from "./noise-reduction-editing";
+import { box, drag } from "./pointer";
 
 function expectCentered(
 	actual: { x: number; y: number; width: number; height: number },
@@ -23,13 +20,6 @@ function expectCentered(
 		expected.y + expected.height / 2,
 		0,
 	);
-}
-
-async function drag(page: Page, from: number[], to: number[], steps = 8) {
-	await page.mouse.move(from[0], from[1]);
-	await page.mouse.down();
-	await page.mouse.move(to[0], to[1], { steps });
-	await page.mouse.up();
 }
 
 async function zoom(page: Page, factor: number) {
@@ -316,6 +306,9 @@ test("edit a photo, inspect the preview and histograms, undo changes, and export
 		);
 		await expect.poll(() => canvas.screenshot()).toEqual(original);
 	});
+
+	await colorMixerEditing(page);
+	await noiseReductionEditing(page);
 
 	await test.step("clarity changes local contrast and histogram, then undoes and resets", async () => {
 		const field = page.getByRole("textbox", { name: "Clarity", exact: true });

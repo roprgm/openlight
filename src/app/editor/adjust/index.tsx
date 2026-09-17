@@ -7,6 +7,7 @@ import {
 	useDocument,
 	useScene,
 } from "@/components/editor/session";
+import { ColorMixerControls } from "@/features/color-mixer/controls";
 import { Histogram } from "@/features/histogram";
 import { createHistogram } from "@/features/histogram/histogram";
 import { ToneCurves } from "@/features/tone-curves/tone-curves";
@@ -73,6 +74,7 @@ export function AdjustPanel() {
 					</section>
 					<AdjustmentControls
 						curves={<ToneCurvesPanel histogram={histogram} />}
+						colorMixer={<ColorMixerControls />}
 					/>
 				</div>
 				<EditorActions />
