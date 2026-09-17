@@ -34,12 +34,12 @@ function ColorSlider({
 		setColorMixer(document, color.id, { [channel]: value });
 	return (
 		<div
-			className="flex min-w-0 flex-col items-center gap-2"
+			className="flex min-w-0 flex-col items-center gap-1"
 			title={color.label}
 		>
 			<ScrubInput
 				aria-label={`${label} value`}
-				className="w-full [&>span]:px-0 [&_input]:text-center [&_input]:text-[11px] [&_input]:tracking-tight"
+				className="w-full leading-4 [&>span]:px-0 [&_input]:text-center [&_input]:text-[11px] [&_input]:tracking-tight"
 				variant="text"
 				value={value}
 				onChange={change}
@@ -67,7 +67,7 @@ function MixerPanel() {
 		<>
 			<TabList
 				aria-label="Color Mixer adjustment"
-				className="mb-4 gap-0.5 rounded-md bg-neutral-900 p-0.5 shadow-groove"
+				className="mb-3 gap-0.5 rounded-md bg-neutral-900 p-0.5 shadow-groove"
 			>
 				{channels.map(({ id: value, label }) => (
 					<Tab
