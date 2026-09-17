@@ -64,7 +64,11 @@ Maintain the semantic [control API](API.md) for local, CI, and remote use. Exerc
 
 Run `bun run check`, `bun run build`, `bun run test`, and `bun run test:browser` after changes and before a commit. Browser setup and focused commands are in [README.md](README.md#validation).
 
-Every code PR includes actual application screenshots or rendered output demonstrating the result. UI additions or changes require screenshots of the affected interface in context, with the new or changed controls visible for visual approval; rendered output alone is insufficient. Show before/after for changes to existing UI or image output, representative states for new UI, and the affected workflow for nonvisual code changes. Embed accessible images in the PR and name the fixture and settings. Documentation-only changes may mark visual evidence not applicable.
+Prepare evidence during implementation and include it in the initial PR description, using the [PR template](.github/pull_request_template.md). Lead with the problem and resulting behavior. Keep prose short, use compact comparison tables, and link detailed reports, raw data, and reproduction steps. Omit work logs and repeated explanations.
+
+Every code PR includes actual application screenshots or rendered output demonstrating the result. UI additions or changes require screenshots of the affected interface in context, with the new or changed controls visible for visual approval; rendered output alone is insufficient. Show before/after for changes to existing UI or image output, representative states for new UI, and the affected workflow for nonvisual code changes. Compare the same fixture under matching conditions and state what varies. Embed accessible images in the description, name the fixture and settings, and verify the published links. Documentation-only changes may mark visual evidence not applicable.
+
+For processing changes, include relevant quality measurements when a reference or expected property is available. State the metric, units, and limits; do not generalize from synthetic fixtures to real photos. Keep quality results separate from rendering timings.
 
 Assess performance on every code change; changes affecting GPU work require reproducible before/after evidence under [PERFORMANCE.md](PERFORMANCE.md). Report unavailable checks and measurements as verification gaps.
 
