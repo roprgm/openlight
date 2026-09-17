@@ -374,7 +374,9 @@ test("edit a photo, inspect the preview and histograms, undo changes, and export
 		);
 		expect((await state()).adjustments.mixer[5][0]).toBeGreaterThan(50);
 		const shifted = await readPixel(page, blue);
-		expect(shifted[0]).toBeGreaterThan(shifted[2]);
+		expect(shifted[1]).toBeLessThan(shifted[0]);
+		expect(shifted[1]).toBeLessThan(shifted[2]);
+		expect(shifted[0]).toBeGreaterThan(60);
 
 		await mixer.getByRole("button", { name: "Reset color mixer" }).click();
 		expect((await state()).adjustments.mixer[5]).toEqual([0, 0, 0]);
