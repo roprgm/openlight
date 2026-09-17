@@ -8,9 +8,9 @@ import {
 } from "react";
 import type { Gpu } from "vgpu";
 import { useGpu } from "vgpu-react";
-import { useDocument, useScene } from "@/components/editor/session";
-import type { createRenderer } from "@/core/render/renderer";
-import type { ImageSource } from "@/lib/image-source";
+import type { ImageSource } from "@/core/image";
+import type { createRenderer } from "@/core/renderer";
+import { useDocument, useScene } from "./session";
 
 const RendererContext = createContext<ReturnType<typeof createRenderer> | null>(
 	null,

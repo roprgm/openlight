@@ -2,7 +2,7 @@ import { useEffect } from "react";
 import { useStore } from "zustand";
 import { useDocument } from "@/components/editor/session";
 import Button from "@/components/ui/button";
-import type { Preview } from "@/lib/editor/document";
+import type { Preview } from "@/core/document";
 
 export function ComparisonControl() {
 	const { preview } = useDocument();

@@ -2,8 +2,8 @@ import { createContext, type ReactNode, useContext } from "react";
 import { Canvas } from "vgpu-react";
 import { Icon } from "@/components/icons/icon";
 import Button from "@/components/ui/button";
+import type { Point } from "@/core/image/frame";
 import { usePanZoom } from "@/hooks/use-pan-zoom";
-import type { Point } from "@/lib/image-frame/geometry";
 import { useEditorSession } from "./session";
 
 const Viewport = createContext<ReturnType<typeof usePanZoom> | null>(null);

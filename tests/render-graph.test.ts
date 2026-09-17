@@ -1,7 +1,13 @@
 import { expect, test } from "bun:test";
 import { getMockGPUDeviceInstrumentation, init, target } from "vgpu/mock";
-import { createRenderGraph } from "@/core/render/graph";
-import { input, merge, node } from "@/core/render/node";
+import {
+	createRenderGraph,
+	input,
+	merge,
+	node,
+	pipeline,
+	split,
+} from "@/core/renderer";
 
 const shader = `
 @group(0) @binding(0) var source: texture_2d<f32>;
@@ -11,6 +17,43 @@ const shader = `
 	return mix(textureLoad(source, vec2i(p.xy), 0), textureLoad(base, vec2i(p.xy), 0), weights[0]);
 }`;
 const options = { storage: { weights: new Float32Array([0.5]) } };
+
+test("pipeline and split preserve order, bypasses, and named merge inputs", async () => {
+	const gpu = await init();
+	const image = target(gpu, { size: [8, 4], format: "rgba16float" });
+	const source = input(image);
+	try {
+		const first = node("first", shader);
+		const last = node("last", shader);
+		const result = pipeline(source, [
+			first,
+			undefined,
+			(image) => pipeline(image, [last]),
+		]);
+		expect(result).toMatchObject({
+			name: "last",
+			inputs: { source: { name: "first", inputs: { source } } },
+		});
+		expect(pipeline(source, [undefined])).toBe(source);
+		const [unchanged, small] = split(result, [
+			[],
+			[node("small", shader, { size: [2, 1] })],
+		]);
+		expect(unchanged).toBe(result);
+		expect(small).toMatchObject({ inputs: { source: result }, size: [2, 1] });
+		const joined = merge({ base: source, source: small }, node("join", shader));
+		expect(joined.inputs.base).toBe(source);
+		expect(joined.inputs.source).toBe(small);
+		expect(joined.size).toEqual([8, 4]);
+		expect(joined.format).toBe("rgba16float");
+		expect(
+			getMockGPUDeviceInstrumentation(gpu.gpu).calls.createRenderPipeline ?? 0,
+		).toBe(0);
+	} finally {
+		image.color.dispose();
+		gpu.dispose();
+	}
+});
 
 test("a shared branch renders once and reuses effects, buffers, and temporary storage", async () => {
 	const gpu = await init();
@@ -47,6 +90,11 @@ test("a shared branch renders once and reuses effects, buffers, and temporary st
 		const buffers = calls.createBuffer;
 		const pipelines = calls.createRenderPipeline;
 		expect(graph.render([shared, joined])).toEqual([saved, output]);
+		expect(graph.render([joined, shared, joined])).toEqual([
+			output,
+			saved,
+			output,
+		]);
 		expect(calls.createBuffer).toBe(buffers);
 		expect(calls.createRenderPipeline).toBe(pipelines);
 		// Bypassing releases scratch storage; a changed output size reuses the remaining target.
@@ -65,6 +113,7 @@ test("a shared branch renders once and reuses effects, buffers, and temporary st
 		graph.dispose();
 		expect(() => saved.color.view).toThrow("destroyed");
 		expect(() => image.color.view).not.toThrow();
+		expect(() => graph.render([shared])).toThrow("closed");
 	} finally {
 		graph.dispose();
 		image.color.dispose();

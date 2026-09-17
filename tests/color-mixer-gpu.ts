@@ -1,9 +1,12 @@
 import { effect, frame, init, target } from "vgpu";
-import { createRenderGraph } from "@/core/render/graph";
-import { input as inputNode, pipeline } from "@/core/render/node";
+import type { ColorMixer } from "@/core/document";
+import {
+	createRenderGraph,
+	input as inputNode,
+	pipeline,
+} from "@/core/renderer";
 import { colors, defaultMixer } from "@/features/color-mixer/model";
 import { colorMixer } from "@/features/color-mixer/pass";
-import type { ColorMixer } from "@/lib/editor/scene";
 
 function working(rgb: number[], scale = 1) {
 	const [r, g, b] = rgb.map((value) =>

@@ -1,6 +1,6 @@
 import { expect, mock, spyOn, test } from "bun:test";
 import { init, target } from "vgpu/mock";
-import { decodeTiff } from "@/lib/decode/tiff";
+import { decodeTiff } from "@/core/image/decode/tiff";
 
 const decode = mock();
 mock.module("raw-webgpu", () => ({ decodeTiff: decode }));

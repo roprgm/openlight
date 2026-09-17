@@ -1,13 +1,16 @@
 import type { Gpu, Timer } from "vgpu";
-import { input, pipeline } from "@/core/render/node";
-import { createRenderer } from "@/core/render/renderer";
+import type { ImageSource } from "@/core/image";
+import {
+	createRenderer,
+	input,
+	pipeline,
+	transformImages,
+} from "@/core/renderer";
+import { adjustments } from "@/features/adjustments/pass";
+import { unsharpMask } from "@/features/adjustments/unsharp-mask";
 import { colorMixer } from "@/features/color-mixer/pass";
+import { toneCurves } from "@/features/tone-curves/pass";
 import { vignette } from "@/features/vignette/pass";
-import { adjustments } from "@/lib/adjustments";
-import { transformImages } from "@/lib/image-frame";
-import type { ImageSource } from "@/lib/image-source";
-import { toneCurves } from "@/lib/tone-curves";
-import { unsharpMask } from "@/lib/unsharp-mask";
 
 /** The same graph composition powers the editing preview and export. */
 export function createEditorRenderer(

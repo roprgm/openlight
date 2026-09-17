@@ -13,7 +13,7 @@ import { Field } from "@/components/ui/field";
 import { ScrubInput } from "@/components/ui/scrub-input";
 import { Slider } from "@/components/ui/slider";
 import Spinner from "@/components/ui/spinner";
-import type { Point } from "@/lib/image-frame/geometry";
+import type { Point } from "@/core/image/frame";
 import { type ExportFormat, exportImage, exportSize } from "./export-image";
 import { useEncodedPreview } from "./preview";
 

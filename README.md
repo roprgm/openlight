@@ -44,7 +44,7 @@ If the environment blocks local ports or browser processes, use its permitted ex
 | --- | --- |
 | `bun run check` | Format and lint; writes fixes. |
 | `bun run build` | Type-check and production build. |
-| `bun run test` | Browser-free integration tests using real modules and `vgpu/mock`. |
+| `bun run test` | Browser-free integration and core unit tests using real modules and `vgpu/mock`. |
 | `bun run test:browser` | GPU pixels, UI, and codec integration in Chromium. |
 
 Run all four after changes and before committing. [CI](.github/workflows/ci.yml) currently checks formatting/lint, Bun tests, and the build; it does not run browser tests.

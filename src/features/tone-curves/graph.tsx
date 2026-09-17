@@ -4,15 +4,14 @@ import {
 	type PointerEvent,
 	useState,
 } from "react";
+import type { CurvePoint, ToneCurve } from "@/core/document";
 import { clamp } from "@/lib/math";
 import {
-	type CurvePoint,
 	insertCurvePoint,
 	moveCurvePoint,
 	removeCurvePoint,
 	sampleCurve,
-	type ToneCurve,
-} from "@/lib/tone-curves/curve";
+} from "./curve";
 
 function gridLines(spacing: number) {
 	return Array.from({ length: 256 / spacing - 1 }, (_, index) => {

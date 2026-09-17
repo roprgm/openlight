@@ -1,5 +1,4 @@
-import type { EditorDocument } from "@/lib/editor/document";
-import type { Vignette } from "@/lib/editor/scene";
+import type { EditorDocument, Vignette } from "@/core/document";
 import { defaultVignette } from "./model";
 
 export function setVignette(

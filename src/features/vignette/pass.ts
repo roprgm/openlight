@@ -1,5 +1,5 @@
-import { node } from "@/core/render/node";
-import type { Vignette } from "@/lib/editor/scene";
+import type { Vignette } from "@/core/document";
+import { node } from "@/core/renderer";
 import shader from "./vignette.wgsl";
 
 export function vignette(settings?: Vignette) {

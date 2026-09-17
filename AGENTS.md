@@ -19,13 +19,13 @@ Write committed code, comments, documentation, and UI text in English. Use [CONT
 | Layer | Owns |
 | --- | --- |
 | 0 — `lib/` | Low-level code independent of OpenLight: math and utilities that could be standalone libraries. Keep it here when maintaining the small implementation is cheaper than a dependency, or when it is a candidate for extraction. |
-| 1 — shared primitives | Infrastructure generic within OpenLight: `core/` engine contracts and resource management, document management, reusable `components/` and `hooks/`. Engine code works without React; React bindings depend on it. |
+| 1 — shared primitives | `core/` owns document, image, and renderer infrastructure without React. Reusable `components/` and `hooks/` provide UI primitives and React bindings above it. |
 | 2 — `features/` | Removable product capabilities. A feature owns its processing, shaders, parameters, commands, components, and hooks as needed. Most product behavior belongs here. |
 | 3 — `app/` | Application shell, user entry points, and explicit composition of features and shared primitives. |
 
 Dependencies between layers point downward. Features do not import each other; `app/` connects them. Shared primitives must not import concrete features. Being reusable within OpenLight or independent of React does not qualify code for `lib/`.
 
-The current layout predates these boundaries: `lib/editor` still contains document infrastructure, and some feature processing lives in `lib/`. Rendering primitives live in `core/render/`. Follow ownership for new code and migrate existing code when the task needs that boundary; do not turn an unrelated change into a directory reorganization.
+`core/document` owns the serializable scene contract, history, and document resources; features own their defaults, validation, edits, and processing. `core/image` owns image sources, decoding, geometry, and the working color space. `core/renderer` exposes node composition, execution, transforms, and display through its module entry point. Keep module internals private unless a caller needs them; do not add an application-wide barrel.
 
 Keep ordinary feature changes in the feature, its tests, and explicit app composition. Change shared primitives when a concrete requirement needs a new capability. Features need neither identical file layouts nor a universal plugin interface. Keep the histogram in its feature.
 
@@ -52,12 +52,12 @@ Keep Tailwind classes inline. Reuse presentation through components or repeat cl
 - Keep `.wgsl` beside its owner. The Vite loader and ambient types are configured.
 - The working space is linear Rec.2020 in `rgba16float`. Decoders convert into it; display converts out. Processing outputs preserve the input format and primaries unless the operation explicitly converts them.
 - The adjustment shader's parameters use UI units. Its fitted constants are calibration data; preserve them when reorganizing code.
-- Preserve HDR headroom through exposure, curves, and vibrance. Exposure clips negatives and applies one luminance gain to all channels. `display()` in `lib/color.wgsl` maps out-of-gamut colors toward their luminance.
+- Preserve HDR headroom through exposure, curves, and vibrance. Exposure clips negatives and applies one luminance gain to all channels. `display()` in `core/image/color.wgsl` maps out-of-gamut colors toward their luminance.
 - TIFF and camera RAW use `raw-webgpu`. OpenLight adapts package resources to document ownership; codec implementation and coverage belong to the package.
 
 ## Tests and completion
 
-Prefer a few broad integration tests. Use Bun and real application modules with `vgpu/mock` for document, history, loader, and renderer orchestration. The mock does not execute shaders. Use Playwright for GPU pixels, browser interaction, and real format fixtures.
+Prefer a few broad integration tests for features. Core algorithms also merit focused unit tests, especially rendering order, branch/merge connections, and resource reuse. Use Bun and real application modules with `vgpu/mock` for document, history, loader, and renderer orchestration. The mock does not execute shaders. Use Playwright for GPU pixels, browser interaction, and real format fixtures.
 
 Extend the main editing session with named steps for controls, preview, histogram, undo/redo, and export. Steps may live in separate modules. Keep independent rendering and loading checks separate. Assert known pixel values with appropriate tolerances; changed state or screenshots alone do not establish rendering correctness.
 

@@ -7,18 +7,21 @@ import {
 	target,
 } from "vgpu/mock";
 import { createEditorRenderer as createRenderer } from "@/app/editor/renderer";
-import { createRenderGraph } from "@/core/render/graph";
-import { input, pipeline } from "@/core/render/node";
+import { createDocument, createResources } from "@/core/document";
+import { createImageSource } from "@/core/image";
+import { imageFrame } from "@/core/image/frame";
+import {
+	createDisplay,
+	createRenderGraph,
+	input,
+	pipeline,
+} from "@/core/renderer";
+import { setAdjustments } from "@/features/adjustments/edits";
+import { defaultAdjustments } from "@/features/adjustments/model";
+import { unsharpMask } from "@/features/adjustments/unsharp-mask";
+import { defaultCurve } from "@/features/tone-curves/curve";
+import { setToneCurve } from "@/features/tone-curves/edits";
 import { setWhiteBalance } from "@/features/white-balance/edits";
-import { createDocument } from "@/lib/editor/document";
-import { setAdjustments, setToneCurve } from "@/lib/editor/document/edits";
-import { createResources } from "@/lib/editor/document/resources";
-import { defaultAdjustments } from "@/lib/editor/scene";
-import { createDisplay } from "@/lib/image-display";
-import { imageFrame } from "@/lib/image-frame/geometry";
-import { createImageSource } from "@/lib/image-source";
-import { defaultCurve } from "@/lib/tone-curves/curve";
-import { unsharpMask } from "@/lib/unsharp-mask";
 
 test("RAW edits coalesce, recover from failure, and retain an exporting source after document replacement", async () => {
 	const gpu = await init();
