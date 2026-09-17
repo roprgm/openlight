@@ -19,6 +19,9 @@ function equal(a: Scene, b: Scene) {
 		shallow(frameValues(a.frame), frameValues(b.frame)) &&
 		shallow(a.adjustments, b.adjustments) &&
 		shallow(a.whiteBalance, b.whiteBalance) &&
+		shallow(a.colorMixer?.hue, b.colorMixer?.hue) &&
+		shallow(a.colorMixer?.saturation, b.colorMixer?.saturation) &&
+		shallow(a.colorMixer?.luminance, b.colorMixer?.luminance) &&
 		a.toneCurve.length === b.toneCurve.length &&
 		a.toneCurve.every((point, i) => shallow(point, b.toneCurve[i]))
 	);
@@ -56,14 +59,6 @@ export function createDocument(initial: Scene, resources = createResources()) {
 				throw new Error("Document is closed.");
 			}
 			validateFrame(next.frame);
-			const noiseReduction = next.noiseReduction ?? 0;
-			if (
-				!Number.isFinite(noiseReduction) ||
-				noiseReduction < 0 ||
-				noiseReduction > 100
-			) {
-				throw Error("Noise reduction must be between 0 and 100.");
-			}
 			update(next);
 		},
 		dispose() {

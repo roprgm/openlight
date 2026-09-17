@@ -18,9 +18,7 @@ Neither claims bit-exact reference BM3D or full covariance modeling. Fine textur
 can be mistaken for noise. Real-photo quality and physical-GPU performance still
 need comparison.
 
-The linear Bayer algorithm comes from the saved local RAW experiment. Its old
-exposure, white-balance and gamut experiments are not part of this branch. The
-original experiment consumed floating-point sensor codes; this adaptation reads
+This implementation reads
 `raw-webgpu`'s integer sensor texture and rounds the filtered result back to
 16-bit codes before development. Negative values relative to black and values
 above nominal white survive within the sensor's unsigned 16-bit range.
@@ -39,8 +37,14 @@ signed sRGB opponent channels and a half/quarter/eighth-resolution chroma pyrami
 
 ## Pipeline and ownership
 
+`../pass.ts` exposes preparation, rendering and disposal without React. The app's
+renderer factory inserts it before adjustments; the shared renderer and RAW
+adapter do not import noise reduction. `RawDevelopment.sensor.clone()` supplies
+an owned sensor copy. `bayer/source.ts` filters it lazily, shares concurrent work,
+releases failures, and permits retries. The feature owns its cache and commands.
+
 RAW decoding → Bayer denoise when supported → development → RGB denoise for
-other sources → amount blend → adjustments → curves → details → framing → export.
+other sources → amount blend → adjustments → curves → color mixer → details → framing → export.
 
 `bayer/index.ts` filters an exclusively owned second `raw-webgpu` source before
 its first development. The original sensor is preserved. It normalizes and packs
@@ -52,7 +56,8 @@ results by image source and absolute white balance between preview and export.
 Each Bayer white balance develops the already filtered sensor; it does not repeat
 sensor filtering. The RGB fallback recalculates for a changed RAW white balance.
 Each renderer owns its blend output. Closing the final renderer releases cached
-images; closing the source aborts pending Bayer work and releases both sensors.
+images and the private sensor, aborting pending Bayer work. The document owns
+the original sensor independently.
 
 ## Cost and precision
 
@@ -73,9 +78,8 @@ RGB alpha and translucent boundaries bypass filtering.
 Browser fixtures check exported pixels for noise error, color bias, texture,
 alpha, tile boundaries and exact zero bypass. A 320×320 Bayer detail pair from
 the local experiment additionally checks clean-image preservation. Bun tests
-cover cache ownership and the robust shot/read fit; mocks do not execute shaders.
-Historical benchmark numbers from the old RAW pipeline are not measurements of
-this adaptation.
+cover cache ownership, grouped edits, coalesced preparation, retries, cancellation
+and the robust shot/read fit; mocks do not execute shaders.
 
 The Bayer noise fit, linear variance propagation and triangular window replace
 the earlier GALOSH-derived helpers and constants. GALOSH was inspected during
@@ -88,3 +92,14 @@ Algorithm references: [Dabov et al., BM3D](https://webpages.tuni.fi/foi/GCF-BM3D
 and [Mäkinen et al., transform-domain noise variance](https://webpages.tuni.fi/foi/papers/ICIP2019_Ymir.pdf).
 These describe principles; this implementation omits covariance between matched
 patches and does not reproduce the exact-variance method.
+
+## Reproducing measurements
+
+Run `bun run test:browser --config playwright.bench.config.ts denoise.bench.ts`.
+The offscreen benchmark records decoding and first-use latency separately from
+repeated completed renders (8 warmups, 40 samples), then times the actual blend
+pass on 5000×4000 RGBA16F textures. React, display, export encoding and timing
+readback are outside the repeated-render interval. The expensive filter's compute
+dispatches are not timestamped; its first-use figure is a single diagnostic sample.
+See [the comparison and environment](../../../../docs/benchmarks/noise-reduction.md).
+Use hardware measurements to assess the 120 FPS budget; SwiftShader is not a proxy.

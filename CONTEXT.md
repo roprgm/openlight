@@ -1,26 +1,14 @@
-# OpenLight
+# Domain terms
 
 OpenLight edits documents containing image content and adjustments.
 
-## Language
+| Term | Meaning |
+| --- | --- |
+| **Document** | An independent editing session with its own canvas, history, and resources. Opening an image creates a document containing that image. |
+| **Scene** | The document's serializable content: canvas geometry, image-source references, and adjustments. Files and GPU resources live outside it. |
+| **Image source** | An image used as input to the document's composition. It is content within a document. |
+| **Edit** | One reversible content change. A continuous slider or curve drag is one edit, as is importing a set of adjustments. |
+| **Workspace** | The open-document session. It currently holds at most one document, replaced when another image is opened. |
+| **Mode** | An editor task area: Adjust, Layers, Retouch, Crop, or Export. Switching modes changes tools and panels, not the document. |
 
-**Document**:
-An independent editing session with its own canvas and history. Opening an image creates a document containing that image.
-_Avoid_: Image, input file, scene
-
-**Scene**:
-The current content of a document, including its canvas dimensions, image references, and adjustments.
-_Avoid_: Open file, texture
-
-**Image source**:
-An image used as input to a document's composition. It is content within the document, not the document itself.
-
-**Edit**:
-One reversible change to document content. A continuous slider or curve drag is one edit, as is importing a set of adjustments.
-
-**Workspace**:
-The application's open-document session. It currently contains at most one document, replaced when another image is opened.
-
-**Mode**:
-One of the editor's task areas: Adjust, Layers, Retouch, Crop, or Export. Switching modes changes the visible tools and panel, not the document.
-_Avoid_: Tab, page, persona, tool
+Use these names consistently in code, UI text, and documentation.

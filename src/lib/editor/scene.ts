@@ -46,6 +46,13 @@ export const adjustmentMinimums: Partial<Adjustments> = {
 	sharpenRadius: 0.5,
 };
 
+/** Eight color ranges, ordered red through magenta; values use -100..100 UI units. */
+export type ColorMixer = {
+	readonly hue: readonly number[];
+	readonly saturation: readonly number[];
+	readonly luminance: readonly number[];
+};
+
 /** Serializable document content. Image bytes and GPU resources live elsewhere. */
 export type Scene = {
 	readonly frame: ImageFrame;
@@ -54,4 +61,5 @@ export type Scene = {
 	readonly whiteBalance?: Readonly<WhiteBalance>;
 	readonly adjustments: Readonly<Adjustments>;
 	readonly toneCurve: ToneCurve;
+	readonly colorMixer?: ColorMixer;
 };

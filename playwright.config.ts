@@ -4,6 +4,15 @@ const args = ["--enable-unsafe-webgpu"];
 if (process.platform !== "darwin") {
 	args.push("--use-webgpu-adapter=swiftshader");
 }
+if (process.platform === "linux") {
+	// Canvas presentation and image copies must use the same software Vulkan backend.
+	args.push(
+		"--enable-features=Vulkan",
+		"--use-angle=vulkan",
+		"--use-vulkan=swiftshader",
+		"--disable-vulkan-surface",
+	);
+}
 
 export default defineConfig({
 	testDir: "./tests",

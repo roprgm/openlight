@@ -1,15 +1,20 @@
 import type { Gpu, Target } from "vgpu";
 import type { ImageSource, WhiteBalance } from "@/lib/image-source";
+import { createBayerDenoising } from "./bayer/source";
 import { createDenoising } from "./index";
 
-function createEntry(gpu: Gpu, resource: ImageSource, balance?: WhiteBalance) {
+function createEntry(
+	gpu: Gpu,
+	resource: ImageSource,
+	bayer: ReturnType<typeof createBayerDenoising>,
+	balance?: WhiteBalance,
+) {
 	const asShot = resource.raw?.asShot;
 	const changed =
 		balance &&
 		(balance.temperature !== asShot?.temperature ||
 			balance.tint !== asShot?.tint);
-	const denoised = resource.raw?.createDenoisedPass?.();
-	const raw = denoised ?? (changed ? resource.raw?.createPass() : undefined);
+	let raw = !bayer && changed ? resource.raw?.createPass() : undefined;
 	let ready = false;
 	let filter: ReturnType<typeof createDenoising> | undefined;
 	let pending: Promise<void> | undefined;
@@ -18,13 +23,20 @@ function createEntry(gpu: Gpu, resource: ImageSource, balance?: WhiteBalance) {
 		if (ready) {
 			return;
 		}
+		if (bayer && !raw) {
+			const sensor = await bayer.prepare();
+			if (disposed) {
+				throw Error("Noise reduction was cancelled.");
+			}
+			raw = sensor.createPass();
+		}
 		if (raw && balance) {
 			await raw.prepare(balance);
 		}
 		if (disposed) {
 			throw Error("Noise reduction was cancelled.");
 		}
-		if (!denoised) {
+		if (!bayer) {
 			filter ??= createDenoising(gpu, raw?.render() ?? resource.image);
 			await filter.prepare(100);
 		}
@@ -32,8 +44,12 @@ function createEntry(gpu: Gpu, resource: ImageSource, balance?: WhiteBalance) {
 	}
 	return {
 		users: 0,
-		texture: () =>
-			ready ? (denoised?.render() ?? filter?.texture()) : undefined,
+		texture() {
+			if (!ready) {
+				return;
+			}
+			return bayer ? raw?.render() : filter?.texture();
+		},
 		prepare() {
 			pending ??= prepare().finally(() => {
 				pending = undefined;
@@ -49,14 +65,23 @@ function createEntry(gpu: Gpu, resource: ImageSource, balance?: WhiteBalance) {
 }
 
 type Entry = ReturnType<typeof createEntry>;
-type Cache = { users: number; entries: Map<string, Entry>; latest?: Entry };
+type Cache = {
+	users: number;
+	entries: Map<string, Entry>;
+	latest?: Entry;
+	bayer: ReturnType<typeof createBayerDenoising>;
+};
 const caches = new WeakMap<Target, Cache>();
 
 /** Share immutable results between preview/export. Keep one idle WB result plus active readers. */
 export function createCachedDenoising(gpu: Gpu, resource: ImageSource) {
 	let cache = caches.get(resource.image);
 	if (!cache) {
-		cache = { users: 0, entries: new Map() };
+		cache = {
+			users: 0,
+			entries: new Map(),
+			bayer: createBayerDenoising(gpu, resource.raw?.sensor),
+		};
 		caches.set(resource.image, cache);
 	}
 	const shared = cache;
@@ -86,7 +111,7 @@ export function createCachedDenoising(gpu: Gpu, resource: ImageSource) {
 			const key = selected ? `${selected.temperature}:${selected.tint}` : "rgb";
 			let entry = shared.entries.get(key);
 			if (!entry) {
-				entry = createEntry(gpu, resource, selected);
+				entry = createEntry(gpu, resource, shared.bayer, selected);
 				shared.entries.set(key, entry);
 			}
 			if (current !== entry) {
@@ -111,6 +136,7 @@ export function createCachedDenoising(gpu: Gpu, resource: ImageSource) {
 			shared.users--;
 			collect();
 			if (!shared.users) {
+				shared.bayer?.dispose();
 				caches.delete(resource.image);
 			}
 		},
