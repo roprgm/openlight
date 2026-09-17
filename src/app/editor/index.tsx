@@ -6,6 +6,7 @@ import Spinner from "@/components/ui/spinner";
 import { EditorCanvas } from "./canvas";
 import { ModeRail } from "./mode-rail";
 import { ModeProvider, useMode } from "./modes";
+import { createEditorRenderer } from "./renderer";
 
 function ModeView() {
 	const { mode } = useMode();
@@ -45,7 +46,7 @@ function EditorContent({ state }: EditorProps) {
 	if (state.status === "ready") {
 		return (
 			<DocumentProvider key={state.document.id} value={state.document}>
-				<RendererProvider>
+				<RendererProvider createRenderer={createEditorRenderer}>
 					<DocumentEditor />
 				</RendererProvider>
 			</DocumentProvider>

@@ -7,6 +7,12 @@ import { createCameraRawXmpLoader } from "@/app/loaders/camera-raw-xmp";
 import { createImageLoader } from "@/app/loaders/image";
 import { createLoaderRegistry } from "@/app/loaders/registry";
 import type { Workspace } from "@/app/workspace";
+import { resetColorMixer, setColorMixer } from "@/features/color-mixer/edits";
+import {
+	defaultMixer,
+	type MixerChange,
+	type MixerColor,
+} from "@/features/color-mixer/model";
 import { setWhiteBalance } from "@/features/white-balance/edits";
 import type { Preview } from "@/lib/editor/document";
 import { setAdjustments, setToneCurve } from "@/lib/editor/document/edits";
@@ -38,6 +44,9 @@ export function createControls(gpu: Gpu, workspace: Workspace) {
 			setWhiteBalance(workspace.getDocument(), change),
 		setToneCurve: (curve?: ToneCurve) =>
 			setToneCurve(workspace.getDocument(), curve),
+		setColorMixer: (color: MixerColor, change: MixerChange) =>
+			setColorMixer(workspace.getDocument(), color, change),
+		resetColorMixer: () => resetColorMixer(workspace.getDocument()),
 		editScene(change: Partial<Scene>) {
 			const document = workspace.getDocument();
 			document.edit({ ...document.scene.getState(), ...change });
@@ -63,6 +72,7 @@ export function createControls(gpu: Gpu, workspace: Workspace) {
 				adjustments: scene?.adjustments ?? defaultAdjustments,
 				whiteBalance: scene?.whiteBalance,
 				toneCurve: scene?.toneCurve ?? defaultCurve,
+				colorMixer: scene?.colorMixer ?? defaultMixer,
 				history: document?.history.status.getState() ?? {
 					undoCount: 0,
 					redoCount: 0,

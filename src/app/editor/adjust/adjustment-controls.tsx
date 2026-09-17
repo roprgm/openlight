@@ -67,7 +67,13 @@ function ColorTemperatureControls() {
 	);
 }
 
-export default function AdjustmentControls({ curves }: { curves: ReactNode }) {
+export default function AdjustmentControls({
+	curves,
+	colorMixer,
+}: {
+	curves: ReactNode;
+	colorMixer: ReactNode;
+}) {
 	return (
 		<>
 			<Collapsible title="Light">
@@ -96,6 +102,7 @@ export default function AdjustmentControls({ curves }: { curves: ReactNode }) {
 					/>
 				</div>
 			</Collapsible>
+			{colorMixer}
 			<Collapsible title="Details">
 				<div className="flex flex-col gap-2">
 					<AdjustmentSlider name="clarity" label="Clarity" />
