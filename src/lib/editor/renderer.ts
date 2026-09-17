@@ -1,14 +1,19 @@
-import { type Frame, frame, type Gpu, type Target } from "vgpu";
-import { createAdjustments } from "@/lib/adjustments";
+import type { Gpu, Target, Timer } from "vgpu";
+import { createRenderGraph, type RenderImage } from "@/engine/render-graph";
 import type { Scene } from "@/lib/editor/scene";
-import { createImageFrame } from "@/lib/image-frame";
 import type { ImageSource, WhiteBalance } from "@/lib/image-source";
-import { createToneCurves } from "@/lib/tone-curves";
-import { createUnsharpMask } from "@/lib/unsharp-mask";
 
-/** An optional document effect, composed after curves and before detail filtering. */
-export type SceneEffect = {
-	render(frame: Frame, input: Target, scene: Scene): Target;
+/** App composition describes requested outputs; the engine owns their storage. */
+export type SceneProcessing = {
+	build(
+		source: Target,
+		scene: Scene,
+	): {
+		original: RenderImage;
+		input: RenderImage;
+		full: RenderImage;
+		output: RenderImage;
+	};
 	dispose(): void;
 };
 
@@ -20,49 +25,31 @@ function sameBalance(a: WhiteBalance | undefined, b: WhiteBalance | undefined) {
 export function createRenderer(
 	gpu: Gpu,
 	resource: ImageSource,
-	createEffect?: (gpu: Gpu, source: Target) => SceneEffect,
+	processing: SceneProcessing,
+	clock?: Timer,
 ) {
 	const source = resource.image;
-	const adjust = createAdjustments(gpu, source);
-	const adjusted = adjust.output;
-	const toneCurves = createToneCurves(gpu, adjusted);
-	const clarity = createUnsharpMask(gpu, source, 16);
-	const sharpen = createUnsharpMask(gpu, source);
-	const effect = createEffect?.(gpu, source);
-
-	const transform = createImageFrame(gpu);
+	const graph = createRenderGraph(gpu, clock);
 	const release = resource.retain();
 	const raw = resource.raw?.createPass();
 	let original = source;
-	let input = adjusted;
-	let fullImage = adjusted;
+	let input = source;
+	let fullImage = source;
 	const listeners = new Set<() => void>();
 	let rendered = false;
-	let output = adjusted;
+	let output = source;
 	let balance = resource.raw?.asShot;
 	let next: Scene | undefined;
 	let pending: Promise<void> | undefined;
 	let disposed = false;
 	function render(scene: Scene) {
-		frame(gpu, (frame) => {
-			const developed = raw?.render() ?? source;
-			adjust.render(frame, scene.adjustments, developed);
-			const curved = toneCurves.render(frame, scene.toneCurve);
-			const colored = effect?.render(frame, curved, scene) ?? curved;
-			const { clarity: amount, sharpening, sharpenRadius } = scene.adjustments;
-			const clarified = clarity.render(frame, colored, amount / 200, 64);
-			fullImage = sharpen.render(
-				frame,
-				clarified,
-				sharpening / 50,
-				sharpenRadius,
-			);
-			[original, input, output] = transform.render(
-				frame,
-				[source, adjusted, fullImage],
-				scene.frame,
-			);
-		});
+		const images = processing.build(raw?.render() ?? source, scene);
+		[original, input, fullImage, output] = graph.render([
+			images.original,
+			images.input,
+			images.full,
+			images.output,
+		]);
 		rendered = true;
 		for (const listener of listeners) {
 			listener();
@@ -115,6 +102,7 @@ export function createRenderer(
 		inputImage: () => input,
 		fullImage: () => fullImage,
 		outputImage: () => output,
+		inspect: graph.inspect,
 		subscribe(listener: () => void) {
 			listeners.add(listener);
 			if (rendered) {
@@ -131,12 +119,8 @@ export function createRenderer(
 			}
 			disposed = true;
 			listeners.clear();
-			adjust.dispose();
-			toneCurves.dispose();
-			clarity.dispose();
-			sharpen.dispose();
-			effect?.dispose();
-			transform.dispose();
+			graph.dispose();
+			processing.dispose();
 			raw?.dispose();
 			release();
 		},

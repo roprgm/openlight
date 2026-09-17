@@ -1,11 +1,5 @@
-import {
-	effect,
-	type Frame,
-	type Gpu,
-	sampler,
-	type Target,
-	target,
-} from "vgpu";
+import { effect, type Gpu, sampler } from "vgpu";
+import { type RenderImage, renderNode } from "@/engine/render-graph";
 import shader from "./adjustments.wgsl";
 
 /** UI units: exposure in stops, every other adjustment in -100..100. */
@@ -22,25 +16,17 @@ export type Adjustments = {
 	saturation: number;
 };
 
-/** Owns the adjustment pass and output for one source. */
-export function createAdjustments(gpu: Gpu, source: Target) {
-	const output = target(gpu, { size: source.size, format: source.format });
+export function createAdjustments(gpu: Gpu) {
 	const apply = effect(gpu, shader, {
 		set: {
-			source: source.color,
 			sourceSampler: sampler(gpu, {
 				minFilter: "linear",
 				magFilter: "linear",
 			}),
 		},
 	});
-	return {
-		output,
-		render(frame: Frame, adjustments: Adjustments, input = source) {
-			frame.pass(output, apply.set({ adjustments, source: input.color }));
-		},
-		dispose() {
-			output.color.dispose();
-		},
-	};
+	return (input: RenderImage, adjustments: Adjustments) =>
+		renderNode("adjustments", [input], ([image]) =>
+			apply.set({ adjustments, source: image.color }),
+		);
 }

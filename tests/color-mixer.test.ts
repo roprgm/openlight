@@ -50,7 +50,7 @@ test("color edits validate, group, cancel and reset while renderers reuse and re
 		expect(renderer.outputImage()).toBe(original);
 		document.history.redo();
 		await renderer.update(document.scene.getState());
-		expect(renderer.outputImage()).toBe(edited);
+		expect(renderer.inspect().passes).toEqual(["adjustments", "color-mixer"]);
 		expect(calls.createRenderPipeline).toBe(pipelines);
 		for (const value of [NaN, Infinity, -101, 101]) {
 			expect(() => setColorMixer(document, "red", { hue: value })).toThrow(

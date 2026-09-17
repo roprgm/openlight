@@ -1,27 +1,27 @@
-import { effect, type Frame, type Gpu, type Target, target } from "vgpu";
+import { effect, type Gpu } from "vgpu";
+import { type RenderImage, renderNode } from "@/engine/render-graph";
 import { sampleCurve, type ToneCurve } from "./curve";
 import shader from "./curves.wgsl";
 
 const curveSize = 1024;
 
-export function createToneCurves(gpu: Gpu, source: Target) {
-	const output = target(gpu, { size: source.size, format: source.format });
+export function createToneCurves(gpu: Gpu) {
 	const curve = gpu.device.createBuffer({
 		size: curveSize * Float32Array.BYTES_PER_ELEMENT,
 		usage: ["storage", "copy_dst"],
 	});
-	const apply = effect(gpu, shader, { set: { source: source.color, curve } });
+	const apply = effect(gpu, shader, { set: { curve } });
 	return {
-		render(frame: Frame, points: ToneCurve) {
+		render(input: RenderImage, points: ToneCurve) {
 			if (points.every((point) => point.x === point.y)) {
-				return source;
+				return input;
 			}
-			curve.write(sampleCurve(points, curveSize));
-			frame.pass(output, apply);
-			return output;
+			return renderNode("curves", [input], ([image]) => {
+				curve.write(sampleCurve(points, curveSize));
+				return apply.set({ source: image.color });
+			});
 		},
 		dispose() {
-			output.color.dispose();
 			curve.dispose();
 		},
 	};

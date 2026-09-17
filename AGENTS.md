@@ -48,6 +48,7 @@ Keep Tailwind classes inline. Reuse presentation through components or repeat cl
 ## GPU invariants
 
 - Use `vgpu-react` for React bindings and `vgpu` for GPU operations. Create pipelines once per engine instance and reuse them.
+- Processing uses the [render node contract](PERFORMANCE.md#instrumentation). Features declare passes and inputs; the graph owns intermediate textures and timing. Connect nodes in app composition, keeping the engine independent of concrete features.
 - Keep `.wgsl` beside its owner. The Vite loader and ambient types are configured.
 - The working space is linear Rec.2020 in `rgba16float`. Decoders convert into it; display converts out. Processing outputs preserve the input format and primaries unless the operation explicitly converts them.
 - The adjustment shader's parameters use UI units. Its fitted constants are calibration data; preserve them when reorganizing code.
