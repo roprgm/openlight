@@ -6,7 +6,7 @@ Image processing runs locally with WebGPU. Built with TypeScript and React; requ
 
 ## Features
 
-- Light and color adjustments, tone curves, clarity, and sharpening.
+- Light and color adjustments, tone curves, clarity, sharpening, and vignette.
 - Color Mixer with eight hue, saturation, and luminance ranges.
 - Crop, rotate, straighten, flip, pan, and zoom.
 - Undo/redo, before/after comparison, RGB histogram, and clipping overlays.
@@ -63,6 +63,8 @@ One browser worker reduces CPU contention with SwiftShader. The mock does not ex
 After [browser setup](#browser-setup), run `bun run test:browser --config playwright.bench.config.ts` separately from other GPU/browser work. It measures the renderer without the mixer, with neutral settings, and with all eight ranges active (hue 20, saturation 25, luminance 10). The fixture is a deterministic 2400×1600 linear Rec.2020 gradient containing neutrals, saturated colors, and HDR values; exposure is 0.25 and contrast is 10. Each workload uses 8 warmups and 40 measured samples.
 
 Results and rendered PNGs are written under `test-results/benchmarks`. JSON includes environment details, individual samples, median/p95, renderer setup, first render, completed-render latency, and isolated mixer GPU timestamps when supported. Display, readback, and image encoding run outside the measured rendering loop. Software-adapter results describe that backend only. A hardware measurement requires a browser configuration that does not force SwiftShader; record the adapter actually used.
+
+For vignette measurements, select `--grep "rendering vignette-"`: the editor renderer runs with intensity 0 or 80 and softness 60, with neutral color mixing. The active workload also measures the isolated vignette pass.
 
 For revision comparisons, run the same benchmark files and browser configuration in both checkouts. Revisions predating the mixer can run `--grep 'rendering baseline'`. The benchmark is opt-in and excluded from the regular test suite; correctness remains covered by the GPU pixel test and editing session. See [PERFORMANCE.md](PERFORMANCE.md) for measurement scope and interpretation.
 
