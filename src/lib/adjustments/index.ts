@@ -1,5 +1,4 @@
-import { effect, type Gpu, sampler } from "vgpu";
-import { type RenderImage, renderNode } from "@/engine/render-graph";
+import { type RenderImage, renderNode } from "@/core/render/node";
 import shader from "./adjustments.wgsl";
 
 /** UI units: exposure in stops, every other adjustment in -100..100. */
@@ -16,17 +15,10 @@ export type Adjustments = {
 	saturation: number;
 };
 
-export function createAdjustments(gpu: Gpu) {
-	const apply = effect(gpu, shader, {
-		set: {
-			sourceSampler: sampler(gpu, {
-				minFilter: "linear",
-				magFilter: "linear",
-			}),
-		},
+export function adjustments(input: RenderImage, values: Adjustments) {
+	return renderNode("adjustments", shader, {
+		inputs: { source: input },
+		set: { adjustments: values },
+		samplers: { sourceSampler: { minFilter: "linear", magFilter: "linear" } },
 	});
-	return (input: RenderImage, adjustments: Adjustments) =>
-		renderNode("adjustments", [input], ([image]) =>
-			apply.set({ adjustments, source: image.color }),
-		);
 }

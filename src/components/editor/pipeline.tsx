@@ -9,7 +9,7 @@ import {
 import type { Gpu } from "vgpu";
 import { useGpu } from "vgpu-react";
 import { useDocument, useScene } from "@/components/editor/session";
-import type { createRenderer } from "@/lib/editor/renderer";
+import type { createRenderer } from "@/core/render/renderer";
 import type { ImageSource } from "@/lib/image-source";
 
 const RendererContext = createContext<ReturnType<typeof createRenderer> | null>(

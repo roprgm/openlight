@@ -1,16 +1,13 @@
-import { effect, type Gpu } from "vgpu";
-import { type RenderImage, renderNode } from "@/engine/render-graph";
+import { type RenderImage, renderNode } from "@/core/render/node";
 import type { Vignette } from "@/lib/editor/scene";
 import shader from "./vignette.wgsl";
 
-export function createVignette(gpu: Gpu) {
-	const apply = effect(gpu, shader);
-	return (input: RenderImage, vignette?: Vignette) => {
-		if (!vignette || vignette.intensity === 0) {
-			return input;
-		}
-		return renderNode("vignette", [input], ([image]) =>
-			apply.set({ source: image.color, params: vignette }),
-		);
-	};
+export function vignette(input: RenderImage, settings?: Vignette) {
+	if (!settings || settings.intensity === 0) {
+		return input;
+	}
+	return renderNode("vignette", shader, {
+		inputs: { source: input },
+		set: { params: settings },
+	});
 }

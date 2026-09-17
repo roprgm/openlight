@@ -1,7 +1,7 @@
 import { effect, frame, init, target } from "vgpu";
-import { createRenderGraph } from "@/engine/render-graph";
+import { createRenderGraph } from "@/core/render/graph";
 import { colors, defaultMixer } from "@/features/color-mixer/model";
-import { createColorMixer } from "@/features/color-mixer/pass";
+import { colorMixer } from "@/features/color-mixer/pass";
 import type { ColorMixer } from "@/lib/editor/scene";
 
 function working(rgb: number[], scale = 1) {
@@ -63,7 +63,6 @@ export async function probeColorMixer() {
   `,
 		{ set: { samples: data } },
 	);
-	const mixer = createColorMixer(gpu);
 	const graph = createRenderGraph(gpu);
 	const uniform = (channel: keyof ColorMixer, value: number): ColorMixer => ({
 		...defaultMixer,
@@ -82,7 +81,7 @@ export async function probeColorMixer() {
 		await gpu.gpu.queue.onSubmittedWorkDone();
 		const original = [...(await input.readFloats())];
 		const outputs = [];
-		for (const colorMixer of [
+		for (const settings of [
 			defaultMixer,
 			uniform("hue", 100),
 			uniform("hue", -100),
@@ -92,13 +91,12 @@ export async function probeColorMixer() {
 			selected(5, "saturation", -100),
 			selected(0, "hue", 100),
 		]) {
-			const [output] = graph.render([mixer.render(input, colorMixer)]);
+			const [output] = graph.render([colorMixer(input, settings)]);
 			outputs.push([...(await output.readFloats())]);
 		}
 		return { original, outputs, sampleCount: samples.length };
 	} finally {
 		graph.dispose();
-		mixer.dispose();
 		input.color.dispose();
 		data.dispose();
 		gpu.dispose();

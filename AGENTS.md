@@ -19,13 +19,13 @@ Write committed code, comments, documentation, and UI text in English. Use [CONT
 | Layer | Owns |
 | --- | --- |
 | 0 — `lib/` | Low-level code independent of OpenLight: math and utilities that could be standalone libraries. Keep it here when maintaining the small implementation is cheaper than a dependency, or when it is a candidate for extraction. |
-| 1 — shared primitives | Infrastructure generic within OpenLight: engine contracts, document and resource management, reusable `components/` and `hooks/`. Engine code works without React; React bindings depend on it. |
+| 1 — shared primitives | Infrastructure generic within OpenLight: `core/` engine contracts and resource management, document management, reusable `components/` and `hooks/`. Engine code works without React; React bindings depend on it. |
 | 2 — `features/` | Removable product capabilities. A feature owns its processing, shaders, parameters, commands, components, and hooks as needed. Most product behavior belongs here. |
 | 3 — `app/` | Application shell, user entry points, and explicit composition of features and shared primitives. |
 
 Dependencies between layers point downward. Features do not import each other; `app/` connects them. Shared primitives must not import concrete features. Being reusable within OpenLight or independent of React does not qualify code for `lib/`.
 
-The current layout predates these boundaries: `lib/editor` contains shared engine code, and some feature processing still lives in `lib/`. Follow ownership for new code and migrate existing code when the task needs that boundary; do not turn an unrelated change into a directory reorganization.
+The current layout predates these boundaries: `lib/editor` still contains document infrastructure, and some feature processing lives in `lib/`. Rendering primitives live in `core/render/`. Follow ownership for new code and migrate existing code when the task needs that boundary; do not turn an unrelated change into a directory reorganization.
 
 Keep ordinary feature changes in the feature, its tests, and explicit app composition. Change shared primitives when a concrete requirement needs a new capability. Features need neither identical file layouts nor a universal plugin interface. Keep the histogram in its feature.
 

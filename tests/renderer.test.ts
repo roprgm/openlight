@@ -7,7 +7,7 @@ import {
 	target,
 } from "vgpu/mock";
 import { createEditorRenderer as createRenderer } from "@/app/editor/renderer";
-import { createRenderGraph } from "@/engine/render-graph";
+import { createRenderGraph } from "@/core/render/graph";
 import { setWhiteBalance } from "@/features/white-balance/edits";
 import { createDocument } from "@/lib/editor/document";
 import { setAdjustments, setToneCurve } from "@/lib/editor/document/edits";
@@ -17,7 +17,7 @@ import { createDisplay } from "@/lib/image-display";
 import { imageFrame } from "@/lib/image-frame/geometry";
 import { createImageSource } from "@/lib/image-source";
 import { defaultCurve } from "@/lib/tone-curves/curve";
-import { createUnsharpMask } from "@/lib/unsharp-mask";
+import { unsharpMask } from "@/lib/unsharp-mask";
 
 test("RAW edits coalesce, recover from failure, and retain an exporting source after document replacement", async () => {
 	const gpu = await init();
@@ -127,11 +127,16 @@ test.each([1, 16])(
 		const gpu = await init();
 		const source = target(gpu, { size: [127, 65], format: "rgba16float" });
 		const graph = createRenderGraph(gpu);
-		const clarity = createUnsharpMask(gpu, "detail", reduction);
 		let output = source;
 		const render = (amount: number) => {
 			[output] = graph.render([
-				clarity(source, amount / 200, reduction === 1 ? 1 : 64),
+				unsharpMask(
+					"detail",
+					source,
+					amount / 200,
+					reduction === 1 ? 1 : 64,
+					reduction,
+				),
 			]);
 		};
 		try {

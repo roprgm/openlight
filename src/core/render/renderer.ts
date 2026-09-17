@@ -1,20 +1,18 @@
 import type { Gpu, Target, Timer } from "vgpu";
-import { createRenderGraph, type RenderImage } from "@/engine/render-graph";
 import type { Scene } from "@/lib/editor/scene";
 import type { ImageSource, WhiteBalance } from "@/lib/image-source";
+import { createRenderGraph } from "./graph";
+import type { RenderImage } from "./node";
 
 /** App composition describes requested outputs; the engine owns their storage. */
-export type SceneProcessing = {
-	build(
-		source: Target,
-		scene: Scene,
-	): {
-		original: RenderImage;
-		input: RenderImage;
-		full: RenderImage;
-		output: RenderImage;
-	};
-	dispose(): void;
+export type SceneProcessing = (
+	source: Target,
+	scene: Scene,
+) => {
+	original: RenderImage;
+	input: RenderImage;
+	full: RenderImage;
+	output: RenderImage;
 };
 
 function sameBalance(a: WhiteBalance | undefined, b: WhiteBalance | undefined) {
@@ -43,7 +41,7 @@ export function createRenderer(
 	let pending: Promise<void> | undefined;
 	let disposed = false;
 	function render(scene: Scene) {
-		const images = processing.build(raw?.render() ?? source, scene);
+		const images = processing(raw?.render() ?? source, scene);
 		[original, input, fullImage, output] = graph.render([
 			images.original,
 			images.input,
@@ -120,7 +118,6 @@ export function createRenderer(
 			disposed = true;
 			listeners.clear();
 			graph.dispose();
-			processing.dispose();
 			raw?.dispose();
 			release();
 		},
