@@ -31,4 +31,4 @@ The [benchmark](tests/rendering-benchmark.ts) measures uninstrumented repeated r
 
 Fused shader operations share a pass duration; they are not individually timed. Compute dispatches and opaque package operations need supported instrumentation before claiming GPU timing coverage. Editing must work when profiling is unavailable.
 
-Include reproducible results and their interpretation in the PR. An isolated benchmark explains cost; the complete workload establishes application impact. An environment failure is a verification gap, not evidence of unchanged performance.
+Reuse the existing [benchmark](tests/rendering.bench.ts) and timing helpers for the affected workload. An isolated benchmark explains cost; the complete workload establishes application impact. Summarize reproducible results and their interpretation in the PR; follow the [evidence rules](AGENTS.md#tests-and-completion) for detailed artifacts. An environment failure is a verification gap, not evidence of unchanged performance.
