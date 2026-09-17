@@ -1,5 +1,8 @@
 import { luminance, rec2020ToSrgb, srgbToRec2020 } from "../../lib/color.wgsl";
 
+// Selective color in Oklab: at +/-100 a range turns hue 30 degrees, scales chroma 0..2x or moves luminance one stop.
+// The import above is relative because the shader loader does not resolve the `@/` alias.
+
 @group(0) @binding(0) var source: texture_2d<f32>;
 @group(0) @binding(1) var<storage, read> settings: array<vec4f>;
 
