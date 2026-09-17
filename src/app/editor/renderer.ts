@@ -1,4 +1,5 @@
 import type { Gpu, Timer } from "vgpu";
+import { input, pipeline } from "@/core/render/node";
 import { createRenderer } from "@/core/render/renderer";
 import { colorMixer } from "@/features/color-mixer/pass";
 import { vignette } from "@/features/vignette/pass";
@@ -17,26 +18,21 @@ export function createEditorRenderer(
 	return createRenderer(
 		gpu,
 		source,
-		(input, scene) => {
-			const adjusted = adjustments(input, scene.adjustments);
-			const curved = toneCurves(adjusted, scene.toneCurve);
-			const colored = colorMixer(curved, scene.colorMixer);
-			const vignetted = vignette(colored, scene.vignette);
-			const clarified = unsharpMask(
-				"clarity",
-				vignetted,
-				scene.adjustments.clarity / 200,
-				64,
-				16,
-			);
-			const full = unsharpMask(
-				"sharpen",
-				clarified,
-				scene.adjustments.sharpening / 50,
-				scene.adjustments.sharpenRadius,
-			);
+		(image, scene) => {
+			const adjusted = pipeline(image, [adjustments(scene.adjustments)]);
+			const full = pipeline(adjusted, [
+				toneCurves(scene.toneCurve),
+				colorMixer(scene.colorMixer),
+				vignette(scene.vignette),
+				unsharpMask("clarity", scene.adjustments.clarity / 200, 64, 16),
+				unsharpMask(
+					"sharpen",
+					scene.adjustments.sharpening / 50,
+					scene.adjustments.sharpenRadius,
+				),
+			]);
 			const [original, beforeCurves, output] = transformImages(
-				[source.image, adjusted, full],
+				[input(source.image), adjusted, full],
 				scene.frame,
 			);
 			return { original, input: beforeCurves, full, output };

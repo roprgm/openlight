@@ -1,4 +1,4 @@
-import { type RenderImage, renderNode } from "@/core/render/node";
+import { node } from "@/core/render/node";
 import shader from "./adjustments.wgsl";
 
 /** UI units: exposure in stops, every other adjustment in -100..100. */
@@ -15,9 +15,8 @@ export type Adjustments = {
 	saturation: number;
 };
 
-export function adjustments(input: RenderImage, values: Adjustments) {
-	return renderNode("adjustments", shader, {
-		inputs: { source: input },
+export function adjustments(values: Adjustments) {
+	return node("adjustments", shader, {
 		set: { adjustments: values },
 		samplers: { sourceSampler: { minFilter: "linear", magFilter: "linear" } },
 	});

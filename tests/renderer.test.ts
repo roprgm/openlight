@@ -8,6 +8,7 @@ import {
 } from "vgpu/mock";
 import { createEditorRenderer as createRenderer } from "@/app/editor/renderer";
 import { createRenderGraph } from "@/core/render/graph";
+import { input, pipeline } from "@/core/render/node";
 import { setWhiteBalance } from "@/features/white-balance/edits";
 import { createDocument } from "@/lib/editor/document";
 import { setAdjustments, setToneCurve } from "@/lib/editor/document/edits";
@@ -130,13 +131,14 @@ test.each([1, 16])(
 		let output = source;
 		const render = (amount: number) => {
 			[output] = graph.render([
-				unsharpMask(
-					"detail",
-					source,
-					amount / 200,
-					reduction === 1 ? 1 : 64,
-					reduction,
-				),
+				pipeline(input(source), [
+					unsharpMask(
+						"detail",
+						amount / 200,
+						reduction === 1 ? 1 : 64,
+						reduction,
+					),
+				]),
 			]);
 		};
 		try {

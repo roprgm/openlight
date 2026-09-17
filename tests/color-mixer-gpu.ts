@@ -1,5 +1,6 @@
 import { effect, frame, init, target } from "vgpu";
 import { createRenderGraph } from "@/core/render/graph";
+import { input as inputNode, pipeline } from "@/core/render/node";
 import { colors, defaultMixer } from "@/features/color-mixer/model";
 import { colorMixer } from "@/features/color-mixer/pass";
 import type { ColorMixer } from "@/lib/editor/scene";
@@ -91,7 +92,9 @@ export async function probeColorMixer() {
 			selected(5, "saturation", -100),
 			selected(0, "hue", 100),
 		]) {
-			const [output] = graph.render([colorMixer(input, settings)]);
+			const [output] = graph.render([
+				pipeline(inputNode(input), [colorMixer(settings)]),
+			]);
 			outputs.push([...(await output.readFloats())]);
 		}
 		return { original, outputs, sampleCount: samples.length };

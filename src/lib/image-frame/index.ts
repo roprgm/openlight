@@ -1,4 +1,4 @@
-import { type RenderImage, renderNode } from "@/core/render/node";
+import { merge, node, type RenderImage } from "@/core/render/node";
 import shader from "./frame.wgsl";
 import {
 	frameTransform,
@@ -22,14 +22,16 @@ export function transformImages(
 		if (existing) {
 			return existing;
 		}
-		const output = renderNode(`transform/${i}`, shader, {
-			inputs: { source: input },
-			set: { transform: frameTransform(geometry, input.size) },
-			samplers: {
-				sourceSampler: { magFilter: "linear", minFilter: "linear" },
-			},
-			size: [Math.round(geometry.size[0]), Math.round(geometry.size[1])],
-		});
+		const output = merge(
+			{ source: input },
+			node(`transform/${i}`, shader, {
+				set: { transform: frameTransform(geometry, input.size) },
+				samplers: {
+					sourceSampler: { magFilter: "linear", minFilter: "linear" },
+				},
+				size: [Math.round(geometry.size[0]), Math.round(geometry.size[1])],
+			}),
+		);
 		outputs.set(input, output);
 		return output;
 	});

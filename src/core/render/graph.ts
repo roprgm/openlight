@@ -40,7 +40,7 @@ export function createRenderGraph(gpu: Gpu, clock?: Timer) {
 					return;
 				}
 				if (!("inputs" in image)) {
-					live.add(image);
+					live.add(image.image);
 					return;
 				}
 				if (names.has(image.name)) {
@@ -54,7 +54,7 @@ export function createRenderGraph(gpu: Gpu, clock?: Timer) {
 			const values = new Map<RenderNode, Target>();
 			function resolve(image: RenderImage): Target {
 				if (!("inputs" in image)) {
-					return image;
+					return image.image;
 				}
 				const value = values.get(image);
 				if (!value) {

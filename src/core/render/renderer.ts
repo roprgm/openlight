@@ -1,12 +1,12 @@
-import type { Gpu, Target, Timer } from "vgpu";
+import type { Gpu, Timer } from "vgpu";
 import type { Scene } from "@/lib/editor/scene";
 import type { ImageSource, WhiteBalance } from "@/lib/image-source";
 import { createRenderGraph } from "./graph";
-import type { RenderImage } from "./node";
+import { input, type RenderImage } from "./node";
 
 /** App composition describes requested outputs; the engine owns their storage. */
 export type SceneProcessing = (
-	source: Target,
+	source: RenderImage,
 	scene: Scene,
 ) => {
 	original: RenderImage;
@@ -31,7 +31,7 @@ export function createRenderer(
 	const release = resource.retain();
 	const raw = resource.raw?.createPass();
 	let original = source;
-	let input = source;
+	let beforeCurves = source;
 	let fullImage = source;
 	const listeners = new Set<() => void>();
 	let rendered = false;
@@ -41,8 +41,8 @@ export function createRenderer(
 	let pending: Promise<void> | undefined;
 	let disposed = false;
 	function render(scene: Scene) {
-		const images = processing(raw?.render() ?? source, scene);
-		[original, input, fullImage, output] = graph.render([
+		const images = processing(input(raw?.render() ?? source), scene);
+		[original, beforeCurves, fullImage, output] = graph.render([
 			images.original,
 			images.input,
 			images.full,
@@ -97,7 +97,7 @@ export function createRenderer(
 
 	return {
 		originalImage: () => original,
-		inputImage: () => input,
+		inputImage: () => beforeCurves,
 		fullImage: () => fullImage,
 		outputImage: () => output,
 		inspect: graph.inspect,

@@ -1,13 +1,12 @@
-import { type RenderImage, renderNode } from "@/core/render/node";
+import { node } from "@/core/render/node";
 import { sampleCurve, type ToneCurve } from "./curve";
 import shader from "./curves.wgsl";
 
-export function toneCurves(input: RenderImage, points: ToneCurve) {
+export function toneCurves(points: ToneCurve) {
 	if (points.every((point) => point.x === point.y)) {
-		return input;
+		return;
 	}
-	return renderNode("curves", shader, {
-		inputs: { source: input },
+	return node("curves", shader, {
 		storage: { curve: sampleCurve(points, 1024) },
 	});
 }

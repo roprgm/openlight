@@ -1,14 +1,13 @@
-import { type RenderImage, renderNode } from "@/core/render/node";
+import { node } from "@/core/render/node";
 import type { ColorMixer } from "@/lib/editor/scene";
 import shader from "./mixer.wgsl";
 import { colors, isNeutral } from "./model";
 
-export function colorMixer(input: RenderImage, mixer?: ColorMixer) {
+export function colorMixer(mixer?: ColorMixer) {
 	if (!mixer || isNeutral(mixer)) {
-		return input;
+		return;
 	}
-	return renderNode("color-mixer", shader, {
-		inputs: { source: input },
+	return node("color-mixer", shader, {
 		storage: {
 			settings: new Float32Array(
 				colors.flatMap(({ angle }, index) => [
