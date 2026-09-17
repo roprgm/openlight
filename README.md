@@ -64,7 +64,7 @@ After [browser setup](#browser-setup), run `bun run test:browser --config playwr
 
 Results and rendered PNGs are written under `test-results/benchmarks`. JSON includes environment details, individual samples, median/p95, renderer setup, first render, completed-render latency, and isolated mixer GPU timestamps when supported. Display, readback, and image encoding run outside the measured rendering loop. Software-adapter results describe that backend only. A hardware measurement requires a browser configuration that does not force SwiftShader; record the adapter actually used.
 
-For vignette measurements, select `--grep "rendering vignette-"`: the editor renderer runs with intensity 0 or 80 and softness 60, with neutral color mixing. The active workload also measures the isolated vignette pass. See the [vignette evidence](docs/benchmarks/vignette/README.md) for the recorded base/head comparison.
+For vignette measurements, select `--grep "rendering vignette-"`: the editor renderer runs with intensity 0 or 80 and softness 60, with neutral color mixing. The active workload also measures the isolated vignette pass.
 
 For revision comparisons, run the same benchmark files and browser configuration in both checkouts. Revisions predating the mixer can run `--grep 'rendering baseline'`. The benchmark is opt-in and excluded from the regular test suite; correctness remains covered by the GPU pixel test and editing session. See [PERFORMANCE.md](PERFORMANCE.md) for measurement scope and interpretation.
 
