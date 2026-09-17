@@ -1,4 +1,4 @@
-import { frame, type Gpu } from "vgpu";
+import { type Frame, frame, type Gpu, type Target } from "vgpu";
 import { createAdjustments } from "@/lib/adjustments";
 import type { Scene } from "@/lib/editor/scene";
 import { createImageFrame } from "@/lib/image-frame";
@@ -6,18 +6,29 @@ import type { ImageSource, WhiteBalance } from "@/lib/image-source";
 import { createToneCurves } from "@/lib/tone-curves";
 import { createUnsharpMask } from "@/lib/unsharp-mask";
 
+/** An optional document effect, composed after curves and before detail filtering. */
+export type SceneEffect = {
+	render(frame: Frame, input: Target, scene: Scene): Target;
+	dispose(): void;
+};
+
 function sameBalance(a: WhiteBalance | undefined, b: WhiteBalance | undefined) {
 	return a?.temperature === b?.temperature && a?.tint === b?.tint;
 }
 
 /** Owns scene passes and intermediate textures for one decoded source. */
-export function createRenderer(gpu: Gpu, resource: ImageSource) {
+export function createRenderer(
+	gpu: Gpu,
+	resource: ImageSource,
+	createEffect?: (gpu: Gpu, source: Target) => SceneEffect,
+) {
 	const source = resource.image;
 	const adjust = createAdjustments(gpu, source);
 	const adjusted = adjust.output;
 	const toneCurves = createToneCurves(gpu, adjusted);
 	const clarity = createUnsharpMask(gpu, source, 16);
 	const sharpen = createUnsharpMask(gpu, source);
+	const effect = createEffect?.(gpu, source);
 
 	const transform = createImageFrame(gpu);
 	const release = resource.retain();
@@ -37,8 +48,9 @@ export function createRenderer(gpu: Gpu, resource: ImageSource) {
 			const developed = raw?.render() ?? source;
 			adjust.render(frame, scene.adjustments, developed);
 			const curved = toneCurves.render(frame, scene.toneCurve);
+			const colored = effect?.render(frame, curved, scene) ?? curved;
 			const { clarity: amount, sharpening, sharpenRadius } = scene.adjustments;
-			const clarified = clarity.render(frame, curved, amount / 200, 64);
+			const clarified = clarity.render(frame, colored, amount / 200, 64);
 			fullImage = sharpen.render(
 				frame,
 				clarified,
@@ -123,6 +135,7 @@ export function createRenderer(gpu: Gpu, resource: ImageSource) {
 			toneCurves.dispose();
 			clarity.dispose();
 			sharpen.dispose();
+			effect?.dispose();
 			transform.dispose();
 			raw?.dispose();
 			release();

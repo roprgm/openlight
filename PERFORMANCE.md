@@ -15,7 +15,7 @@ Changes affecting GPU work require before/after evidence in the PR, including sh
 | GPU duration | Timestamped GPU passes. A sum covers only the measured passes. |
 | Completed-render latency | Elapsed time through completion of submitted work. State whether preparation, readback, display, or encoding is included. |
 
-Keep unrelated work off the queue during isolated measurements. Label software adapters such as SwiftShader: their results describe that backend, not hardware GPU performance. Mocks do not execute shaders. If timestamps are unsupported, measure completed-render latency and mark GPU timing unavailable; never substitute CPU encoding time or zero for a missing GPU measurement.
+Keep unrelated work off the queue during isolated measurements. Label software adapters such as SwiftShader: their results describe that backend, not hardware GPU performance. Do not extrapolate their timings or speedup ratios to physical GPUs; validate frame budgets on reference hardware. Mocks do not execute shaders. If timestamps are unsupported, measure completed-render latency and mark GPU timing unavailable; never substitute CPU encoding time or zero for a missing GPU measurement.
 
 ## Instrumentation
 

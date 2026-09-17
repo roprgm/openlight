@@ -8,9 +8,12 @@
 
 ## Visual evidence
 
-<!-- Embed an actual application screenshot or rendered output; name the fixture
-and settings. Show before/after for visual changes, or the exercised workflow
-for nonvisual code changes. Make the image accessible from this PR. -->
+<!-- UI additions or changes: embed actual screenshots with the affected controls
+visible in context for visual approval. Show before/after for existing UI changes
+and representative states for new UI. Rendered output alone is insufficient.
+Rendering changes: also show before/after output. Nonvisual code changes: show
+the exercised workflow. Name the fixture and settings; images must be accessible
+from this PR. Documentation-only changes may mark this section not applicable. -->
 
 ## Rendering performance
 

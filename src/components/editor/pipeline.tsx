@@ -8,7 +8,7 @@ import {
 } from "react";
 import { useGpu } from "vgpu-react";
 import { useDocument, useScene } from "@/components/editor/session";
-import { createRenderer } from "@/lib/editor/renderer";
+import type { createRenderer } from "@/lib/editor/renderer";
 
 const RendererContext = createContext<ReturnType<typeof createRenderer> | null>(
 	null,
@@ -33,14 +33,23 @@ function RendererError({ message }: { message: string }) {
 	);
 }
 
-type RendererProviderProps = { children: ReactNode };
+type RendererProviderProps = {
+	children: ReactNode;
+	createRenderer: typeof createRenderer;
+};
 
-export function RendererProvider({ children }: RendererProviderProps) {
+export function RendererProvider({
+	children,
+	createRenderer,
+}: RendererProviderProps) {
 	const gpu = useGpu();
 	const document = useDocument();
 	const sourceId = useScene((scene) => scene.source);
 	const source = document.resources.get(sourceId);
-	const renderer = useMemo(() => createRenderer(gpu, source), [gpu, source]);
+	const renderer = useMemo(
+		() => createRenderer(gpu, source),
+		[gpu, source, createRenderer],
+	);
 	const [error, setError] = useState<string>();
 
 	useEffect(() => {

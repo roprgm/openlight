@@ -64,6 +64,8 @@ Maintain the semantic [control API](API.md) for local, CI, and remote use. Exerc
 
 Run `bun run check`, `bun run build`, `bun run test`, and `bun run test:browser` after changes and before a commit. Browser setup and focused commands are in [README.md](README.md#validation).
 
-Every PR includes an actual application screenshot or rendered output demonstrating the result. Show before/after images for visual changes and the affected workflow for nonvisual code changes. Assess performance on every code change; changes affecting GPU work require reproducible before/after evidence under [PERFORMANCE.md](PERFORMANCE.md). Report unavailable checks and measurements as verification gaps.
+Every code PR includes actual application screenshots or rendered output demonstrating the result. UI additions or changes require screenshots of the affected interface in context, with the new or changed controls visible for visual approval; rendered output alone is insufficient. Show before/after for changes to existing UI or image output, representative states for new UI, and the affected workflow for nonvisual code changes. Embed accessible images in the PR and name the fixture and settings. Documentation-only changes may mark visual evidence not applicable.
+
+Assess performance on every code change; changes affecting GPU work require reproducible before/after evidence under [PERFORMANCE.md](PERFORMANCE.md). Report unavailable checks and measurements as verification gaps.
 
 Keep documentation close to its purpose and link rather than duplicate rules. Describe existing APIs accurately and label unimplemented designs explicitly.

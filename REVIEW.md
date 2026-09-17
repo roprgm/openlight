@@ -8,7 +8,7 @@ Use [AGENTS.md](AGENTS.md) for architecture and coding rules. Review the complet
 - **Simplicity:** Does an abstraction reduce the work of understanding callers and lifecycles? Could a direct function or a few repeated lines be clearer? Avoid extra configuration, forwarding layers, and speculative extension points.
 - **State and boundaries:** Is each fact stored once? Are inputs and dependencies explicit, invalid states represented clearly, and external data validated at its boundary? Do errors retain enough context to fix them?
 - **Behavior and lifetime:** Do edits, grouping, cancellation, and undo work together? Can asynchronous work outlive or overwrite its document? Does each owner release resources, subscriptions, and pending work correctly?
-- **Evidence:** Do tests check actual behavior and pixels where relevant? Does the PR show the result and include [rendering measurements](PERFORMANCE.md) when GPU work changes? Check reported limitations as well as passing results.
+- **Evidence:** Do tests check actual behavior and pixels where relevant? Can reviewers assess every new or changed UI from actual screenshots with the affected controls visible? Rendered output does not replace UI screenshots. Does the PR include [rendering measurements](PERFORMANCE.md) when GPU work changes? Check reported limitations as well as passing results.
 
 ## Findings and tradeoffs
 
