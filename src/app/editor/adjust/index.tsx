@@ -14,6 +14,7 @@ import {
 import { ColorMixerControls } from "@/features/color-mixer/controls";
 import { Histogram } from "@/features/histogram";
 import { createHistogram } from "@/features/histogram/histogram";
+import { NoiseReductionControls } from "@/features/noise-reduction/controls";
 import { setToneCurve } from "@/features/tone-curves/edits";
 import { ToneCurves } from "@/features/tone-curves/tone-curves";
 import { VignetteControls } from "@/features/vignette/controls";
@@ -90,6 +91,7 @@ export function AdjustPanel() {
 						curves={<ToneCurvesPanel histogram={histogram} />}
 						colorMixer={<ColorMixerControls />}
 						temperature={<ColorTemperatureControls />}
+						details={<NoiseReductionControls />}
 					/>
 					<VignetteControls />
 				</div>

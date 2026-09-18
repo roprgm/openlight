@@ -25,6 +25,7 @@ export type Preview = {
 function equal(a: Scene, b: Scene) {
 	return (
 		a.source === b.source &&
+		(a.noiseReduction ?? 0) === (b.noiseReduction ?? 0) &&
 		shallow(frameValues(a.frame), frameValues(b.frame)) &&
 		shallow(a.adjustments, b.adjustments) &&
 		shallow(a.whiteBalance, b.whiteBalance) &&

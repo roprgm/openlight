@@ -5,6 +5,7 @@ import { interpolatePchip } from "@/lib/math";
 import { colorMixerEditing } from "./color-mixer-editing";
 import { expect, test } from "./fixtures";
 import { readImage, readPixel, readPreview } from "./images";
+import { noiseReductionEditing } from "./noise-reduction-editing";
 import { box, drag } from "./pointer";
 
 function expectCentered(
@@ -307,6 +308,7 @@ test("edit a photo, inspect the preview and histograms, undo changes, and export
 	});
 
 	await colorMixerEditing(page);
+	await noiseReductionEditing(page);
 
 	await test.step("clarity changes local contrast and histogram, then undoes and resets", async () => {
 		const field = page.getByRole("textbox", { name: "Clarity", exact: true });

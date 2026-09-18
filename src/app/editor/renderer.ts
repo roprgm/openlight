@@ -9,6 +9,7 @@ import {
 import { adjustments } from "@/features/adjustments/pass";
 import { unsharpMask } from "@/features/adjustments/unsharp-mask";
 import { colorMixer } from "@/features/color-mixer/pass";
+import { createNoiseReduction } from "@/features/noise-reduction/pass";
 import { toneCurves } from "@/features/tone-curves/pass";
 import { vignette } from "@/features/vignette/pass";
 
@@ -18,11 +19,13 @@ export function createEditorRenderer(
 	source: ImageSource,
 	timer?: Timer,
 ) {
+	const denoise = createNoiseReduction(gpu, source);
 	return createRenderer(
 		gpu,
 		source,
 		(image, scene) => {
-			const adjusted = pipeline(image, [adjustments(scene.adjustments)]);
+			const filtered = denoise.apply(image, scene.noiseReduction ?? 0);
+			const adjusted = pipeline(filtered, [adjustments(scene.adjustments)]);
 			const full = pipeline(adjusted, [
 				toneCurves(scene.toneCurve),
 				colorMixer(scene.colorMixer),
@@ -40,6 +43,6 @@ export function createEditorRenderer(
 			);
 			return { original, input: beforeCurves, full, output };
 		},
-		timer,
+		{ timer, prepare: denoise.prepare, dispose: denoise.dispose },
 	);
 }

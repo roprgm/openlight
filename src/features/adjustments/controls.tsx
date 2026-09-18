@@ -65,10 +65,12 @@ export function AdjustmentControls({
 	curves,
 	colorMixer,
 	temperature,
+	details,
 }: {
 	curves: ReactNode;
 	colorMixer: ReactNode;
 	temperature: ReactNode;
+	details?: ReactNode;
 }) {
 	return (
 		<>
@@ -101,6 +103,7 @@ export function AdjustmentControls({
 			{colorMixer}
 			<Collapsible title="Details">
 				<div className="flex flex-col gap-2">
+					{details}
 					<AdjustmentSlider name="clarity" label="Clarity" />
 					<AdjustmentSlider name="sharpening" label="Sharpening" />
 					<AdjustmentSlider name="sharpenRadius" label="Radius" step={0.1} />

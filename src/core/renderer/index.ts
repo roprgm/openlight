@@ -31,6 +31,12 @@ export type SceneProcessing = (
 	output: RenderImage;
 };
 
+type RendererOptions = {
+	timer?: Timer;
+	prepare?(scene: Scene): void | Promise<void>;
+	dispose?(): void;
+};
+
 function sameBalance(a: WhiteBalance | undefined, b: WhiteBalance | undefined) {
 	return a?.temperature === b?.temperature && a?.tint === b?.tint;
 }
@@ -40,10 +46,10 @@ export function createRenderer(
 	gpu: Gpu,
 	resource: ImageSource,
 	compose: SceneProcessing,
-	timer?: Timer,
+	options: RendererOptions = {},
 ) {
 	const source = resource.image;
-	const graph = createRenderGraph(gpu, timer);
+	const graph = createRenderGraph(gpu, options.timer);
 	const release = resource.retain();
 	const raw = resource.raw?.createPass();
 	let original = source;
@@ -69,34 +75,51 @@ export function createRenderer(
 			listener();
 		}
 	}
-	/** Only calibration crosses the worker; each renderer owns its GPU RAW pass. */
-	async function develop() {
+	function prepare(scene: Scene): void | Promise<void> {
+		const selected = scene.whiteBalance ?? resource.raw?.asShot;
+		if (!raw || !selected || sameBalance(balance, selected)) {
+			return options.prepare?.(scene);
+		}
+		return raw.prepare(selected).then(() => {
+			if (disposed) {
+				return;
+			}
+			balance = selected;
+			if (!next) {
+				return options.prepare?.(scene);
+			}
+		});
+	}
+	/** Render immediately when ready; coalesce edits during asynchronous preparation. */
+	function flush(): void | Promise<void> {
 		while (next && !disposed) {
 			const scene = next;
 			next = undefined;
-			const selected = scene.whiteBalance ?? resource.raw?.asShot;
-			if (raw && selected && !sameBalance(balance, selected)) {
-				await raw.prepare(selected);
-				if (disposed) {
-					return;
-				}
-				balance = selected;
+			const preparation = prepare(scene);
+			if (preparation) {
+				return preparation.then(() => {
+					if (!disposed && !next) {
+						render(scene);
+					}
+					return flush();
+				});
 			}
-			if (!next) {
-				render(scene);
-			}
+			render(scene);
 		}
 	}
 	async function update(scene: Scene): Promise<void> {
 		if (disposed) {
 			throw Error("Renderer is closed.");
 		}
-		if (!resource.raw) {
-			render(scene);
+		next = scene;
+		if (pending) {
+			return pending;
+		}
+		const preparation = flush();
+		if (!preparation && !resource.raw) {
 			return;
 		}
-		next = scene;
-		pending ??= develop()
+		pending = (preparation ?? Promise.resolve())
 			.catch((error) => {
 				if (!next) {
 					throw error;
@@ -134,6 +157,7 @@ export function createRenderer(
 			disposed = true;
 			listeners.clear();
 			graph.dispose();
+			options.dispose?.();
 			raw?.dispose();
 			release();
 		},

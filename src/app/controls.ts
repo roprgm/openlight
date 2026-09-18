@@ -22,6 +22,7 @@ import {
 	type MixerChange,
 	type MixerColor,
 } from "@/features/color-mixer/model";
+import { setNoiseReduction } from "@/features/noise-reduction/edits";
 import { defaultCurve } from "@/features/tone-curves/curve";
 import { setToneCurve } from "@/features/tone-curves/edits";
 import { setVignette } from "@/features/vignette/edits";
@@ -47,6 +48,8 @@ export function createControls(gpu: Gpu, workspace: Workspace) {
 			setAdjustments(workspace.getDocument(), change),
 		setWhiteBalance: (change?: Partial<WhiteBalance>) =>
 			setWhiteBalance(workspace.getDocument(), change),
+		setNoiseReduction: (amount: number) =>
+			setNoiseReduction(workspace.getDocument(), amount),
 		setToneCurve: (curve?: ToneCurve) =>
 			setToneCurve(workspace.getDocument(), curve),
 		setColorMixer: (color: MixerColor, change: MixerChange) =>
@@ -74,6 +77,7 @@ export function createControls(gpu: Gpu, workspace: Workspace) {
 				file,
 				preview: document?.preview.getState(),
 				documentId: document?.id,
+				noiseReduction: scene?.noiseReduction ?? 0,
 				size: scene?.frame.size,
 				frame: scene?.frame,
 				adjustments: scene?.adjustments ?? defaultAdjustments,

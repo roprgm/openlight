@@ -56,16 +56,26 @@ export function RendererProvider({
 		[gpu, source, createRenderer],
 	);
 	const [error, setError] = useState<string>();
+	const [processing, setProcessing] = useState(false);
 
 	useEffect(() => {
 		let active = true;
 		const render = () => {
+			const scene = document.scene.getState();
 			setError(undefined);
-			renderer.update(document.scene.getState()).catch((error) => {
-				if (active) {
-					setError(String(error));
-				}
-			});
+			setProcessing(true);
+			renderer
+				.update(scene)
+				.catch((error) => {
+					if (active) {
+						setError(String(error));
+					}
+				})
+				.finally(() => {
+					if (active && document.scene.getState() === scene) {
+						setProcessing(false);
+					}
+				});
 		};
 		const unsubscribe = document.scene.subscribe(render);
 		render();
@@ -79,6 +89,14 @@ export function RendererProvider({
 	return (
 		<RendererContext value={renderer}>
 			{children}
+			{processing && (
+				<p
+					role="status"
+					className="fixed bottom-4 left-4 rounded bg-neutral-900 px-3 py-2 text-neutral-300 text-sm"
+				>
+					Processing image…
+				</p>
+			)}
 			{error && <RendererError message={error} />}
 		</RendererContext>
 	);

@@ -8,6 +8,7 @@ Image processing runs locally with WebGPU. Built with TypeScript and React; requ
 
 - Light and color adjustments, tone curves, clarity, sharpening, and vignette.
 - Color Mixer with eight hue, saturation, and luminance ranges.
+- Noise reduction with cached RGB and Bayer filtering.
 - Crop, rotate, straighten, flip, pan, and zoom.
 - Undo/redo, before/after comparison, RGB histogram, and clipping overlays.
 - Camera Raw XMP import; HEIC, TIFF at 16-bit and floating-point precision, and camera RAW/DNG with absolute white balance and As Shot reset.

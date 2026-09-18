@@ -37,6 +37,7 @@ export type Vignette = {
 export type Scene = {
 	readonly frame: ImageFrame;
 	readonly source: string;
+	readonly noiseReduction?: number;
 	readonly whiteBalance?: Readonly<WhiteBalance>;
 	readonly adjustments: Readonly<Adjustments>;
 	readonly toneCurve: ToneCurve;
