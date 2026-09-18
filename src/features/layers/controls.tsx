@@ -159,8 +159,8 @@ function LayerRow({
 			<div
 				data-selected={selected === layer.id}
 				data-hidden={!visible}
-				style={{ marginLeft: depth * 12 }}
-				className="group flex h-10 items-center pointer-coarse:h-11 rounded-md pr-1 text-neutral-300 data-[selected=true]:bg-neutral-700 data-[hidden=true]:text-neutral-500"
+				style={{ paddingLeft: depth * 12 }}
+				className="group flex h-10 items-center pointer-coarse:h-11 rounded-md pr-1 text-neutral-300 data-[selected=false]:hover:bg-white/5 data-[selected=true]:bg-neutral-700 data-[hidden=true]:text-neutral-500"
 			>
 				<button
 					type="button"
@@ -229,9 +229,10 @@ function LayerRow({
 					/>
 				)}
 			</div>
-			{expanded && layer.children.length > 0 && (
-				<div className="relative before:pointer-events-none before:absolute before:inset-y-1 before:left-1.5 before:border-l before:border-neutral-600/50">
-					{layer.children.toReversed().map((child) => (
+			{expanded &&
+				layer.children
+					.toReversed()
+					.map((child) => (
 						<LayerRow
 							key={child.id}
 							layer={child}
@@ -243,8 +244,6 @@ function LayerRow({
 							onSelect={onSelect}
 						/>
 					))}
-				</div>
-			)}
 		</>
 	);
 }
@@ -273,7 +272,7 @@ export function LayersControls({
 	return (
 		<section
 			aria-label="Layers"
-			className="flex h-[30%] min-h-24 max-h-72 shrink-0 flex-col border-b border-black bg-panel"
+			className="flex h-[30%] min-h-24 max-h-72 shrink-0 flex-col border-b border-black bg-panel shadow-ridge"
 			onKeyDown={(event) => {
 				const menu = event.currentTarget.querySelector<HTMLElement>(
 					"[popover]:popover-open",
@@ -291,7 +290,7 @@ export function LayersControls({
 				}
 			}}
 		>
-			<div className="flex h-10 shrink-0 items-center gap-1 border-b border-black/60 pr-2 pl-3">
+			<div className="flex h-10 shrink-0 items-center gap-1 border-b border-black/50 pr-2 pl-3">
 				<h2 className="mr-auto text-xs font-medium text-neutral-200">Layers</h2>
 				<button
 					type="button"
@@ -323,7 +322,7 @@ export function LayersControls({
 					</button>
 				</LayerMenu>
 			</div>
-			<ScrollArea className="flex-1" viewportClassName="px-1.5 py-1">
+			<ScrollArea className="flex-1" viewportClassName="px-2 py-1.5">
 				{scene.layers.toReversed().map((layer) => (
 					<LayerRow
 						key={layer.id}

@@ -72,7 +72,11 @@ export function EditorPanel({
 			className="flex min-h-0 flex-col"
 		>
 			{children}
-			<ScrollArea className="flex-1" role="region" aria-label="Editor controls">
+			<ScrollArea
+				className="flex-1 shadow-ridge"
+				role="region"
+				aria-label="Editor controls"
+			>
 				<div ref={panelRef} />
 			</ScrollArea>
 			{footer}

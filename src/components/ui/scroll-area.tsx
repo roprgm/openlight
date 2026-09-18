@@ -23,12 +23,12 @@ export function ScrollArea({
 					viewportClassName,
 				)}
 			>
-				<Primitive.Content className="pr-2" style={{ minWidth: 0 }}>
+				<Primitive.Content style={{ minWidth: 0 }}>
 					{children}
 				</Primitive.Content>
 			</Primitive.Viewport>
-			<Primitive.Scrollbar className="group z-10 my-1 flex w-2 justify-center">
-				<Primitive.Thumb className="w-1 rounded-full bg-neutral-500/40 group-hover:bg-neutral-500/70 group-data-scrolling:bg-neutral-500/70" />
+			<Primitive.Scrollbar className="group z-10 my-1 mr-px flex w-1.5 justify-center">
+				<Primitive.Thumb className="w-1 rounded-full bg-neutral-400/60 group-hover:bg-neutral-300 group-data-scrolling:bg-neutral-300" />
 			</Primitive.Scrollbar>
 		</Primitive.Root>
 	);

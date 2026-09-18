@@ -155,7 +155,7 @@ export function AdjustPanel() {
 	const name = layer.kind === "image" ? "Develop" : layer.name;
 	return (
 		<PanelContent>
-			<div className="flex min-h-0 flex-1 flex-col divide-y divide-black">
+			<div className="flex min-h-0 flex-1 flex-col divide-y divide-black/50">
 				<div
 					{...gesture}
 					className="flex h-10 shrink-0 items-center justify-between gap-2 px-3"
@@ -181,7 +181,10 @@ export function AdjustPanel() {
 						</div>
 					)}
 				</div>
-				<div {...gesture} className="divide-y divide-black">
+				<div
+					{...gesture}
+					className="divide-y divide-black [&>section:first-child]:shadow-none"
+				>
 					<SelectedControls key={layer.id} layer={layer} />
 				</div>
 			</div>
