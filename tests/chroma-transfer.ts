@@ -46,7 +46,7 @@ export async function renderChromaRamp() {
 					source,
 					coarse,
 					coarseFiltered: filtered,
-					preserveLuminance: 1,
+					settings: [36, 1, 1, 0],
 					variance: Array.from({ length: 16 }, (_, i) => {
 						const variance = i === 0 ? 1e-6 : 0.002;
 						return [variance, variance, variance, 1e-10];

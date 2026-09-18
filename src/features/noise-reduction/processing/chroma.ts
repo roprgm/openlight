@@ -29,9 +29,9 @@ export function createChromaDenoising(gpu: Gpu, source: Target) {
 				return;
 			}
 			const pyramid: RenderImage[] = [input(source)];
-			while (pyramid.length < 8) {
+			while (pyramid.length < 9) {
 				const previous = pyramid[pyramid.length - 1];
-				if (Math.min(...previous.size) < 8) {
+				if (Math.min(...previous.size) < 4) {
 					break;
 				}
 				pyramid.push(
@@ -70,7 +70,12 @@ export function createChromaDenoising(gpu: Gpu, source: Target) {
 					node(`chroma-up-${level}`, shader, {
 						set: {
 							variance: variances[level],
-							preserveLuminance: level === 0 ? 1 : 0,
+							settings: [
+								36 + 28 * level,
+								level <= 1 ? 1 : 0,
+								level === 0 ? 1 : 0,
+								0,
+							],
 						},
 					}),
 				);

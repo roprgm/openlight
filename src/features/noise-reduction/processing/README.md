@@ -55,7 +55,7 @@ interpolation uses image coordinates across tile boundaries. This addresses
 nonuniform sensor noise without increasing filtering everywhere; texture can still
 contaminate the estimate. The field adds no GPU pass or statistics readback.
 
-`chroma.ts` builds a dyadic perceptual-color pyramid with up to seven reductions,
+`chroma.ts` builds a dyadic perceptual-color pyramid with up to eight reductions,
 covering fine grain and broad chroma blotches. Every level estimates its own noise;
 sampling covers the full image, including bottom/right borders and small coarse
 levels. The preceding level's variance, divided by two, supplies a calibrated floor
@@ -63,14 +63,17 @@ for correlated residual Bayer noise when a coarse estimate is weaker. This is
 stronger than the fourfold variance reduction expected for independent noise.
 
 Reconstruction shrinks Laplacian chroma bands with a smooth, noise-normalized
-local activity gain. A compact-feature term preserves small, strong color details.
-Joint bilateral interpolation follows color edges with strictly positive normalized
-weights: a fine-scale outlier cannot veto the coarse correction. Each band controls
-only its own detail, rather than masking the entire multiscale correction. This is
-not a guarantee of removing all noise or distinguishing every small feature from
-noise. Intermediate reconstruction retains perceptual color without repeatedly imposing
-linear luminance. Only the full-resolution result restores source luminance, using
-a common RGB gain for positive luminance and an additive correction for signed
+local activity gain. Shrinkage grows with pyramid level so mid-scale blotches
+flatten while fine bands stay conservative. A compact-feature term preserves small,
+strong color details on the two finest bands only; coarser bands omit it because a
+blotch looks like an isolated coefficient there. Joint bilateral interpolation
+follows color edges with strictly positive normalized weights: a fine-scale outlier
+cannot veto the coarse correction. Each band controls only its own detail, rather
+than masking the entire multiscale correction. This is not a guarantee of removing
+all noise or distinguishing every small feature from noise. Intermediate
+reconstruction retains perceptual color without repeatedly imposing linear
+luminance. Only the full-resolution result restores source luminance, using a
+common RGB gain for positive luminance and an additive correction for signed
 nonpositive values. This avoids gray patches caused by repeated luminance offsets
 and subsequent display gamut compression. Alpha and HDR headroom are retained.
 The chroma stage no longer runs collaborative patch searches.
@@ -100,7 +103,7 @@ statistics buffers and driver allocations). The completed 183 MiB result replace
 the private development, which is released. Reduced graph targets are released
 after preparation; the result remains cached per white balance. Each level uses
 one reduction pass, one reconstruction pass and a small statistical compute pass
-with readback. At most seven levels are filtered. There are no patch accumulation
+with readback. At most eight levels are filtered. There are no patch accumulation
 buffers or per-tile completion waits in this chroma stage. The Bayer collaborative
 stage still has its original cost. Physical-GPU latency and total peak memory
 require hardware measurements; texture payload alone is not total memory.
@@ -116,9 +119,10 @@ Browser fixtures check exported pixels for noise error, color bias, texture,
 alpha, tile boundaries and exact zero bypass. A 320×320 Bayer detail pair from
 the local experiment additionally checks clean-image preservation. A correlated
 Bayer fixture checks broad chroma noise, fine stripes, shadows, a color edge and
-a small red light at exposure +2 EV. Bun tests
-cover cache ownership, grouped edits, coalesced preparation, retries, cancellation
-and the robust shot/read fit; mocks do not execute shaders.
+a small red light at exposure +2 EV. A 1024×1024 surface pair checks spatially
+varying sky noise against a broad colored field. Bun tests
+cover cache ownership, grouped edits, coalesced preparation, retries, cancellation,
+the robust shot/read fit and the spatial noise-gain field; mocks do not execute shaders.
 
 The Bayer noise fit, linear variance propagation and triangular window replace
 the earlier GALOSH-derived helpers and constants. GALOSH was inspected during

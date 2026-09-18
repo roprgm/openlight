@@ -5,7 +5,8 @@ import { luminance } from "../../../core/image/color.wgsl";
 @group(0) @binding(1) var coarse: texture_2d<f32>;
 @group(0) @binding(2) var coarseFiltered: texture_2d<f32>;
 @group(0) @binding(3) var<uniform> variance: array<vec4f, 16>;
-@group(0) @binding(4) var<uniform> preserveLuminance: u32;
+// x: shrinkage constant, y: compact-feature mix, z: restore working luminance.
+@group(0) @binding(4) var<uniform> settings: vec4f;
 
 fn interpolate(image: texture_2d<f32>, p: vec2i) -> vec4f {
   let coordinate = (vec2f(p) + 0.5) * 0.5 - 0.5;
@@ -65,22 +66,22 @@ fn estimateCoarse(p: vec2i, guide: vec2f, noise: vec2f) -> CoarseEstimate {
   for (var y = -1; y <= 1; y++) {
     for (var x = -1; x <= 1; x++) {
       let q = clamp(p + vec2i(x,y), vec2i(0), vec2i(textureDimensions(source))-1);
-      let band = packColor(textureLoad(source,q,0)).yz - interpolate(coarse,q).yz;
-      energy += band * band / 9.0;
+      let coeff = packColor(textureLoad(source,q,0)).yz - interpolate(coarse,q).yz;
+      energy += coeff * coeff / 9.0;
     }
   }
-  // Compact lights may occupy less than the activity window. Their band
-  // coefficient still carries signal even when the neighborhood average is small.
+  // Compact lights occupy less than the 3×3 window. Coarse bands skip this
+  // term: a chroma blotch looks like an isolated coefficient at those scales.
   let centerBand = before.yz - interpolate(coarse, p).yz;
-  energy = max(energy, centerBand * centerBand * 0.5);
+  energy = max(energy, centerBand * centerBand * 0.5 * settings.y);
   let signal = max(dot(energy / max(noise, vec2f(1e-10)), vec2f(1.0)) - 2.0, 0.0);
   // Smooth firm shrinkage removes weak coefficients without repeatedly
   // attenuating high-SNR color features across the pyramid.
-  let gain = signal * signal / (signal * signal + 64.0);
+  let gain = signal * signal / (signal * signal + max(settings.x, 1.0));
   let after = vec3f(before.x, coarseEstimate.after + gain * detail);
   // Keep intermediate bands in perceptual color. Repeated linear-luminance
   // corrections feed chroma shifts back into the next reconstruction level.
-  if preserveLuminance == 0u { return vec4f(unpackColor(after), original.a); }
+  if settings.z < 0.5 { return vec4f(unpackColor(after), original.a); }
   let reconstructed = unpackColor(after);
   let sourceLuminance = luminance(original.rgb);
   let reconstructedLuminance = luminance(reconstructed);
