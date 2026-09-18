@@ -31,14 +31,14 @@ export function setWhiteBalance(
 	change?: Partial<WhiteBalance>,
 ) {
 	const scene = document.scene.getState();
-	const asShot = document.resources.get(scene.source).raw?.asShot;
+	const asShot = document.resources.get(scene.image.source).raw?.asShot;
 	if (!asShot) {
 		throw Error("This image does not support RAW white balance.");
 	}
 	let whiteBalance = asShot;
 	if (change) {
-		whiteBalance = { ...(scene.whiteBalance ?? asShot), ...change };
+		whiteBalance = { ...(scene.image.whiteBalance ?? asShot), ...change };
 		validateWhiteBalance(whiteBalance, asShot);
 	}
-	document.edit({ ...scene, whiteBalance });
+	document.edit({ ...scene, image: { ...scene.image, whiteBalance } });
 }

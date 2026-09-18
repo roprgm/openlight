@@ -28,7 +28,7 @@ fn exposeGray(light: f32, stops: f32) -> f32 {
 
 // Every channel scales by the gain of the pixel's luminance, so hue holds at any exposure.
 // Negatives, from wide-gamut sources or noise below black, clip here.
-fn adjustExposure(color: vec3f, stops: f32) -> vec3f {
+export fn adjustExposure(color: vec3f, stops: f32) -> vec3f {
   let clipped = max(color, vec3f(0.0));
   let light = luminance(clipped);
   if light <= 0.0 { return clipped; }

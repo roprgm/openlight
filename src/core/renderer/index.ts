@@ -4,6 +4,7 @@ import type { ImageSource, WhiteBalance } from "@/core/image";
 import { createRenderGraph } from "./graph";
 import { input, type RenderImage } from "./node";
 
+export { mixAdjustment } from "./blend";
 export { type Clipping, createDisplay, type View } from "./display";
 export {
 	input,
@@ -56,7 +57,18 @@ export function createRenderer(
 	let next: Scene | undefined;
 	let pending: Promise<void> | undefined;
 	let disposed = false;
+	let instances = new Set<string>();
 	function render(scene: Scene) {
+		const active = new Set([
+			scene.image.id,
+			...scene.layers.map((layer) => layer.id),
+		]);
+		for (const id of instances) {
+			if (!active.has(id)) {
+				graph.release(`layer/${id}/`);
+			}
+		}
+		instances = active;
 		const images = compose(input(raw?.render() ?? source), scene);
 		[original, previewInput, full, output] = graph.render([
 			images.original,
@@ -74,7 +86,7 @@ export function createRenderer(
 		while (next && !disposed) {
 			const scene = next;
 			next = undefined;
-			const selected = scene.whiteBalance ?? resource.raw?.asShot;
+			const selected = scene.image.whiteBalance ?? resource.raw?.asShot;
 			if (raw && selected && !sameBalance(balance, selected)) {
 				await raw.prepare(selected);
 				if (disposed) {

@@ -60,11 +60,13 @@ export function EditorViewport({
 	constrain = true,
 	children,
 	overlay,
+	tools,
 }: {
 	size: Point;
 	constrain?: boolean;
 	children: ReactNode;
 	overlay?: ReactNode;
+	tools?: ReactNode;
 }) {
 	const { camera } = useEditorSession();
 	const viewport = usePanZoom(camera, size, { constrain });
@@ -83,6 +85,7 @@ export function EditorViewport({
 					<Canvas className="absolute -inset-6 size-[calc(100%+3rem)]">
 						{children}
 					</Canvas>
+					{tools}
 				</div>
 				{overlay}
 				<ZoomControl />

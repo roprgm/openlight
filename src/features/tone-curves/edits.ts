@@ -6,8 +6,9 @@ export function setToneCurve(
 	points: ToneCurve = defaultCurve,
 ) {
 	validateCurve(points);
+	const scene = document.scene.getState();
 	document.edit({
-		...document.scene.getState(),
-		toneCurve: points.map((point) => ({ ...point })),
+		...scene,
+		image: { ...scene.image, toneCurve: points.map((point) => ({ ...point })) },
 	});
 }

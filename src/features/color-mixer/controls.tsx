@@ -26,7 +26,7 @@ function ColorSlider({
 }) {
 	const document = useDocument();
 	const value = useScene(
-		(scene) => (scene.colorMixer ?? defaultMixer)[channel][index],
+		(scene) => (scene.image.colorMixer ?? defaultMixer)[channel][index],
 	);
 	const color = colors[index];
 	const label = `${color.label} ${channel}`;

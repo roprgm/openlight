@@ -6,8 +6,9 @@ import { ExportIcon } from "@/components/icons/export";
 import { LayersIcon } from "@/components/icons/layers";
 import { RetouchIcon } from "@/components/icons/retouch";
 import { CropEditor } from "@/features/crop/view";
+import { useGradientTool } from "@/features/layers/gradient-tool";
 import { EditorActions } from "./actions";
-import { AdjustPanel } from "./adjust";
+import { AdjustPanel, LayersPanel } from "./adjust";
 import { ExportMode } from "./export";
 
 const ModeContext = createContext<{
@@ -62,7 +63,7 @@ export const modes = [
 		key: "l",
 		Icon: LayersIcon,
 		group: "edit",
-		Panel: PlaceholderPanel,
+		Panel: LayersPanel,
 	},
 	{
 		id: "retouch",
@@ -93,6 +94,11 @@ export const modes = [
 export type Mode = (typeof modes)[number];
 
 export function ModeProvider({ children }: { children: ReactNode }) {
-	const [mode, setMode] = useState<Mode>(adjust);
+	const [mode, updateMode] = useState<Mode>(adjust);
+	const tool = useGradientTool();
+	function setMode(mode: Mode) {
+		tool.close();
+		updateMode(mode);
+	}
 	return <ModeContext value={{ mode, setMode }}>{children}</ModeContext>;
 }

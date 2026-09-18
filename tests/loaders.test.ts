@@ -32,9 +32,13 @@ test("file batches preserve ordering, group imports, recover from failures, and 
 				if (file.name === "broken.png") throw new Error("Decode failed");
 				return createDocument({
 					frame: imageFrame([32, 32]),
-					source: file.name,
-					adjustments: { ...defaultAdjustments },
-					toneCurve: defaultCurve,
+					image: {
+						id: "base",
+						source: file.name,
+						adjustments: { ...defaultAdjustments },
+						toneCurve: defaultCurve,
+					},
+					layers: [],
 				});
 			}),
 	};
@@ -70,17 +74,17 @@ test("file batches preserve ordering, group imports, recover from failures, and 
 				vibrance: 30,
 				saturation: -10,
 			};
-			expect(document.scene.getState().adjustments).toEqual(imported);
+			expect(document.scene.getState().image.adjustments).toEqual(imported);
 			await registry.openFiles([
 				settings('crs:Exposure2012="3"'),
 				settings('crs:Exposure2012="-1"'),
 			]);
-			expect(document.scene.getState().adjustments).toEqual({
+			expect(document.scene.getState().image.adjustments).toEqual({
 				...imported,
 				exposure: -1,
 			});
 			document.history.undo();
-			expect(document.scene.getState().adjustments.exposure).toBe(3);
+			expect(document.scene.getState().image.adjustments.exposure).toBe(3);
 			document.history.redo();
 			document.history.begin();
 			setAdjustments(document, { contrast: 20 });
@@ -94,20 +98,20 @@ test("file batches preserve ordering, group imports, recover from failures, and 
 				undoCount: 5,
 				redoCount: 0,
 			});
-			expect(document.scene.getState().adjustments).toMatchObject({
+			expect(document.scene.getState().image.adjustments).toMatchObject({
 				highlights: 0,
 				shadows: 0,
 				whites: 0,
 				blacks: 0,
 			});
 			document.history.undo();
-			expect(document.scene.getState().adjustments).toEqual({
+			expect(document.scene.getState().image.adjustments).toEqual({
 				...imported,
 				exposure: -1,
 				contrast: 30,
 			});
 			document.history.undo();
-			expect(document.scene.getState().adjustments.contrast).toBe(-20);
+			expect(document.scene.getState().image.adjustments.contrast).toBe(-20);
 		}
 		await Promise.all([
 			registry.openFiles([exposure, new File([], "first.png")]),
@@ -117,7 +121,7 @@ test("file batches preserve ordering, group imports, recover from failures, and 
 			]),
 		]);
 		expect(workspace.state.getState().file).toBe("second.png");
-		expect(workspace.getDocument().scene.getState().adjustments).toEqual({
+		expect(workspace.getDocument().scene.getState().image.adjustments).toEqual({
 			...defaultAdjustments,
 			contrast: 20,
 		});
@@ -129,14 +133,14 @@ test("file batches preserve ordering, group imports, recover from failures, and 
 		});
 		await registry.openFiles([exposure, photo]);
 		const recovered = workspace.getDocument();
-		expect(recovered.scene.getState().adjustments.exposure).toBe(1.25);
+		expect(recovered.scene.getState().image.adjustments.exposure).toBe(1.25);
 		await expect(
 			registry.openFiles([settings('crs:Exposure2012="99"')]),
 		).rejects.toThrow("Invalid adjustment");
 		await registry.openFiles([
 			settings('crs:Contrast2012="10" crs:Exposure2012="NaN"'),
 		]);
-		expect(recovered.scene.getState().adjustments).toEqual({
+		expect(recovered.scene.getState().image.adjustments).toEqual({
 			...defaultAdjustments,
 			exposure: 1.25,
 			contrast: 10,
@@ -151,7 +155,7 @@ test("file batches preserve ordering, group imports, recover from failures, and 
 		text.resolve(await exposure.text());
 		await pending;
 		expect(workspace.getDocument()).not.toBe(recovered);
-		expect(workspace.getDocument().scene.getState().adjustments).toEqual(
+		expect(workspace.getDocument().scene.getState().image.adjustments).toEqual(
 			defaultAdjustments,
 		);
 	} finally {

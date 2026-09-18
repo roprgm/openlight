@@ -10,6 +10,8 @@ for (const workload of [
 	"vignette",
 	"detail",
 	"pipeline",
+	"masked-exposure",
+	"layer-stack",
 ] as const) {
 	test(`rendering ${workload}`, async ({ page, browser }, info) => {
 		await page.goto("/tests/gpu.html");

@@ -28,7 +28,7 @@ export function setColorMixer(
 		}
 	}
 	const scene = document.scene.getState();
-	const current = scene.colorMixer ?? defaultMixer;
+	const current = scene.image.colorMixer ?? defaultMixer;
 	const next = { ...current };
 	for (const { id } of channels) {
 		const value = change[id];
@@ -39,12 +39,18 @@ export function setColorMixer(
 	if (channels.every(({ id }) => current[id] === next[id])) {
 		return;
 	}
-	document.edit({ ...scene, colorMixer: isNeutral(next) ? undefined : next });
+	document.edit({
+		...scene,
+		image: { ...scene.image, colorMixer: isNeutral(next) ? undefined : next },
+	});
 }
 
 export function resetColorMixer(document: EditorDocument) {
 	const scene = document.scene.getState();
-	if (scene.colorMixer) {
-		document.edit({ ...scene, colorMixer: undefined });
+	if (scene.image.colorMixer) {
+		document.edit({
+			...scene,
+			image: { ...scene.image, colorMixer: undefined },
+		});
 	}
 }

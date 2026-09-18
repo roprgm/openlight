@@ -12,7 +12,9 @@ export type Workload =
 	| "color-mixer"
 	| "vignette"
 	| "detail"
-	| "pipeline";
+	| "pipeline"
+	| "masked-exposure"
+	| "layer-stack";
 
 function summarize(values: number[]) {
 	const sorted = values.toSorted((a, b) => a - b);
@@ -54,36 +56,80 @@ export async function benchmarkRendering(
 	});
 	const combined = workload === "pipeline";
 	const detail = combined || workload === "detail";
-	const scene: Scene = {
-		source: "benchmark",
+	let scene: Scene = {
 		frame: imageFrame(size),
-		adjustments: {
-			...defaultAdjustments,
-			exposure: 0.25,
-			contrast: 10,
-			clarity: detail ? 50 : 0,
-			sharpening: detail ? 75 : 0,
+		image: {
+			id: "benchmark-image",
+			source: "benchmark",
+			adjustments: {
+				...defaultAdjustments,
+				exposure: 0.25,
+				contrast: 10,
+				clarity: detail ? 50 : 0,
+				sharpening: detail ? 75 : 0,
+			},
+			toneCurve: combined
+				? [
+						{ x: 0, y: 0 },
+						{ x: 0.5, y: 0.6 },
+						{ x: 1, y: 1 },
+					]
+				: defaultCurve,
+			colorMixer:
+				combined || workload === "color-mixer"
+					? {
+							hue: new Array<number>(8).fill(20),
+							saturation: new Array<number>(8).fill(25),
+							luminance: new Array<number>(8).fill(10),
+						}
+					: undefined,
 		},
-		toneCurve: combined
-			? [
-					{ x: 0, y: 0 },
-					{ x: 0.5, y: 0.6 },
-					{ x: 1, y: 1 },
-				]
-			: defaultCurve,
-		vignette:
+		layers:
 			combined || workload === "vignette"
-				? { intensity: 80, softness: 60 }
-				: undefined,
-		colorMixer:
-			combined || workload === "color-mixer"
-				? {
-						hue: new Array<number>(8).fill(20),
-						saturation: new Array<number>(8).fill(25),
-						luminance: new Array<number>(8).fill(10),
-					}
-				: undefined,
+				? [
+						{
+							id: "benchmark-vignette",
+							name: "Vignette",
+							kind: "vignette",
+							visible: true,
+							opacity: 1,
+							vignette: { intensity: 80, softness: 60 },
+						},
+					]
+				: [],
 	};
+	if (workload === "masked-exposure" || workload === "layer-stack") {
+		scene = {
+			...scene,
+			layers: [
+				{
+					id: "benchmark-gradient",
+					name: "Gradient",
+					kind: "exposure",
+					visible: true,
+					opacity: 0.75,
+					exposure: 1,
+					mask: { start: [0, size[1] * 0.2], end: [0, size[1] * 0.8] },
+				},
+			],
+		};
+		if (workload === "layer-stack") {
+			scene = {
+				...scene,
+				layers: [
+					...scene.layers,
+					{
+						id: "benchmark-vignette",
+						name: "Vignette",
+						kind: "vignette",
+						visible: true,
+						opacity: 0.6,
+						vignette: { intensity: 80, softness: 60 },
+					},
+				],
+			};
+		}
+	}
 	const setupStart = performance.now();
 	let renderer = createEditorRenderer(gpu, source);
 	const rendererSetupMs = performance.now() - setupStart;

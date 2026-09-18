@@ -8,6 +8,8 @@ import { createImageLoader } from "@/app/loaders/image";
 import { createLoaderRegistry } from "@/app/loaders/registry";
 import type {
 	Adjustments,
+	EffectLayer,
+	LinearGradient,
 	Preview,
 	Scene,
 	ToneCurve,
@@ -22,9 +24,18 @@ import {
 	type MixerChange,
 	type MixerColor,
 } from "@/features/color-mixer/model";
+import {
+	addLayer,
+	deleteLayer,
+	duplicateLayer,
+	moveLayer,
+	setExposure,
+	setLayer,
+	setLayerMask,
+} from "@/features/layers/edits";
 import { defaultCurve } from "@/features/tone-curves/curve";
 import { setToneCurve } from "@/features/tone-curves/edits";
-import { setVignette } from "@/features/vignette/edits";
+import { setVignette, validateVignette } from "@/features/vignette/edits";
 import { defaultVignette } from "@/features/vignette/model";
 import { setWhiteBalance } from "@/features/white-balance/edits";
 import type { Workspace } from "./workspace";
@@ -52,8 +63,46 @@ export function createControls(gpu: Gpu, workspace: Workspace) {
 		setColorMixer: (color: MixerColor, change: MixerChange) =>
 			setColorMixer(workspace.getDocument(), color, change),
 		resetColorMixer: () => resetColorMixer(workspace.getDocument()),
-		setVignette: (change: Partial<Vignette>) =>
-			setVignette(workspace.getDocument(), change),
+		setVignette(change: Partial<Vignette>, id?: string) {
+			const document = workspace.getDocument();
+			if (id) {
+				setVignette(document, change, id);
+				return;
+			}
+			const existing = document.scene
+				.getState()
+				.layers.find((layer) => layer.kind === "vignette");
+			if (existing) {
+				setVignette(document, change, existing.id);
+				return;
+			}
+			validateVignette(change);
+			document.history.commit();
+			const scene = document.scene.getState();
+			const layer: EffectLayer = {
+				id: crypto.randomUUID(),
+				name: "Vignette",
+				kind: "vignette",
+				visible: true,
+				opacity: 1,
+				vignette: { ...defaultVignette, ...change },
+			};
+			document.edit({ ...scene, layers: [...scene.layers, layer] });
+			document.selectLayer(layer.id);
+		},
+		addLayer: (kind: EffectLayer["kind"], mask?: LinearGradient) =>
+			addLayer(workspace.getDocument(), kind, mask),
+		setLayer: (id: string, change: Parameters<typeof setLayer>[2]) =>
+			setLayer(workspace.getDocument(), id, change),
+		setExposure: (id: string, exposure: number) =>
+			setExposure(workspace.getDocument(), id, exposure),
+		setLayerMask: (id: string, mask?: LinearGradient) =>
+			setLayerMask(workspace.getDocument(), id, mask),
+		duplicateLayer: (id: string) => duplicateLayer(workspace.getDocument(), id),
+		deleteLayer: (id: string) => deleteLayer(workspace.getDocument(), id),
+		moveLayer: (id: string, index: number) =>
+			moveLayer(workspace.getDocument(), id, index),
+		selectLayer: (id: string) => workspace.getDocument().selectLayer(id),
 		editScene(change: Partial<Scene>) {
 			const document = workspace.getDocument();
 			document.edit({ ...document.scene.getState(), ...change });
@@ -74,13 +123,17 @@ export function createControls(gpu: Gpu, workspace: Workspace) {
 				file,
 				preview: document?.preview.getState(),
 				documentId: document?.id,
+				scene,
+				selectedLayerId: document?.selection.getState().layerId,
 				size: scene?.frame.size,
 				frame: scene?.frame,
-				adjustments: scene?.adjustments ?? defaultAdjustments,
-				whiteBalance: scene?.whiteBalance,
-				toneCurve: scene?.toneCurve ?? defaultCurve,
-				colorMixer: scene?.colorMixer ?? defaultMixer,
-				vignette: scene?.vignette ?? defaultVignette,
+				adjustments: scene?.image.adjustments ?? defaultAdjustments,
+				whiteBalance: scene?.image.whiteBalance,
+				toneCurve: scene?.image.toneCurve ?? defaultCurve,
+				colorMixer: scene?.image.colorMixer ?? defaultMixer,
+				vignette:
+					scene?.layers.find((layer) => layer.kind === "vignette")?.vignette ??
+					defaultVignette,
 				history: document?.history.status.getState() ?? {
 					undoCount: 0,
 					redoCount: 0,

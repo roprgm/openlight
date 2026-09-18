@@ -3,11 +3,11 @@ import { node } from "@/core/renderer";
 import shader from "./mixer.wgsl";
 import { colors, isNeutral } from "./model";
 
-export function colorMixer(mixer?: ColorMixer) {
+export function colorMixer(mixer?: ColorMixer, name = "color-mixer") {
 	if (!mixer || isNeutral(mixer)) {
 		return;
 	}
-	return node("color-mixer", shader, {
+	return node(name, shader, {
 		storage: {
 			settings: new Float32Array(
 				colors.flatMap(({ angle }, index) => [

@@ -435,7 +435,12 @@ test("edit a photo, inspect the preview and histograms, undo changes, and export
 		await expect(selected).toHaveText("Adjust");
 		await modes.getByRole("tab", { name: "Layers" }).click();
 		await expect(selected).toHaveText("Layers");
-		await expect(page.getByText("Coming soon")).toBeVisible();
+		await expect(
+			page.getByRole("region", { name: "Layers", exact: true }),
+		).toBeVisible();
+		await expect(
+			page.getByRole("button", { name: "Original Image · Develop" }),
+		).toHaveAttribute("aria-pressed", "true");
 		await page.keyboard.press("ArrowRight");
 		await expect(selected).toHaveText("Retouch");
 		await expect(selected).toBeFocused();

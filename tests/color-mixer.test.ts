@@ -13,10 +13,14 @@ test("color edits validate, group, cancel and reset while renderers reuse and re
 	const image = target(gpu, { size: [32, 16], format: "rgba16float" });
 	const source = createImageSource(image);
 	const document = createDocument({
-		source: "photo",
 		frame: imageFrame(image.size),
-		adjustments: defaultAdjustments,
-		toneCurve: defaultCurve,
+		image: {
+			id: "base",
+			source: "photo",
+			adjustments: defaultAdjustments,
+			toneCurve: defaultCurve,
+		},
+		layers: [],
 	});
 	const renderer = createEditorRenderer(gpu, source);
 	try {
@@ -31,8 +35,8 @@ test("color edits validate, group, cancel and reset while renderers reuse and re
 		document.history.commit();
 		expect(document.history.status.getState().undoCount).toBe(1);
 		const scene = document.scene.getState();
-		expect(scene.colorMixer?.hue[5]).toBe(25);
-		expect(scene.colorMixer?.saturation[5]).toBe(-20);
+		expect(scene.image.colorMixer?.hue[5]).toBe(25);
+		expect(scene.image.colorMixer?.saturation[5]).toBe(-20);
 		await renderer.update(scene);
 		const edited = renderer.outputImage();
 		expect(edited).not.toBe(original);
@@ -50,7 +54,10 @@ test("color edits validate, group, cancel and reset while renderers reuse and re
 		expect(renderer.outputImage()).toBe(original);
 		document.history.redo();
 		await renderer.update(document.scene.getState());
-		expect(renderer.inspect().passes).toEqual(["adjustments", "color-mixer"]);
+		expect(renderer.inspect().passes).toEqual([
+			"layer/base/adjustments",
+			"layer/base/color-mixer",
+		]);
 		expect(calls.createRenderPipeline).toBe(pipelines);
 		for (const value of [NaN, Infinity, -101, 101]) {
 			expect(() => setColorMixer(document, "red", { hue: value })).toThrow(
@@ -69,7 +76,7 @@ test("color edits validate, group, cancel and reset while renderers reuse and re
 		).toThrow("Invalid");
 		expect(document.scene.getState()).toEqual(scene);
 		resetColorMixer(document);
-		expect(document.scene.getState().colorMixer).toBeUndefined();
+		expect(document.scene.getState().image.colorMixer).toBeUndefined();
 		document.history.undo();
 		expect(document.scene.getState()).toEqual(scene);
 		renderer.dispose();

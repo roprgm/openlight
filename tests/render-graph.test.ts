@@ -110,6 +110,13 @@ test("a shared branch renders once and reuses effects, buffers, and temporary st
 		);
 		expect(graph.render([small])[0].size).toEqual([4, 4]);
 		expect(graph.inspect().textures).toHaveLength(1);
+		// Removing a composition retires its cached effect so its name can be reused.
+		graph.release("shared");
+		const replacement = merge(
+			{ source, base: source },
+			node("shared", shader.replace("weights[0]", "1.0 - weights[0]"), options),
+		);
+		expect(() => graph.render([replacement])).not.toThrow();
 		graph.dispose();
 		expect(() => saved.color.view).toThrow("destroyed");
 		expect(() => image.color.view).not.toThrow();

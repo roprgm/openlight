@@ -1,12 +1,16 @@
 import { useEffect, useMemo } from "react";
 import { useGpu } from "vgpu-react";
+import { useStore } from "zustand";
 import { EditorActions } from "@/app/editor/actions";
+import { modes, useMode } from "@/app/editor/modes";
 import { useRenderer } from "@/components/editor/pipeline";
 import {
 	PanelContent,
 	useDocument,
 	useScene,
 } from "@/components/editor/session";
+import Button from "@/components/ui/button";
+import type { EffectLayer } from "@/core/document";
 import {
 	AdjustmentControls,
 	TemperatureControls,
@@ -14,6 +18,8 @@ import {
 import { ColorMixerControls } from "@/features/color-mixer/controls";
 import { Histogram } from "@/features/histogram";
 import { createHistogram } from "@/features/histogram/histogram";
+import { EffectControls, LayersControls } from "@/features/layers/controls";
+import { useGradientTool } from "@/features/layers/gradient-tool";
 import { setToneCurve } from "@/features/tone-curves/edits";
 import { ToneCurves } from "@/features/tone-curves/tone-curves";
 import { VignetteControls } from "@/features/vignette/controls";
@@ -26,7 +32,7 @@ const curveHistogramColors = ["#a3a3a3"] as const;
 
 function ColorTemperatureControls() {
 	const document = useDocument();
-	const source = useScene((scene) => scene.source);
+	const source = useScene((scene) => scene.image.source);
 	if (document.resources.get(source).raw) {
 		return <WhiteBalanceControls />;
 	}
@@ -39,7 +45,7 @@ function ToneCurvesPanel({
 	histogram: ReturnType<typeof createHistogram>;
 }) {
 	const renderer = useRenderer();
-	const toneCurve = useScene((scene) => scene.toneCurve);
+	const toneCurve = useScene((scene) => scene.image.toneCurve);
 	const document = useDocument();
 	return (
 		<ToneCurves
@@ -60,16 +66,66 @@ function ToneCurvesPanel({
 	);
 }
 
-export function AdjustPanel() {
+function SelectedControls({
+	layer,
+	histogram,
+}: {
+	layer: EffectLayer | undefined;
+	histogram: ReturnType<typeof createHistogram>;
+}) {
+	if (layer) {
+		return (
+			<>
+				<EffectControls layer={layer} />
+				{layer.kind === "vignette" && (
+					<VignetteControls id={layer.id} vignette={layer.vignette} />
+				)}
+			</>
+		);
+	}
+	return (
+		<AdjustmentControls
+			curves={<ToneCurvesPanel histogram={histogram} />}
+			colorMixer={<ColorMixerControls />}
+			temperature={<ColorTemperatureControls />}
+		/>
+	);
+}
+
+export function AdjustPanel({ layers = false }: { layers?: boolean }) {
 	const gpu = useGpu();
 	const document = useDocument();
 	const gesture = useEditGesture(document.history);
+	const selected = useStore(document.selection, (state) => state.layerId);
+	const layer = useScene((scene) =>
+		scene.layers.find((layer) => layer.id === selected),
+	);
+	const name = layer?.name ?? "Original · Develop";
+	const tool = useGradientTool();
+	const { setMode } = useMode();
 	const renderer = useRenderer();
 	const histogram = useMemo(() => createHistogram(gpu), [gpu]);
 	useEffect(() => () => histogram.dispose(), [histogram]);
 	return (
 		<PanelContent>
 			<div className="flex min-h-0 flex-1 flex-col divide-y divide-black">
+				{layers && <LayersControls />}
+				<div className="flex items-center justify-between gap-2 border-b border-black px-3 py-2">
+					<h2 className="truncate text-xs font-medium text-neutral-200">
+						{name}
+					</h2>
+					<Button
+						variant="ghost"
+						className="shrink-0 px-2"
+						title="Draw a linear gradient (G)"
+						onClick={() => {
+							setMode(modes[0]);
+							tool.draw();
+						}}
+					>
+						Linear gradient
+					</Button>
+				</div>
 				<div
 					{...gesture}
 					className="min-h-0 flex-1 divide-y divide-black overflow-y-auto"
@@ -86,15 +142,14 @@ export function AdjustPanel() {
 							aria-label="output histogram"
 						/>
 					</section>
-					<AdjustmentControls
-						curves={<ToneCurvesPanel histogram={histogram} />}
-						colorMixer={<ColorMixerControls />}
-						temperature={<ColorTemperatureControls />}
-					/>
-					<VignetteControls />
+					<SelectedControls layer={layer} histogram={histogram} />
 				</div>
 				<EditorActions />
 			</div>
 		</PanelContent>
 	);
+}
+
+export function LayersPanel() {
+	return <AdjustPanel layers />;
 }

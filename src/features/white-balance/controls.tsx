@@ -4,8 +4,8 @@ import { setWhiteBalance, whiteBalanceLimits } from "./edits";
 
 export function WhiteBalanceControls() {
 	const document = useDocument();
-	const source = useScene((scene) => scene.source);
-	const selected = useScene((scene) => scene.whiteBalance);
+	const source = useScene((scene) => scene.image.source);
+	const selected = useScene((scene) => scene.image.whiteBalance);
 	const asShot = document.resources.get(source).raw?.asShot;
 	if (!asShot) {
 		return null;

@@ -58,11 +58,15 @@ test("RAW edits coalesce, recover from failure, and retain an exporting source a
 	const id = resources.add(new File([], "photo.nef"), source);
 	const document = createDocument(
 		{
-			source: id,
 			frame: imageFrame(image.size),
-			adjustments: { ...defaultAdjustments },
-			toneCurve: defaultCurve,
-			whiteBalance: asShot,
+			image: {
+				id: "base",
+				source: id,
+				adjustments: { ...defaultAdjustments },
+				toneCurve: defaultCurve,
+				whiteBalance: asShot,
+			},
+			layers: [],
 		},
 		resources,
 	);
@@ -87,7 +91,9 @@ test("RAW edits coalesce, recover from failure, and retain an exporting source a
 		expect(notify).toHaveBeenCalledTimes(2);
 		expect(outputs).toHaveLength(2);
 		document.history.undo();
-		expect(document.scene.getState().whiteBalance?.temperature).toBe(3000);
+		expect(document.scene.getState().image.whiteBalance?.temperature).toBe(
+			3000,
+		);
 		const failed = preview.update(document.scene.getState());
 		requests[1].reject(Error("Decode failure"));
 		await expect(failed).rejects.toThrow("Decode failure");
@@ -180,9 +186,13 @@ test("rendering follows grouped edits and undo, reuses pipelines, and releases o
 	const canvas = Object.assign(target(gpu, { size: [64, 32] }), { dpr: 2 });
 	const document = createDocument({
 		frame: imageFrame([32, 16]),
-		source: "photo",
-		adjustments: { ...defaultAdjustments },
-		toneCurve: defaultCurve,
+		image: {
+			id: "base",
+			source: "photo",
+			adjustments: { ...defaultAdjustments },
+			toneCurve: defaultCurve,
+		},
+		layers: [],
 	});
 	const resource = createImageSource(source);
 	const renderer = createRenderer(gpu, resource);
@@ -201,7 +211,7 @@ test("rendering follows grouped edits and undo, reuses pipelines, and releases o
 		await expect(
 			renderer.update({
 				...document.scene.getState(),
-				get adjustments(): never {
+				get image(): never {
 					throw Error("Render failure");
 				},
 			}),
@@ -238,14 +248,20 @@ test("rendering follows grouped edits and undo, reuses pipelines, and releases o
 		detachLate();
 		document.history.undo();
 		expect(renderer.outputImage()).toBe(adjusted);
-		expect(document.scene.getState().adjustments.exposure).toBe(0);
+		expect(document.scene.getState().image.adjustments.exposure).toBe(0);
 		document.history.redo();
-		expect(renderer.inspect().passes).toEqual(["adjustments", "curves"]);
+		expect(renderer.inspect().passes).toEqual([
+			"layer/base/adjustments",
+			"layer/base/curves",
+		]);
 		document.history.begin();
 		setToneCurve(document);
 		expect(renderer.outputImage()).toBe(adjusted);
 		document.history.cancel();
-		expect(renderer.inspect().passes).toEqual(["adjustments", "curves"]);
+		expect(renderer.inspect().passes).toEqual([
+			"layer/base/adjustments",
+			"layer/base/curves",
+		]);
 		draw();
 		expect(calls.createRenderPipeline).toBe(pipelines);
 		expect(notify).toHaveBeenCalledTimes(8);

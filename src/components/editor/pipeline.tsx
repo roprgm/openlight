@@ -49,7 +49,7 @@ export function RendererProvider({
 }: RendererProviderProps) {
 	const gpu = useGpu();
 	const document = useDocument();
-	const sourceId = useScene((scene) => scene.source);
+	const sourceId = useScene((scene) => scene.image.source);
 	const source = document.resources.get(sourceId);
 	const renderer = useMemo(
 		() => createRenderer(gpu, source),

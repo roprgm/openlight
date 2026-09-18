@@ -30,7 +30,7 @@ type AdjustmentSliderProps = Pick<
 };
 
 function AdjustmentSlider({ name, ...props }: AdjustmentSliderProps) {
-	const value = useScene((scene) => scene.adjustments[name]);
+	const value = useScene((scene) => scene.image.adjustments[name]);
 	const document = useDocument();
 	return (
 		<Slider

@@ -18,5 +18,11 @@ export function setAdjustments(
 		}
 	}
 	const scene = document.scene.getState();
-	document.edit({ ...scene, adjustments: { ...scene.adjustments, ...change } });
+	document.edit({
+		...scene,
+		image: {
+			...scene.image,
+			adjustments: { ...scene.image.adjustments, ...change },
+		},
+	});
 }

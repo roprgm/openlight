@@ -1,5 +1,5 @@
 import type { WhiteBalance } from "@/core/image";
-import type { ImageFrame } from "@/core/image/frame";
+import type { ImageFrame, Point } from "@/core/image/frame";
 
 export type Adjustments = {
 	exposure: number;
@@ -27,19 +27,37 @@ export type ColorMixer = {
 	readonly luminance: readonly number[];
 };
 
-/** Source-centered darkening in 0..100 UI units. */
+/** Frame-centered darkening in 0..100 UI units. */
 export type Vignette = {
 	readonly intensity: number;
 	readonly softness: number;
 };
 
-/** Serializable document content. Image bytes and GPU resources live elsewhere. */
-export type Scene = {
-	readonly frame: ImageFrame;
+export type ImageLayer = {
+	readonly id: string;
 	readonly source: string;
 	readonly whiteBalance?: Readonly<WhiteBalance>;
 	readonly adjustments: Readonly<Adjustments>;
 	readonly toneCurve: ToneCurve;
 	readonly colorMixer?: ColorMixer;
-	readonly vignette?: Vignette;
+};
+
+/** Endpoints in the original document canvas, independent of crop and rotation. */
+export type LinearGradient = { readonly start: Point; readonly end: Point };
+export type EffectLayer = {
+	readonly id: string;
+	readonly name: string;
+	readonly visible: boolean;
+	readonly opacity: number;
+	readonly mask?: LinearGradient;
+} & (
+	| { readonly kind: "exposure"; readonly exposure: number }
+	| { readonly kind: "vignette"; readonly vignette: Vignette }
+);
+
+/** The image is pinned below the ordered effect layers. Resources stay outside history. */
+export type Scene = {
+	readonly frame: ImageFrame;
+	readonly image: ImageLayer;
+	readonly layers: readonly EffectLayer[];
 };

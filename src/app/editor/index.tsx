@@ -3,6 +3,7 @@ import { RendererProvider } from "@/components/editor/pipeline";
 import { DocumentProvider, EditorPanel } from "@/components/editor/session";
 import ResizablePanel from "@/components/ui/resizable-panel";
 import Spinner from "@/components/ui/spinner";
+import { GradientProvider } from "@/features/layers/gradient-tool";
 import { EditorCanvas } from "./canvas";
 import { ModeRail } from "./mode-rail";
 import { ModeProvider, useMode } from "./modes";
@@ -23,11 +24,13 @@ function ModeView() {
 
 function DocumentEditor() {
 	return (
-		<ModeProvider>
-			<ModeView />
-			<EditorPanel />
-			<ModeRail />
-		</ModeProvider>
+		<GradientProvider>
+			<ModeProvider>
+				<ModeView />
+				<EditorPanel />
+				<ModeRail />
+			</ModeProvider>
+		</GradientProvider>
 	);
 }
 

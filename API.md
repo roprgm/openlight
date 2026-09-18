@@ -34,6 +34,8 @@ Loading calls are queued. XMP import is skipped if no document is ready; an inva
 
 ## Editing
 
+The adjustment, curve, color-mixer and white-balance commands edit the base image's Develop settings, independently of layer selection. Effect-layer commands take an explicit layer ID.
+
 `setAdjustments(change)` updates only the supplied adjustments. Values must be finite numbers within these inclusive ranges. Unknown names and invalid values throw.
 
 | Adjustment | Range | Default |
@@ -49,13 +51,33 @@ Loading calls are queued. XMP import is skipped if no document is ready; an inva
 
 `setColorMixer(color, change)` updates one of `red`, `orange`, `yellow`, `green`, `aqua`, `blue`, `purple`, or `magenta`. Supply any of `hue`, `saturation`, and `luminance`, each a finite number from -100 to 100. Other colors and unspecified channels keep their values. `resetColorMixer()` resets every color as one undoable edit. A full shift of 100 rotates hue by 30°, scales saturation from zero to double, or moves luminance by one stop, weighted by each pixel's distance to the color's Oklab hue. Hue and saturation edits preserve luminance, and neutrals are unaffected.
 
-`setVignette({ intensity, softness })` updates either or both values, each a finite number from 0 to 100. Defaults are intensity 0 and softness 50. Intensity 0 bypasses the effect; increasing softness spreads the transition toward the center. The elliptical falloff is centered on the source image, before crop/rotation, independent of viewport zoom and pan. It multiplies linear RGB equally, preserves alpha and HDR headroom, and uses the same processing for preview and export. Double-click either slider to restore its default.
+`setVignette({ intensity, softness }, id?)` updates a vignette layer. Values are finite numbers from 0 to 100; defaults are intensity 0 and softness 50. Without an ID, it updates the first vignette or creates one. Intensity 0 bypasses the effect; increasing softness spreads the transition toward the center. The falloff follows the document's output frame, including crop and rotation, independently of viewport zoom and pan. Its position among the effect layers determines processing order. It multiplies linear RGB equally and preserves alpha and HDR headroom.
 
 For RAW sources, `setWhiteBalance({ temperature, tint })` sets absolute Kelvin and DNG tint, preserving unspecified values. Temperature accepts 2000–25000 K and tint accepts -150–150, extending either range to include the file's As Shot value. `setWhiteBalance()` restores that value (the decoder's daylight fallback if camera multipliers are unavailable). Non-RAW sources and invalid values throw. Incremental temperature/tint remain separate RGB adjustments.
 
 Edits update the scene and history synchronously. Rendering may finish later, particularly RAW development. Tests should wait for visible results; `exportImage()` renders and waits for its captured scene independently of the preview.
 
 `editScene(change)` shallowly merges a partial [Scene](src/core/document/scene.ts) as an undoable edit. Supply complete nested values such as `frame`. This low-level command validates frame geometry only; prefer the adjustment, curve, color-mixer, and white-balance commands for their validation.
+
+## Layers
+
+The base image is pinned below `scene.layers`, which are ordered bottom to top. Selecting a layer changes the inspector without adding history; changing selection commits an active edit gesture. Deleting the selected layer or undoing its creation returns selection to the base image.
+
+| Method | Behavior |
+| --- | --- |
+| `addLayer(kind, mask?)` | Adds and selects `"exposure"` (+1 EV) or `"vignette"` (intensity 50, softness 50); returns its ID. |
+| `selectLayer(id)` | Selects the base image or an effect. |
+| `setLayer(id, change)` | Updates `name`, `visible`, or `opacity` (0–1). |
+| `setExposure(id, value)` | Sets an exposure layer to -5…5 EV. |
+| `setVignette(change, id)` | Updates the specified vignette layer. |
+| `setLayerMask(id, mask?)` | Sets a linear gradient or removes the mask. |
+| `duplicateLayer(id)` | Copies an effect above itself with independent parameters; selects and returns its new ID. |
+| `moveLayer(id, index)` | Moves an effect to a zero-based index, bottom to top. |
+| `deleteLayer(id)` | Removes an effect; undo restores it. |
+
+A gradient is `{ start: [x, y], end: [x, y] }` in original document pixel coordinates: full effect at `start`, no effect at `end`. Points must be finite and distinct. Crop, rotation, and viewport navigation do not move the mask within the document. No mask means full coverage; coverage multiplies layer opacity. Hidden layers and zero opacity bypass processing.
+
+In the UI, **Linear gradient** or **G** starts drawing and opens Adjust. Completing the drag creates a masked exposure layer as one undoable edit; Escape cancels it. Layers uses the same sidebar and inspector for explicit stack editing.
 
 ## History
 
@@ -108,6 +130,6 @@ The image renders at the document dimensions and downsamples to `longEdge` with 
 
 ## State
 
-`getState()` returns a detached snapshot containing `file`, `documentId`, `size`, `frame`, `adjustments`, `whiteBalance`, `toneCurve`, `colorMixer`, `vignette`, `preview`, and `history`. `colorMixer` contains eight-value `hue`, `saturation`, and `luminance` arrays in the color order above, defaulting to zero. `whiteBalance` contains absolute temperature/tint for RAW sources and is undefined for other sources. `file` is the filename, and `history` contains `undoCount` and `redoCount`.
+`getState()` returns a detached snapshot containing `file`, `documentId`, `scene`, `selectedLayerId`, `size`, `frame`, `adjustments`, `whiteBalance`, `toneCurve`, `colorMixer`, `vignette`, `preview`, and `history`. `scene` contains `frame`, the base `image`, and ordered effect `layers`. The top-level Develop values are derived from `scene.image`; `vignette` describes the first vignette layer or its defaults. `colorMixer` contains eight-value `hue`, `saturation`, and `luminance` arrays in the color order above, defaulting to zero. `whiteBalance` contains absolute temperature/tint for RAW sources and is undefined for other sources. `file` is the filename, and `history` contains `undoCount` and `redoCount`.
 
 Without a document, `documentId`, `size`, `frame`, and `preview` are undefined. Adjustments and the tone curve use their defaults, and history counts are zero. Mutating the snapshot does not edit the document.
