@@ -34,7 +34,7 @@ Loading calls are queued. XMP import is skipped if no document is ready; an inva
 
 ## Editing
 
-`setNoiseReduction(amount)` sets noise reduction from 0 to 100 as an undoable edit. Zero bypasses it exactly. The first nonzero edit computes a local GPU result; subsequent amounts blend that result. RAW white-balance changes develop a new snapshot of the filtered Bayer sensor, or recalculate the RGB fallback. The command updates the scene immediately; `exportImage()` waits for processing of its captured scene.
+`setNoiseReduction(amount)` sets noise reduction from 0 to 100 as an undoable edit. Zero bypasses it exactly. The first nonzero edit computes a local GPU result; subsequent amounts blend that result. RAW white-balance changes develop a new snapshot of the filtered Bayer sensor and recalculate its chroma cleanup, or recalculate the RGB fallback. The command updates the scene immediately; `exportImage()` waits for processing of its captured scene.
 
 `setAdjustments(change)` updates only the supplied adjustments. Values must be finite numbers within these inclusive ranges. Unknown names and invalid values throw.
 

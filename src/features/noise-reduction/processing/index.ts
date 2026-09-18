@@ -10,9 +10,17 @@ async function denoise(
 	source: Target,
 	signal: AbortSignal,
 	levels: number,
+	chromaVariance: number,
 ): Promise<Target> {
 	let filtered: Target | undefined;
-	const variance = await estimateNoise(gpu, source);
+	const variance = (await estimateNoise(gpu, source)).map(
+		([luma, redBlue, greenMagenta, alpha]) => [
+			luma,
+			redBlue * chromaVariance,
+			greenMagenta * chromaVariance,
+			alpha,
+		],
+	);
 	signal.throwIfAborted();
 	if (variance.every((v) => v.every((c) => c <= 1e-9))) {
 		return source;
@@ -34,7 +42,13 @@ async function denoise(
 			frame(gpu, (f) =>
 				f.pass(coarse, effect(gpu, downsampleShader).set({ source })),
 			);
-			coarseFiltered = await denoise(gpu, coarse, signal, levels - 1);
+			coarseFiltered = await denoise(
+				gpu,
+				coarse,
+				signal,
+				levels - 1,
+				chromaVariance,
+			);
 			if (coarseFiltered !== coarse) {
 				temporary.push(coarseFiltered.color);
 			}
@@ -137,7 +151,7 @@ async function denoise(
 	}
 }
 /** Cached RGB denoising with a three-level chroma pyramid. */
-export function createDenoising(gpu: Gpu, source: Target) {
+export function createDenoising(gpu: Gpu, source: Target, chromaVariance = 1) {
 	const controller = new AbortController();
 	let filtered: Target | undefined;
 	let pending: Promise<void> | undefined;
@@ -148,7 +162,7 @@ export function createDenoising(gpu: Gpu, source: Target) {
 			if (amount === 0 || filtered) {
 				return;
 			}
-			pending ??= denoise(gpu, source, controller.signal, 3)
+			pending ??= denoise(gpu, source, controller.signal, 3, chromaVariance)
 				.then((result) => {
 					if (controller.signal.aborted) {
 						if (result !== source) {

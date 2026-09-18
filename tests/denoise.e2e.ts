@@ -43,8 +43,14 @@ function difference(
 	const [left, top, width, height] = region;
 	const bias = [0, 0, 0];
 	let squaredError = 0;
+	let chromaError = 0;
 	for (let y = top; y < top + height; y++) {
 		for (let x = left; x < left + width; x++) {
+			const i = (y * image.width + x) * 4;
+			const red = image.pixels[i] - reference.pixels[i];
+			const green = image.pixels[i + 1] - reference.pixels[i + 1];
+			const blue = image.pixels[i + 2] - reference.pixels[i + 2];
+			chromaError += (red - blue) ** 2 / 2 + (red - 2 * green + blue) ** 2 / 6;
 			for (let c = 0; c < 3; c++) {
 				const i = (y * image.width + x) * 4 + c;
 				const error = image.pixels[i] - reference.pixels[i];
@@ -55,9 +61,50 @@ function difference(
 	}
 	return {
 		mse: squaredError / (width * height * 3),
+		chromaMse: chromaError / (width * height * 2),
 		bias: Math.max(...bias.map((v) => Math.abs(v) / (width * height))),
 	};
 }
+
+test("Bayer chroma cleanup removes broad color noise at +2 EV while retaining texture", async ({
+	page,
+}) => {
+	test.setTimeout(120_000);
+	await page.goto("/");
+	await page.waitForFunction(() => window.openlight);
+	await loadFixture(page, "denoise-clean.chroma.dng");
+	await page.evaluate(() => window.openlight.setAdjustments({ exposure: 2 }));
+	const clean = await readPixels(page);
+	await page.evaluate(() => window.openlight.setNoiseReduction(100));
+	expect(difference(await readPixels(page), clean).mse).toBeLessThan(0.2);
+	await loadFixture(page, "denoise-noisy.chroma.dng");
+	await page.evaluate(() => window.openlight.setAdjustments({ exposure: 2 }));
+	const noisy = await readPixels(page);
+	await page.evaluate(() => window.openlight.setNoiseReduction(100));
+	const filtered = await readPixels(page);
+	for (const region of [
+		[0, 0, 320, 320],
+		[16, 248, 192, 56],
+	]) {
+		expect(difference(filtered, clean, region).chromaMse).toBeLessThan(
+			difference(noisy, clean, region).chromaMse * 0.85,
+		);
+	}
+	const flat = [16, 16, 128, 96];
+	expect(difference(filtered, clean, flat).chromaMse).toBeLessThan(
+		difference(noisy, clean, flat).chromaMse * 0.7,
+	);
+	// Fine luminance stripes, a color boundary and a small saturated light survive.
+	expect(difference(filtered, clean, [16, 136, 192, 72]).mse).toBeLessThan(75);
+	expect(difference(filtered, clean, [216, 16, 16, 96]).mse).toBeLessThan(105);
+	expect(difference(filtered, clean, [157, 59, 4, 4]).mse).toBeLessThan(120);
+	await page.evaluate(() => window.openlight.setNoiseReduction(50));
+	expect(difference(await readPixels(page), filtered).mse).toBeGreaterThan(0.1);
+	await page.evaluate(() => window.openlight.undo());
+	expect(await readPixels(page)).toEqual(filtered);
+	await page.evaluate(() => window.openlight.setNoiseReduction(0));
+	expect(await readPixels(page)).toEqual(noisy);
+});
 
 for (const format of ["png", "tif", "dng", "detail.dng", "correlated.png"]) {
 	test(`noise reduction cleans ${format} without distorting the image`, async ({

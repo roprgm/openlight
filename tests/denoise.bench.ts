@@ -26,7 +26,11 @@ async function saveReport(info: TestInfo, browser: Browser, timings: object) {
 	);
 }
 
-for (const fixture of ["denoise-noisy.correlated.png", "denoise-noisy.dng"]) {
+for (const fixture of [
+	"denoise-noisy.correlated.png",
+	"denoise-noisy.dng",
+	"denoise-noisy.chroma.dng",
+]) {
 	test(`cached denoising ${fixture}`, async ({ page, browser }, info) => {
 		await page.goto("/tests/gpu.html");
 		const result = await page.evaluate(

@@ -1,6 +1,7 @@
 import type { Gpu, Target } from "vgpu";
 import type { ImageSource, WhiteBalance } from "@/core/image";
 import { createBayerDenoising } from "./bayer/source";
+import { createChromaDenoising } from "./chroma";
 import { createDenoising } from "./index";
 
 function createEntry(
@@ -17,6 +18,7 @@ function createEntry(
 	let raw = !bayer && changed ? resource.raw?.createPass() : undefined;
 	let ready = false;
 	let filter: ReturnType<typeof createDenoising> | undefined;
+	let chroma: ReturnType<typeof createChromaDenoising> | undefined;
 	let pending: Promise<void> | undefined;
 	let disposed = false;
 	async function prepare() {
@@ -36,7 +38,16 @@ function createEntry(
 		if (disposed) {
 			throw Error("Noise reduction was cancelled.");
 		}
-		if (!bayer) {
+		if (bayer) {
+			const developed = raw?.render() ?? resource.image;
+			chroma ??= createChromaDenoising(gpu, developed);
+			await chroma.prepare();
+			if (chroma.texture() !== developed) {
+				// The cached correction replaces this development, rather than retaining both.
+				raw?.dispose();
+				raw = undefined;
+			}
+		} else {
 			filter ??= createDenoising(gpu, raw?.render() ?? resource.image);
 			await filter.prepare(100);
 		}
@@ -48,7 +59,7 @@ function createEntry(
 			if (!ready) {
 				return;
 			}
-			return bayer ? raw?.render() : filter?.texture();
+			return bayer ? chroma?.texture() : filter?.texture();
 		},
 		prepare() {
 			pending ??= prepare().finally(() => {
@@ -59,6 +70,7 @@ function createEntry(
 		dispose() {
 			disposed = true;
 			filter?.dispose();
+			chroma?.dispose();
 			raw?.dispose();
 		},
 	};

@@ -42,3 +42,19 @@ Adobe DNG SDK to recognize the main image.
 They contain flat fields, fine texture, color boundaries and shadows; the
 packed image crosses the 128-pixel accumulation-tile boundary at sensor x=256.
 The browser test also filters the clean file to bound damage to real structure.
+
+`denoise-clean.chroma.dng` and `denoise-noisy.chroma.dng` reuse the 320×320
+Bayer detail fixture's tags (black 512, white 16383, neutral white balance).
+The clean sensor has a neutral 0.07 field, a color boundary at x=224
+([0.14, 0.055, 0.035]), luminance stripes at y=128–223 (amplitude 0.015,
+period 8), shadow stripes below y=240 (mean 0.02, amplitude 0.004, period 6),
+and a 4×4 red light at (157, 59), [0.25, 0.01, 0.01].
+
+The noisy sensor adds independent grain (sigma 0.002) and broad correlated
+color fields. Python `random.Random(180926)` generates four Gaussian fields,
+separably convolved with Gaussian kernels of sigma [4, 12, 4, 12], radius
+ceil(3*sigma), L2-normalized per axis and clamped at image edges. The first two
+fields sum into rb, the last two into gm, each scaled by 0.004. The RGB
+perturbation is [rb+gm, -2*gm, -rb+gm]; grain is generated afterward in
+row/pixel order. CFA samples are rounded to unsigned 16-bit codes. These
+synthetic fixtures test NR 100% with exposure +2 EV, not a Sony sensor profile.

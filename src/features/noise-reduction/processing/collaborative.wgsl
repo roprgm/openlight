@@ -164,7 +164,11 @@ fn main(@builtin(workgroup_id) group: vec3u, @builtin(local_invocation_index) la
   variances[lane] = variance / f32(count);
   workgroupBarrier();
   transformVariance(lane);
-  if params.bayer != 0u { variances[lane] = vec4f(dot(variances[lane], vec4f(0.25))); }
+  if params.bayer != 0u {
+    // Preserve more shared Bayer detail; color differences retain full denoising.
+    // Residual broad chroma is cleaned after development, independently of luminance.
+    variances[lane] = dot(variances[lane], vec4f(0.25)) * vec4f(0.5, 1.0, 1.0, 1.0);
+  }
   workgroupBarrier();
   spatial(lane, false);
   groups(lane);

@@ -12,8 +12,45 @@ import * as bayer from "@/features/noise-reduction/processing/bayer";
 import { fitNoiseModel } from "@/features/noise-reduction/processing/bayer/noise";
 import { createBayerDenoising } from "@/features/noise-reduction/processing/bayer/source";
 import { createCachedDenoising } from "@/features/noise-reduction/processing/cache";
+import { createChromaDenoising } from "@/features/noise-reduction/processing/chroma";
 import * as noise from "@/features/noise-reduction/processing/noise";
 import { defaultCurve } from "@/features/tone-curves/curve";
+
+test("chroma cleanup retains its cached output and cancels without disposing its input", async () => {
+	const gpu = await init();
+	const image = target(gpu, { size: [128, 96], format: "rgba16float" });
+	const quiet = Array.from({ length: 16 }, () => [1e-10, 1e-10, 1e-10, 1e-10]);
+	const estimate = spyOn(noise, "estimateNoise").mockResolvedValue(quiet);
+	const chroma = createChromaDenoising(gpu, image);
+	try {
+		await chroma.prepare();
+		const output = chroma.texture();
+		expect(output?.size).toEqual(image.size);
+		expect(output).not.toBe(image);
+		estimate.mockClear();
+		await chroma.prepare();
+		expect(chroma.texture()).toBe(output);
+		expect(estimate).not.toHaveBeenCalled();
+		chroma.dispose();
+		expect(() => output?.color.view).toThrow("destroyed");
+		expect(() => image.color.view).not.toThrow();
+
+		const pending = Promise.withResolvers<number[][]>();
+		estimate.mockReturnValueOnce(pending.promise);
+		const cancelled = createChromaDenoising(gpu, image);
+		const preparing = cancelled.prepare();
+		cancelled.dispose();
+		pending.resolve(quiet);
+		await expect(preparing).rejects.toThrow();
+		expect(cancelled.texture()).toBeUndefined();
+		expect(() => image.color.view).not.toThrow();
+	} finally {
+		chroma.dispose();
+		estimate.mockRestore();
+		image.color.dispose();
+		gpu.dispose();
+	}
+});
 
 test("preview and export share denoising but keep different white balances alive independently", async () => {
 	const gpu = await init();
