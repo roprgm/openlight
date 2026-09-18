@@ -50,6 +50,12 @@ test("chroma reconstruction stays continuous across noise bins and preserves lum
 	const spike = (4 * 128 + 64) * 4;
 	expect(Math.abs(after[spike] - before[spike])).toBeGreaterThan(0.0002);
 	expect(after.every(Number.isFinite)).toBe(true);
+	expect(after[(4 * 128 + 90) * 4]).toBeGreaterThan(1);
+	expect(after[(4 * 128 + 100) * 4]).toBeLessThan(0);
+	const translucent = (4 * 128 + 110) * 4;
+	expect(after.slice(translucent, translucent + 4)).toEqual(
+		before.slice(translucent, translucent + 4),
+	);
 	const corrections = Array.from(
 		{ length: 128 },
 		(_, x) => after[x * 4] - before[x * 4],
@@ -63,7 +69,9 @@ test("chroma reconstruction stays continuous across noise bins and preserves lum
 			(sum, weight, c) => sum + weight * (after[i + c] - before[i + c]),
 			0,
 		);
-		expect(Math.abs(luminanceChange)).toBeLessThan(1e-7);
+		expect(Math.abs(luminanceChange)).toBeLessThan(
+			2e-7 * Math.max(1, Math.abs(before[i])),
+		);
 		expect(after[i + 3]).toBe(before[i + 3]);
 	}
 });
@@ -154,11 +162,11 @@ test("Bayer chroma cleanup removes broad color noise at +2 EV while retaining te
 	shadowRatios.sort((a, b) => a - b);
 	expect(shadowRatios.length).toBeGreaterThan(100);
 	expect(shadowRatios[Math.ceil(shadowRatios.length * 0.9) - 1]).toBeLessThan(
-		0.9,
+		0.7,
 	);
 	expect(
 		difference(filtered, clean, [16, 248, 192, 56]).chromaMse,
-	).toBeLessThan(difference(noisy, clean, [16, 248, 192, 56]).chromaMse * 0.4);
+	).toBeLessThan(difference(noisy, clean, [16, 248, 192, 56]).chromaMse * 0.29);
 	const flat = [16, 16, 128, 96];
 	expect(difference(filtered, clean, flat).chromaMse).toBeLessThan(
 		difference(noisy, clean, flat).chromaMse * 0.7,
@@ -166,13 +174,37 @@ test("Bayer chroma cleanup removes broad color noise at +2 EV while retaining te
 	// Fine luminance stripes, a color boundary and a small saturated light survive.
 	expect(difference(filtered, clean, [16, 136, 192, 72]).mse).toBeLessThan(75);
 	expect(difference(filtered, clean, [216, 16, 16, 96]).mse).toBeLessThan(105);
-	expect(difference(filtered, clean, [157, 59, 4, 4]).mse).toBeLessThan(120);
+	expect(difference(filtered, clean, [157, 59, 4, 4]).mse).toBeLessThan(95);
 	await page.evaluate(() => window.openlight.setNoiseReduction(50));
 	expect(difference(await readPixels(page), filtered).mse).toBeGreaterThan(0.1);
 	await page.evaluate(() => window.openlight.undo());
 	expect(await readPixels(page)).toEqual(filtered);
 	await page.evaluate(() => window.openlight.setNoiseReduction(0));
 	expect(await readPixels(page)).toEqual(noisy);
+});
+
+test("Bayer filtering cleans noisier sky corners without removing lawn color", async ({
+	page,
+}) => {
+	test.setTimeout(120_000);
+	await page.goto("/");
+	await page.waitForFunction(() => window.openlight);
+	await loadFixture(page, "denoise-clean.surfaces.dng");
+	await page.evaluate(() => window.openlight.setAdjustments({ exposure: 2 }));
+	const clean = await readPixels(page);
+	await loadFixture(page, "denoise-noisy.surfaces.dng");
+	await page.evaluate(() => {
+		window.openlight.setAdjustments({ exposure: 2 });
+		window.openlight.setNoiseReduction(100);
+	});
+	const filtered = await readPixels(page);
+	// A global model used to leave the noisier upper-right corner nearly unfiltered.
+	expect(difference(filtered, clean, [832, 16, 176, 176]).mse).toBeLessThan(2);
+	expect(difference(filtered, clean, [400, 200, 176, 176]).mse).toBeLessThan(1);
+	// The colored surface includes fine stripes and a small red light, above a blue wall.
+	expect(
+		difference(filtered, clean, [100, 660, 600, 210]).chromaMse,
+	).toBeLessThan(5);
 });
 
 for (const format of ["png", "tif", "dng", "detail.dng", "correlated.png"]) {

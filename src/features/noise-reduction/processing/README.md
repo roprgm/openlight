@@ -8,8 +8,8 @@ post-development chroma correction. The stabilized alternative in
 The sensor and RGB paths use two-stage BM3D-style filtering: 8×8 DCT patches, up to eight matches,
 a Walsh group transform, hard thresholding, then pilot-guided Wiener filtering.
 Neither claims bit-exact reference BM3D or full covariance modeling. Fine texture
-can be mistaken for noise. Real-photo quality and physical-GPU performance still
-need comparison.
+can be mistaken for noise. Local RAW comparisons and Apple Metal measurements are recorded in PR #20;
+they do not establish parity with Lightroom or other cameras.
 
 This implementation reads
 `raw-webgpu`'s integer sensor texture and rounds the filtered result back to
@@ -40,17 +40,25 @@ or RGB denoise for other sources → amount blend → adjustments → curves →
 
 `bayer/index.ts` filters an exclusively owned second `raw-webgpu` source before
 its first development. The original sensor is preserved. It normalizes and packs
-four physical Bayer phases, estimates per-phase shot/read noise, runs both filter
-stages, and copies the restored sensor codes into that private source. Half-strength
+four physical Bayer phases, estimates per-phase shot/read noise, and builds a
+32×32 spatial variance-gain field from those same samples. It runs both filter
+stages and copies the restored sensor codes into that private source. Half-strength
 variance regularization on the shared Bayer component retains more common detail;
 color-difference components keep full regularization. This is a calibration
 tradeoff that can retain more luminance grain, not an exact noise model.
+The spatial field raises underestimated noise using local median residuals
+against the global fit, bounded to 1–4× variance. Images with fewer than 32×32
+statistical samples retain 1×. Bilinear
+interpolation uses image coordinates across tile boundaries. This addresses
+nonuniform sensor noise without increasing filtering everywhere; texture can still
+contaminate the estimate. The field adds no GPU pass or statistics readback.
 
 `chroma.ts` builds a dyadic perceptual-color pyramid with up to seven reductions,
 covering fine grain and broad chroma blotches. Every level estimates its own noise;
 sampling covers the full image, including bottom/right borders and small coarse
-levels. The preceding level's variance, divided by four, supplies a white-noise
-floor when a coarse estimate is weaker.
+levels. The preceding level's variance, divided by two, supplies a calibrated floor
+for correlated residual Bayer noise when a coarse estimate is weaker. This is
+stronger than the fourfold variance reduction expected for independent noise.
 
 Reconstruction shrinks Laplacian chroma bands with a smooth, noise-normalized
 local activity gain. A compact-feature term preserves small, strong color details.
@@ -58,7 +66,11 @@ Joint bilateral interpolation follows color edges with strictly positive normali
 weights: a fine-scale outlier cannot veto the coarse correction. Each band controls
 only its own detail, rather than masking the entire multiscale correction. This is
 not a guarantee of removing all noise or distinguishing every small feature from
-noise. Working-space luminance, alpha, HDR headroom and negative values are retained.
+noise. Intermediate reconstruction retains perceptual color without repeatedly imposing
+linear luminance. Only the full-resolution result restores source luminance, using
+a common RGB gain for positive luminance and an additive correction for signed
+nonpositive values. This avoids gray patches caused by repeated luminance offsets
+and subsequent display gamut compression. Alpha and HDR headroom are retained.
 The chroma stage no longer runs collaborative patch searches.
 
 `index.ts` owns RGB filtering and its temporary textures. `cache.ts` shares

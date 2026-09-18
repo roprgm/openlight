@@ -68,6 +68,51 @@ export function fitNoiseModel(statistics: Float32Array): NoiseModel {
 	return model;
 }
 
+/** Smooth spatial gain for sensor noise that a single shot/read line cannot describe. */
+export function fitNoiseScales(
+	statistics: Float32Array,
+	grid: number[],
+	model: NoiseModel,
+) {
+	if (grid[0] < 32 || grid[1] < 32) {
+		return Array.from({ length: 256 }, () => [1, 1, 1, 1]);
+	}
+	const ratios = Array.from({ length: statistics.length / 8 }, (_, i) => {
+		const values = [0, 1, 2, 3].map(
+			(c) =>
+				statistics[i * 8 + 4 + c] /
+				Math.max(
+					1e-10,
+					model.read[c] + model.shot[c] * Math.max(0, statistics[i * 8 + c]),
+				),
+		);
+		return values.every((v) => Number.isFinite(v) && v >= 0)
+			? median(values)
+			: 1;
+	});
+	const scales = Array.from({ length: 1024 }, (_, i) => {
+		const x = i % 32,
+			y = Math.floor(i / 32);
+		const neighbors: number[] = [];
+		for (let row = Math.max(0, y - 1); row <= Math.min(31, y + 1); row++) {
+			for (
+				let column = Math.max(0, x - 1);
+				column <= Math.min(31, x + 1);
+				column++
+			) {
+				neighbors.push(ratios[row * 32 + column]);
+			}
+		}
+		neighbors.sort((a, b) => a - b);
+		// A local median rejects isolated texture without underestimating broad noisy areas.
+		return Math.max(
+			1,
+			Math.min(4, neighbors[Math.floor((neighbors.length - 1) / 2)]),
+		);
+	});
+	return Array.from({ length: 256 }, (_, i) => scales.slice(i * 4, i * 4 + 4));
+}
+
 export async function estimateNoise(
 	gpu: Gpu,
 	source: GPUTexture,
@@ -77,7 +122,10 @@ export async function estimateNoise(
 		.slice(2)
 		.map((size) => Math.min(32, Math.floor(size / 32)));
 	if (grid.includes(0)) {
-		return fitNoiseModel(new Float32Array(0));
+		return {
+			...fitNoiseModel(new Float32Array(0)),
+			scales: Array.from({ length: 256 }, () => [1, 1, 1, 1]),
+		};
 	}
 	const bytes = grid[0] * grid[1] * 32;
 	const statistics = gpu.device.createBuffer({
@@ -88,7 +136,9 @@ export async function estimateNoise(
 		compute(gpu, shader)
 			.set({ source, statistics, params: { ...params, grid } })
 			.dispatch(grid[0], grid[1]);
-		return fitNoiseModel(new Float32Array(await statistics.read(bytes)));
+		const samples = new Float32Array(await statistics.read(bytes));
+		const model = fitNoiseModel(samples);
+		return { ...model, scales: fitNoiseScales(samples, grid, model) };
 	} finally {
 		statistics.dispose();
 	}

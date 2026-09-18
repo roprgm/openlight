@@ -30,6 +30,7 @@ for (const fixture of [
 	"denoise-noisy.correlated.png",
 	"denoise-noisy.dng",
 	"denoise-noisy.chroma.dng",
+	"denoise-noisy.surfaces.dng",
 ]) {
 	test(`cached denoising ${fixture}`, async ({ page, browser }, info) => {
 		await page.goto("/tests/gpu.html");

@@ -5,6 +5,7 @@ import { luminance } from "../../../core/image/color.wgsl";
 @group(0) @binding(1) var coarse: texture_2d<f32>;
 @group(0) @binding(2) var coarseFiltered: texture_2d<f32>;
 @group(0) @binding(3) var<uniform> variance: array<vec4f, 16>;
+@group(0) @binding(4) var<uniform> preserveLuminance: u32;
 
 fn interpolate(image: texture_2d<f32>, p: vec2i) -> vec4f {
   let coordinate = (vec2f(p) + 0.5) * 0.5 - 0.5;
@@ -75,8 +76,19 @@ fn estimateCoarse(p: vec2i, guide: vec2f, noise: vec2f) -> CoarseEstimate {
   let signal = max(dot(energy / max(noise, vec2f(1e-10)), vec2f(1.0)) - 2.0, 0.0);
   // Smooth firm shrinkage removes weak coefficients without repeatedly
   // attenuating high-SNR color features across the pyramid.
-  let gain = signal * signal / (signal * signal + 36.0);
+  let gain = signal * signal / (signal * signal + 64.0);
   let after = vec3f(before.x, coarseEstimate.after + gain * detail);
-  let correction = unpackColor(after) - unpackColor(before.rgb);
+  // Keep intermediate bands in perceptual color. Repeated linear-luminance
+  // corrections feed chroma shifts back into the next reconstruction level.
+  if preserveLuminance == 0u { return vec4f(unpackColor(after), original.a); }
+  let reconstructed = unpackColor(after);
+  let sourceLuminance = luminance(original.rgb);
+  let reconstructedLuminance = luminance(reconstructed);
+  // A common gain preserves hue; adding gray can create negative channels
+  // that the display gamut mapping then desaturates. Keep signed dark values.
+  if sourceLuminance > 0.0 && reconstructedLuminance > 1e-10 {
+    return vec4f(reconstructed * (sourceLuminance / reconstructedLuminance), original.a);
+  }
+  let correction = reconstructed - unpackColor(before.rgb);
   return vec4f(original.rgb + correction - vec3f(luminance(correction)), original.a);
 }

@@ -9,7 +9,10 @@ import { createRenderer, type RenderImage } from "@/core/renderer";
 import { defaultAdjustments } from "@/features/adjustments/model";
 import { setNoiseReduction } from "@/features/noise-reduction/edits";
 import * as bayer from "@/features/noise-reduction/processing/bayer";
-import { fitNoiseModel } from "@/features/noise-reduction/processing/bayer/noise";
+import {
+	fitNoiseModel,
+	fitNoiseScales,
+} from "@/features/noise-reduction/processing/bayer/noise";
 import { createBayerDenoising } from "@/features/noise-reduction/processing/bayer/source";
 import { createCachedDenoising } from "@/features/noise-reduction/processing/cache";
 import { createChromaDenoising } from "@/features/noise-reduction/processing/chroma";
@@ -131,6 +134,26 @@ test("RAW noise fitting keeps a measured shadow floor when bright texture distor
 	// denominator for signed shadow normalization merely because the slope hits its bound.
 	const model = fitNoiseModel(samples);
 	expect(model.read.every((value) => value > 1e-7)).toBe(true);
+});
+
+test("spatial sensor noise follows noisy corners without following textured outliers", () => {
+	const model = { shot: [0, 0, 0, 0], read: [0.01, 0.01, 0.01, 0.01] };
+	const samples = new Float32Array(32 * 32 * 8);
+	for (let y = 0; y < 32; y++) {
+		for (let x = 0; x < 32; x++) {
+			const variance = x >= 24 && y < 8 ? 0.016 : 0.01;
+			for (let c = 0; c < 4; c++) {
+				samples[(y * 32 + x) * 8 + c] = 0.1;
+				samples[(y * 32 + x) * 8 + c + 4] = x % 4 === 0 ? 0.5 : variance;
+			}
+		}
+	}
+	const scales = fitNoiseScales(samples, [32, 32], model).flat();
+	expect(scales[31]).toBeCloseTo(1.6, 5);
+	expect(scales[18 * 32 + 18]).toBeCloseTo(1, 5);
+	expect(fitNoiseScales(new Float32Array(8), [1, 1], model).flat()).toEqual(
+		Array(1024).fill(1),
+	);
 });
 
 test("noise edits validate and group while asynchronous preparation coalesces and closes safely", async () => {

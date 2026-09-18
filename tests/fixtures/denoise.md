@@ -58,3 +58,16 @@ fields sum into rb, the last two into gm, each scaled by 0.004. The RGB
 perturbation is [rb+gm, -2*gm, -rb+gm]; grain is generated afterward in
 row/pixel order. CFA samples are rounded to unsigned 16-bit codes. These
 synthetic fixtures test NR 100% with exposure +2 EV, not a Sony sensor profile.
+
+
+`denoise-clean.surfaces.dng` and `denoise-noisy.surfaces.dng` are 1024×1024
+synthetic Bayer images using the chroma fixture's calibration. A dark blue-gray
+sky occupies rows 0–639. Rows 640–895 contain a green surface whose brightness
+increases horizontally, with 8-pixel luminance stripes in rows 720–799 and an
+8×8 red light at (430, 690). A blue-gray wall starts at row 896.
+The noisy sensor adds independent Gaussian noise using NumPy's PCG64 seed
+20260918, standard deviation `0.002 * sqrt(1 + 2.5*u^6*(1-v)^6)`, where u/v
+span 0–1 across the image. Variance grows toward the upper-right corner while
+brightness stays comparable. Rounded sensor codes use black 512 and white 16383.
+This pair checks spatial noise estimation and preservation of a broad colored
+surface beside a different color, at exposure +2 EV. It contains no photo pixels.

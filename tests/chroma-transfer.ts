@@ -14,6 +14,11 @@ export async function renderChromaRamp() {
 		`
     @group(0) @binding(0) var<uniform> params: vec2f;
     @fragment fn fs_main(@builtin(position) p: vec4f) -> @location(0) vec4f {
+      if params.y > 0.02 {
+        if all(vec2i(p.xy) == vec2i(90, 4)) { return vec4f(3.0, 1.0, 0.5, 1.0); }
+        if all(vec2i(p.xy) == vec2i(100, 4)) { return vec4f(-0.02, 0.001, 0.002, 1.0); }
+        if all(vec2i(p.xy) == vec2i(110, 4)) { return vec4f(0.01, 0.02, 0.03, 0.5); }
+      }
       let brightness = 0.06 + 0.014 * p.x / params.x;
       let spike = select(0.0, 0.6, params.y > 0.02 && all(vec2i(p.xy) == vec2i(64, 4)));
       let rgb = vec3f(brightness + params.y + spike, brightness, brightness - params.y);
@@ -41,6 +46,7 @@ export async function renderChromaRamp() {
 					source,
 					coarse,
 					coarseFiltered: filtered,
+					preserveLuminance: 1,
 					variance: Array.from({ length: 16 }, (_, i) => {
 						const variance = i === 0 ? 1e-6 : 0.002;
 						return [variance, variance, variance, 1e-10];

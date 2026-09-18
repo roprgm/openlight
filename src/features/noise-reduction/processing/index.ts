@@ -54,7 +54,11 @@ async function denoise(
 			coarseFiltered,
 			variance,
 		});
-		const filter = compute(gpu, collaborative).set({ noisy, accumulated });
+		const filter = compute(gpu, collaborative).set({
+			noisy,
+			accumulated,
+			noiseScales: Array.from({ length: 256 }, () => [1, 1, 1, 1]),
+		});
 		const resolve = effect(gpu, resolveShader).set({
 			noisy,
 			source,

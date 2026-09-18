@@ -32,7 +32,7 @@ export async function denoiseBayer(
 		black: cfa.map((c) => black[c]),
 		white,
 	};
-	const noise = await estimateNoise(gpu, source.texture, sensor);
+	const { scales, ...noise } = await estimateNoise(gpu, source.texture, sensor);
 	signal.throwIfAborted();
 	const size: [number, number] = [
 		Math.ceil(dimensions[0] / 2),
@@ -57,7 +57,11 @@ export async function denoiseBayer(
 			source: source.texture,
 			params: sensor,
 		});
-		const filter = compute(gpu, collaborative).set({ noisy, accumulated });
+		const filter = compute(gpu, collaborative).set({
+			noisy,
+			accumulated,
+			noiseScales: scales,
+		});
 		const resolve = effect(gpu, resolveShader).set({ noisy, accumulated });
 		frame(gpu, (f) => f.pass(noisy, pack));
 		for (const stage of [0, 1]) {

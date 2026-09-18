@@ -51,11 +51,11 @@ export function createChromaDenoising(gpu: Gpu, source: Target) {
 				const measured = await estimateNoise(gpu, image);
 				checkOpen();
 				const previous = variances[variances.length - 1];
-				// White noise decreases on downsampling; correlation can leave more energy.
-				// Never lose the fine-scale estimate just because a coarse level has few samples.
+				// Residual Bayer noise is correlated: halve its variance floor per level,
+				// rather than assuming the fourfold reduction of independent white noise.
 				variances.push(
 					measured.map((bin, i) =>
-						bin.map((v, c) => Math.max(v, (previous?.[i][c] ?? 0) * 0.25)),
+						bin.map((v, c) => Math.max(v, (previous?.[i][c] ?? 0) * 0.5)),
 					),
 				);
 			}
@@ -68,7 +68,10 @@ export function createChromaDenoising(gpu: Gpu, source: Target) {
 						coarseFiltered: restored,
 					},
 					node(`chroma-up-${level}`, shader, {
-						set: { variance: variances[level] },
+						set: {
+							variance: variances[level],
+							preserveLuminance: level === 0 ? 1 : 0,
+						},
 					}),
 				);
 			}

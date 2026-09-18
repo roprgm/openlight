@@ -6,6 +6,7 @@ struct Accumulator { value: array<atomic<u32>, 8> }
 @group(0) @binding(1) var guide: texture_2d<f32>;
 @group(0) @binding(2) var<uniform> params: Params;
 @group(0) @binding(3) var<storage, read_write> accumulated: array<Accumulator>;
+@group(0) @binding(4) var<uniform> noiseScales: array<vec4f, 256>;
 var<workgroup> data: array<vec4f, 512>;
 var<workgroup> reference: array<vec4f, 64>;
 var<workgroup> distances: array<f32, 192>;
@@ -58,6 +59,21 @@ fn transformVariance(lane: u32) {
     variances[lane] = sum;
     workgroupBarrier();
   }
+}
+
+// Interpolate in image coordinates, so overlapping tiles use the same noise model.
+fn noiseScaleAt(p: vec2i) -> f32 {
+  if params.bayer == 0u { return 1.0; }
+  let coordinate = clamp(vec2f(p) / vec2f(params.size) * 32.0, vec2f(0.0), vec2f(31.0));
+  let base = vec2u(floor(coordinate));
+  let next = min(base + 1u, vec2u(31u));
+  let fraction = fract(coordinate);
+  let a = base.y * 32u + base.x;
+  let b = base.y * 32u + next.x;
+  let c = next.y * 32u + base.x;
+  let d = next.y * 32u + next.x;
+  return mix(mix(noiseScales[a/4u][a%4u], noiseScales[b/4u][b%4u], fraction.x),
+    mix(noiseScales[c/4u][c%4u], noiseScales[d/4u][d%4u], fraction.x), fraction.y);
 }
 
 fn loadNoisy(p: vec2i) -> vec4f { let v = textureLoad(noisy, clamp(p, vec2i(0), params.size - 1), 0); return vec4f(v.rgb, select(0.0, v.a, params.bayer != 0u)); }
@@ -123,10 +139,11 @@ fn main(@builtin(workgroup_id) group: vec3u, @builtin(local_invocation_index) la
     let p = origin + offset;
     if candidate < 169u && any(offset != vec2i(0)) && all(p >= vec2i(-4)) && all(p < params.size) {
       var sum = 0.0;
+      let scale = (noiseScaleAt(p) + noiseScaleAt(origin)) * 0.5;
       for (var k = 0u; k < 64u; k++) {
         let sample = loadGuide(p + vec2i(i32(k % 8u), i32(k / 8u)));
         let d = sample - reference[k];
-        let variance = noiseVariance((sample + reference[k]) * 0.5);
+        let variance = noiseVariance((sample + reference[k]) * 0.5) * scale;
         // A few extreme samples must not exclude an otherwise matching patch.
         // Keep enough influence to reject a different small light or color feature,
         // even after coarse chroma cleanup makes the surrounding patches match.
@@ -158,7 +175,7 @@ fn main(@builtin(workgroup_id) group: vec3u, @builtin(local_invocation_index) la
     data[g * 64u + lane] = vec4f(0.0);
     if g < count {
       data[g * 64u + lane] = color(loadNoisy(matches[g] + pixel));
-      variance += noiseVariance(loadGuide(matches[g] + pixel));
+      variance += noiseVariance(loadGuide(matches[g] + pixel)) * noiseScaleAt(matches[g] + pixel);
     }
   }
   variances[lane] = variance / f32(count);
