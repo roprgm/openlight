@@ -3,18 +3,21 @@ import { shallow } from "zustand/vanilla/shallow";
 import { frameValues, validateFrame } from "@/core/image/frame";
 import { createHistory } from "./history";
 import { createResources } from "./resources";
-import type { Layer, Scene } from "./scene";
+import type { Gradient, Layer, Scene } from "./scene";
 import { findLayer } from "./tree";
 
 export type {
 	Adjustments,
 	ColorMixer,
 	CurvePoint,
+	Details,
+	Gradient,
 	ImageLayer,
 	Layer,
 	LinearGradient,
 	MaskLayer,
 	ProcessingLayer,
+	RadialGradient,
 	Scene,
 	ToneCurve,
 	Vignette,
@@ -28,6 +31,20 @@ export type Preview = {
 	shadows: boolean;
 	highlights: boolean;
 };
+
+function equalGradient(a: Gradient, b: Gradient) {
+	if (a.kind === "linear" && b.kind === "linear") {
+		return shallow(a.start, b.start) && shallow(a.end, b.end);
+	}
+	return (
+		a.kind === "radial" &&
+		b.kind === "radial" &&
+		shallow(a.center, b.center) &&
+		shallow(a.radius, b.radius) &&
+		a.angle === b.angle &&
+		a.feather === b.feather
+	);
+}
 
 function equalLayer(a: Layer, b: Layer): boolean {
 	if (a === b) {
@@ -60,14 +77,16 @@ function equalLayer(a: Layer, b: Layer): boolean {
 	if (a.kind === "exposure" && b.kind === "exposure") {
 		return a.exposure === b.exposure;
 	}
+	if (a.kind === "details" && b.kind === "details") {
+		return shallow(a.details, b.details);
+	}
 	if (a.kind === "vignette" && b.kind === "vignette") {
 		return shallow(a.vignette, b.vignette);
 	}
 	if (a.kind === "mask" && b.kind === "mask") {
 		return (
 			a.operation === b.operation &&
-			shallow(a.mask.start, b.mask.start) &&
-			shallow(a.mask.end, b.mask.end) &&
+			equalGradient(a.mask, b.mask) &&
 			shallow(a.adjustments, b.adjustments)
 		);
 	}

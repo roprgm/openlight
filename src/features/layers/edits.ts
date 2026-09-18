@@ -2,15 +2,33 @@ import {
 	type EditorDocument,
 	editLayer,
 	findLayer,
+	type Gradient,
 	type Layer,
-	type LinearGradient,
 	type ProcessingLayer,
 	type Scene,
 	walkLayers,
 } from "@/core/document";
 
-function validateMask(mask: LinearGradient) {
+function validateMask(mask: Gradient) {
+	if (mask.kind === "radial") {
+		if (
+			mask.center.length !== 2 ||
+			mask.radius.length !== 2 ||
+			![...mask.center, ...mask.radius, mask.angle, mask.feather].every(
+				Number.isFinite,
+			) ||
+			mask.radius.some((value) => value <= 0) ||
+			mask.feather < 0 ||
+			mask.feather > 1
+		) {
+			throw Error(
+				"A radial gradient needs positive radii, finite geometry, and feather from 0 to 1.",
+			);
+		}
+		return;
+	}
 	if (
+		mask.kind !== "linear" ||
 		mask.start.length !== 2 ||
 		mask.end.length !== 2 ||
 		![...mask.start, ...mask.end].every(Number.isFinite) ||
@@ -142,14 +160,14 @@ export function setExposure(
 export function setLayerMask(
 	document: EditorDocument,
 	id: string,
-	mask: LinearGradient,
+	mask: Gradient,
 ) {
 	validateMask(mask);
 	editLayer(document, id, (layer) => {
 		if (layer.kind !== "mask") {
 			throw Error("Select a mask layer.");
 		}
-		return { ...layer, mask: { start: [...mask.start], end: [...mask.end] } };
+		return { ...layer, mask: structuredClone(mask) };
 	});
 }
 

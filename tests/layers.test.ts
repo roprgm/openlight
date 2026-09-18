@@ -138,7 +138,11 @@ test("nested layers compose in order, move atomically, and duplicate with indepe
 		expect(() => moveLayer(document, mask, 0, exposure)).toThrow("itself");
 		expect(() => moveLayer(document, exposure, 0)).toThrow("position");
 		expect(() =>
-			setLayerMask(document, mask, { start: [0, 0], end: [0, 0] }),
+			setLayerMask(document, mask, {
+				kind: "linear",
+				start: [0, 0],
+				end: [0, 0],
+			}),
 		).toThrow("distinct");
 		expect(() => setExposure(document, exposure, NaN)).toThrow("Exposure");
 		expect(() => deleteLayer(document, "base")).toThrow("unavailable");

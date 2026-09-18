@@ -54,25 +54,26 @@ test("edit a photo, inspect the preview and histograms, undo changes, and export
 	const initial = await state();
 	expect((await readImage(page)).center).toEqual([128, 128, 128, 255]);
 
-	await test.step("adjustment sections collapse independently without changing the scene", async () => {
-		for (const [title, label] of [
-			["Light", "Exposure"],
-			["Color", "Temp"],
-			["Details", "Clarity"],
-		]) {
-			const summary = page.getByRole("button", { name: title, exact: true });
-			const control = page.getByRole("slider", { name: label, exact: true });
-			await summary.click();
-			await expect(summary).toHaveAttribute("aria-expanded", "false");
-			await expect(control).toBeHidden();
-			if (title === "Light")
-				await expect(
-					page.getByRole("region", { name: "Curves", exact: true }),
-				).toBeHidden();
-			expect(await state()).toEqual(initial);
-			await summary.press("Enter");
-			await expect(control).toBeVisible();
-		}
+	await test.step("image adjustments share a single section", async () => {
+		const summary = page.getByRole("button", {
+			name: "Adjustments",
+			exact: true,
+		});
+		await expect(
+			page.getByRole("slider", { name: "Clarity", exact: true }),
+		).toHaveCount(0);
+		await summary.click();
+		await expect(
+			page.getByRole("slider", { name: "Exposure", exact: true }),
+		).toBeHidden();
+		await expect(
+			page.getByRole("slider", { name: "Temp", exact: true }),
+		).toBeHidden();
+		expect(await state()).toEqual(initial);
+		await summary.press("Enter");
+		await expect(
+			page.getByRole("slider", { name: "Exposure", exact: true }),
+		).toBeVisible();
 	});
 
 	await test.step("zoomed rendering reaches the edges of the editor viewport", async () => {
@@ -311,6 +312,11 @@ test("edit a photo, inspect the preview and histograms, undo changes, and export
 	await colorMixerEditing(page);
 
 	await test.step("clarity changes local contrast and histogram, then undoes and resets", async () => {
+		await page.getByRole("button", { name: "Add effect", exact: true }).click();
+		await page
+			.locator("[popover]:popover-open")
+			.getByRole("button", { name: "Details", exact: true })
+			.click();
 		const field = page.getByRole("textbox", { name: "Clarity", exact: true });
 		const slider = page.getByRole("slider", { name: "Clarity", exact: true });
 		await field.fill("100");
@@ -894,6 +900,8 @@ test("edit a photo, inspect the preview and histograms, undo changes, and export
 				shadows: 30,
 				whites: 10,
 				blacks: -5,
+			});
+			window.openlight.setDetails({
 				clarity: -50,
 				sharpening: 100,
 				sharpenRadius: 1,

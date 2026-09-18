@@ -117,6 +117,16 @@ test("file batches preserve ordering, group imports, recover from failures, and 
 				-20,
 			);
 		}
+		const document = workspace.getDocument();
+		const beforeDetails = document.scene.getState();
+		await xmp.load(settings('crs:Exposure2012="0.5" crs:Clarity2012="35"'));
+		expect(document.scene.getState().layers[1]).toMatchObject({
+			kind: "details",
+			details: { clarity: 35 },
+		});
+		expect(document.scene.getState().layers[0].adjustments.exposure).toBe(0.5);
+		document.history.undo();
+		expect(document.scene.getState()).toEqual(beforeDetails);
 		await Promise.all([
 			registry.openFiles([exposure, new File([], "first.png")]),
 			registry.openFiles([

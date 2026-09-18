@@ -8,8 +8,9 @@ import { createImageLoader } from "@/app/loaders/image";
 import { createLoaderRegistry } from "@/app/loaders/registry";
 import {
 	type Adjustments,
+	type Details,
 	type EditorDocument,
-	type LinearGradient,
+	type Gradient,
 	type Preview,
 	type ProcessingLayer,
 	type Scene,
@@ -30,6 +31,8 @@ import {
 	type MixerChange,
 	type MixerColor,
 } from "@/features/color-mixer/model";
+import { setDetails } from "@/features/details/edits";
+import { defaultDetails, validateDetails } from "@/features/details/model";
 import {
 	addLayer,
 	deleteLayer,
@@ -81,6 +84,20 @@ export function createControls(gpu: Gpu, workspace: Workspace) {
 		openFile: (file: File) => files.openFiles([file]),
 		loadImage: (file: File) => files.loadFile(image, file),
 		importXmp: (file: File) => files.loadFile(xmp, file),
+		setDetails(change: Partial<Details>, id?: string) {
+			validateDetails(change);
+			const document = workspace.getDocument();
+			editEffect(
+				document,
+				"details",
+				id,
+				(id) => setDetails(document, change, id),
+				() => ({
+					...createLayer("details", [0, 0]),
+					details: { ...defaultDetails, ...change },
+				}),
+			);
+		},
 		setAdjustments: (change: Partial<Adjustments>, id?: string) =>
 			setAdjustments(workspace.getDocument(), change, id),
 		setWhiteBalance: (change?: Partial<WhiteBalance>) =>
@@ -157,7 +174,7 @@ export function createControls(gpu: Gpu, workspace: Workspace) {
 			setLayer(workspace.getDocument(), id, change),
 		setExposure: (id: string, exposure: number) =>
 			setExposure(workspace.getDocument(), id, exposure),
-		setLayerMask: (id: string, mask: LinearGradient) =>
+		setLayerMask: (id: string, mask: Gradient) =>
 			setLayerMask(workspace.getDocument(), id, mask),
 		setMaskOperation: (id: string, operation: "add" | "subtract") =>
 			setMaskOperation(workspace.getDocument(), id, operation),
@@ -193,6 +210,9 @@ export function createControls(gpu: Gpu, workspace: Workspace) {
 				frame: scene?.frame,
 				adjustments: scene?.layers[0].adjustments ?? defaultAdjustments,
 				whiteBalance: scene?.layers[0].whiteBalance,
+				details:
+					layers.find((layer) => layer.kind === "details")?.details ??
+					defaultDetails,
 				toneCurve:
 					layers.find((layer) => layer.kind === "curves")?.toneCurve ??
 					defaultCurve,

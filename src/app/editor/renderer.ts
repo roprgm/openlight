@@ -1,10 +1,5 @@
 import type { Gpu, Timer } from "vgpu";
-import type {
-	ImageLayer,
-	MaskLayer,
-	ProcessingLayer,
-	Scene,
-} from "@/core/document";
+import type { MaskLayer, ProcessingLayer, Scene } from "@/core/document";
 import type { ImageSource } from "@/core/image";
 import {
 	createRenderer,
@@ -17,24 +12,10 @@ import {
 import { exposure } from "@/features/adjustments/exposure";
 import { defaultAdjustments } from "@/features/adjustments/model";
 import { adjustments } from "@/features/adjustments/pass";
-import { unsharpMask } from "@/features/adjustments/unsharp-mask";
 import { colorMixer } from "@/features/color-mixer/pass";
+import { unsharpMask } from "@/features/details/unsharp-mask";
 import { toneCurves } from "@/features/tone-curves/pass";
 import { vignette } from "@/features/vignette/pass";
-
-function develop(image: RenderImage, layer: ImageLayer) {
-	const name = `layer/${layer.id}`;
-	const values = layer.adjustments;
-	return pipeline(image, [
-		adjustments(values, `${name}/adjustments`),
-		unsharpMask(`${name}/clarity`, values.clarity / 200, 64, 16),
-		unsharpMask(
-			`${name}/sharpen`,
-			values.sharpening / 50,
-			values.sharpenRadius,
-		),
-	]);
-}
 
 function maskAdjustments(layer: MaskLayer) {
 	const name = `layer/${layer.id}`;
@@ -60,6 +41,16 @@ function composeLayer(
 	const name = `layer/${layer.id}`;
 	let edited = below;
 	switch (layer.kind) {
+		case "details":
+			edited = pipeline(below, [
+				unsharpMask(`${name}/clarity`, layer.details.clarity / 200, 64, 16),
+				unsharpMask(
+					`${name}/sharpen`,
+					layer.details.sharpening / 50,
+					layer.details.sharpenRadius,
+				),
+			]);
+			break;
 		case "mask":
 			edited = pipeline(below, [maskAdjustments(layer)]);
 			break;
@@ -112,7 +103,12 @@ export function createEditorRenderer(
 		source,
 		(image, scene) => {
 			const [sourceLayer, ...layers] = scene.layers;
-			const base = develop(image, sourceLayer);
+			const base = pipeline(image, [
+				adjustments(
+					sourceLayer.adjustments,
+					`layer/${sourceLayer.id}/adjustments`,
+				),
+			]);
 			const children = sourceLayer.children.reduce(
 				(below, layer) => composeLayer(below, layer, scene),
 				base,

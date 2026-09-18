@@ -1,11 +1,17 @@
-import { useEffect, useState } from "react";
+import { type ComponentProps, useEffect, useState } from "react";
 import { useStore } from "zustand";
 import { useDocument, useScene } from "@/components/editor/session";
 import { Icon } from "@/components/icons/icon";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import {
+	TreeDrag,
+	type TreeDrop,
+	useTreeDragItem,
+} from "@/components/ui/tree-drag";
 import { findLayer, type Layer, type ProcessingLayer } from "@/core/document";
 import type { Point } from "@/core/image/frame";
-import { setLayer } from "./edits";
+import { layerDrop } from "./drop";
+import { moveLayer, setLayer } from "./edits";
 import { useGradientTool } from "./gradient-tool";
 import { LayerActions, LayerMenu } from "./menu";
 import { ImageThumbnail, MaskThumbnail } from "./thumbnails";
@@ -27,6 +33,8 @@ function EffectSymbol({ kind }: { kind: ProcessingLayer["kind"] }) {
 					<circle cx="12" cy="15" r="5" />
 				</>
 			);
+		case "details":
+			return <path d="m4 18 8-14 8 14H4Zm8-8v6" />;
 		case "vignette":
 			return (
 				<>
@@ -63,9 +71,11 @@ function LayerThumbnail({ layer, size }: { layer: Layer; size: Point }) {
 function LayerName({
 	layer,
 	onSelect,
+	dragHandle,
 }: {
 	layer: Layer;
 	onSelect: () => void;
+	dragHandle: ComponentProps<"button">;
 }) {
 	const document = useDocument();
 	const [renaming, setRenaming] = useState(false);
@@ -102,12 +112,13 @@ function LayerName({
 	}
 	return (
 		<button
+			{...dragHandle}
 			type="button"
 			aria-label={layer.name}
 			title={layer.name}
 			onClick={onSelect}
 			onDoubleClick={rename}
-			className="min-w-0 flex-1 self-stretch truncate text-left text-xs"
+			className="min-w-0 flex-1 self-stretch truncate text-left text-xs touch-manipulation cursor-grab active:cursor-grabbing"
 		>
 			{layer.name}
 		</button>
@@ -135,17 +146,17 @@ function LayerRow({
 	const [collapsed, setCollapsed] = useState(false);
 	const isImage = layer.kind === "image";
 	const visible = isImage || layer.visible;
-	useEffect(
-		() =>
-			document.selection.subscribe(({ layerId }) => {
-				const current = findLayer(document.scene.getState().layers, layer.id);
-				if (current && findLayer(current.children, layerId)) {
-					setCollapsed(false);
-				}
-			}),
-		[document, layer.id],
-	);
+	useEffect(() => {
+		if (findLayer(layer.children, selected)) {
+			setCollapsed(false);
+		}
+	}, [layer.children, selected]);
 	const expanded = !collapsed;
+	const drag = useTreeDragItem(layer.id, {
+		disabled: isImage,
+		expanded: expanded && layer.children.length > 0,
+	});
+	const dragHandle = isImage ? {} : drag.handle;
 	const chevronStyle = { transform: expanded ? "rotate(90deg)" : undefined };
 	const isSubmask = layer.kind === "mask" && parent?.kind === "mask";
 	const maskSign =
@@ -157,10 +168,13 @@ function LayerRow({
 	return (
 		<>
 			<div
+				ref={drag.ref}
+				data-drop={drag.drop}
+				data-dragging={drag.dragging}
 				data-selected={selected === layer.id}
 				data-hidden={!visible}
 				style={{ paddingLeft: depth * 12 }}
-				className="group mb-0.5 flex h-9.5 items-center last:mb-0 pointer-coarse:h-11 rounded-md pr-1 text-neutral-300 data-[selected=false]:hover:bg-white/5 data-[selected=true]:bg-neutral-700 data-[hidden=true]:text-neutral-500"
+				className="group relative mb-0.5 flex h-9.5 items-center last:mb-0 pointer-coarse:h-11 rounded-md pr-1 text-neutral-300 data-[selected=false]:hover:bg-white/5 data-[selected=true]:bg-neutral-700 data-[hidden=true]:text-neutral-500 data-[dragging=true]:opacity-40 data-[drop=inside]:ring-1 data-[drop=inside]:ring-blue-400 data-[drop=before]:before:absolute data-[drop=before]:before:inset-x-0 data-[drop=before]:before:-top-px data-[drop=before]:before:border-t-2 data-[drop=before]:before:border-blue-400 data-[drop=after]:after:absolute data-[drop=after]:after:inset-x-0 data-[drop=after]:after:-bottom-px data-[drop=after]:after:border-b-2 data-[drop=after]:after:border-blue-400"
 			>
 				<button
 					type="button"
@@ -187,7 +201,11 @@ function LayerRow({
 				>
 					<LayerThumbnail layer={layer} size={size} />
 				</button>
-				<LayerName layer={layer} onSelect={() => onSelect(layer.id)} />
+				<LayerName
+					layer={layer}
+					onSelect={() => onSelect(layer.id)}
+					dragHandle={dragHandle}
+				/>
 				{isSubmask && (
 					<span
 						title={layer.operation}
@@ -269,6 +287,14 @@ export function LayersControls({
 		onAdd(kind);
 		onSelect();
 	}
+	function drop(target: TreeDrop) {
+		const position = layerDrop(document.scene.getState(), target);
+		if (position) {
+			moveLayer(document, target.id, position.index, position.parentId);
+			select(target.id);
+		}
+	}
+
 	return (
 		<section
 			aria-label="Layers"
@@ -307,7 +333,32 @@ export function LayersControls({
 						<circle cx="12" cy="12" r="4" fill="currentColor" stroke="none" />
 					</Icon>
 				</button>
-				<LayerMenu label="Add effect" icon={<path d="M12 4v16M4 12h16" />}>
+				<button
+					type="button"
+					aria-label="Add radial mask"
+					title="Draw a radial mask (R)"
+					onClick={() => {
+						onSelect();
+						tool.draw("radial");
+					}}
+					className="grid size-7 place-items-center rounded text-neutral-400 hover:bg-neutral-700 hover:text-neutral-100 pointer-coarse:size-10"
+				>
+					<Icon className="size-4">
+						<ellipse cx="12" cy="12" rx="9" ry="6" />
+						<circle cx="12" cy="12" r="2" fill="currentColor" stroke="none" />
+					</Icon>
+				</button>
+				<LayerMenu
+					label="Add effect"
+					icon={
+						<Icon className="size-4">
+							<path d="M12 4v16M4 12h16" />
+						</Icon>
+					}
+				>
+					<button type="submit" onClick={() => add("details")}>
+						Details
+					</button>
 					<button type="submit" onClick={() => add("exposure")}>
 						Exposure
 					</button>
@@ -323,17 +374,23 @@ export function LayersControls({
 				</LayerMenu>
 			</div>
 			<ScrollArea className="flex-1" viewportClassName="px-2 py-1.5">
-				{scene.layers.toReversed().map((layer) => (
-					<LayerRow
-						key={layer.id}
-						layer={layer}
-						siblings={scene.layers}
-						depth={0}
-						selected={selected}
-						size={[size[0], size[1]]}
-						onSelect={select}
-					/>
-				))}
+				<TreeDrag
+					canDrop={(target) => Boolean(layerDrop(scene, target))}
+					onDrop={drop}
+					label={(id) => findLayer(scene.layers, id)?.name ?? id}
+				>
+					{scene.layers.toReversed().map((layer) => (
+						<LayerRow
+							key={layer.id}
+							layer={layer}
+							siblings={scene.layers}
+							depth={0}
+							selected={selected}
+							size={[size[0], size[1]]}
+							onSelect={select}
+						/>
+					))}
+				</TreeDrag>
 			</ScrollArea>
 		</section>
 	);

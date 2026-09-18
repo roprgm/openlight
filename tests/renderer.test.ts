@@ -6,6 +6,7 @@ import {
 	init,
 	target,
 } from "vgpu/mock";
+import { createLayer } from "@/app/editor/layers";
 import { createEditorRenderer as createRenderer } from "@/app/editor/renderer";
 import { createDocument, createResources } from "@/core/document";
 import { createImageSource } from "@/core/image";
@@ -18,7 +19,7 @@ import {
 } from "@/core/renderer";
 import { setAdjustments } from "@/features/adjustments/edits";
 import { defaultAdjustments } from "@/features/adjustments/model";
-import { unsharpMask } from "@/features/adjustments/unsharp-mask";
+import { unsharpMask } from "@/features/details/unsharp-mask";
 import { defaultCurve } from "@/features/tone-curves/curve";
 import { setToneCurve } from "@/features/tone-curves/edits";
 import { setWhiteBalance } from "@/features/white-balance/edits";
@@ -296,11 +297,19 @@ test("rendering follows grouped edits and undo, reuses pipelines, and releases o
 		expect(notify).toHaveBeenCalledTimes(8);
 		expect(late).toHaveBeenCalledTimes(1);
 		detach();
-		setAdjustments(document, {
-			exposure: -1,
-			clarity: 50,
-			sharpening: 100,
-			sharpenRadius: 2,
+		setAdjustments(document, { exposure: -1 });
+		const scene = document.scene.getState();
+		const [image, ...effects] = scene.layers;
+		document.edit({
+			...scene,
+			layers: [
+				image,
+				{
+					...createLayer("details", [32, 16]),
+					details: { clarity: 50, sharpening: 100, sharpenRadius: 2 },
+				},
+				...effects,
+			],
 		});
 		expect(notify).toHaveBeenCalledTimes(8);
 		document.edit({

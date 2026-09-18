@@ -2,7 +2,7 @@ import { useEffect, useId, useRef, useState } from "react";
 import { frame, surface } from "vgpu";
 import { useGpu } from "vgpu-react";
 import { useDocument, useScene } from "@/components/editor/session";
-import type { LinearGradient } from "@/core/document";
+import type { Gradient } from "@/core/document";
 import type { Point } from "@/core/image/frame";
 import { createDisplay } from "@/core/renderer";
 
@@ -63,13 +63,39 @@ export function ImageThumbnail() {
 	);
 }
 
-export function MaskThumbnail({
-	mask,
-	size,
-}: {
-	mask: LinearGradient;
-	size: Point;
-}) {
+function MaskFill({ mask, id }: { mask: Gradient; id: string }) {
+	if (mask.kind === "radial") {
+		const transform = `translate(${mask.center[0]} ${mask.center[1]}) rotate(${mask.angle}) scale(${mask.radius[0]} ${mask.radius[1]})`;
+		return (
+			<radialGradient
+				id={id}
+				gradientUnits="userSpaceOnUse"
+				cx="0"
+				cy="0"
+				r="1"
+				gradientTransform={transform}
+			>
+				<stop offset={1 - mask.feather} stopColor="white" />
+				<stop offset="1" stopColor="black" />
+			</radialGradient>
+		);
+	}
+	return (
+		<linearGradient
+			id={id}
+			gradientUnits="userSpaceOnUse"
+			x1={mask.start[0]}
+			y1={mask.start[1]}
+			x2={mask.end[0]}
+			y2={mask.end[1]}
+		>
+			<stop offset="0" stopColor="white" />
+			<stop offset="1" stopColor="black" />
+		</linearGradient>
+	);
+}
+
+export function MaskThumbnail({ mask, size }: { mask: Gradient; size: Point }) {
 	const id = useId();
 	return (
 		<svg
@@ -79,17 +105,7 @@ export function MaskThumbnail({
 			className="size-8 shrink-0 rounded-sm border border-neutral-600 bg-neutral-950"
 		>
 			<defs>
-				<linearGradient
-					id={id}
-					gradientUnits="userSpaceOnUse"
-					x1={mask.start[0]}
-					y1={mask.start[1]}
-					x2={mask.end[0]}
-					y2={mask.end[1]}
-				>
-					<stop offset="0" stopColor="white" />
-					<stop offset="1" stopColor="black" />
-				</linearGradient>
+				<MaskFill mask={mask} id={id} />
 			</defs>
 			<rect width={size[0]} height={size[1]} fill={`url(#${id})`} />
 		</svg>

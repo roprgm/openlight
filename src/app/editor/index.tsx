@@ -7,11 +7,15 @@ import {
 } from "@/components/editor/session";
 import ResizablePanel from "@/components/ui/resizable-panel";
 import Spinner from "@/components/ui/spinner";
-import type { LinearGradient, ProcessingLayer } from "@/core/document";
+import type { Gradient, ProcessingLayer } from "@/core/document";
 import { findLayer } from "@/core/document";
 import { LayersControls } from "@/features/layers/controls";
 import { addLayer } from "@/features/layers/edits";
-import { GradientProvider } from "@/features/layers/gradient-tool";
+import {
+	GradientProvider,
+	useGradientTool,
+} from "@/features/layers/gradient-tool";
+import { useShortcuts } from "@/hooks/use-shortcuts";
 import { EditorActions } from "./actions";
 import { EditorCanvas } from "./canvas";
 import { ImageHistogram } from "./histogram";
@@ -35,6 +39,17 @@ function ModeView() {
 
 function EditorSidebar() {
 	const { setMode } = useMode();
+	const tool = useGradientTool();
+	useShortcuts({
+		l: () => {
+			setMode(modes[0]);
+			tool.draw();
+		},
+		r: () => {
+			setMode(modes[0]);
+			tool.draw("radial");
+		},
+	});
 	const document = useDocument();
 	function add(kind: ProcessingLayer["kind"]) {
 		const scene = document.scene.getState();
@@ -60,7 +75,7 @@ function EditorSidebar() {
 function DocumentEditor() {
 	const document = useDocument();
 	function createMask(
-		mask: LinearGradient,
+		mask: Gradient,
 		target: { parentId?: string; operation: "add" | "subtract" },
 	) {
 		const scene = document.scene.getState();
@@ -75,7 +90,12 @@ function DocumentEditor() {
 		}
 		addLayer(
 			document,
-			{ ...layer, mask, operation: target.operation },
+			{
+				...layer,
+				name: mask.kind === "radial" ? "Radial Gradient" : "Linear Gradient",
+				mask,
+				operation: target.operation,
+			},
 			target.parentId,
 		);
 	}

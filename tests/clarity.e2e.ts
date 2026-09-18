@@ -86,7 +86,7 @@ test("detail filters follow Gaussian unsharp masking and preserve flat fields an
 				),
 			];
 			for (const adjustment of settings) {
-				api.setAdjustments(adjustment);
+				api.setDetails(adjustment);
 				steps.push({
 					left,
 					right,
@@ -101,7 +101,7 @@ test("detail filters follow Gaussian unsharp masking and preserve flat fields an
 		await load(127, 65, '<rect width="127" height="65" fill="#737373"/>');
 		const flat = [];
 		for (const clarity of [-100, 0, 100]) {
-			api.setAdjustments({ clarity, sharpening: 150, sharpenRadius: 3 });
+			api.setDetails({ clarity, sharpening: 150, sharpenRadius: 3 });
 			flat.push(
 				...(await read([
 					[0, 0],
@@ -124,7 +124,7 @@ test("detail filters follow Gaussian unsharp masking and preserve flat fields an
 		const neutral = await read(positions);
 		const alpha = [];
 		for (const clarity of [-100, 100]) {
-			api.setAdjustments({ clarity, sharpening: 150, sharpenRadius: 3 });
+			api.setDetails({ clarity, sharpening: 150, sharpenRadius: 3 });
 			alpha.push(await read(positions));
 		}
 		return { steps, flat, neutral, alpha };

@@ -11,6 +11,7 @@ for (const workload of [
 	"detail",
 	"pipeline",
 	"masked-exposure",
+	"radial-exposure",
 	"layer-stack",
 ] as const) {
 	test(`rendering ${workload}`, async ({ page, browser }, info) => {

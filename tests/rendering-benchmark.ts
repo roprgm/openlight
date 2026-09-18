@@ -1,7 +1,7 @@
 import { effect, frame, init, target, timer } from "vgpu";
 import { encodeImage } from "@/app/editor/export/export-image";
 import { createEditorRenderer } from "@/app/editor/renderer";
-import type { ProcessingLayer, Scene } from "@/core/document";
+import type { Gradient, ProcessingLayer, Scene } from "@/core/document";
 import { createImageSource } from "@/core/image";
 import { imageFrame } from "@/core/image/frame";
 import { defaultAdjustments } from "@/features/adjustments/model";
@@ -13,6 +13,7 @@ export type Workload =
 	| "detail"
 	| "pipeline"
 	| "masked-exposure"
+	| "radial-exposure"
 	| "layer-stack";
 
 function summarize(values: number[]) {
@@ -57,6 +58,15 @@ export async function benchmarkRendering(
 	const detail = combined || workload === "detail";
 	const effects: ProcessingLayer[] = [];
 	const common = { visible: true, opacity: 1, children: [] };
+	if (detail) {
+		effects.push({
+			...common,
+			id: "benchmark-details",
+			name: "Details",
+			kind: "details",
+			details: { clarity: 50, sharpening: 75, sharpenRadius: 1 },
+		});
+	}
 	if (combined || workload === "color-mixer") {
 		effects.push({
 			...common,
@@ -83,7 +93,25 @@ export async function benchmarkRendering(
 			],
 		});
 	}
-	if (workload === "masked-exposure" || workload === "layer-stack") {
+	if (
+		workload === "masked-exposure" ||
+		workload === "radial-exposure" ||
+		workload === "layer-stack"
+	) {
+		const mask: Gradient =
+			workload === "radial-exposure"
+				? {
+						kind: "radial",
+						center: [size[0] / 2, size[1] / 2],
+						radius: [size[0] * 0.3, size[1] * 0.35],
+						angle: 20,
+						feather: 0.5,
+					}
+				: {
+						kind: "linear",
+						start: [0, size[1] * 0.2],
+						end: [0, size[1] * 0.8],
+					};
 		effects.push({
 			...common,
 			id: "benchmark-gradient",
@@ -92,7 +120,7 @@ export async function benchmarkRendering(
 			operation: "add",
 			adjustments: defaultAdjustments,
 			opacity: 0.75,
-			mask: { start: [0, size[1] * 0.2], end: [0, size[1] * 0.8] },
+			mask,
 			children: [
 				{
 					...common,
@@ -127,8 +155,6 @@ export async function benchmarkRendering(
 					...defaultAdjustments,
 					exposure: 0.25,
 					contrast: 10,
-					clarity: detail ? 50 : 0,
-					sharpening: detail ? 75 : 0,
 				},
 			},
 			...effects,

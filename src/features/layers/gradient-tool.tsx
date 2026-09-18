@@ -6,21 +6,25 @@ import {
 	useState,
 } from "react";
 import { useDocument } from "@/components/editor/session";
-import type { LinearGradient } from "@/core/document";
+import type { Gradient } from "@/core/document";
 
 type NewMask = {
 	kind: "new";
+	shape: Gradient["kind"];
 	parentId?: string;
 	operation: "add" | "subtract";
 };
-type GradientTarget = NewMask | { kind: "edit"; id: string };
 
 const GradientTool = createContext<{
-	target: GradientTarget | null;
-	draw: (id?: string) => void;
-	add: (parentId: string, operation: "add" | "subtract") => void;
+	target: NewMask | null;
+	draw: (shape?: Gradient["kind"]) => void;
+	add: (
+		parentId: string,
+		operation: "add" | "subtract",
+		shape: Gradient["kind"],
+	) => void;
 	close: () => void;
-	create: (mask: LinearGradient, target: NewMask) => void;
+	create: (mask: Gradient, target: NewMask) => void;
 } | null>(null);
 
 export function useGradientTool() {
@@ -36,9 +40,9 @@ export function GradientProvider({
 	onCreate,
 }: {
 	children: ReactNode;
-	onCreate: (mask: LinearGradient, target: NewMask) => void;
+	onCreate: (mask: Gradient, target: NewMask) => void;
 }) {
-	const [target, setTarget] = useState<GradientTarget | null>(null);
+	const [target, setTarget] = useState<NewMask | null>(null);
 	const document = useDocument();
 	useEffect(
 		() => document.selection.subscribe(() => setTarget(null)),
@@ -48,15 +52,10 @@ export function GradientProvider({
 		<GradientTool
 			value={{
 				target,
-				draw: (id) => {
-					if (id) {
-						setTarget({ kind: "edit", id });
-					} else {
-						setTarget({ kind: "new", operation: "add" });
-					}
-				},
-				add: (parentId, operation) =>
-					setTarget({ kind: "new", parentId, operation }),
+				draw: (shape = "linear") =>
+					setTarget({ kind: "new", shape, operation: "add" }),
+				add: (parentId, operation, shape) =>
+					setTarget({ kind: "new", shape, parentId, operation }),
 				close: () => setTarget(null),
 				create: onCreate,
 			}}

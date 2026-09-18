@@ -1,8 +1,10 @@
 struct Params {
  opacity: f32,
- masked: u32,
- start: vec2f,
- end: vec2f,
+ kind: u32,
+ first: vec2f,
+ second: vec2f,
+ feather: f32,
+ angle: f32,
  modifierCount: u32,
 }
 @group(0) @binding(0) var original: texture_2d<f32>;
@@ -10,21 +12,26 @@ struct Params {
 @group(0) @binding(2) var<uniform> params: Params;
 @group(0) @binding(3) var<storage, read> modifiers: array<vec4f>;
 
-fn gradientCoverage(position: vec2f, start: vec2f, end: vec2f) -> f32 {
- let direction = end - start;
- return 1.0 - clamp(dot(position - start, direction) / dot(direction, direction), 0.0, 1.0);
+fn gradientCoverage(position: vec2f, first: vec2f, second: vec2f, kind: u32, feather: f32, angle: f32) -> f32 {
+ if (kind == 2u) {
+  let delta = position - first;
+  let local = vec2f(cos(angle) * delta.x + sin(angle) * delta.y, -sin(angle) * delta.x + cos(angle) * delta.y);
+  return 1.0 - smoothstep(1.0 - max(feather, 0.0001), 1.0, length(local / second));
+ }
+ let direction = second - first;
+ return 1.0 - clamp(dot(position - first, direction) / dot(direction, direction), 0.0, 1.0);
 }
 
 @fragment fn fs_main(@builtin(position) position: vec4f) -> @location(0) vec4f {
  let before = textureLoad(original, vec2i(position.xy), 0);
  let after = textureLoad(edited, vec2i(position.xy), 0);
  var coverage = 1.0;
- if (params.masked != 0u) {
-  coverage = gradientCoverage(position.xy, params.start, params.end);
+ if (params.kind != 0u) {
+  coverage = gradientCoverage(position.xy, params.first, params.second, params.kind, params.feather, params.angle);
   for (var i = 0u; i < params.modifierCount; i++) {
    let points = modifiers[i * 2u];
-   let amount = modifiers[i * 2u + 1u].x;
-   coverage = clamp(coverage + gradientCoverage(position.xy, points.xy, points.zw) * amount, 0.0, 1.0);
+   let settings = modifiers[i * 2u + 1u];
+   coverage = clamp(coverage + gradientCoverage(position.xy, points.xy, points.zw, u32(settings.y), settings.z, settings.w) * settings.x, 0.0, 1.0);
   }
  }
  coverage *= params.opacity;

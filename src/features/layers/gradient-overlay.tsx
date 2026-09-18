@@ -1,12 +1,27 @@
-import { type PointerEvent, useId, useRef, useState } from "react";
+import { type PointerEvent, useEffect, useRef, useState } from "react";
 import { useStore } from "zustand";
 import { useDocument, useScene } from "@/components/editor/session";
 import { useViewport } from "@/components/editor/viewport";
-import { findLayer, type LinearGradient } from "@/core/document";
+import { findLayer, type Gradient } from "@/core/document";
 import { type Point, sourceOffset } from "@/core/image/frame";
 import { useShortcuts } from "@/hooks/use-shortcuts";
-import { setLayerMask } from "./edits";
+import { deleteLayer, setLayerMask } from "./edits";
+import {
+	drawGradient,
+	type GradientHandle,
+	gradientHandles,
+	moveGradient,
+} from "./gradient";
+import { GradientGuides } from "./gradient-guides";
 import { useGradientTool } from "./gradient-tool";
+
+type Drag = {
+	pointer: number;
+	from: Point;
+	mask: Gradient;
+	handle: GradientHandle | "new";
+	id: string;
+};
 
 export function GradientOverlay() {
 	const document = useDocument();
@@ -16,20 +31,36 @@ export function GradientOverlay() {
 	const selected = useStore(document.selection, (state) => state.layerId);
 	const mask = useScene((scene) => {
 		const layer = findLayer(scene.layers, selected);
-		if (layer?.kind === "mask") {
-			return layer.mask;
-		}
-		return undefined;
+		return layer?.kind === "mask" ? layer.mask : undefined;
 	});
-	const [draft, setDraft] = useState<LinearGradient | null>(null);
-	const drawing = useRef<{ pointer: number; start: Point } | null>(null);
-	const gradientId = useId();
+	const [draft, setDraft] = useState<Gradient | null>(null);
+	const dragging = useRef<Drag | null>(null);
 	function cancel() {
-		drawing.current = null;
+		if (dragging.current && dragging.current.handle !== "new") {
+			document.history.cancel();
+		}
+		dragging.current = null;
 		setDraft(null);
 		tool.close();
 	}
-	useShortcuts(tool.target ? { escape: cancel } : {});
+	useEffect(
+		() => () => {
+			if (dragging.current && dragging.current.handle !== "new") {
+				document.history.cancel();
+			}
+		},
+		[document],
+	);
+	function remove() {
+		cancel();
+		if (mask) {
+			deleteLayer(document, selected);
+		}
+	}
+	useShortcuts({
+		escape: cancel,
+		...(mask ? { delete: remove, backspace: remove } : {}),
+	});
 	function documentPoint(event: PointerEvent): Point {
 		const box = camera.ref.current?.getBoundingClientRect();
 		if (!box) {
@@ -60,138 +91,117 @@ export function GradientOverlay() {
 		];
 	}
 	function start(event: PointerEvent<HTMLDivElement>) {
-		if (
-			!tool.target ||
-			event.button !== 0 ||
-			!event.isPrimary ||
-			camera.panMode
-		) {
+		if (event.button !== 0 || !event.isPrimary || camera.panMode) {
 			return;
+		}
+		const target =
+			event.target instanceof Element
+				? event.target
+						.closest("[data-gradient-handle]")
+						?.getAttribute("data-gradient-handle")
+				: null;
+		const handle = gradientHandles.find((handle) => handle === target);
+		if (!tool.target && (!mask || !handle)) {
+			return;
+		}
+		const from = documentPoint(event);
+		if (tool.target) {
+			dragging.current = {
+				pointer: event.pointerId,
+				from,
+				mask: drawGradient(tool.target.shape, from, from),
+				handle: "new",
+				id: selected,
+			};
+			setDraft(dragging.current.mask);
+		} else if (mask && handle) {
+			document.history.commit();
+			document.history.begin();
+			dragging.current = {
+				pointer: event.pointerId,
+				from,
+				mask,
+				handle,
+				id: selected,
+			};
 		}
 		event.preventDefault();
 		event.stopPropagation();
-		document.history.commit();
-		const point = documentPoint(event);
-		drawing.current = { pointer: event.pointerId, start: point };
-		setDraft({ start: point, end: point });
 		event.currentTarget.setPointerCapture(event.pointerId);
 	}
-	function finish(event: PointerEvent<HTMLDivElement>) {
-		const current = drawing.current;
-		if (!current || current.pointer !== event.pointerId) {
+	function move(event: PointerEvent<HTMLDivElement>) {
+		const drag = dragging.current;
+		if (!drag || drag.pointer !== event.pointerId) {
 			return;
 		}
-		const end = documentPoint(event);
-		const mask = { start: current.start, end };
-		if (
-			Math.hypot(end[0] - current.start[0], end[1] - current.start[1]) *
-				camera.scale >=
-			3
-		) {
-			if (tool.target?.kind === "new") {
-				tool.create(mask, tool.target);
-			} else if (tool.target) {
-				setLayerMask(document, tool.target.id, mask);
-			}
-		}
-		cancel();
-		if (event.currentTarget.hasPointerCapture(event.pointerId)) {
-			event.currentTarget.releasePointerCapture(event.pointerId);
+		const point = documentPoint(event);
+		if (drag.handle === "new") {
+			const next = drawGradient(
+				drag.mask.kind,
+				drag.from,
+				point,
+				event.shiftKey,
+			);
+			drag.mask = next;
+			setDraft(next);
+		} else {
+			setLayerMask(
+				document,
+				drag.id,
+				moveGradient(drag.mask, drag.handle, drag.from, point),
+			);
 		}
 	}
-	const active = Boolean(tool.target) && !camera.panMode;
+	function finish(event: PointerEvent<HTMLDivElement>) {
+		const drag = dragging.current;
+		if (!drag || drag.pointer !== event.pointerId) {
+			return;
+		}
+		move(event);
+		if (drag.handle === "new") {
+			const point = documentPoint(event);
+			const distance =
+				Math.hypot(point[0] - drag.from[0], point[1] - drag.from[1]) *
+				camera.scale;
+			if (distance >= 3 && tool.target) {
+				tool.create(drag.mask, tool.target);
+			}
+		} else {
+			document.history.commit();
+		}
+		dragging.current = null;
+		setDraft(null);
+		tool.close();
+		event.currentTarget.releasePointerCapture(event.pointerId);
+	}
 	const visible = draft ?? mask;
-	const startPoint = visible && screenPoint(visible.start);
-	const endPoint = visible && screenPoint(visible.end);
-	const pointerEvents = active ? "auto" : "none";
+	const pointerEvents = tool.target && !camera.panMode ? "auto" : "none";
 	return (
 		<div
 			role="application"
 			aria-label="Gradient mask canvas"
 			className="absolute inset-0 touch-none"
-			style={{ pointerEvents, cursor: "crosshair" }}
+			style={{ pointerEvents }}
 			onPointerDown={start}
-			onPointerMove={(event) => {
-				if (drawing.current?.pointer === event.pointerId) {
-					setDraft({ start: drawing.current.start, end: documentPoint(event) });
-				}
-			}}
+			onPointerMove={move}
 			onPointerUp={finish}
 			onPointerCancel={cancel}
 			onLostPointerCapture={() => {
-				if (drawing.current) {
+				if (dragging.current) {
 					cancel();
 				}
 			}}
 		>
-			{startPoint && endPoint && (
-				<svg
-					aria-hidden="true"
-					className="pointer-events-none absolute inset-0 size-full overflow-hidden"
-				>
-					<defs>
-						<linearGradient
-							id={gradientId}
-							gradientUnits="userSpaceOnUse"
-							x1={startPoint[0]}
-							y1={startPoint[1]}
-							x2={endPoint[0]}
-							y2={endPoint[1]}
-						>
-							<stop offset="0" stopColor="#fb7185" stopOpacity="0.35" />
-							<stop offset="1" stopColor="#fb7185" stopOpacity="0" />
-						</linearGradient>
-					</defs>
-					{tool.target && (
-						<rect
-							x={
-								(camera.viewport[0] - frame.size[0] * camera.scale) / 2 +
-								camera.view.pan[0]
-							}
-							y={
-								(camera.viewport[1] - frame.size[1] * camera.scale) / 2 +
-								camera.view.pan[1]
-							}
-							width={frame.size[0] * camera.scale}
-							height={frame.size[1] * camera.scale}
-							fill={`url(#${gradientId})`}
-						/>
-					)}
-					<line
-						x1={startPoint[0]}
-						y1={startPoint[1]}
-						x2={endPoint[0]}
-						y2={endPoint[1]}
-						stroke="#000"
-						strokeWidth="3"
-					/>
-					<line
-						x1={startPoint[0]}
-						y1={startPoint[1]}
-						x2={endPoint[0]}
-						y2={endPoint[1]}
-						stroke="white"
-						strokeWidth="1"
-					/>
-					<circle
-						cx={startPoint[0]}
-						cy={startPoint[1]}
-						r="5"
-						fill="white"
-						stroke="#171717"
-					/>
-					<circle
-						cx={endPoint[0]}
-						cy={endPoint[1]}
-						r="5"
-						fill="#171717"
-						stroke="white"
-					/>
-				</svg>
+			{visible && !camera.panMode && (
+				<GradientGuides
+					mask={visible}
+					screen={screenPoint}
+					extent={Math.hypot(...camera.viewport)}
+				/>
 			)}
 			{tool.target && (
-				<p className="pointer-events-none absolute top-3 left-1/2 w-max max-w-[calc(100%-1.5rem)] -translate-x-1/2 rounded bg-black/70 px-3 py-2 text-center text-xs text-white">
-					Drag from full effect to no effect · Esc to cancel
+				<p className="pointer-events-none absolute top-3 left-1/2 -translate-x-1/2 rounded bg-black/70 px-3 py-2 text-xs text-white">
+					Drag to draw · Shift to constrain · Esc to cancel
 				</p>
 			)}
 		</div>

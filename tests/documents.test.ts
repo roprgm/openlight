@@ -6,6 +6,7 @@ import { createImageSource } from "@/core/image";
 import { imageFrame } from "@/core/image/frame";
 import { setAdjustments } from "@/features/adjustments/edits";
 import { defaultAdjustments } from "@/features/adjustments/model";
+import { validateDetails } from "@/features/details/model";
 import { defaultCurve } from "@/features/tone-curves/curve";
 import { setToneCurve } from "@/features/tone-curves/edits";
 
@@ -45,7 +46,7 @@ test("documents edit independently without React, retain bounded history, and re
 		{ sharpenRadius: 3.1 },
 		{ sharpenRadius: NaN },
 	]) {
-		expect(() => setAdjustments(first, change)).toThrow("Invalid adjustment");
+		expect(() => validateDetails(change)).toThrow("Invalid detail adjustment");
 	}
 
 	setAdjustments(first, { exposure: 1 });

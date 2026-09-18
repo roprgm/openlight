@@ -1,13 +1,32 @@
-import type { LinearGradient } from "@/core/document";
+import type { Gradient } from "@/core/document";
 import { merge, node, type RenderImage } from "@/core/renderer/node";
 import shader from "./mix.wgsl";
 
 type MaskModifier = {
-	readonly mask: LinearGradient;
+	readonly mask: Gradient;
 	readonly opacity: number;
 	readonly operation: "add" | "subtract";
 };
 const emptyModifiers = new Float32Array(8);
+
+function geometry(mask?: Gradient) {
+	if (mask?.kind === "radial") {
+		return {
+			kind: 2,
+			first: mask.center,
+			second: mask.radius,
+			feather: mask.feather,
+			angle: (mask.angle * Math.PI) / 180,
+		};
+	}
+	return {
+		kind: Number(!!mask),
+		first: mask?.start ?? [0, 0],
+		second: mask?.end ?? [1, 0],
+		feather: 0,
+		angle: 0,
+	};
+}
 
 function modifierData(modifiers: readonly MaskModifier[]) {
 	if (!modifiers.length) {
@@ -15,8 +34,16 @@ function modifierData(modifiers: readonly MaskModifier[]) {
 	}
 	const data = new Float32Array(modifiers.length * 8);
 	modifiers.forEach(({ mask, opacity, operation }, index) => {
+		const { first, second, kind, feather, angle } = geometry(mask);
 		data.set(
-			[...mask.start, ...mask.end, operation === "add" ? opacity : -opacity],
+			[
+				...first,
+				...second,
+				operation === "add" ? opacity : -opacity,
+				kind,
+				feather,
+				angle,
+			],
 			index * 8,
 		);
 	});
@@ -29,7 +56,7 @@ export function mixAdjustment(
 	original: RenderImage,
 	edited: RenderImage,
 	opacity: number,
-	mask?: LinearGradient,
+	mask?: Gradient,
 	modifiers: readonly MaskModifier[] = [],
 ) {
 	if (original === edited || opacity === 0) {
@@ -43,13 +70,7 @@ export function mixAdjustment(
 		node(name, shader, {
 			storage: { modifiers: modifierData(modifiers) },
 			set: {
-				params: {
-					opacity,
-					masked: Number(!!mask),
-					modifierCount: modifiers.length,
-					start: mask?.start ?? [0, 0],
-					end: mask?.end ?? [1, 0],
-				},
+				params: { opacity, ...geometry(mask), modifierCount: modifiers.length },
 			},
 		}),
 	);

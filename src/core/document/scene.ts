@@ -12,6 +12,9 @@ export type Adjustments = {
 	blacks: number;
 	vibrance: number;
 	saturation: number;
+};
+
+export type Details = {
 	clarity: number;
 	sharpening: number;
 	sharpenRadius: number;
@@ -44,7 +47,19 @@ export type ImageLayer = {
 };
 
 /** Endpoints in the original document canvas, independent of crop and rotation. */
-export type LinearGradient = { readonly start: Point; readonly end: Point };
+export type LinearGradient = {
+	readonly kind: "linear";
+	readonly start: Point;
+	readonly end: Point;
+};
+export type RadialGradient = {
+	readonly kind: "radial";
+	readonly center: Point;
+	readonly radius: Point;
+	readonly angle: number;
+	readonly feather: number;
+};
+export type Gradient = LinearGradient | RadialGradient;
 export type ProcessingLayer = {
 	readonly id: string;
 	readonly name: string;
@@ -52,6 +67,7 @@ export type ProcessingLayer = {
 	readonly opacity: number;
 	readonly children: readonly ProcessingLayer[];
 } & (
+	| { readonly kind: "details"; readonly details: Readonly<Details> }
 	| { readonly kind: "exposure"; readonly exposure: number }
 	| { readonly kind: "vignette"; readonly vignette: Vignette }
 	| { readonly kind: "curves"; readonly toneCurve: ToneCurve }
@@ -59,7 +75,7 @@ export type ProcessingLayer = {
 	| {
 			readonly kind: "mask";
 			readonly operation: "add" | "subtract";
-			readonly mask: LinearGradient;
+			readonly mask: Gradient;
 			readonly adjustments: Readonly<Adjustments>;
 	  }
 );

@@ -57,7 +57,7 @@ export const modes = [
 	{
 		id: "retouch",
 		label: "Retouch",
-		key: "r",
+		key: "t",
 		Icon: RetouchIcon,
 		group: "edit",
 		Panel: PlaceholderPanel,

@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import { type ReactNode, useId, useRef } from "react";
 import { useDocument } from "@/components/editor/session";
 import { Icon } from "@/components/icons/icon";
@@ -8,10 +9,12 @@ export function LayerMenu({
 	label,
 	children,
 	icon,
+	className,
 }: {
 	label: string;
 	children: ReactNode;
 	icon: ReactNode;
+	className?: string;
 }) {
 	const id = useId();
 	const popover = useRef<HTMLDivElement>(null);
@@ -22,9 +25,12 @@ export function LayerMenu({
 				aria-label={label}
 				title={label}
 				popoverTarget={id}
-				className="grid size-7 shrink-0 place-items-center rounded text-neutral-400 hover:bg-neutral-600/40 hover:text-neutral-100 pointer-coarse:size-10"
+				className={cn(
+					"grid size-7 shrink-0 place-items-center rounded text-neutral-400 hover:bg-neutral-600/40 hover:text-neutral-100 pointer-coarse:size-10",
+					className,
+				)}
 			>
-				<Icon className="size-4">{icon}</Icon>
+				{icon}
 			</button>
 			<div
 				id={id}
@@ -77,11 +83,13 @@ export function LayerActions({
 		<LayerMenu
 			label={`${layer.name} actions`}
 			icon={
-				<path
-					d="M5 12h.01M12 12h.01M19 12h.01"
-					strokeWidth="3"
-					strokeLinecap="round"
-				/>
+				<Icon className="size-4">
+					<path
+						d="M5 12h.01M12 12h.01M19 12h.01"
+						strokeWidth="3"
+						strokeLinecap="round"
+					/>
+				</Icon>
 			}
 		>
 			<button
