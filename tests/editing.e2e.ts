@@ -55,24 +55,17 @@ test("edit a photo, inspect the preview and histograms, undo changes, and export
 	expect((await readImage(page)).center).toEqual([128, 128, 128, 255]);
 
 	await test.step("image adjustments share a single section", async () => {
-		const summary = page.getByRole("button", {
-			name: "Adjustments",
-			exact: true,
-		});
+		await expect(
+			page.getByRole("heading", { name: "Adjustments", exact: true }),
+		).toBeVisible();
 		await expect(
 			page.getByRole("slider", { name: "Clarity", exact: true }),
 		).toHaveCount(0);
-		await summary.click();
 		await expect(
 			page.getByRole("slider", { name: "Exposure", exact: true }),
-		).toBeHidden();
+		).toBeVisible();
 		await expect(
 			page.getByRole("slider", { name: "Temp", exact: true }),
-		).toBeHidden();
-		expect(await state()).toEqual(initial);
-		await summary.press("Enter");
-		await expect(
-			page.getByRole("slider", { name: "Exposure", exact: true }),
 		).toBeVisible();
 	});
 

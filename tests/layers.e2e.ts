@@ -71,7 +71,7 @@ test("draw a mask, edit its child effects, reorder layers and undo", async ({
 	).toHaveValue("0.00");
 	await test.step("Details is an optional effect, separate from image adjustments", async () => {
 		await expect(
-			page.getByRole("button", { name: "Adjustments", exact: true }),
+			page.getByRole("heading", { name: "Adjustments", exact: true }),
 		).toBeVisible();
 		await expect(
 			page.getByRole("textbox", { name: "Clarity", exact: true }),
@@ -270,6 +270,17 @@ test("draw a mask, edit its child effects, reorder layers and undo", async ({
 		);
 		expect((await state()).scene).not.toEqual(edited.scene);
 		await page.keyboard.press("ControlOrMeta+z");
+		const options = page.getByRole("group", { name: "Layer options" });
+		await expect(
+			options.getByRole("textbox", { name: "Feather", exact: true }),
+		).toBeVisible();
+		const panel = page.getByRole("region", { name: "Editor controls" });
+		await expect(
+			panel.getByRole("heading", { name: "Adjustments", exact: true }),
+		).toBeVisible();
+		await expect(
+			panel.getByRole("textbox", { name: "Feather", exact: true }),
+		).toHaveCount(0);
 		await setField("Feather", "80");
 		await page.getByRole("button", { name: "Undo", exact: true }).click();
 		await expect(
