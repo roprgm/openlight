@@ -5,10 +5,11 @@ Use [AGENTS.md](AGENTS.md) for architecture and coding rules. Review the complet
 ## Review questions
 
 - **Ownership:** Does each module have one responsibility? Does feature behavior stay with its feature? Is shared code independent of its consumers? `lib/` must meet the layer-0 definition, not merely have multiple callers.
-- **Simplicity:** Does an abstraction reduce the work of understanding callers and lifecycles? Could a direct function or a few repeated lines be clearer? Avoid extra configuration, forwarding layers, and speculative extension points.
+- **Simplicity:** Does the whole change justify its code, including tests, helpers, scripts, and documentation? Could direct functions or a few repeated lines replace configuration, forwarding layers, or speculative extension points?
 - **State and boundaries:** Is each fact stored once? Are inputs and dependencies explicit, invalid states represented clearly, and external data validated at its boundary? Do errors retain enough context to fix them?
 - **Behavior and lifetime:** Do edits, grouping, cancellation, and undo work together? Can asynchronous work outlive or overwrite its document? Does each owner release resources, subscriptions, and pending work correctly?
-- **Evidence:** Do tests check actual behavior and pixels where relevant? Can reviewers assess every new or changed UI from actual screenshots with the affected controls visible? Rendered output does not replace UI screenshots. Does the PR include [rendering measurements](PERFORMANCE.md) when GPU work changes? Check reported limitations as well as passing results.
+- **Tests:** Would a short, representative workflow fail if the changed behavior broke? Do extra cases protect distinct risks? Follow the [testing guidance](AGENTS.md#tests-and-completion).
+- **Evidence:** Can reviewers assess every new or changed UI from actual screenshots with the affected controls visible? Rendered output does not replace UI screenshots. Does the PR include [rendering measurements](PERFORMANCE.md) when GPU work changes? Check reported limitations as well as passing results.
 
 ## Findings and tradeoffs
 

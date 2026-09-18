@@ -47,7 +47,7 @@ If the environment blocks local ports or browser processes, use its permitted ex
 | `bun run test` | Browser-free integration and core unit tests using real modules and `vgpu/mock`. |
 | `bun run test:browser` | GPU pixels, UI, and codec integration in Chromium. |
 
-Run all four after changes and before committing. [CI](.github/workflows/ci.yml) currently checks formatting/lint, Bun tests, and the build; it does not run browser tests.
+Run all four for code changes before committing. [CI](.github/workflows/ci.yml) currently checks formatting/lint, Bun tests, and the build; it does not run browser tests.
 
 During development, select an existing test by path:
 
@@ -56,7 +56,7 @@ bun run test tests/renderer.test.ts
 bun run test:browser tests/rendering.e2e.ts --workers=1
 ```
 
-One browser worker reduces CPU contention with SwiftShader. The mock does not execute shaders; use browser tests to check actual pixels. Reuse [browser fixtures](tests/fixtures.ts) and [image readers](tests/images.ts), and extend the [editing session](tests/editing.e2e.ts) for UI workflows.
+One browser worker reduces CPU contention with SwiftShader. The mock does not execute shaders; use browser tests to check actual pixels. Reuse [browser fixtures](tests/fixtures.ts), [image readers](tests/images.ts), and existing [editing steps](tests/editing.e2e.ts). Follow the [testing guidance](AGENTS.md#tests-and-completion) to keep coverage proportional to the change.
 
 ### Rendering benchmarks
 

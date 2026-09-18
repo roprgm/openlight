@@ -7,7 +7,7 @@ Write committed code, comments, documentation, and UI text in English. Use [CONT
 ## Simplicity
 
 - Give each module, function, and component one coherent responsibility. Entry points compose; resource owners manage their own lifecycles.
-- Judge simplicity across the complete operation, including callers and cleanup. Moving lines into forwarding helpers does not simplify it. Keep cohesive work together; use no arbitrary file-size limits.
+- Judge simplicity across the whole change, including callers, cleanup, tests, helpers, scripts, and documentation. Remove unnecessary work rather than compressing syntax or adding forwarding helpers. Keep cohesive work together; use no arbitrary line-count limits.
 - Start with direct functions and library calls. Add abstractions, dependencies, validation, scheduling, or caching for a current requirement. Prefer a few repeated lines over coupling unrelated behavior.
 - Extract a component when a region owns distinct state, refs, or behavior. Keep helpers local unless they have a separate responsibility or a real shared use. Define functions above their consumers.
 - Keep control flow linear: guard clauses, braces, and `const` by default. Avoid nested ternaries and dense logic in JSX; use early returns or components for meaningful branches.
@@ -57,20 +57,20 @@ Keep Tailwind classes inline. Reuse presentation through components or repeat cl
 
 ## Tests and completion
 
-Prefer a few broad integration tests for features. Core algorithms also merit focused unit tests, especially rendering order, branch/merge connections, and resource reuse. Use Bun and real application modules with `vgpu/mock` for document, history, loader, and renderer orchestration. The mock does not execute shaders. Use Playwright for GPU pixels, browser interaction, and real format fixtures.
+For routine feature changes, prefer one short integration scenario that follows how a user would verify the change. For editing changes, load a suitable fixture, apply the operation, check the result, change a parameter, and undo. Reuse existing fixtures, helpers, and editing steps. Add cases for distinct failure modes or regressions; avoid repeating coverage of shared controls and history for each feature.
 
-Extend the main editing session with named steps for controls, preview, histogram, undo/redo, and export. Steps may live in separate modules. Keep independent rendering and loading checks separate. Assert known pixel values with appropriate tolerances; changed state or screenshots alone do not establish rendering correctness.
+Check meaningful output using a few representative samples, expected relationships, and tolerances. Assert rendered results when processing changes; state changes alone do not prove the effect works. Detailed numerical references and exhaustive parameter matrices need a concrete accuracy requirement or regression.
 
-Maintain the semantic [control API](API.md) for local, CI, and remote use. Exercise UI behavior through the DOM. Wait for observable results; avoid production completion tracking added only for tests. Test the behavior being changed rather than forcing every feature through the same test structure.
+Core algorithms also merit focused unit tests, especially rendering order, branch/merge connections, and resource reuse. Use Bun and real application modules with `vgpu/mock` for engine orchestration; the mock does not execute shaders. Use Playwright for rendered pixels, DOM interaction, and real format fixtures. Maintain the semantic [control API](API.md) for local, CI, and remote use. Wait for observable results; avoid production completion tracking added only for tests.
 
-Run `bun run check`, `bun run build`, `bun run test`, and `bun run test:browser` after changes and before a commit. Browser setup and focused commands are in [README.md](README.md#validation).
+For code changes, run `bun run check`, `bun run build`, `bun run test`, and `bun run test:browser` before a commit. Browser setup and focused commands are in [README.md](README.md#validation). For documentation-only changes, check the diff and affected references.
 
-Prepare evidence during implementation and include it in the initial PR description, using the [PR template](.github/pull_request_template.md). Lead with the problem and resulting behavior. Keep prose short, use compact comparison tables, and link detailed reports, raw data, and reproduction steps. Omit work logs and repeated explanations.
+Prepare evidence during implementation and include it in the initial PR description, using the [PR template](.github/pull_request_template.md). Lead with the problem and resulting behavior. Keep prose short and use compact comparison tables. Generated screenshots, logs, reports, and benchmark samples belong in ignored output directories and PR/CI attachments, not in Git. Commit test fixtures when maintained tests need them. Omit work logs and repeated explanations.
 
 Every code PR includes actual application screenshots or rendered output demonstrating the result. UI additions or changes require screenshots of the affected interface in context, with the new or changed controls visible for visual approval; rendered output alone is insufficient. Show before/after for changes to existing UI or image output, representative states for new UI, and the affected workflow for nonvisual code changes. Compare the same fixture under matching conditions and state what varies. Embed accessible images in the description, name the fixture and settings, and verify the published links. Documentation-only changes may mark visual evidence not applicable.
 
-For processing changes, include relevant quality measurements when a reference or expected property is available. State the metric, units, and limits; do not generalize from synthetic fixtures to real photos. Keep quality results separate from rendering timings.
+Use image-quality metrics for a concrete quality claim or regression; ordinary correctness can use representative output checks. State metric units and limits, and do not generalize from synthetic fixtures to real photos. Keep quality results separate from rendering timings.
 
 Assess performance on every code change; changes affecting GPU work require reproducible before/after evidence under [PERFORMANCE.md](PERFORMANCE.md). Report unavailable checks and measurements as verification gaps.
 
-Keep documentation close to its purpose and link rather than duplicate rules. Describe existing APIs accurately and label unimplemented designs explicitly.
+Update existing documentation for changed contracts or shared workflows; a feature does not need a separate guide. Link rules instead of duplicating them. Keep setup instructions portable; host-specific paths and workarounds stay outside the repository. Describe existing APIs accurately and label unimplemented designs explicitly.
