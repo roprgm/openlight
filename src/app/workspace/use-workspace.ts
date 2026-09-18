@@ -1,7 +1,7 @@
 import { useEffect, useMemo } from "react";
 import { useGpu } from "vgpu-react";
 import { createControls } from "@/app/controls";
-import { createWorkspace } from "./index";
+import { createWorkspace } from ".";
 
 /** Connects an imperative workspace and its browser commands to the app lifetime. */
 export function useWorkspace() {

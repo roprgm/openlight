@@ -1,5 +1,12 @@
 import { expect, test } from "bun:test";
 import {
+	frameTransform,
+	type ImageFrame,
+	imageFrame,
+	type Point,
+	validateFrame,
+} from "@/core/image/frame";
+import {
 	fitRatio,
 	flip,
 	move,
@@ -7,13 +14,6 @@ import {
 	rotate,
 	turn,
 } from "@/features/crop/geometry";
-import {
-	frameTransform,
-	type ImageFrame,
-	imageFrame,
-	type Point,
-	validateFrame,
-} from "@/lib/image-frame/geometry";
 
 const source: Point = [1200, 800];
 function sample(frame: ImageFrame, x: number, y: number) {

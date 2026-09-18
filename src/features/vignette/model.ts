@@ -1,4 +1,4 @@
-import type { Vignette } from "@/lib/editor/scene";
+import type { Vignette } from "@/core/document";
 
 export const defaultVignette: Readonly<Vignette> = {
 	intensity: 0,

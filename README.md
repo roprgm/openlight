@@ -44,7 +44,7 @@ If the environment blocks local ports or browser processes, use its permitted ex
 | --- | --- |
 | `bun run check` | Format and lint; writes fixes. |
 | `bun run build` | Type-check and production build. |
-| `bun run test` | Browser-free integration tests using real modules and `vgpu/mock`. |
+| `bun run test` | Browser-free integration and core unit tests using real modules and `vgpu/mock`. |
 | `bun run test:browser` | GPU pixels, UI, and codec integration in Chromium. |
 
 Run all four after changes and before committing. [CI](.github/workflows/ci.yml) currently checks formatting/lint, Bun tests, and the build; it does not run browser tests.
@@ -60,13 +60,11 @@ One browser worker reduces CPU contention with SwiftShader. The mock does not ex
 
 ### Rendering benchmarks
 
-After [browser setup](#browser-setup), run `bun run test:browser --config playwright.bench.config.ts` separately from other GPU/browser work. It measures the renderer without the mixer, with neutral settings, and with all eight ranges active (hue 20, saturation 25, luminance 10). The fixture is a deterministic 2400×1600 linear Rec.2020 gradient containing neutrals, saturated colors, and HDR values; exposure is 0.25 and contrast is 10. Each workload uses 8 warmups and 40 measured samples.
+After [browser setup](#browser-setup), run `bun run test:browser --config playwright.bench.config.ts` separately from other GPU/browser work. Workloads cover neutral effects, color mixing, vignette, detail filters, and the combined pipeline. The fixture is a deterministic 2400×1600 linear Rec.2020 gradient containing neutrals, saturated colors, and HDR values; exposure is 0.25 and contrast is 10. Each workload uses 8 warmups and 40 measured samples. Settings live in [the benchmark](tests/rendering-benchmark.ts); select a workload with e.g. `--grep 'rendering vignette'`.
 
-Results and rendered PNGs are written under `test-results/benchmarks`. JSON includes environment details, individual samples, median/p95, renderer setup, first render, completed-render latency, and isolated mixer GPU timestamps when supported. Display, readback, and image encoding run outside the measured rendering loop. Software-adapter results describe that backend only. A hardware measurement requires a browser configuration that does not force SwiftShader; record the adapter actually used.
+Results and rendered PNGs are written under `test-results/benchmarks`; keep generated artifacts out of Git. JSON includes environment details, samples, median/p95, setup, first render, completed-render latency, intermediate texture storage, and per-node GPU timestamps when supported. Timestamp profiling runs separately from the latency comparison. Decoding, display, readback, and image encoding run outside the measured loop. Software-adapter results describe that backend only. A hardware measurement requires a browser configuration that does not force SwiftShader; record the adapter actually used.
 
-For vignette measurements, select `--grep "rendering vignette-"`: the editor renderer runs with intensity 0 or 80 and softness 60, with neutral color mixing. The active workload also measures the isolated vignette pass.
-
-For revision comparisons, run the same benchmark files and browser configuration in both checkouts. Revisions predating the mixer can run `--grep 'rendering baseline'`. The benchmark is opt-in and excluded from the regular test suite; correctness remains covered by the GPU pixel test and editing session. See [PERFORMANCE.md](PERFORMANCE.md) for measurement scope and interpretation.
+For revision comparisons, use identical fixtures, settings, sampling, and browser configuration in both checkouts. The benchmark is opt-in and excluded from the regular test suite; correctness remains covered by GPU pixel tests and the editing session. See [PERFORMANCE.md](PERFORMANCE.md) for the node contract, measurement scope, and interpretation.
 
 ## Scripting
 
@@ -77,7 +75,7 @@ For revision comparisons, run the same benchmark files and browser configuration
 - [AGENTS.md](AGENTS.md): architecture, ownership, coding rules, and completion requirements.
 - [CONTEXT.md](CONTEXT.md): domain vocabulary.
 - [REVIEW.md](REVIEW.md): review questions and actionable findings.
-- [PERFORMANCE.md](PERFORMANCE.md): rendering measurements and the planned node instrumentation contract.
+- [PERFORMANCE.md](PERFORMANCE.md): render nodes and performance measurements.
 
 Code PRs include visual evidence: UI additions or changes require screenshots of the actual interface for visual review. GPU changes also need a reproducible performance comparison. Use the [PR template](.github/pull_request_template.md) and the evidence rules in [AGENTS.md](AGENTS.md#tests-and-completion).
 

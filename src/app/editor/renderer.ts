@@ -1,25 +1,45 @@
-import type { Gpu, Target } from "vgpu";
-import { createColorMixer } from "@/features/color-mixer/pass";
-import { createVignette } from "@/features/vignette/pass";
-import { createRenderer, type SceneEffect } from "@/lib/editor/renderer";
-import type { ImageSource } from "@/lib/image-source";
+import type { Gpu, Timer } from "vgpu";
+import type { ImageSource } from "@/core/image";
+import {
+	createRenderer,
+	input,
+	pipeline,
+	transformImages,
+} from "@/core/renderer";
+import { adjustments } from "@/features/adjustments/pass";
+import { unsharpMask } from "@/features/adjustments/unsharp-mask";
+import { colorMixer } from "@/features/color-mixer/pass";
+import { toneCurves } from "@/features/tone-curves/pass";
+import { vignette } from "@/features/vignette/pass";
 
-function createEffects(gpu: Gpu, source: Target): SceneEffect {
-	const mixer = createColorMixer(gpu, source);
-	const vignette = createVignette(gpu, source);
-	return {
-		render(frame, input, scene) {
-			const colored = mixer.render(frame, input, scene);
-			return vignette.render(frame, colored, scene);
+/** The same graph composition powers the editing preview and export. */
+export function createEditorRenderer(
+	gpu: Gpu,
+	source: ImageSource,
+	timer?: Timer,
+) {
+	return createRenderer(
+		gpu,
+		source,
+		(image, scene) => {
+			const adjusted = pipeline(image, [adjustments(scene.adjustments)]);
+			const full = pipeline(adjusted, [
+				toneCurves(scene.toneCurve),
+				colorMixer(scene.colorMixer),
+				vignette(scene.vignette),
+				unsharpMask("clarity", scene.adjustments.clarity / 200, 64, 16),
+				unsharpMask(
+					"sharpen",
+					scene.adjustments.sharpening / 50,
+					scene.adjustments.sharpenRadius,
+				),
+			]);
+			const [original, beforeCurves, output] = transformImages(
+				[input(source.image), adjusted, full],
+				scene.frame,
+			);
+			return { original, input: beforeCurves, full, output };
 		},
-		dispose() {
-			mixer.dispose();
-			vignette.dispose();
-		},
-	};
-}
-
-/** The same feature composition powers the editing preview and export. */
-export function createEditorRenderer(gpu: Gpu, source: ImageSource) {
-	return createRenderer(gpu, source, createEffects);
+		timer,
+	);
 }

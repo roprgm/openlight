@@ -1,9 +1,12 @@
 import { effect, frame, init, target } from "vgpu";
+import type { ColorMixer } from "@/core/document";
+import {
+	createRenderGraph,
+	input as inputNode,
+	pipeline,
+} from "@/core/renderer";
 import { colors, defaultMixer } from "@/features/color-mixer/model";
-import { createColorMixer } from "@/features/color-mixer/pass";
-import { type ColorMixer, defaultAdjustments } from "@/lib/editor/scene";
-import { imageFrame } from "@/lib/image-frame/geometry";
-import { defaultCurve } from "@/lib/tone-curves/curve";
+import { colorMixer } from "@/features/color-mixer/pass";
 
 function working(rgb: number[], scale = 1) {
 	const [r, g, b] = rgb.map((value) =>
@@ -64,13 +67,7 @@ export async function probeColorMixer() {
   `,
 		{ set: { samples: data } },
 	);
-	const mixer = createColorMixer(gpu, input);
-	const scene = {
-		source: "probe",
-		frame: imageFrame(input.size),
-		adjustments: defaultAdjustments,
-		toneCurve: defaultCurve,
-	};
+	const graph = createRenderGraph(gpu);
 	const uniform = (channel: keyof ColorMixer, value: number): ColorMixer => ({
 		...defaultMixer,
 		[channel]: colors.map(() => value),
@@ -88,7 +85,7 @@ export async function probeColorMixer() {
 		await gpu.gpu.queue.onSubmittedWorkDone();
 		const original = [...(await input.readFloats())];
 		const outputs = [];
-		for (const colorMixer of [
+		for (const settings of [
 			defaultMixer,
 			uniform("hue", 100),
 			uniform("hue", -100),
@@ -98,15 +95,14 @@ export async function probeColorMixer() {
 			selected(5, "saturation", -100),
 			selected(0, "hue", 100),
 		]) {
-			let output = input;
-			frame(gpu, (f) => {
-				output = mixer.render(f, input, { ...scene, colorMixer });
-			});
+			const [output] = graph.render([
+				pipeline(inputNode(input), [colorMixer(settings)]),
+			]);
 			outputs.push([...(await output.readFloats())]);
 		}
 		return { original, outputs, sampleCount: samples.length };
 	} finally {
-		mixer.dispose();
+		graph.dispose();
 		input.color.dispose();
 		data.dispose();
 		gpu.dispose();

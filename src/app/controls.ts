@@ -6,26 +6,28 @@ import {
 import { createCameraRawXmpLoader } from "@/app/loaders/camera-raw-xmp";
 import { createImageLoader } from "@/app/loaders/image";
 import { createLoaderRegistry } from "@/app/loaders/registry";
-import type { Workspace } from "@/app/workspace";
+import type {
+	Adjustments,
+	Preview,
+	Scene,
+	ToneCurve,
+	Vignette,
+} from "@/core/document";
+import type { WhiteBalance } from "@/core/image";
+import { setAdjustments } from "@/features/adjustments/edits";
+import { defaultAdjustments } from "@/features/adjustments/model";
 import { resetColorMixer, setColorMixer } from "@/features/color-mixer/edits";
 import {
 	defaultMixer,
 	type MixerChange,
 	type MixerColor,
 } from "@/features/color-mixer/model";
+import { defaultCurve } from "@/features/tone-curves/curve";
+import { setToneCurve } from "@/features/tone-curves/edits";
 import { setVignette } from "@/features/vignette/edits";
 import { defaultVignette } from "@/features/vignette/model";
 import { setWhiteBalance } from "@/features/white-balance/edits";
-import type { Preview } from "@/lib/editor/document";
-import { setAdjustments, setToneCurve } from "@/lib/editor/document/edits";
-import {
-	type Adjustments,
-	defaultAdjustments,
-	type Scene,
-	type Vignette,
-} from "@/lib/editor/scene";
-import type { WhiteBalance } from "@/lib/image-source";
-import { defaultCurve, type ToneCurve } from "@/lib/tone-curves/curve";
+import type { Workspace } from "./workspace";
 
 /** Imperative commands bound to an explicit workspace, usable without React. */
 export function createControls(gpu: Gpu, workspace: Workspace) {

@@ -1,4 +1,4 @@
-import type { EditorDocument } from "@/lib/editor/document";
+import type { EditorDocument } from "@/core/document";
 import {
 	channels,
 	colors,

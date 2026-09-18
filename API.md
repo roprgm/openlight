@@ -55,7 +55,7 @@ For RAW sources, `setWhiteBalance({ temperature, tint })` sets absolute Kelvin a
 
 Edits update the scene and history synchronously. Rendering may finish later, particularly RAW development. Tests should wait for visible results; `exportImage()` renders and waits for its captured scene independently of the preview.
 
-`editScene(change)` shallowly merges a partial [Scene](src/lib/editor/scene.ts) as an undoable edit. Supply complete nested values such as `frame`. This low-level command validates frame geometry only; prefer the adjustment, curve, color-mixer, and white-balance commands for their validation.
+`editScene(change)` shallowly merges a partial [Scene](src/core/document/scene.ts) as an undoable edit. Supply complete nested values such as `frame`. This low-level command validates frame geometry only; prefer the adjustment, curve, color-mixer, and white-balance commands for their validation.
 
 ## History
 

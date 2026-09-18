@@ -1,11 +1,10 @@
 import type { Gpu } from "vgpu";
 import type { Workspace } from "@/app/workspace";
-import decode, { canDecode } from "@/lib/decode";
-import { createDocument } from "@/lib/editor/document";
-import { createResources } from "@/lib/editor/document/resources";
-import { defaultAdjustments } from "@/lib/editor/scene";
-import { imageFrame } from "@/lib/image-frame/geometry";
-import { defaultCurve } from "@/lib/tone-curves/curve";
+import { createDocument, createResources } from "@/core/document";
+import decode, { canDecode } from "@/core/image/decode";
+import { imageFrame } from "@/core/image/frame";
+import { defaultAdjustments } from "@/features/adjustments/model";
+import { defaultCurve } from "@/features/tone-curves/curve";
 import type { FileLoader } from "./registry";
 
 export function createImageLoader(gpu: Gpu, workspace: Workspace): FileLoader {

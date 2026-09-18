@@ -5,11 +5,11 @@ import { expect, test } from "./fixtures";
 import type { Workload } from "./rendering-benchmark";
 
 for (const workload of [
-	"baseline",
 	"neutral",
-	"active",
-	"vignette-neutral",
-	"vignette-active",
+	"color-mixer",
+	"vignette",
+	"detail",
+	"pipeline",
 ] as const) {
 	test(`rendering ${workload}`, async ({ page, browser }, info) => {
 		await page.goto("/tests/gpu.html");
@@ -38,11 +38,12 @@ for (const workload of [
 			...timings,
 		};
 		expect(report.rendering.completedMs.samples).toHaveLength(report.samples);
-		if (
-			(workload === "active" || workload === "vignette-active") &&
-			report.timestamps
-		) {
-			expect(report.isolated?.missingGpuSamples).toBe(0);
+		if (report.timestamps) {
+			for (const name of report.storage.passes) {
+				expect(report.profile?.nodes[name]?.samples).toHaveLength(
+					report.samples,
+				);
+			}
 		}
 		await writeFile(
 			info.outputPath("timings.json"),
@@ -58,7 +59,8 @@ for (const workload of [
 				workload,
 				firstRenderMs: report.firstRenderMs,
 				completedMs: report.rendering.completedMs.median,
-				isolatedGpuMs: report.isolated?.gpuMs?.median ?? null,
+				gpuMs: report.profile?.gpuMs?.median ?? null,
+				intermediateBytes: report.intermediateBytes,
 			}),
 		);
 	});

@@ -1,7 +1,7 @@
 import { type PointerEvent, useRef } from "react";
 import { useViewport } from "@/components/editor/viewport";
 import rotateCursor from "@/components/icons/rotate-cursor.svg?raw";
-import type { ImageFrame, Point } from "@/lib/image-frame/geometry";
+import type { ImageFrame, Point } from "@/core/image/frame";
 import { clamp } from "@/lib/math";
 import { move, resize, rotate } from "./geometry";
 

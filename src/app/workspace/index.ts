@@ -1,5 +1,5 @@
 import { createStore } from "zustand/vanilla";
-import type { EditorDocument } from "@/lib/editor/document";
+import type { EditorDocument } from "@/core/document";
 
 type WorkspaceState =
 	| { status: "empty"; file?: undefined; document?: undefined }
