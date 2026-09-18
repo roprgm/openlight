@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import Button from "@/components/ui/button";
-import { defaultCurve, type ToneCurve } from "@/lib/tone-curves/curve";
+import type { ToneCurve } from "@/core/document";
+import { defaultCurve } from "./curve";
 import { Graph } from "./graph";
 
 type ToneCurvesProps = {

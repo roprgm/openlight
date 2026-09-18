@@ -44,7 +44,7 @@ an owned sensor copy. `bayer/source.ts` filters it lazily, shares concurrent wor
 releases failures, and permits retries. The feature owns its cache and commands.
 
 RAW decoding → Bayer denoise when supported → development → RGB denoise for
-other sources → amount blend → adjustments → curves → color mixer → details → framing → export.
+other sources → amount blend → adjustments → curves → color mixer → vignette → details → framing → export.
 
 `bayer/index.ts` filters an exclusively owned second `raw-webgpu` source before
 its first development. The original sensor is preserved. It normalizes and packs
@@ -55,7 +55,7 @@ stages, and copies the restored sensor codes into that private source.
 results by image source and absolute white balance between preview and export.
 Each Bayer white balance develops the already filtered sensor; it does not repeat
 sensor filtering. The RGB fallback recalculates for a changed RAW white balance.
-Each renderer owns its blend output. Closing the final renderer releases cached
+The renderer reuses transient targets for the amount-blend node. Closing the final renderer releases cached
 images and the private sensor, aborting pending Bayer work. The document owns
 the original sensor independently.
 
@@ -66,7 +66,8 @@ RGB scratch tiles stay below 9 MiB, plus full-image outputs and approximately
 RGBA32F images: approximately 275 MiB at 24 MP, plus a 512 KiB accumulation buffer
 and a temporary 46 MiB integer output. The private decoded sensor, developed
 images and existing editor allocations are additional. Each full-resolution
-RGBA16F result or blend adds approximately 183 MiB at 24 MP.
+RGBA16F cached result adds approximately 183 MiB at 24 MP. Blend outputs use
+the renderer's transient target pool.
 
 GPU submissions are bounded by a completion wait between accumulation tiles.
 This limits queued work, not total image memory or first-use latency. Packing
@@ -101,5 +102,5 @@ repeated completed renders (8 warmups, 40 samples), then times the actual blend
 pass on 5000×4000 RGBA16F textures. React, display, export encoding and timing
 readback are outside the repeated-render interval. The expensive filter's compute
 dispatches are not timestamped; its first-use figure is a single diagnostic sample.
-See [the comparison and environment](../../../../docs/benchmarks/noise-reduction.md).
+Follow [the measurement and evidence rules](../../../../PERFORMANCE.md); keep results in the PR.
 Use hardware measurements to assess the 120 FPS budget; SwiftShader is not a proxy.

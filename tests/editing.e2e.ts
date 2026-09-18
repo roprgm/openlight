@@ -1,6 +1,6 @@
 import { readFile } from "node:fs/promises";
 import type { Page } from "@playwright/test";
-import { type ImageFrame, imageFrame } from "@/lib/image-frame/geometry";
+import { type ImageFrame, imageFrame } from "@/core/image/frame";
 import { interpolatePchip } from "@/lib/math";
 import { colorMixerEditing } from "./color-mixer-editing";
 import { expect, test } from "./fixtures";

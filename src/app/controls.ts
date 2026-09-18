@@ -6,7 +6,16 @@ import {
 import { createCameraRawXmpLoader } from "@/app/loaders/camera-raw-xmp";
 import { createImageLoader } from "@/app/loaders/image";
 import { createLoaderRegistry } from "@/app/loaders/registry";
-import type { Workspace } from "@/app/workspace";
+import type {
+	Adjustments,
+	Preview,
+	Scene,
+	ToneCurve,
+	Vignette,
+} from "@/core/document";
+import type { WhiteBalance } from "@/core/image";
+import { setAdjustments } from "@/features/adjustments/edits";
+import { defaultAdjustments } from "@/features/adjustments/model";
 import { resetColorMixer, setColorMixer } from "@/features/color-mixer/edits";
 import {
 	defaultMixer,
@@ -14,16 +23,12 @@ import {
 	type MixerColor,
 } from "@/features/color-mixer/model";
 import { setNoiseReduction } from "@/features/noise-reduction/edits";
+import { defaultCurve } from "@/features/tone-curves/curve";
+import { setToneCurve } from "@/features/tone-curves/edits";
+import { setVignette } from "@/features/vignette/edits";
+import { defaultVignette } from "@/features/vignette/model";
 import { setWhiteBalance } from "@/features/white-balance/edits";
-import type { Preview } from "@/lib/editor/document";
-import { setAdjustments, setToneCurve } from "@/lib/editor/document/edits";
-import {
-	type Adjustments,
-	defaultAdjustments,
-	type Scene,
-} from "@/lib/editor/scene";
-import type { WhiteBalance } from "@/lib/image-source";
-import { defaultCurve, type ToneCurve } from "@/lib/tone-curves/curve";
+import type { Workspace } from "./workspace";
 
 /** Imperative commands bound to an explicit workspace, usable without React. */
 export function createControls(gpu: Gpu, workspace: Workspace) {
@@ -50,6 +55,8 @@ export function createControls(gpu: Gpu, workspace: Workspace) {
 		setColorMixer: (color: MixerColor, change: MixerChange) =>
 			setColorMixer(workspace.getDocument(), color, change),
 		resetColorMixer: () => resetColorMixer(workspace.getDocument()),
+		setVignette: (change: Partial<Vignette>) =>
+			setVignette(workspace.getDocument(), change),
 		editScene(change: Partial<Scene>) {
 			const document = workspace.getDocument();
 			document.edit({ ...document.scene.getState(), ...change });
@@ -77,6 +84,7 @@ export function createControls(gpu: Gpu, workspace: Workspace) {
 				whiteBalance: scene?.whiteBalance,
 				toneCurve: scene?.toneCurve ?? defaultCurve,
 				colorMixer: scene?.colorMixer ?? defaultMixer,
+				vignette: scene?.vignette ?? defaultVignette,
 				history: document?.history.status.getState() ?? {
 					undoCount: 0,
 					redoCount: 0,

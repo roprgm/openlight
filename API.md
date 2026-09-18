@@ -51,11 +51,13 @@ Loading calls are queued. XMP import is skipped if no document is ready; an inva
 
 `setColorMixer(color, change)` updates one of `red`, `orange`, `yellow`, `green`, `aqua`, `blue`, `purple`, or `magenta`. Supply any of `hue`, `saturation`, and `luminance`, each a finite number from -100 to 100. Other colors and unspecified channels keep their values. `resetColorMixer()` resets every color as one undoable edit. A full shift of 100 rotates hue by 30°, scales saturation from zero to double, or moves luminance by one stop, weighted by each pixel's distance to the color's Oklab hue. Hue and saturation edits preserve luminance, and neutrals are unaffected.
 
+`setVignette({ intensity, softness })` updates either or both values, each a finite number from 0 to 100. Defaults are intensity 0 and softness 50. Intensity 0 bypasses the effect; increasing softness spreads the transition toward the center. The elliptical falloff is centered on the source image, before crop/rotation, independent of viewport zoom and pan. It multiplies linear RGB equally, preserves alpha and HDR headroom, and uses the same processing for preview and export. Double-click either slider to restore its default.
+
 For RAW sources, `setWhiteBalance({ temperature, tint })` sets absolute Kelvin and DNG tint, preserving unspecified values. Temperature accepts 2000–25000 K and tint accepts -150–150, extending either range to include the file's As Shot value. `setWhiteBalance()` restores that value (the decoder's daylight fallback if camera multipliers are unavailable). Non-RAW sources and invalid values throw. Incremental temperature/tint remain separate RGB adjustments.
 
 Edits update the scene and history synchronously. Rendering may finish later, particularly RAW development. Tests should wait for visible results; `exportImage()` renders and waits for its captured scene independently of the preview.
 
-`editScene(change)` shallowly merges a partial [Scene](src/lib/editor/scene.ts) as an undoable edit. Supply complete nested values such as `frame`. This low-level command validates frame geometry only; prefer the adjustment, curve, color-mixer, and white-balance commands for their validation.
+`editScene(change)` shallowly merges a partial [Scene](src/core/document/scene.ts) as an undoable edit. Supply complete nested values such as `frame`. This low-level command validates frame geometry only; prefer the adjustment, curve, color-mixer, and white-balance commands for their validation.
 
 ## History
 
@@ -108,6 +110,6 @@ The image renders at the document dimensions and downsamples to `longEdge` with 
 
 ## State
 
-`getState()` returns a detached snapshot containing `file`, `documentId`, `size`, `frame`, `adjustments`, `whiteBalance`, `toneCurve`, `colorMixer`, `preview`, and `history`. `colorMixer` contains eight-value `hue`, `saturation`, and `luminance` arrays in the color order above, defaulting to zero. `whiteBalance` contains absolute temperature/tint for RAW sources and is undefined for other sources. `file` is the filename, and `history` contains `undoCount` and `redoCount`.
+`getState()` returns a detached snapshot containing `file`, `documentId`, `size`, `frame`, `adjustments`, `whiteBalance`, `toneCurve`, `colorMixer`, `vignette`, `preview`, and `history`. `colorMixer` contains eight-value `hue`, `saturation`, and `luminance` arrays in the color order above, defaulting to zero. `whiteBalance` contains absolute temperature/tint for RAW sources and is undefined for other sources. `file` is the filename, and `history` contains `undoCount` and `redoCount`.
 
 Without a document, `documentId`, `size`, `frame`, and `preview` are undefined. Adjustments and the tone curve use their defaults, and history counts are zero. Mutating the snapshot does not edit the document.

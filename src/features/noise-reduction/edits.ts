@@ -1,4 +1,4 @@
-import type { EditorDocument } from "@/lib/editor/document";
+import type { EditorDocument } from "@/core/document";
 
 export function setNoiseReduction(document: EditorDocument, amount: number) {
 	if (!Number.isFinite(amount) || amount < 0 || amount > 100) {

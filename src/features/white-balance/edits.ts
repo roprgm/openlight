@@ -1,5 +1,5 @@
-import type { EditorDocument } from "@/lib/editor/document";
-import type { WhiteBalance } from "@/lib/image-source";
+import type { EditorDocument } from "@/core/document";
+import type { WhiteBalance } from "@/core/image";
 
 export function whiteBalanceLimits(asShot: WhiteBalance) {
 	return {

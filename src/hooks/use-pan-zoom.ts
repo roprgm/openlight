@@ -9,7 +9,7 @@ import {
 
 import { useStore } from "zustand";
 import { createStore } from "zustand/vanilla";
-import type { View } from "@/lib/image-display";
+import type { View } from "@/core/renderer";
 
 type Size = readonly [number, number, ...unknown[]];
 type Point = readonly [number, number];

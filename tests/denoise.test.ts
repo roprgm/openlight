@@ -1,19 +1,19 @@
 import { expect, mock, spyOn, test } from "bun:test";
 import type { RawMetadata } from "raw-webgpu";
-import type { Frame, Target } from "vgpu";
 import { init, target } from "vgpu/mock";
+import type { Scene } from "@/core/document";
+import { createDocument } from "@/core/document";
+import { createImageSource } from "@/core/image";
+import { imageFrame } from "@/core/image/frame";
+import { createRenderer, type RenderImage } from "@/core/renderer";
+import { defaultAdjustments } from "@/features/adjustments/model";
 import { setNoiseReduction } from "@/features/noise-reduction/edits";
 import * as bayer from "@/features/noise-reduction/processing/bayer";
 import { fitNoiseModel } from "@/features/noise-reduction/processing/bayer/noise";
 import { createBayerDenoising } from "@/features/noise-reduction/processing/bayer/source";
 import { createCachedDenoising } from "@/features/noise-reduction/processing/cache";
 import * as noise from "@/features/noise-reduction/processing/noise";
-import { createDocument } from "@/lib/editor/document";
-import { createRenderer } from "@/lib/editor/renderer";
-import { defaultAdjustments, type Scene } from "@/lib/editor/scene";
-import { imageFrame } from "@/lib/image-frame/geometry";
-import { createImageSource } from "@/lib/image-source";
-import { defaultCurve } from "@/lib/tone-curves/curve";
+import { defaultCurve } from "@/features/tone-curves/curve";
 
 test("preview and export share denoising but keep different white balances alive independently", async () => {
 	const gpu = await init();
@@ -108,11 +108,14 @@ test("noise edits validate and group while asynchronous preparation coalesces an
 	});
 	const prepared = Promise.withResolvers<void>();
 	const prepare = mock(() => prepared.promise);
-	const render = mock((_frame: Frame, input: Target, _scene: Scene) => input);
+	const render = mock((image: RenderImage, _scene: Scene) => ({
+		original: image,
+		input: image,
+		full: image,
+		output: image,
+	}));
 	const dispose = mock(() => {});
-	const renderer = createRenderer(gpu, source, {
-		beforeAdjustments: () => ({ prepare, render, dispose }),
-	});
+	const renderer = createRenderer(gpu, source, render, { prepare, dispose });
 	try {
 		setNoiseReduction(document, 0);
 		expect(document.history.status.getState().undoCount).toBe(0);
@@ -130,7 +133,7 @@ test("noise edits validate and group while asynchronous preparation coalesces an
 		prepared.resolve();
 		await Promise.all([pending, latest]);
 		expect(render).toHaveBeenCalledTimes(1);
-		expect(render.mock.calls[0][2].noiseReduction).toBe(80);
+		expect(render.mock.calls[0][1].noiseReduction).toBe(80);
 		expect(document.history.status.getState().undoCount).toBe(1);
 		document.history.undo();
 		expect(document.scene.getState().noiseReduction ?? 0).toBe(0);

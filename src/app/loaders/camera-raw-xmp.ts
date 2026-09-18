@@ -1,11 +1,11 @@
 import type { Workspace } from "@/app/workspace";
+import type { Adjustments } from "@/core/document";
+import { setAdjustments } from "@/features/adjustments/edits";
 import {
 	type CameraRawXmp,
 	isCameraRawXmp,
 	readCameraRawXmp,
 } from "@/features/camera-raw-xmp/xmp";
-import { setAdjustments } from "@/lib/editor/document/edits";
-import type { Adjustments } from "@/lib/editor/scene";
 import type { FileLoader } from "./registry";
 
 function toAdjustments(xmp: CameraRawXmp): Partial<Adjustments> {

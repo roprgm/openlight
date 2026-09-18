@@ -7,17 +7,32 @@ import {
 	useDocument,
 	useScene,
 } from "@/components/editor/session";
+import {
+	AdjustmentControls,
+	TemperatureControls,
+} from "@/features/adjustments/controls";
 import { ColorMixerControls } from "@/features/color-mixer/controls";
 import { Histogram } from "@/features/histogram";
 import { createHistogram } from "@/features/histogram/histogram";
+import { NoiseReductionControls } from "@/features/noise-reduction/controls";
+import { setToneCurve } from "@/features/tone-curves/edits";
 import { ToneCurves } from "@/features/tone-curves/tone-curves";
+import { VignetteControls } from "@/features/vignette/controls";
+import { WhiteBalanceControls } from "@/features/white-balance/controls";
 import { useEditGesture } from "@/hooks/use-edit-gesture";
-import { setToneCurve } from "@/lib/editor/document/edits";
-import AdjustmentControls from "./adjustment-controls";
 import { ClippingControls } from "./clipping-controls";
 
 const histogramColors = ["#f25445", "#6bd175", "#5c8ffa"] as const;
 const curveHistogramColors = ["#a3a3a3"] as const;
+
+function ColorTemperatureControls() {
+	const document = useDocument();
+	const source = useScene((scene) => scene.source);
+	if (document.resources.get(source).raw) {
+		return <WhiteBalanceControls />;
+	}
+	return <TemperatureControls />;
+}
 
 function ToneCurvesPanel({
 	histogram,
@@ -75,7 +90,10 @@ export function AdjustPanel() {
 					<AdjustmentControls
 						curves={<ToneCurvesPanel histogram={histogram} />}
 						colorMixer={<ColorMixerControls />}
+						temperature={<ColorTemperatureControls />}
+						details={<NoiseReductionControls />}
 					/>
+					<VignetteControls />
 				</div>
 				<EditorActions />
 			</div>

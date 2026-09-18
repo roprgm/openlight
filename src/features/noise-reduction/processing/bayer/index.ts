@@ -1,7 +1,7 @@
 import type { RawMetadata } from "raw-webgpu";
 import { compute, effect, frame, type Gpu, type Target, target } from "vgpu";
+import type { RawSensor } from "@/core/image";
 import collaborative from "@/features/noise-reduction/processing/collaborative.wgsl";
-import type { RawSensor } from "@/lib/image-source";
 import { estimateNoise } from "./noise";
 import packShader from "./pack.wgsl";
 import resolveShader from "./resolve.wgsl";

@@ -1,12 +1,12 @@
 import { expect, test } from "bun:test";
 import { getMockGPUDeviceInstrumentation, init, target } from "vgpu/mock";
 import { createEditorRenderer } from "@/app/editor/renderer";
+import { createDocument } from "@/core/document";
+import { createImageSource } from "@/core/image";
+import { imageFrame } from "@/core/image/frame";
+import { defaultAdjustments } from "@/features/adjustments/model";
 import { resetColorMixer, setColorMixer } from "@/features/color-mixer/edits";
-import { createDocument } from "@/lib/editor/document";
-import { defaultAdjustments } from "@/lib/editor/scene";
-import { imageFrame } from "@/lib/image-frame/geometry";
-import { createImageSource } from "@/lib/image-source";
-import { defaultCurve } from "@/lib/tone-curves/curve";
+import { defaultCurve } from "@/features/tone-curves/curve";
 
 test("color edits validate, group, cancel and reset while renderers reuse and release their outputs", async () => {
 	const gpu = await init();
@@ -50,7 +50,7 @@ test("color edits validate, group, cancel and reset while renderers reuse and re
 		expect(renderer.outputImage()).toBe(original);
 		document.history.redo();
 		await renderer.update(document.scene.getState());
-		expect(renderer.outputImage()).toBe(edited);
+		expect(renderer.inspect().passes).toEqual(["adjustments", "color-mixer"]);
 		expect(calls.createRenderPipeline).toBe(pipelines);
 		for (const value of [NaN, Infinity, -101, 101]) {
 			expect(() => setColorMixer(document, "red", { hue: value })).toThrow(
