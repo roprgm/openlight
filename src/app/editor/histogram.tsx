@@ -7,7 +7,7 @@ import { ClippingControls } from "./clipping-controls";
 
 const colors = ["#f25445", "#6bd175", "#5c8ffa"] as const;
 
-export function FloatingHistogram() {
+export function ImageHistogram() {
 	const gpu = useGpu();
 	const renderer = useRenderer();
 	const histogram = useMemo(() => createHistogram(gpu), [gpu]);
@@ -15,7 +15,7 @@ export function FloatingHistogram() {
 	return (
 		<section
 			aria-label="Image histogram"
-			className="pointer-events-none absolute top-3 right-3 z-10 w-44 rounded-md border border-white/10 bg-black/30 p-1 backdrop-blur-sm md:w-52"
+			className="relative shrink-0 border-b border-black bg-neutral-900 p-2"
 		>
 			<ClippingControls />
 			<Histogram

@@ -33,7 +33,7 @@ export default function ResizablePanel({
 			{...props}
 		>
 			<div
-				className="absolute inset-y-0 -left-1 hidden w-2 cursor-col-resize touch-none after:absolute after:inset-y-0 after:left-1 after:w-px after:bg-black hover:after:bg-neutral-600 after:transition-colors after:duration-200 md:block"
+				className="absolute inset-y-0 -left-1 z-20 hidden w-2 cursor-col-resize touch-none after:absolute after:inset-y-0 after:left-1 after:w-px after:bg-black hover:after:bg-neutral-600 after:transition-colors after:duration-200 md:block"
 				onPointerDown={(event) =>
 					event.currentTarget.setPointerCapture(event.pointerId)
 				}

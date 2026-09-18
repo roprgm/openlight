@@ -8,6 +8,7 @@ import {
 import { createPortal } from "react-dom";
 import { useStore } from "zustand";
 import ResizablePanel from "@/components/ui/resizable-panel";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import type { EditorDocument, Scene } from "@/core/document";
 import { createCamera } from "@/hooks/use-pan-zoom";
 
@@ -56,16 +57,25 @@ export function DocumentProvider({
 }
 
 /** The resizable panel; the active tool fills it through PanelContent. */
-export function EditorPanel({ children }: { children?: ReactNode }) {
+export function EditorPanel({
+	children,
+	footer,
+}: {
+	children: ReactNode;
+	footer: ReactNode;
+}) {
 	const { width, onWidthChange, panelRef } = useEditorSession();
 	return (
 		<ResizablePanel
 			width={width}
 			onWidthChange={onWidthChange}
-			className="flex flex-col"
+			className="flex min-h-0 flex-col"
 		>
 			{children}
-			<div ref={panelRef} className="flex min-h-0 flex-1 flex-col" />
+			<ScrollArea className="flex-1" role="region" aria-label="Editor controls">
+				<div ref={panelRef} />
+			</ScrollArea>
+			{footer}
 		</ResizablePanel>
 	);
 }

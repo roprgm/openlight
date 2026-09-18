@@ -6,7 +6,6 @@ import { ExportIcon } from "@/components/icons/export";
 import { RetouchIcon } from "@/components/icons/retouch";
 import { CropEditor } from "@/features/crop/view";
 import { useGradientTool } from "@/features/layers/gradient-tool";
-import { EditorActions } from "./actions";
 import { AdjustPanel } from "./adjust";
 import { ExportMode } from "./export";
 
@@ -30,7 +29,6 @@ function PlaceholderPanel() {
 				<p className="grid flex-1 place-items-center text-neutral-500 text-sm">
 					Coming soon
 				</p>
-				<EditorActions />
 			</div>
 		</PanelContent>
 	);

@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useStore } from "zustand";
 import { useDocument, useScene } from "@/components/editor/session";
 import { Icon } from "@/components/icons/icon";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { findLayer, type Layer, type ProcessingLayer } from "@/core/document";
 import type { Point } from "@/core/image/frame";
 import { setLayer } from "./edits";
@@ -271,7 +272,7 @@ export function LayersControls({
 	return (
 		<section
 			aria-label="Layers"
-			className="flex max-h-[45%] shrink-0 flex-col border-b border-black bg-neutral-900"
+			className="flex h-[30%] min-h-24 max-h-72 shrink-0 flex-col border-b border-black bg-neutral-900"
 			onKeyDown={(event) => {
 				const menu = event.currentTarget.querySelector<HTMLElement>(
 					"[popover]:popover-open",
@@ -321,7 +322,7 @@ export function LayersControls({
 					</button>
 				</LayerMenu>
 			</div>
-			<div className="min-h-0 overflow-y-auto px-1.5 py-1">
+			<ScrollArea className="flex-1" viewportClassName="px-1.5 py-1">
 				{scene.layers.toReversed().map((layer) => (
 					<LayerRow
 						key={layer.id}
@@ -333,7 +334,7 @@ export function LayersControls({
 						onSelect={select}
 					/>
 				))}
-			</div>
+			</ScrollArea>
 		</section>
 	);
 }

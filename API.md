@@ -81,7 +81,7 @@ Direct mask children of another mask modify coverage instead of processing image
 
 A gradient is `{ start: [x, y], end: [x, y] }` in original source pixels: full coverage at `start`, zero at `end`. Points must be finite and distinct. Crop, rotation, and viewport navigation do not move it within the document.
 
-The layer list stays above the inspector in every mode. The output histogram floats at the top right of the image viewport, independently of the selected layer or tool. **L** or the mask icon starts a new linear mask; Escape cancels. Selecting it shows basic adjustments and Add/Subtract submask actions. **+** adds an effect, inside a selected top-level mask or above the selected sibling. Eye buttons toggle visibility; the inspector edits opacity. Double-click a name to rename; the row menu duplicates, deletes, reorders, or reparents. Image import still replaces the document; multiple image layers and additional blend modes are not implemented.
+The sidebar keeps four sections in every mode: output histogram, layers, controls, and footer. Layers and controls scroll independently; the histogram and footer stay fixed. **L** or the mask icon starts a new linear mask; Escape cancels. Selecting it shows basic adjustments and Add/Subtract submask actions. **+** adds an effect, inside a selected top-level mask or above the selected sibling. Eye buttons toggle visibility; the inspector edits opacity. Double-click a name to rename; the row menu duplicates, deletes, reorders, or reparents. Image import still replaces the document; multiple image layers and additional blend modes are not implemented.
 
 ## History
 

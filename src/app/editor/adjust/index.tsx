@@ -1,5 +1,4 @@
 import { useStore } from "zustand";
-import { EditorActions } from "@/app/editor/actions";
 import {
 	PanelContent,
 	useDocument,
@@ -182,13 +181,9 @@ export function AdjustPanel() {
 						</div>
 					)}
 				</div>
-				<div
-					{...gesture}
-					className="min-h-0 flex-1 divide-y divide-black overflow-y-auto"
-				>
+				<div {...gesture} className="divide-y divide-black">
 					<SelectedControls key={layer.id} layer={layer} />
 				</div>
-				<EditorActions />
 			</div>
 		</PanelContent>
 	);

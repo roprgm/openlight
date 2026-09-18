@@ -107,7 +107,7 @@ export function CropEditor({ onClose }: { onClose: () => void }) {
 						}
 					}}
 				>
-					<div className="flex-1 space-y-5 overflow-y-auto p-4">
+					<div className="space-y-5 p-4">
 						<label className="flex items-center justify-between text-sm text-neutral-400">
 							Aspect ratio
 							<Field className="relative w-24">

@@ -12,8 +12,9 @@ import { findLayer } from "@/core/document";
 import { LayersControls } from "@/features/layers/controls";
 import { addLayer } from "@/features/layers/edits";
 import { GradientProvider } from "@/features/layers/gradient-tool";
+import { EditorActions } from "./actions";
 import { EditorCanvas } from "./canvas";
-import { FloatingHistogram } from "./histogram";
+import { ImageHistogram } from "./histogram";
 import { createLayer } from "./layers";
 import { ModeRail } from "./mode-rail";
 import { ModeProvider, modes, useMode } from "./modes";
@@ -49,7 +50,8 @@ function EditorSidebar() {
 		addLayer(document, createLayer(kind, [size[0], size[1]]), parentId);
 	}
 	return (
-		<EditorPanel>
+		<EditorPanel footer={<EditorActions />}>
+			<ImageHistogram />
 			<LayersControls onSelect={() => setMode(modes[0])} onAdd={add} />
 		</EditorPanel>
 	);
@@ -80,10 +82,7 @@ function DocumentEditor() {
 	return (
 		<GradientProvider onCreate={createMask}>
 			<ModeProvider>
-				<div className="relative flex min-h-0 min-w-0 flex-1">
-					<ModeView />
-					<FloatingHistogram />
-				</div>
+				<ModeView />
 				<EditorSidebar />
 				<ModeRail />
 			</ModeProvider>
