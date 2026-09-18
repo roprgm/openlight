@@ -2,10 +2,10 @@ import { type PointerEvent, useId, useRef, useState } from "react";
 import { useStore } from "zustand";
 import { useDocument, useScene } from "@/components/editor/session";
 import { useViewport } from "@/components/editor/viewport";
-import type { LinearGradient } from "@/core/document";
+import { findLayer, type LinearGradient } from "@/core/document";
 import { type Point, sourceOffset } from "@/core/image/frame";
 import { useShortcuts } from "@/hooks/use-shortcuts";
-import { addLayer, setLayerMask } from "./edits";
+import { setLayerMask } from "./edits";
 import { useGradientTool } from "./gradient-tool";
 
 export function GradientOverlay() {
@@ -14,9 +14,13 @@ export function GradientOverlay() {
 	const camera = useViewport();
 	const frame = useScene((scene) => scene.frame);
 	const selected = useStore(document.selection, (state) => state.layerId);
-	const mask = useScene(
-		(scene) => scene.layers.find((layer) => layer.id === selected)?.mask,
-	);
+	const mask = useScene((scene) => {
+		const layer = findLayer(scene.layers, selected);
+		if (layer?.kind === "mask") {
+			return layer.mask;
+		}
+		return undefined;
+	});
 	const [draft, setDraft] = useState<LinearGradient | null>(null);
 	const drawing = useRef<{ pointer: number; start: Point } | null>(null);
 	const gradientId = useId();
@@ -25,7 +29,7 @@ export function GradientOverlay() {
 		setDraft(null);
 		tool.close();
 	}
-	useShortcuts({ escape: cancel });
+	useShortcuts(tool.target ? { escape: cancel } : {});
 	function documentPoint(event: PointerEvent): Point {
 		const box = camera.ref.current?.getBoundingClientRect();
 		if (!box) {
@@ -84,10 +88,10 @@ export function GradientOverlay() {
 				camera.scale >=
 			3
 		) {
-			if (tool.target === "new") {
-				addLayer(document, "exposure", mask);
+			if (tool.target?.kind === "new") {
+				tool.create(mask, tool.target);
 			} else if (tool.target) {
-				setLayerMask(document, tool.target, mask);
+				setLayerMask(document, tool.target.id, mask);
 			}
 		}
 		cancel();

@@ -1,4 +1,4 @@
-import type { EditorDocument } from "@/core/document";
+import { type EditorDocument, editLayer } from "@/core/document";
 import type { WhiteBalance } from "@/core/image";
 
 export function whiteBalanceLimits(asShot: WhiteBalance) {
@@ -31,14 +31,19 @@ export function setWhiteBalance(
 	change?: Partial<WhiteBalance>,
 ) {
 	const scene = document.scene.getState();
-	const asShot = document.resources.get(scene.image.source).raw?.asShot;
+	const asShot = document.resources.get(scene.layers[0].source).raw?.asShot;
 	if (!asShot) {
 		throw Error("This image does not support RAW white balance.");
 	}
 	let whiteBalance = asShot;
 	if (change) {
-		whiteBalance = { ...(scene.image.whiteBalance ?? asShot), ...change };
+		whiteBalance = { ...(scene.layers[0].whiteBalance ?? asShot), ...change };
 		validateWhiteBalance(whiteBalance, asShot);
 	}
-	document.edit({ ...scene, image: { ...scene.image, whiteBalance } });
+	editLayer(document, scene.layers[0].id, (layer) => {
+		if (layer.kind !== "image") {
+			throw Error("Select the image layer.");
+		}
+		return { ...layer, whiteBalance };
+	});
 }

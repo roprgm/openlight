@@ -1,9 +1,18 @@
-import type { Adjustments, EditorDocument } from "@/core/document";
-import { adjustmentLimits, adjustmentMinimums } from "./model";
+import {
+	type Adjustments,
+	type EditorDocument,
+	editLayer,
+} from "@/core/document";
+import {
+	adjustmentLimits,
+	adjustmentMinimums,
+	defaultAdjustments,
+} from "./model";
 
 export function setAdjustments(
 	document: EditorDocument,
 	change: Partial<Adjustments>,
+	id = document.scene.getState().layers[0].id,
 ) {
 	for (const [name, value] of Object.entries(change)) {
 		const limit = Reflect.get(adjustmentLimits, name);
@@ -17,12 +26,19 @@ export function setAdjustments(
 			throw new Error(`Invalid adjustment: ${name}.`);
 		}
 	}
-	const scene = document.scene.getState();
-	document.edit({
-		...scene,
-		image: {
-			...scene.image,
-			adjustments: { ...scene.image.adjustments, ...change },
-		},
+	editLayer(document, id, (layer) => {
+		if (layer.kind !== "image" && layer.kind !== "mask") {
+			throw Error("Select an image or mask layer.");
+		}
+		const adjustments = { ...layer.adjustments, ...change };
+		if (
+			layer.kind === "mask" &&
+			(adjustments.clarity !== defaultAdjustments.clarity ||
+				adjustments.sharpening !== defaultAdjustments.sharpening ||
+				adjustments.sharpenRadius !== defaultAdjustments.sharpenRadius)
+		) {
+			throw Error("Clarity and sharpening are available on the image layer.");
+		}
+		return { ...layer, adjustments };
 	});
 }

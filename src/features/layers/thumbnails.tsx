@@ -10,7 +10,7 @@ import { createDisplay } from "@/core/renderer";
 export function ImageThumbnail() {
 	const gpu = useGpu();
 	const document = useDocument();
-	const sourceId = useScene((scene) => scene.image.source);
+	const sourceId = useScene((scene) => scene.layers[0].source);
 	const source = document.resources.get(sourceId);
 	const canvas = useRef<HTMLCanvasElement>(null);
 	const [error, setError] = useState<string>();

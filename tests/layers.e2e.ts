@@ -1,11 +1,10 @@
 import { writeFile } from "node:fs/promises";
 import type { Page } from "@playwright/test";
 import { expect, test } from "./fixtures";
-import { readImage } from "./images";
 import { box, drag } from "./pointer";
 
-async function samples(page: Page, points: number[][]) {
-	return page.evaluate(async (points) => {
+async function samples(page: Page) {
+	return page.evaluate(async () => {
 		const image = await createImageBitmap(await window.openlight.exportImage());
 		const canvas = new OffscreenCanvas(image.width, image.height);
 		const context = canvas.getContext("2d");
@@ -14,228 +13,150 @@ async function samples(page: Page, points: number[][]) {
 		}
 		context.drawImage(image, 0, 0);
 		image.close();
-		return points.map(([x, y]) => [...context.getImageData(x, y, 1, 1).data]);
-	}, points);
+		return [100, 700].map((y) => [...context.getImageData(600, y, 1, 1).data]);
+	});
 }
 
-test("develop an image, draw and edit independent masked layers, then crop and export", async ({
+test("draw a mask, edit its child effects, reorder layers and undo", async ({
 	page,
 }, info) => {
 	test.setTimeout(90_000);
 	await page.setViewportSize({ width: 1440, height: 1000 });
 	const state = () => page.evaluate(() => window.openlight.getState());
-	const field = (name: string) =>
-		page.getByRole("textbox", { name, exact: true });
 	async function setField(name: string, value: string) {
-		await field(name).fill(value);
-		await field(name).press("Enter");
+		const field = page.getByRole("textbox", { name, exact: true });
+		await field.fill(value);
+		await field.press("Enter");
+	}
+	async function action(name: string, command: string) {
+		await page
+			.getByRole("button", { name: `${name} actions`, exact: true })
+			.click();
+		await page
+			.locator("[popover]:popover-open")
+			.getByRole("button", { name: command, exact: true })
+			.click();
 	}
 	async function saveExport(name: string) {
-		const bytes = new Uint8Array(
-			await page.evaluate(async () => [
-				...new Uint8Array(
-					await (await window.openlight.exportImage()).arrayBuffer(),
-				),
-			]),
-		);
-		await writeFile(info.outputPath(name), bytes);
-		return bytes;
+		const bytes = await page.evaluate(async () => [
+			...new Uint8Array(
+				await (await window.openlight.exportImage()).arrayBuffer(),
+			),
+		]);
+		await writeFile(info.outputPath(name), new Uint8Array(bytes));
 	}
 	await page.goto("/");
 	await page
 		.locator('input[type="file"]')
 		.setInputFiles("tests/fixtures/photo.svg");
-	await expect(field("Exposure")).toHaveValue("0.00");
-	const layersPanel = page.getByRole("region", { name: "Layers", exact: true });
-	await expect(layersPanel).toBeVisible();
-	const thumbnail = page.getByLabel("Original image thumbnail", {
-		exact: true,
-	});
-	await expect
-		.poll(() =>
-			thumbnail.evaluate((element) => {
-				if (!(element instanceof HTMLCanvasElement)) {
-					throw new Error("Missing thumbnail canvas.");
-				}
-				const context = element.getContext("2d");
-				if (!context) {
-					throw new Error("Cannot read thumbnail pixels.");
-				}
-				return context
-					.getImageData(0, 0, 64, 64)
-					.data.some((value, index) => index % 4 < 3 && value > 100);
-			}),
-		)
-		.toBe(true);
-	const original = await readImage(page);
-	await page.screenshot({ path: info.outputPath("image-develop-ui.png") });
-	await saveExport("image-original-export.png");
-
-	await test.step("image Develop retains exposure and curve editing", async () => {
-		await setField("Exposure", "-1");
-		const adjusted = await readImage(page);
-		expect(adjusted.center[0]).toBeLessThan(original.center[0]);
-		const graph = page.getByRole("application", { name: "Tone curve" });
-		await graph.scrollIntoViewIfNeeded();
-		const bounds = await box(graph);
-		await drag(
-			page,
-			[bounds.x + bounds.width / 2, bounds.y + bounds.height / 2],
-			[bounds.x + bounds.width / 2, bounds.y + bounds.height / 4],
-		);
-		expect((await readImage(page)).center[0]).toBeGreaterThan(
-			adjusted.center[0],
-		);
-		await page.getByRole("button", { name: "Undo", exact: true }).click();
-		expect(await readImage(page)).toEqual(adjusted);
-		await page.getByRole("button", { name: "Undo", exact: true }).click();
-		expect(await readImage(page)).toEqual(original);
-	});
-
-	await page.getByRole("button", { name: "Original Image · Develop" }).click();
-	await page.keyboard.press("g");
+	await expect(
+		page.getByRole("textbox", { name: "Exposure", exact: true }),
+	).toHaveValue("0.00");
+	const original = await samples(page);
+	await page.screenshot({ path: info.outputPath("layers-before-ui.png") });
+	await saveExport("layers-before-export.png");
+	await page
+		.getByRole("button", { name: "Add linear mask", exact: true })
+		.click();
 	const overlay = page.getByLabel("Gradient mask canvas", { exact: true });
 	const bounds = await box(overlay);
 	const scale = Math.min(bounds.width / 1200, bounds.height / 800, 2);
 	const center = [bounds.x + bounds.width / 2, bounds.y + bounds.height / 2];
 	const from = [center[0], center[1] - 200 * scale];
 	const to = [center[0], center[1] + 200 * scale];
-
-	await test.step("cancel leaves no layer; drawing creates and selects a gradient effect", async () => {
+	await test.step("cancellation is empty; drawing creates a mask with its own adjustments", async () => {
 		await page.mouse.move(from[0], from[1]);
 		await page.mouse.down();
 		await page.mouse.move(to[0], to[1]);
 		await page.keyboard.press("Escape");
 		await page.mouse.up();
-		expect((await state()).scene?.layers).toHaveLength(0);
-		await page.keyboard.press("g");
+		expect((await state()).scene?.layers).toHaveLength(1);
+		await page.keyboard.press("l");
 		await drag(page, from, to);
-		const created = await state();
-		expect(created.scene?.layers).toHaveLength(1);
-		expect(created.selectedLayerId).toBe(created.scene?.layers[0].id);
-		const [top, bottom] = await samples(page, [
-			[600, 100],
-			[600, 700],
-		]);
+		const layers = (await state()).scene?.layers;
+		expect(layers).toHaveLength(2);
+		expect(layers?.[1]).toMatchObject({
+			kind: "mask",
+			children: [],
+		});
+		await setField("Exposure", "1");
+		const [top, bottom] = await samples(page);
 		expect(top[0]).toBeGreaterThan(170);
 		expect(bottom).toEqual([128, 128, 128, 255]);
+		await setField("Temp", "20");
+		const warmed = await samples(page);
+		expect(warmed[0][0]).toBeGreaterThan(warmed[0][2]);
+		await page.getByRole("button", { name: "Undo", exact: true }).click();
+		expect(await samples(page)).toEqual([top, bottom]);
 		await setField("Exposure", "2");
-		expect((await samples(page, [[600, 100]]))[0][0]).toBeGreaterThan(
-			top[0] + 20,
-		);
+		expect((await samples(page))[0][0]).toBeGreaterThan(top[0] + 20);
 	});
-
-	await expect(
-		layersPanel.getByRole("img", { name: "Gradient mask thumbnail" }),
-	).toBeVisible();
-	await page.screenshot({ path: info.outputPath("layers-gradient-ui.png") });
-	const gradientOutput = await samples(page, [
-		[600, 100],
-		[600, 700],
-	]);
-	await saveExport("layers-gradient-export.png");
-	const gradient = (await state()).scene?.layers[0];
-	if (!gradient) {
-		throw new Error("Missing gradient layer.");
-	}
-	await test.step("duplicates have independent settings and ordered visibility", async () => {
+	await test.step("mask opacity and visibility apply to the complete branch", async () => {
+		await page
+			.getByRole("button", { name: "Linear Gradient", exact: true })
+			.dblclick();
+		await setField("Layer name", "Sky");
+		const masked = await samples(page);
 		await setField("Opacity", "0");
-		expect(await readImage(page)).toEqual(original);
+		expect(await samples(page)).toEqual(original);
 		await page.getByRole("button", { name: "Undo", exact: true }).click();
-		expect(
-			await samples(page, [
-				[600, 100],
-				[600, 700],
-			]),
-		).toEqual(gradientOutput);
-		await page.getByRole("button", { name: "Duplicate", exact: true }).click();
-		await setField("Exposure", "-1");
-		const layers = (await state()).scene?.layers;
-		expect(
-			layers?.map((layer) => layer.kind === "exposure" && layer.exposure),
-		).toEqual([2, -1]);
-		await page
-			.getByRole("button", { name: "Show Exposure copy", exact: true })
-			.click();
-		const alone = await samples(page, [
-			[600, 100],
-			[600, 700],
-		]);
-		expect(alone).toEqual(gradientOutput);
-		await page
-			.getByRole("button", { name: "Show Exposure", exact: true })
-			.click();
-		expect(await readImage(page)).toEqual(original);
-		await page
-			.getByRole("button", { name: "Show Exposure", exact: true })
-			.click();
-		await page.getByRole("button", { name: "Move down", exact: true }).click();
-		expect((await state()).scene?.layers[1].id).toBe(gradient.id);
-		await page.getByRole("button", { name: "Undo", exact: true }).click();
-		expect((await state()).scene?.layers[0].id).toBe(gradient.id);
-		await page.getByRole("button", { name: "Delete", exact: true }).click();
-		expect((await state()).scene?.layers).toHaveLength(1);
+		expect(await samples(page)).toEqual(masked);
+		await page.getByRole("button", { name: "Show Sky", exact: true }).click();
+		expect(await samples(page)).toEqual(original);
+		await page.getByRole("button", { name: "Show Sky", exact: true }).click();
+		expect(await samples(page)).toEqual(masked);
 	});
-
-	await test.step("crop keeps the gradient on the document while vignette follows the output frame", async () => {
-		await page.getByRole("tab", { name: "Crop", exact: true }).click();
-		const cropPanel = page.getByRole("region", { name: "Crop tool" });
-		await expect(layersPanel).toBeVisible();
-		const eye = layersPanel.getByRole("button", {
-			name: "Show Exposure",
+	await test.step("a subtracting child changes coverage and Add restores the masked region", async () => {
+		const masked = await samples(page);
+		await page
+			.getByRole("button", { name: "Subtract from mask", exact: true })
+			.click();
+		await drag(page, from, to);
+		expect((await samples(page))[0]).toEqual(original[0]);
+		const operation = page.getByRole("combobox", {
+			name: "Mask operation",
 			exact: true,
 		});
-		await eye.press("Enter");
-		await expect(eye).toHaveAttribute("aria-pressed", "false");
-		await expect(cropPanel).toBeVisible();
-		await eye.press("Enter");
-		await expect(eye).toHaveAttribute("aria-pressed", "true");
-		await page.screenshot({ path: info.outputPath("layers-crop-ui.png") });
-		await cropPanel
-			.getByRole("button", { name: "Cancel", exact: true })
-			.click();
-		const reference = await samples(page, [
-			[600, 310],
-			[600, 500],
-			[600, 690],
-		]);
-		await page.evaluate(() => {
-			const frame = window.openlight.getState().frame;
-			if (!frame) {
-				throw new Error("Missing document frame.");
-			}
-			window.openlight.editScene({
-				frame: { ...frame, center: [600, 500], size: [400, 400] },
-			});
-		});
-		expect((await state()).scene?.layers[0].mask).toEqual(gradient.mask);
-		const cropped = await samples(page, [
-			[200, 10],
-			[200, 200],
-			[200, 390],
-		]);
-		for (const [index, pixel] of cropped.entries()) {
-			expect(Math.abs(pixel[0] - reference[index][0])).toBeLessThanOrEqual(1);
-		}
-		await page.getByRole("button", { name: "+ Vignette", exact: true }).click();
-		await setField("Intensity", "80");
-		await setField("Softness", "100");
-		const vignette = await samples(page, [
-			[200, 10],
-			[200, 200],
-			[200, 390],
-		]);
-		expect(vignette[0][0]).toBeLessThan(cropped[0][0] - 20);
-		expect(Math.abs(vignette[1][0] - cropped[1][0])).toBeLessThanOrEqual(1);
-		expect(vignette[2][0]).toBeLessThan(cropped[2][0] - 20);
-		await page.screenshot({ path: info.outputPath("layers-vignette-ui.png") });
-		await page
-			.getByRole("button", { name: "Exposure Gradient", exact: true })
-			.click();
-		await page.screenshot({
-			path: info.outputPath("layers-cropped-gradient-ui.png"),
-		});
-		const bytes = await saveExport("layers-cropped-export.png");
-		expect((await readImage(page, bytes)).size).toEqual([400, 400]);
+		await operation.selectOption("add");
+		expect((await samples(page))[0]).toEqual(masked[0]);
+		await page.getByRole("button", { name: "Undo", exact: true }).click();
+		expect((await samples(page))[0]).toEqual(original[0]);
+		await page.getByRole("button", { name: "Undo", exact: true }).click();
+		expect(await samples(page)).toEqual(masked);
+		await page.getByRole("button", { name: "Sky", exact: true }).click();
 	});
+
+	await test.step("child effects can leave the mask, reorder and return through undo", async () => {
+		const masked = await samples(page);
+		await page.getByRole("button", { name: "Add effect", exact: true }).click();
+		await page.keyboard.press("Escape");
+		await expect(page.locator("[popover]:popover-open")).toHaveCount(0);
+		await page.getByRole("button", { name: "Add effect", exact: true }).click();
+		await page
+			.locator("[popover]:popover-open")
+			.getByRole("button", { name: "Vignette", exact: true })
+			.click();
+		expect(
+			(await state()).scene?.layers[1].children.map((layer) => layer.kind),
+		).toEqual(["vignette"]);
+		await setField("Intensity", "80");
+		const nested = await samples(page);
+		expect(nested[0][0]).toBeLessThan(masked[0][0]);
+		expect(nested[1]).toEqual(masked[1]);
+		await action("Vignette", "Move out");
+		expect((await state()).scene?.layers).toHaveLength(3);
+		expect((await samples(page))[1][0]).toBeLessThan(masked[1][0]);
+		await action("Vignette", "Move down");
+		expect((await state()).scene?.layers[1].kind).toBe("vignette");
+		await page.getByRole("button", { name: "Undo", exact: true }).click();
+		await page.getByRole("button", { name: "Undo", exact: true }).click();
+		expect(await samples(page)).toEqual(nested);
+		await action("Vignette", "Delete");
+		expect(await samples(page)).toEqual(masked);
+		await page.getByRole("button", { name: "Undo", exact: true }).click();
+		expect((await state()).scene?.layers[1].children).toHaveLength(1);
+	});
+	await page.getByRole("button", { name: "Sky", exact: true }).click();
+	await page.screenshot({ path: info.outputPath("layers-after-ui.png") });
+	await saveExport("layers-after-export.png");
 });

@@ -34,30 +34,40 @@ export type Vignette = {
 };
 
 export type ImageLayer = {
+	readonly kind: "image";
 	readonly id: string;
+	readonly name: string;
 	readonly source: string;
 	readonly whiteBalance?: Readonly<WhiteBalance>;
 	readonly adjustments: Readonly<Adjustments>;
-	readonly toneCurve: ToneCurve;
-	readonly colorMixer?: ColorMixer;
+	readonly children: readonly ProcessingLayer[];
 };
 
 /** Endpoints in the original document canvas, independent of crop and rotation. */
 export type LinearGradient = { readonly start: Point; readonly end: Point };
-export type EffectLayer = {
+export type ProcessingLayer = {
 	readonly id: string;
 	readonly name: string;
 	readonly visible: boolean;
 	readonly opacity: number;
-	readonly mask?: LinearGradient;
+	readonly children: readonly ProcessingLayer[];
 } & (
 	| { readonly kind: "exposure"; readonly exposure: number }
 	| { readonly kind: "vignette"; readonly vignette: Vignette }
+	| { readonly kind: "curves"; readonly toneCurve: ToneCurve }
+	| { readonly kind: "color-mixer"; readonly colorMixer: ColorMixer }
+	| {
+			readonly kind: "mask";
+			readonly operation: "add" | "subtract";
+			readonly mask: LinearGradient;
+			readonly adjustments: Readonly<Adjustments>;
+	  }
 );
+export type MaskLayer = Extract<ProcessingLayer, { kind: "mask" }>;
+export type Layer = ImageLayer | ProcessingLayer;
 
-/** The image is pinned below the ordered effect layers. Resources stay outside history. */
+/** The sole image source is pinned below the ordered processing tree. */
 export type Scene = {
 	readonly frame: ImageFrame;
-	readonly image: ImageLayer;
-	readonly layers: readonly EffectLayer[];
+	readonly layers: readonly [ImageLayer, ...ProcessingLayer[]];
 };

@@ -12,7 +12,11 @@ test("vignette darkens a white image's edges, softens, undoes and disables", asy
 			'<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128"><rect width="128" height="128" fill="white"/></svg>',
 		),
 	});
-	await page.getByRole("button", { name: "+ Vignette", exact: true }).click();
+	await page.getByRole("button", { name: "Add effect", exact: true }).click();
+	await page
+		.locator("[popover]:popover-open")
+		.getByRole("button", { name: "Vignette", exact: true })
+		.click();
 	const intensity = page.getByRole("textbox", {
 		name: "Intensity",
 		exact: true,

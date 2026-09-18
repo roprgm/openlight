@@ -1,69 +1,100 @@
-import type {
-	EditorDocument,
-	EffectLayer,
-	LinearGradient,
+import {
+	type EditorDocument,
+	editLayer,
+	findLayer,
+	type Layer,
+	type LinearGradient,
+	type ProcessingLayer,
+	type Scene,
+	walkLayers,
 } from "@/core/document";
 
-function validateMask(mask?: LinearGradient) {
+function validateMask(mask: LinearGradient) {
 	if (
-		mask &&
-		(mask.start.length !== 2 ||
-			mask.end.length !== 2 ||
-			![...mask.start, ...mask.end].every(Number.isFinite) ||
-			(mask.start[0] === mask.end[0] && mask.start[1] === mask.end[1]))
+		mask.start.length !== 2 ||
+		mask.end.length !== 2 ||
+		![...mask.start, ...mask.end].every(Number.isFinite) ||
+		(mask.start[0] === mask.end[0] && mask.start[1] === mask.end[1])
 	) {
 		throw Error("A gradient needs two distinct finite points.");
 	}
 }
 
-function editLayer(
-	document: EditorDocument,
-	id: string,
-	edit: (layer: EffectLayer) => EffectLayer,
-) {
-	const scene = document.scene.getState();
-	if (!scene.layers.some((layer) => layer.id === id)) {
-		throw Error("Effect layer is unavailable.");
+function processingLayer(document: EditorDocument, id: string) {
+	const layer = findLayer(document.scene.getState().layers, id);
+	if (!layer || layer.kind === "image") {
+		throw Error("Processing layer is unavailable.");
 	}
-	document.edit({
-		...scene,
-		layers: scene.layers.map((layer) =>
-			layer.id === id ? edit(layer) : layer,
-		),
-	});
+	return layer;
+}
+
+function parentOf(layers: readonly Layer[], id: string): string | undefined {
+	for (const layer of layers) {
+		if (layer.children.some((child) => child.id === id)) {
+			return layer.id;
+		}
+		const parent = parentOf(layer.children, id);
+		if (parent) {
+			return parent;
+		}
+	}
+	return undefined;
+}
+
+function changeChildren(
+	scene: Scene,
+	parentId: string | undefined,
+	change: (layers: readonly ProcessingLayer[]) => readonly ProcessingLayer[],
+): Scene {
+	const [image, ...layers] = scene.layers;
+	if (!parentId) {
+		return { ...scene, layers: [image, ...change(layers)] };
+	}
+	if (!findLayer(scene.layers, parentId)) {
+		throw Error("Parent layer is unavailable.");
+	}
+	function visit<T extends Layer>(layer: T): T {
+		if (layer.id === parentId) {
+			return { ...layer, children: change(layer.children) };
+		}
+		return { ...layer, children: layer.children.map(visit) };
+	}
+	return { ...scene, layers: [visit(image), ...layers.map(visit)] };
+}
+
+function validateDepth(layers: readonly Layer[]) {
+	if (
+		layers.some((layer) =>
+			layer.children.some((child) => child.children.length > 0),
+		)
+	) {
+		throw Error("Layers support two levels: a parent and its children.");
+	}
 }
 
 export function addLayer(
 	document: EditorDocument,
-	kind: EffectLayer["kind"],
-	mask?: LinearGradient,
+	layer: ProcessingLayer,
+	parentId?: string,
 ) {
-	validateMask(mask);
-	const base = {
-		id: crypto.randomUUID(),
-		name: "Exposure",
-		visible: true,
-		opacity: 1,
-		mask:
-			mask &&
-			({ start: [...mask.start], end: [...mask.end] } satisfies LinearGradient),
-	};
-	let layer: EffectLayer;
-	if (kind === "exposure") {
-		layer = { ...base, kind, exposure: 1 };
-	} else if (kind === "vignette") {
-		layer = {
-			...base,
-			name: "Vignette",
-			kind,
-			vignette: { intensity: 50, softness: 50 },
-		};
-	} else {
-		throw Error("Unknown effect layer.");
-	}
-	document.history.commit();
 	const scene = document.scene.getState();
-	document.edit({ ...scene, layers: [...scene.layers, layer] });
+	const existing = new Set(walkLayers(scene.layers).map((item) => item.id));
+	for (const item of walkLayers([layer])) {
+		if (existing.has(item.id)) {
+			throw Error("Layer IDs must be unique.");
+		}
+		existing.add(item.id);
+	}
+	const selected = document.selection.getState().layerId;
+	const parent = parentId ?? parentOf(scene.layers, selected);
+	const next = changeChildren(scene, parent, (layers) => {
+		const selectedIndex = layers.findIndex((item) => item.id === selected);
+		const index = parentId ? layers.length : selectedIndex + 1;
+		return layers.toSpliced(index, 0, layer);
+	});
+	validateDepth(next.layers);
+	document.history.commit();
+	document.edit(next);
 	document.selectLayer(layer.id);
 	return layer.id;
 }
@@ -71,7 +102,7 @@ export function addLayer(
 export function setLayer(
 	document: EditorDocument,
 	id: string,
-	change: Partial<Pick<EffectLayer, "visible" | "opacity" | "name">>,
+	change: Partial<Pick<ProcessingLayer, "visible" | "opacity" | "name">>,
 ) {
 	if (
 		Object.keys(change).some(
@@ -88,6 +119,7 @@ export function setLayer(
 	) {
 		throw Error("Invalid layer settings.");
 	}
+	processingLayer(document, id);
 	editLayer(document, id, (layer) => ({ ...layer, ...change }));
 }
 
@@ -110,62 +142,93 @@ export function setExposure(
 export function setLayerMask(
 	document: EditorDocument,
 	id: string,
-	mask?: LinearGradient,
+	mask: LinearGradient,
 ) {
 	validateMask(mask);
-	editLayer(document, id, (layer) => ({
-		...layer,
-		mask: mask && { start: [...mask.start], end: [...mask.end] },
-	}));
+	editLayer(document, id, (layer) => {
+		if (layer.kind !== "mask") {
+			throw Error("Select a mask layer.");
+		}
+		return { ...layer, mask: { start: [...mask.start], end: [...mask.end] } };
+	});
+}
+
+export function setMaskOperation(
+	document: EditorDocument,
+	id: string,
+	operation: "add" | "subtract",
+) {
+	if (operation !== "add" && operation !== "subtract") {
+		throw Error("Choose Add or Subtract for a mask.");
+	}
+	editLayer(document, id, (layer) => {
+		if (layer.kind !== "mask") {
+			throw Error("Select a mask layer.");
+		}
+		return { ...layer, operation };
+	});
 }
 
 export function duplicateLayer(document: EditorDocument, id: string) {
-	const scene = document.scene.getState();
-	const index = scene.layers.findIndex((layer) => layer.id === id);
-	const source = scene.layers[index];
-	if (!source) {
-		throw Error("Effect layer is unavailable.");
+	const source = processingLayer(document, id);
+	function clone(layer: ProcessingLayer): ProcessingLayer {
+		return {
+			...structuredClone(layer),
+			id: crypto.randomUUID(),
+			children: layer.children.map(clone),
+		};
 	}
+	const layer = { ...clone(source), name: `${source.name} copy` };
+	const scene = document.scene.getState();
+	const parent = parentOf(scene.layers, id);
+	const next = changeChildren(scene, parent, (layers) =>
+		layers.toSpliced(layers.findIndex((item) => item.id === id) + 1, 0, layer),
+	);
+	validateDepth(next.layers);
 	document.history.commit();
-	const layer = {
-		...structuredClone(source),
-		id: crypto.randomUUID(),
-		name: `${source.name} copy`,
-	};
-	document.edit({
-		...scene,
-		layers: scene.layers.toSpliced(index + 1, 0, layer),
-	});
+	document.edit(next);
 	document.selectLayer(layer.id);
 	return layer.id;
 }
 
 export function deleteLayer(document: EditorDocument, id: string) {
+	processingLayer(document, id);
 	const scene = document.scene.getState();
-	if (!scene.layers.some((layer) => layer.id === id)) {
-		throw Error("Effect layer is unavailable.");
-	}
+	const next = changeChildren(scene, parentOf(scene.layers, id), (layers) =>
+		layers.filter((layer) => layer.id !== id),
+	);
+	validateDepth(next.layers);
 	document.history.commit();
-	document.edit({
-		...scene,
-		layers: scene.layers.filter((layer) => layer.id !== id),
-	});
+	document.edit(next);
 }
 
-export function moveLayer(document: EditorDocument, id: string, index: number) {
+/** Index is the final sibling position, ordered bottom to top; the root image occupies index zero. */
+export function moveLayer(
+	document: EditorDocument,
+	id: string,
+	index: number,
+	parentId?: string,
+) {
+	const layer = processingLayer(document, id);
 	const scene = document.scene.getState();
-	const layer = scene.layers.find((layer) => layer.id === id);
-	if (
-		!layer ||
-		!Number.isInteger(index) ||
-		index < 0 ||
-		index >= scene.layers.length
-	) {
-		throw Error("Invalid layer position.");
+	if (parentId && findLayer([layer], parentId)) {
+		throw Error("A layer cannot contain itself.");
 	}
+	const removed = changeChildren(scene, parentOf(scene.layers, id), (layers) =>
+		layers.filter((item) => item.id !== id),
+	);
+	const next = changeChildren(removed, parentId, (layers) => {
+		const position = parentId ? index : index - 1;
+		if (
+			!Number.isInteger(position) ||
+			position < 0 ||
+			position > layers.length
+		) {
+			throw Error("Invalid layer position.");
+		}
+		return layers.toSpliced(position, 0, layer);
+	});
+	validateDepth(next.layers);
 	document.history.commit();
-	const layers = scene.layers
-		.filter((layer) => layer.id !== id)
-		.toSpliced(index, 0, layer);
-	document.edit({ ...scene, layers });
+	document.edit(next);
 }

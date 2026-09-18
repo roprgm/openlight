@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
 import { init, target } from "vgpu/mock";
 import { createWorkspace } from "@/app/workspace";
-import { createDocument, createResources } from "@/core/document";
+import { createDocument, createResources, findLayer } from "@/core/document";
 import { createImageSource } from "@/core/image";
 import { imageFrame } from "@/core/image/frame";
 import { setAdjustments } from "@/features/adjustments/edits";
@@ -12,13 +12,26 @@ import { setToneCurve } from "@/features/tone-curves/edits";
 function document() {
 	return createDocument({
 		frame: imageFrame([32, 32]),
-		image: {
-			id: "base",
-			source: "image-1",
-			adjustments: { ...defaultAdjustments },
-			toneCurve: defaultCurve,
-		},
-		layers: [],
+		layers: [
+			{
+				kind: "image",
+				name: "Photo",
+				children: [
+					{
+						id: "curve",
+						name: "Curves",
+						kind: "curves",
+						visible: true,
+						opacity: 1,
+						children: [],
+						toneCurve: defaultCurve,
+					},
+				],
+				id: "base",
+				source: "image-1",
+				adjustments: { ...defaultAdjustments },
+			},
+		],
 	});
 }
 
@@ -41,10 +54,16 @@ test("documents edit independently without React, retain bounded history, and re
 		{ x: 0.5, y: 0.7 },
 		{ x: 1, y: 1 },
 	];
-	setToneCurve(first, points);
+	setToneCurve(first, points, "curve");
 	points[1].y = 0.2;
-	expect(first.scene.getState().image.toneCurve[1].y).toBe(0.7);
-	expect(second.scene.getState().image.adjustments.exposure).toBe(0);
+	expect(findLayer(first.scene.getState().layers, "curve")).toMatchObject({
+		toneCurve: [
+			{ x: 0, y: 0 },
+			{ x: 0.5, y: 0.7 },
+			{ x: 1, y: 1 },
+		],
+	});
+	expect(second.scene.getState().layers[0].adjustments.exposure).toBe(0);
 	expect(second.history.status.getState().undoCount).toBe(0);
 	const unchanged = first.scene.getState();
 	for (const curve of [
@@ -80,11 +99,13 @@ test("documents edit independently without React, retain bounded history, and re
 			{ x: 0.9, y: 0.9 },
 		],
 	]) {
-		expect(() => setToneCurve(first, curve)).toThrow();
+		expect(() => setToneCurve(first, curve, "curve")).toThrow();
 	}
 	expect(first.scene.getState()).toBe(unchanged);
 	first.history.undo();
-	expect(first.scene.getState().image.toneCurve).toEqual(defaultCurve);
+	expect(findLayer(first.scene.getState().layers, "curve")).toMatchObject({
+		toneCurve: defaultCurve,
+	});
 	for (let i = 0; i < 150; i++) setAdjustments(first, { exposure: i % 2 });
 	expect(first.history.status.getState().undoCount).toBe(100);
 	for (let i = 0; i < 100; i++) first.history.undo();
@@ -124,14 +145,14 @@ test("documents edit independently without React, retain bounded history, and re
 	const doc = createDocument(
 		{
 			...document().scene.getState(),
-			image: { ...document().scene.getState().image, source },
+			layers: [{ ...document().scene.getState().layers[0], source }],
 		},
 		resources,
 	);
 	const replace = (source: string) =>
 		doc.edit({
 			...doc.scene.getState(),
-			image: { ...doc.scene.getState().image, source },
+			layers: [{ ...doc.scene.getState().layers[0], source }],
 		});
 	const canceled = add();
 	doc.history.begin();
@@ -144,7 +165,7 @@ test("documents edit independently without React, retain bounded history, and re
 	doc.history.undo();
 	expect(resources.get(branch)).toBeDefined();
 	doc.history.redo();
-	expect(doc.scene.getState().image.source).toBe(branch);
+	expect(doc.scene.getState().layers[0].source).toBe(branch);
 	doc.history.undo();
 	setAdjustments(doc, { exposure: 1 });
 	expect(() => resources.get(branch)).toThrow("unavailable");

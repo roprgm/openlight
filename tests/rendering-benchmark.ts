@@ -1,11 +1,10 @@
 import { effect, frame, init, target, timer } from "vgpu";
 import { encodeImage } from "@/app/editor/export/export-image";
 import { createEditorRenderer } from "@/app/editor/renderer";
-import type { Scene } from "@/core/document";
+import type { ProcessingLayer, Scene } from "@/core/document";
 import { createImageSource } from "@/core/image";
 import { imageFrame } from "@/core/image/frame";
 import { defaultAdjustments } from "@/features/adjustments/model";
-import { defaultCurve } from "@/features/tone-curves/curve";
 
 export type Workload =
 	| "neutral"
@@ -56,80 +55,85 @@ export async function benchmarkRendering(
 	});
 	const combined = workload === "pipeline";
 	const detail = combined || workload === "detail";
-	let scene: Scene = {
-		frame: imageFrame(size),
-		image: {
-			id: "benchmark-image",
-			source: "benchmark",
-			adjustments: {
-				...defaultAdjustments,
-				exposure: 0.25,
-				contrast: 10,
-				clarity: detail ? 50 : 0,
-				sharpening: detail ? 75 : 0,
+	const effects: ProcessingLayer[] = [];
+	const common = { visible: true, opacity: 1, children: [] };
+	if (combined || workload === "color-mixer") {
+		effects.push({
+			...common,
+			id: "benchmark-mixer",
+			name: "Color Mixer",
+			kind: "color-mixer",
+			colorMixer: {
+				hue: new Array<number>(8).fill(20),
+				saturation: new Array<number>(8).fill(25),
+				luminance: new Array<number>(8).fill(10),
 			},
-			toneCurve: combined
-				? [
-						{ x: 0, y: 0 },
-						{ x: 0.5, y: 0.6 },
-						{ x: 1, y: 1 },
-					]
-				: defaultCurve,
-			colorMixer:
-				combined || workload === "color-mixer"
-					? {
-							hue: new Array<number>(8).fill(20),
-							saturation: new Array<number>(8).fill(25),
-							luminance: new Array<number>(8).fill(10),
-						}
-					: undefined,
-		},
-		layers:
-			combined || workload === "vignette"
-				? [
-						{
-							id: "benchmark-vignette",
-							name: "Vignette",
-							kind: "vignette",
-							visible: true,
-							opacity: 1,
-							vignette: { intensity: 80, softness: 60 },
-						},
-					]
-				: [],
-	};
+		});
+	}
+	if (combined) {
+		effects.push({
+			...common,
+			id: "benchmark-curve",
+			name: "Curves",
+			kind: "curves",
+			toneCurve: [
+				{ x: 0, y: 0 },
+				{ x: 0.5, y: 0.6 },
+				{ x: 1, y: 1 },
+			],
+		});
+	}
 	if (workload === "masked-exposure" || workload === "layer-stack") {
-		scene = {
-			...scene,
-			layers: [
+		effects.push({
+			...common,
+			id: "benchmark-gradient",
+			name: "Gradient",
+			kind: "mask",
+			operation: "add",
+			adjustments: defaultAdjustments,
+			opacity: 0.75,
+			mask: { start: [0, size[1] * 0.2], end: [0, size[1] * 0.8] },
+			children: [
 				{
-					id: "benchmark-gradient",
-					name: "Gradient",
+					...common,
+					id: "benchmark-exposure",
+					name: "Exposure",
 					kind: "exposure",
-					visible: true,
-					opacity: 0.75,
 					exposure: 1,
-					mask: { start: [0, size[1] * 0.2], end: [0, size[1] * 0.8] },
 				},
 			],
-		};
-		if (workload === "layer-stack") {
-			scene = {
-				...scene,
-				layers: [
-					...scene.layers,
-					{
-						id: "benchmark-vignette",
-						name: "Vignette",
-						kind: "vignette",
-						visible: true,
-						opacity: 0.6,
-						vignette: { intensity: 80, softness: 60 },
-					},
-				],
-			};
-		}
+		});
 	}
+	if (combined || workload === "vignette" || workload === "layer-stack") {
+		effects.push({
+			...common,
+			id: "benchmark-vignette",
+			name: "Vignette",
+			kind: "vignette",
+			opacity: workload === "layer-stack" ? 0.6 : 1,
+			vignette: { intensity: 80, softness: 60 },
+		});
+	}
+	const scene: Scene = {
+		frame: imageFrame(size),
+		layers: [
+			{
+				kind: "image",
+				id: "benchmark-image",
+				name: "Benchmark",
+				source: "benchmark",
+				children: [],
+				adjustments: {
+					...defaultAdjustments,
+					exposure: 0.25,
+					contrast: 10,
+					clarity: detail ? 50 : 0,
+					sharpening: detail ? 75 : 0,
+				},
+			},
+			...effects,
+		],
+	};
 	const setupStart = performance.now();
 	let renderer = createEditorRenderer(gpu, source);
 	const rendererSetupMs = performance.now() - setupStart;

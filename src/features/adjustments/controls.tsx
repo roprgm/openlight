@@ -30,7 +30,7 @@ type AdjustmentSliderProps = Pick<
 };
 
 function AdjustmentSlider({ name, ...props }: AdjustmentSliderProps) {
-	const value = useScene((scene) => scene.image.adjustments[name]);
+	const value = useScene((scene) => scene.layers[0].adjustments[name]);
 	const document = useDocument();
 	return (
 		<Slider
@@ -61,13 +61,47 @@ export function TemperatureControls() {
 	);
 }
 
+export function BasicAdjustments({
+	id,
+	adjustments,
+}: {
+	id: string;
+	adjustments: Readonly<Adjustments>;
+}) {
+	const document = useDocument();
+	const controls = [
+		["exposure", "Exposure"],
+		["contrast", "Contrast"],
+		["incrementalTemperature", "Temp"],
+		["incrementalTint", "Tint"],
+		["saturation", "Saturation"],
+	] as const;
+	return (
+		<div className="flex flex-col gap-2">
+			{controls.map(([name, label]) => {
+				const step = name === "exposure" ? 0.01 : 1;
+				return (
+					<Slider
+						key={name}
+						label={label}
+						value={adjustments[name]}
+						step={step}
+						min={-adjustmentLimits[name]}
+						max={adjustmentLimits[name]}
+						defaultValue={defaultAdjustments[name]}
+						onChange={(value) =>
+							setAdjustments(document, { [name]: value }, id)
+						}
+					/>
+				);
+			})}
+		</div>
+	);
+}
+
 export function AdjustmentControls({
-	curves,
-	colorMixer,
 	temperature,
 }: {
-	curves: ReactNode;
-	colorMixer: ReactNode;
 	temperature: ReactNode;
 }) {
 	return (
@@ -81,7 +115,6 @@ export function AdjustmentControls({
 					<AdjustmentSlider name="whites" label="Whites" />
 					<AdjustmentSlider name="blacks" label="Blacks" />
 				</div>
-				<div className="pt-3">{curves}</div>
 			</Collapsible>
 			<Collapsible title="Color">
 				<div className="flex flex-col gap-2">
@@ -98,7 +131,6 @@ export function AdjustmentControls({
 					/>
 				</div>
 			</Collapsible>
-			{colorMixer}
 			<Collapsible title="Details">
 				<div className="flex flex-col gap-2">
 					<AdjustmentSlider name="clarity" label="Clarity" />

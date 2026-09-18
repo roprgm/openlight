@@ -1,5 +1,10 @@
 import type { Gpu, Timer } from "vgpu";
-import type { EffectLayer, ImageLayer, Scene } from "@/core/document";
+import type {
+	ImageLayer,
+	MaskLayer,
+	ProcessingLayer,
+	Scene,
+} from "@/core/document";
 import type { ImageSource } from "@/core/image";
 import {
 	createRenderer,
@@ -10,6 +15,7 @@ import {
 	transformImages,
 } from "@/core/renderer";
 import { exposure } from "@/features/adjustments/exposure";
+import { defaultAdjustments } from "@/features/adjustments/model";
 import { adjustments } from "@/features/adjustments/pass";
 import { unsharpMask } from "@/features/adjustments/unsharp-mask";
 import { colorMixer } from "@/features/color-mixer/pass";
@@ -19,12 +25,8 @@ import { vignette } from "@/features/vignette/pass";
 function develop(image: RenderImage, layer: ImageLayer) {
 	const name = `layer/${layer.id}`;
 	const values = layer.adjustments;
-	const adjusted = pipeline(image, [
+	return pipeline(image, [
 		adjustments(values, `${name}/adjustments`),
-	]);
-	const output = pipeline(adjusted, [
-		toneCurves(layer.toneCurve, `${name}/curves`),
-		colorMixer(layer.colorMixer, `${name}/color-mixer`),
 		unsharpMask(`${name}/clarity`, values.clarity / 200, 64, 16),
 		unsharpMask(
 			`${name}/sharpen`,
@@ -32,20 +34,71 @@ function develop(image: RenderImage, layer: ImageLayer) {
 			values.sharpenRadius,
 		),
 	]);
-	return { adjusted, output };
 }
 
-function composeLayer(below: RenderImage, layer: EffectLayer, scene: Scene) {
+function maskAdjustments(layer: MaskLayer) {
+	const name = `layer/${layer.id}`;
+	const values = layer.adjustments;
+	const hasOtherAdjustments = Object.entries(values).some(
+		([key, value]) =>
+			key !== "exposure" && value !== Reflect.get(defaultAdjustments, key),
+	);
+	if (hasOtherAdjustments) {
+		return adjustments(values, `${name}/adjustments`);
+	}
+	return exposure(`${name}/exposure`, values.exposure);
+}
+
+function composeLayer(
+	below: RenderImage,
+	layer: ProcessingLayer,
+	scene: Scene,
+): RenderImage {
 	if (!layer.visible || layer.opacity === 0) {
 		return below;
 	}
 	const name = `layer/${layer.id}`;
-	const effect =
-		layer.kind === "exposure"
-			? exposure(`${name}/exposure`, layer.exposure)
-			: vignette(layer.vignette, `${name}/vignette`, scene.frame, below.size);
-	const edited = pipeline(below, [effect]);
-	return mixAdjustment(`${name}/mix`, below, edited, layer.opacity, layer.mask);
+	let edited = below;
+	switch (layer.kind) {
+		case "mask":
+			edited = pipeline(below, [maskAdjustments(layer)]);
+			break;
+		case "exposure":
+			edited = pipeline(below, [exposure(`${name}/exposure`, layer.exposure)]);
+			break;
+		case "vignette":
+			edited = pipeline(below, [
+				vignette(layer.vignette, `${name}/vignette`, scene.frame, below.size),
+			]);
+			break;
+		case "curves":
+			edited = pipeline(below, [toneCurves(layer.toneCurve, `${name}/curves`)]);
+			break;
+		case "color-mixer":
+			edited = pipeline(below, [
+				colorMixer(layer.colorMixer, `${name}/color-mixer`),
+			]);
+			break;
+	}
+	const masks: MaskLayer[] = [];
+	for (const child of layer.children) {
+		if (layer.kind === "mask" && child.kind === "mask") {
+			if (child.visible && child.opacity > 0) {
+				masks.push(child);
+			}
+		} else {
+			edited = composeLayer(edited, child, scene);
+		}
+	}
+
+	return mixAdjustment(
+		`${name}/mix`,
+		below,
+		edited,
+		layer.opacity,
+		layer.kind === "mask" ? layer.mask : undefined,
+		masks,
+	);
 }
 
 /** Pure layer composition shares the same graph for preview, crop, and export. */
@@ -58,16 +111,21 @@ export function createEditorRenderer(
 		gpu,
 		source,
 		(image, scene) => {
-			const base = develop(image, scene.image);
-			const full = scene.layers.reduce(
+			const [sourceLayer, ...layers] = scene.layers;
+			const base = develop(image, sourceLayer);
+			const children = sourceLayer.children.reduce(
 				(below, layer) => composeLayer(below, layer, scene),
-				base.output,
+				base,
 			);
-			const [original, beforeCurves, output] = transformImages(
-				[input(source.image), base.adjusted, full],
+			const full = layers.reduce(
+				(below, layer) => composeLayer(below, layer, scene),
+				children,
+			);
+			const [original, output] = transformImages(
+				[input(source.image), full],
 				scene.frame,
 			);
-			return { original, input: beforeCurves, full, output };
+			return { original, full, output };
 		},
 		timer,
 	);

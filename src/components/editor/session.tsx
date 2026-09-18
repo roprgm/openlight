@@ -64,8 +64,8 @@ export function EditorPanel({ children }: { children?: ReactNode }) {
 			onWidthChange={onWidthChange}
 			className="flex flex-col"
 		>
-			<div ref={panelRef} className="flex min-h-0 flex-1 flex-col" />
 			{children}
+			<div ref={panelRef} className="flex min-h-0 flex-1 flex-col" />
 		</ResizablePanel>
 	);
 }

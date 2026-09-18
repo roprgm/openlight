@@ -362,13 +362,9 @@ test("edit a photo, inspect the preview and histograms, undo changes, and export
 			window.openlight.setAdjustments({ exposure: -1 }),
 		);
 		const adjusted = await readImage(page);
+		await page.getByRole("button", { name: "Curves", exact: true }).click();
 		const graph = page.getByRole("application", { name: "Tone curve" });
 		await graph.scrollIntoViewIfNeeded();
-		const input = page
-			.getByLabel("input histogram", { exact: true })
-			.locator("polyline");
-		await expect(input).toHaveAttribute("points", /,\d{1,2}\./);
-		const inputBefore = await input.getAttribute("points");
 		const before = await page.evaluate(
 			() => window.openlight.getState().history.undoCount,
 		);
@@ -382,7 +378,6 @@ test("edit a photo, inspect the preview and histograms, undo changes, and export
 		);
 		await expect(graph.locator("circle")).toHaveCount(3);
 		expect((await state()).history.undoCount).toBe(before + 1);
-		await expect(input).toHaveAttribute("points", inputBefore ?? "");
 		const curved = await readImage(page);
 		const curve = await page.evaluate(
 			() => window.openlight.getState().toneCurve,
@@ -431,6 +426,7 @@ test("edit a photo, inspect the preview and histograms, undo changes, and export
 		}
 	});
 
+	await page.getByRole("button", { name: "photo.svg", exact: true }).click();
 	await test.step("mode bar switches panels by click, arrow keys, and letters", async () => {
 		const modes = page.getByRole("tablist", { name: "Editor mode" });
 		const selected = modes.getByRole("tab", { selected: true });
@@ -441,8 +437,10 @@ test("edit a photo, inspect the preview and histograms, undo changes, and export
 			page.getByRole("region", { name: "Layers", exact: true }),
 		).toBeVisible();
 		await expect(
-			page.getByRole("button", { name: "Original Image · Develop" }),
-		).toHaveAttribute("aria-pressed", "true");
+			page
+				.getByRole("button", { name: "photo.svg", exact: true })
+				.locator(".."),
+		).toHaveAttribute("data-selected", "true");
 		await page.keyboard.press("ArrowLeft");
 		await expect(selected).toHaveText("Adjust");
 		await expect(selected).toBeFocused();

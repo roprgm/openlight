@@ -9,7 +9,7 @@ import { useRenderer } from "./pipeline";
 import { useDocument } from "./session";
 import { useViewport } from "./viewport";
 
-type Output = "fullImage" | "inputImage" | "outputImage" | "originalImage";
+type Output = "fullImage" | "outputImage" | "originalImage";
 
 /** Mount a pipeline output or any target; a supplied frame places the full source behind it. */
 export function Image({

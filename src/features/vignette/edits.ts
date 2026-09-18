@@ -1,4 +1,4 @@
-import type { EditorDocument, Vignette } from "@/core/document";
+import { type EditorDocument, editLayer, type Vignette } from "@/core/document";
 
 export function validateVignette(change: Partial<Vignette>) {
 	for (const [name, value] of Object.entries(change)) {
@@ -20,23 +20,10 @@ export function setVignette(
 	id: string,
 ) {
 	validateVignette(change);
-	const scene = document.scene.getState();
-	const layer = scene.layers.find((layer) => layer.id === id);
-	if (layer?.kind !== "vignette") {
-		throw Error("Select a vignette layer.");
-	}
-	const current = layer.vignette;
-	const next = { ...current, ...change };
-	if (
-		next.intensity === current.intensity &&
-		next.softness === current.softness
-	) {
-		return;
-	}
-	document.edit({
-		...scene,
-		layers: scene.layers.map((item) =>
-			item.id === id ? { ...layer, vignette: next } : item,
-		),
+	editLayer(document, id, (layer) => {
+		if (layer.kind !== "vignette") {
+			throw Error("Select a vignette layer.");
+		}
+		return { ...layer, vignette: { ...layer.vignette, ...change } };
 	});
 }

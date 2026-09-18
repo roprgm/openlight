@@ -1,11 +1,11 @@
 import { useId, useState } from "react";
-import { useDocument, useScene } from "@/components/editor/session";
-import { Collapsible } from "@/components/ui/collapsible";
+import { useDocument } from "@/components/editor/session";
 import { ScrubInput } from "@/components/ui/scrub-input";
 import { Tab, TabList } from "@/components/ui/tabs";
 import { VerticalSlider } from "@/components/ui/vertical-slider";
+import type { ColorMixer } from "@/core/document";
 import { setColorMixer } from "./edits";
-import { channels, colors, defaultMixer, type MixerChannel } from "./model";
+import { channels, colors, type MixerChannel } from "./model";
 
 function gradient(hue: number, channel: MixerChannel) {
 	if (channel === "hue") {
@@ -20,18 +20,19 @@ function gradient(hue: number, channel: MixerChannel) {
 function ColorSlider({
 	index,
 	channel,
+	value,
+	layerId,
 }: {
 	index: number;
 	channel: MixerChannel;
+	value: number;
+	layerId: string;
 }) {
 	const document = useDocument();
-	const value = useScene(
-		(scene) => (scene.image.colorMixer ?? defaultMixer)[channel][index],
-	);
 	const color = colors[index];
 	const label = `${color.label} ${channel}`;
 	const change = (value: number) =>
-		setColorMixer(document, color.id, { [channel]: value });
+		setColorMixer(document, color.id, { [channel]: value }, layerId);
 	return (
 		<div
 			className="flex min-w-0 flex-col items-center gap-1"
@@ -60,11 +61,17 @@ function ColorSlider({
 	);
 }
 
-function MixerPanel() {
+export function ColorMixerControls({
+	id: layerId,
+	mixer,
+}: {
+	id: string;
+	mixer: ColorMixer;
+}) {
 	const [channel, setChannel] = useState<MixerChannel>("hue");
 	const id = useId();
 	return (
-		<>
+		<section className="p-3">
 			<TabList
 				aria-label="Color Mixer adjustment"
 				className="mb-3 gap-0.5 rounded-md bg-neutral-900 p-0.5 shadow-groove"
@@ -89,17 +96,15 @@ function MixerPanel() {
 				className="grid grid-cols-8"
 			>
 				{colors.map((color, index) => (
-					<ColorSlider key={color.id} index={index} channel={channel} />
+					<ColorSlider
+						key={color.id}
+						index={index}
+						channel={channel}
+						value={mixer[channel][index]}
+						layerId={layerId}
+					/>
 				))}
 			</div>
-		</>
-	);
-}
-
-export function ColorMixerControls() {
-	return (
-		<Collapsible title="Color Mixer">
-			<MixerPanel />
-		</Collapsible>
+		</section>
 	);
 }

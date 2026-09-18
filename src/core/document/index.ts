@@ -3,19 +3,23 @@ import { shallow } from "zustand/vanilla/shallow";
 import { frameValues, validateFrame } from "@/core/image/frame";
 import { createHistory } from "./history";
 import { createResources } from "./resources";
-import type { EffectLayer, ImageLayer, Scene } from "./scene";
+import type { Layer, Scene } from "./scene";
+import { findLayer } from "./tree";
 
 export type {
 	Adjustments,
 	ColorMixer,
 	CurvePoint,
-	EffectLayer,
 	ImageLayer,
+	Layer,
 	LinearGradient,
+	MaskLayer,
+	ProcessingLayer,
 	Scene,
 	ToneCurve,
 	Vignette,
 } from "./scene";
+export { editLayer, findLayer, walkLayers } from "./tree";
 export { createResources };
 
 export type Preview = {
@@ -25,42 +29,61 @@ export type Preview = {
 	highlights: boolean;
 };
 
-function equalImage(a: ImageLayer, b: ImageLayer) {
-	return (
-		a === b ||
-		(a.id === b.id &&
-			a.source === b.source &&
-			shallow(a.adjustments, b.adjustments) &&
-			shallow(a.whiteBalance, b.whiteBalance) &&
-			shallow(a.colorMixer?.hue, b.colorMixer?.hue) &&
-			shallow(a.colorMixer?.saturation, b.colorMixer?.saturation) &&
-			shallow(a.colorMixer?.luminance, b.colorMixer?.luminance) &&
-			a.toneCurve.length === b.toneCurve.length &&
-			a.toneCurve.every((point, i) => shallow(point, b.toneCurve[i])))
-	);
-}
-
-function equalLayer(a: EffectLayer, b: EffectLayer) {
+function equalLayer(a: Layer, b: Layer): boolean {
 	if (a === b) {
 		return true;
 	}
 	if (
+		a.kind !== b.kind ||
 		a.id !== b.id ||
 		a.name !== b.name ||
+		a.children.length !== b.children.length ||
+		!a.children.every((child, index) => equalLayer(child, b.children[index]))
+	) {
+		return false;
+	}
+	if (a.kind === "image" && b.kind === "image") {
+		return (
+			a.source === b.source &&
+			shallow(a.adjustments, b.adjustments) &&
+			shallow(a.whiteBalance, b.whiteBalance)
+		);
+	}
+	if (
+		a.kind === "image" ||
+		b.kind === "image" ||
 		a.visible !== b.visible ||
-		a.opacity !== b.opacity ||
-		!shallow(a.mask?.start, b.mask?.start) ||
-		!shallow(a.mask?.end, b.mask?.end)
+		a.opacity !== b.opacity
 	) {
 		return false;
 	}
 	if (a.kind === "exposure" && b.kind === "exposure") {
 		return a.exposure === b.exposure;
 	}
+	if (a.kind === "vignette" && b.kind === "vignette") {
+		return shallow(a.vignette, b.vignette);
+	}
+	if (a.kind === "mask" && b.kind === "mask") {
+		return (
+			a.operation === b.operation &&
+			shallow(a.mask.start, b.mask.start) &&
+			shallow(a.mask.end, b.mask.end) &&
+			shallow(a.adjustments, b.adjustments)
+		);
+	}
+
+	if (a.kind === "curves" && b.kind === "curves") {
+		return (
+			a.toneCurve.length === b.toneCurve.length &&
+			a.toneCurve.every((point, index) => shallow(point, b.toneCurve[index]))
+		);
+	}
 	return (
-		a.kind === "vignette" &&
-		b.kind === "vignette" &&
-		shallow(a.vignette, b.vignette)
+		a.kind === "color-mixer" &&
+		b.kind === "color-mixer" &&
+		shallow(a.colorMixer.hue, b.colorMixer.hue) &&
+		shallow(a.colorMixer.saturation, b.colorMixer.saturation) &&
+		shallow(a.colorMixer.luminance, b.colorMixer.luminance)
 	);
 }
 
@@ -68,7 +91,6 @@ function equal(a: Scene, b: Scene) {
 	return (
 		a === b ||
 		(shallow(frameValues(a.frame), frameValues(b.frame)) &&
-			equalImage(a.image, b.image) &&
 			a.layers.length === b.layers.length &&
 			a.layers.every((layer, index) => equalLayer(layer, b.layers[index])))
 	);
@@ -77,22 +99,21 @@ function equal(a: Scene, b: Scene) {
 /** One independent editing session. No React, decoders, or file workflows. */
 export function createDocument(initial: Scene, resources = createResources()) {
 	const scene = createStore(() => initial);
-	const selection = createStore(() => ({ layerId: initial.image.id }));
+	const selection = createStore(() => ({ layerId: initial.layers[0].id }));
 	const { update, ...history } = createHistory(
 		scene,
 		equal,
 		100,
 		(retained) => {
-			resources.retain(new Set(retained.map((state) => state.image.source)));
+			resources.retain(
+				new Set(retained.map((state) => state.layers[0].source)),
+			);
 		},
 	);
 	const unsubscribe = scene.subscribe((state) => {
 		const id = selection.getState().layerId;
-		if (
-			id !== state.image.id &&
-			!state.layers.some((layer) => layer.id === id)
-		) {
-			selection.setState({ layerId: state.image.id });
+		if (!findLayer(state.layers, id)) {
+			selection.setState({ layerId: state.layers[0].id });
 		}
 	});
 	let closed = false;
@@ -106,10 +127,7 @@ export function createDocument(initial: Scene, resources = createResources()) {
 		selection,
 		selectLayer(layerId: string) {
 			const state = scene.getState();
-			if (
-				layerId !== state.image.id &&
-				!state.layers.some((layer) => layer.id === layerId)
-			) {
+			if (!findLayer(state.layers, layerId)) {
 				throw Error("Layer is unavailable.");
 			}
 			if (selection.getState().layerId !== layerId) {

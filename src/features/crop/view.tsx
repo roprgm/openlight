@@ -31,7 +31,7 @@ export function CropEditor({ onClose }: { onClose: () => void }) {
 	const [ratio, setRatio] = useState<number | null>(
 		frame.size[0] / frame.size[1],
 	);
-	const sourceId = document.scene.getState().image.source;
+	const sourceId = document.scene.getState().layers[0].source;
 	const [width, height] = document.resources.get(sourceId).image.size;
 	const source: Point = [width, height];
 	function fitView() {

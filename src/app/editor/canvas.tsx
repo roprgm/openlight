@@ -11,17 +11,24 @@ export function EditorCanvas() {
 	const tool = useGradientTool();
 	const { setMode } = useMode();
 	useShortcuts({
-		g: () => {
+		l: () => {
 			setMode(modes[0]);
 			tool.draw();
 		},
 	});
+	let gradientKey = "selection";
+	if (tool.target?.kind === "edit") {
+		gradientKey = tool.target.id;
+	}
+	if (tool.target?.kind === "new") {
+		gradientKey = `new/${tool.target.parentId ?? "root"}/${tool.target.operation}`;
+	}
 	const size = useScene((scene) => scene.frame.size);
 	return (
 		<EditorViewport
 			size={size}
 			overlay={<ComparisonDivider />}
-			tools={<GradientOverlay key={tool.target ?? "selection"} />}
+			tools={<GradientOverlay key={gradientKey} />}
 		>
 			<Image original="originalImage" />
 		</EditorViewport>
