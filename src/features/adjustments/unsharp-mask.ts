@@ -19,18 +19,23 @@ export function unsharpMask(
 		const samplers = {
 			linearSampler: { minFilter: "linear", magFilter: "linear" },
 		} as const;
-		const modes = reduction === 1 ? [1, 2] : [0, 1, 2];
-		const labels = ["reduce", "horizontal", "vertical"];
 		const params = { reduction, amount, sigma: radius / reduction };
-		function blur(mode: number) {
-			const pass = node(`${name}/${labels[mode]}`, shader, {
+		function blur(label: string, mode: number) {
+			const pass = node(`${name}/${label}`, shader, {
 				size,
 				samplers,
 				set: { params: { ...params, mode } },
 			});
 			return (source: RenderImage) => merge({ source, base: source }, pass);
 		}
-		const [original, blurred] = split(image, [[], modes.map(blur)]);
+		const [original, blurred] = split(image, [
+			[],
+			[
+				reduction === 1 ? undefined : blur("reduce", 0),
+				blur("horizontal", 1),
+				blur("vertical", 2),
+			],
+		]);
 		return merge(
 			{ source: original, base: blurred },
 			node(name, shader, {

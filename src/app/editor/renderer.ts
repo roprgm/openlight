@@ -16,7 +16,7 @@ import { vignette } from "@/features/vignette/pass";
 export function createEditorRenderer(
 	gpu: Gpu,
 	source: ImageSource,
-	clock?: Timer,
+	timer?: Timer,
 ) {
 	return createRenderer(
 		gpu,
@@ -40,6 +40,6 @@ export function createEditorRenderer(
 			);
 			return { original, input: beforeCurves, full, output };
 		},
-		clock,
+		timer,
 	);
 }

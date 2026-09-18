@@ -12,7 +12,7 @@ export type NodeDefinition = NodeOptions & {
 	readonly shader: string | ShaderSource;
 };
 export type RenderInput = {
-	readonly image: Target;
+	readonly target: Target;
 	readonly size: readonly [number, number];
 	readonly format: GPUTextureFormat;
 };
@@ -28,8 +28,8 @@ export type RenderStep =
 	| undefined;
 
 /** Imports a caller-owned texture without copying or allocating GPU resources. */
-export function input(image: Target): RenderInput {
-	return { image, size: image.size, format: image.format };
+export function input(target: Target): RenderInput {
+	return { target, size: target.size, format: target.format };
 }
 
 export function node(

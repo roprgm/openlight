@@ -39,16 +39,16 @@ function sameBalance(a: WhiteBalance | undefined, b: WhiteBalance | undefined) {
 export function createRenderer(
 	gpu: Gpu,
 	resource: ImageSource,
-	processing: SceneProcessing,
-	clock?: Timer,
+	compose: SceneProcessing,
+	timer?: Timer,
 ) {
 	const source = resource.image;
-	const graph = createRenderGraph(gpu, clock);
+	const graph = createRenderGraph(gpu, timer);
 	const release = resource.retain();
 	const raw = resource.raw?.createPass();
 	let original = source;
-	let beforeCurves = source;
-	let fullImage = source;
+	let previewInput = source;
+	let full = source;
 	const listeners = new Set<() => void>();
 	let rendered = false;
 	let output = source;
@@ -57,8 +57,8 @@ export function createRenderer(
 	let pending: Promise<void> | undefined;
 	let disposed = false;
 	function render(scene: Scene) {
-		const images = processing(input(raw?.render() ?? source), scene);
-		[original, beforeCurves, fullImage, output] = graph.render([
+		const images = compose(input(raw?.render() ?? source), scene);
+		[original, previewInput, full, output] = graph.render([
 			images.original,
 			images.input,
 			images.full,
@@ -113,8 +113,8 @@ export function createRenderer(
 
 	return {
 		originalImage: () => original,
-		inputImage: () => beforeCurves,
-		fullImage: () => fullImage,
+		inputImage: () => previewInput,
+		fullImage: () => full,
 		outputImage: () => output,
 		inspect: graph.inspect,
 		subscribe(listener: () => void) {
