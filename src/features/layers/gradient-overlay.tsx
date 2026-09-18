@@ -18,6 +18,7 @@ import { useGradientTool } from "./gradient-tool";
 type Drag = {
 	pointer: number;
 	from: Point;
+	to: Point;
 	mask: Gradient;
 	handle: GradientHandle | "new";
 	id: string;
@@ -35,12 +36,14 @@ export function GradientOverlay() {
 	});
 	const [draft, setDraft] = useState<Gradient | null>(null);
 	const dragging = useRef<Drag | null>(null);
+	const [dragCursor, setDragCursor] = useState<string>();
 	function cancel() {
 		if (dragging.current && dragging.current.handle !== "new") {
 			document.history.cancel();
 		}
 		dragging.current = null;
 		setDraft(null);
+		setDragCursor(undefined);
 		tool.close();
 	}
 	useEffect(
@@ -109,6 +112,7 @@ export function GradientOverlay() {
 			dragging.current = {
 				pointer: event.pointerId,
 				from,
+				to: from,
 				mask: drawGradient(tool.target.shape, from, from),
 				handle: "new",
 				id: selected,
@@ -120,11 +124,18 @@ export function GradientOverlay() {
 			dragging.current = {
 				pointer: event.pointerId,
 				from,
+				to: from,
 				mask,
 				handle,
 				id: selected,
 			};
 		}
+		const cursor =
+			event.target instanceof Element
+				? getComputedStyle(event.target).cursor
+				: "grab";
+		const activeCursor = cursor === "grab" ? "grabbing" : cursor;
+		setDragCursor(tool.target ? "crosshair" : activeCursor);
 		event.preventDefault();
 		event.stopPropagation();
 		event.currentTarget.setPointerCapture(event.pointerId);
@@ -135,6 +146,7 @@ export function GradientOverlay() {
 			return;
 		}
 		const point = documentPoint(event);
+		drag.to = point;
 		if (drag.handle === "new") {
 			const next = drawGradient(
 				drag.mask.kind,
@@ -157,9 +169,9 @@ export function GradientOverlay() {
 		if (!drag || drag.pointer !== event.pointerId) {
 			return;
 		}
-		move(event);
+		// Commit the last preview; pointerup must not reinterpret geometry or Shift.
 		if (drag.handle === "new") {
-			const point = documentPoint(event);
+			const point = drag.to;
 			const distance =
 				Math.hypot(point[0] - drag.from[0], point[1] - drag.from[1]) *
 				camera.scale;
@@ -171,17 +183,22 @@ export function GradientOverlay() {
 		}
 		dragging.current = null;
 		setDraft(null);
+		setDragCursor(undefined);
 		tool.close();
 		event.currentTarget.releasePointerCapture(event.pointerId);
 	}
 	const visible = draft ?? mask;
-	const pointerEvents = tool.target && !camera.panMode ? "auto" : "none";
+	const cursor = dragCursor ?? (tool.target ? "crosshair" : undefined);
+	const pointerEvents =
+		(tool.target || dragCursor) && !camera.panMode ? "auto" : "none";
 	return (
 		<div
 			role="application"
 			aria-label="Gradient mask canvas"
-			className="absolute inset-0 touch-none"
-			style={{ pointerEvents }}
+			className="absolute inset-0 touch-none data-[cursor=true]:[&_*]:cursor-[inherit]!"
+			data-cursor={!!cursor}
+			style={{ pointerEvents, cursor }}
+			onDoubleClick={(event) => event.stopPropagation()}
 			onPointerDown={start}
 			onPointerMove={move}
 			onPointerUp={finish}

@@ -253,13 +253,30 @@ test("draw a mask, edit its child effects, reorder layers and undo", async ({
 		await page.screenshot({ path: info.outputPath("radial-ui.png") });
 		await saveExport("radial-export.png");
 		const edited = await state();
-		await drag(page, center, [center[0] + 300 * scale, center[1]]);
+		await page.mouse.move(center[0] + 40, center[1] + 30);
+		await expect(
+			page.getByLabel("Move radial gradient", { exact: true }),
+		).toHaveCSS("cursor", "grab");
+		await page.mouse.down();
+		await expect(overlay).toHaveCSS("cursor", "grabbing");
+		await page.mouse.move(center[0] + 40 + 300 * scale, center[1] + 30, {
+			steps: 8,
+		});
+		const preview = (await state()).scene;
+		await page.mouse.up();
+		expect((await state()).scene).toEqual(preview);
 		expect((await state()).history.undoCount).toBe(
 			edited.history.undoCount + 1,
 		);
 		expect((await readImage(page)).center).toEqual(before.center);
 		await page.keyboard.press("ControlOrMeta+z");
 		expect((await state()).scene).toEqual(edited.scene);
+		await expect(
+			page.getByLabel("Radial right radius", { exact: true }),
+		).toHaveCSS("cursor", "ew-resize");
+		await expect(
+			page.getByLabel("Rotate radial gradient", { exact: true }),
+		).toHaveCSS("cursor", /url/);
 		const radius = await box(
 			page.getByLabel("Radial right radius", { exact: true }),
 		);
@@ -319,5 +336,42 @@ test("draw a mask, edit its child effects, reorder layers and undo", async ({
 		);
 		await page.keyboard.press("ControlOrMeta+z");
 		expect((await readImage(page)).center).toEqual(before.center);
+	});
+	await test.step("guide clicks and mobile drawing keep the preview stable", async () => {
+		await page
+			.getByRole("button", { name: "Select Radial Gradient", exact: true })
+			.first()
+			.click();
+		await page.getByRole("button", { name: "Zoom in", exact: true }).click();
+		const zoom = page.getByTitle("Fit to view");
+		const percent = await zoom.innerText();
+		await page.getByLabel("Move gradient", { exact: true }).dblclick();
+		await expect(zoom).toHaveText(percent);
+		await zoom.click();
+		await page.setViewportSize({ width: 390, height: 844 });
+		await page.getByRole("button", { name: "photo.svg", exact: true }).click();
+		await page.keyboard.press("r");
+		await expect(overlay).toHaveCSS("cursor", "crosshair");
+		const view = await box(overlay);
+		const x = view.x + view.width / 2,
+			y = view.y + view.height / 2;
+		await page.mouse.move(x, y);
+		await page.mouse.down();
+		await page.keyboard.down("Shift");
+		await page.mouse.move(x + 65, y + 35);
+		const pin = page.getByLabel("Move gradient", { exact: true });
+		const drawn = await box(pin);
+		await page.keyboard.up("Shift");
+		await page.mouse.up();
+		expect(await box(pin)).toEqual(drawn);
+		const result = await state();
+		const layer = result.scene?.layers.find(
+			(item) => item.id === result.selectedLayerId,
+		);
+		expect(
+			layer?.kind === "mask" &&
+				layer.mask.kind === "radial" &&
+				layer.mask.radius[0] === layer.mask.radius[1],
+		).toBe(true);
 	});
 });

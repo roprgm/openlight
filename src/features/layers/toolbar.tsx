@@ -100,7 +100,7 @@ export function LayerToolbar() {
 		<fieldset
 			aria-label="Layer options"
 			{...gesture}
-			className="flex min-h-11 shrink-0 flex-wrap items-center gap-x-4 gap-y-1 border-b border-black bg-panel px-3 py-1 text-xs text-neutral-400 shadow-ridge"
+			className="flex h-22 min-w-0 shrink-0 flex-wrap content-center items-center gap-x-4 gap-y-1 overflow-x-auto md:h-11 md:flex-nowrap [&>*]:shrink-0 border-b border-black bg-panel px-3 py-1 text-xs text-neutral-400 shadow-ridge"
 		>
 			<span className="max-w-40 truncate text-neutral-300" title={layer.name}>
 				{layer.name}

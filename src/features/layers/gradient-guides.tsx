@@ -1,18 +1,30 @@
+import rotateCursor from "@/components/icons/rotate-cursor.svg?raw";
 import type { Gradient, RadialGradient } from "@/core/document";
 import type { Point } from "@/core/image/frame";
 import { type GradientHandle, radialPoint } from "./gradient";
+
+const rotationCursor = `url("data:image/svg+xml,${encodeURIComponent(rotateCursor)}") 12 12, crosshair`;
+
+function resizeCursor(from: Point, to: Point) {
+	const angle = Math.atan2(to[1] - from[1], to[0] - from[0]);
+	const direction = (Math.round(angle / (Math.PI / 4)) + 4) % 4;
+	return ["ew-resize", "nwse-resize", "ns-resize", "nesw-resize"][direction];
+}
 
 function Handle({
 	point,
 	handle,
 	label,
+	cursor = "grab",
 }: {
 	point: Point;
 	handle: GradientHandle;
 	label: string;
+	cursor?: string;
 }) {
 	return (
-		<g>
+		<g className="group/handle" style={{ cursor }}>
+			<title>{label}</title>
 			<circle
 				cx={point[0]}
 				cy={point[1]}
@@ -20,9 +32,16 @@ function Handle({
 				fill="transparent"
 				data-gradient-handle={handle}
 				aria-label={label}
-				className="pointer-events-auto cursor-grab"
+				className="pointer-events-auto"
 			/>
-			<circle cx={point[0]} cy={point[1]} r="4" fill="white" stroke="#171717" />
+			<circle
+				cx={point[0]}
+				cy={point[1]}
+				r="4"
+				fill="white"
+				stroke="#171717"
+				className="group-hover/handle:fill-sky-300"
+			/>
 		</g>
 	);
 }
@@ -31,10 +50,12 @@ function Guide({
 	point,
 	direction,
 	handle,
+	cursor,
 }: {
 	point: Point;
 	direction: Point;
 	handle: GradientHandle;
+	cursor: string;
 }) {
 	const line = {
 		x1: point[0] - direction[0],
@@ -52,7 +73,8 @@ function Guide({
 				strokeWidth="16"
 				data-gradient-handle={handle}
 				aria-label={`Gradient ${handle} guide`}
-				className="[pointer-events:stroke] cursor-grab"
+				className="[pointer-events:stroke]"
+				style={{ cursor }}
 			/>
 		</g>
 	);
@@ -78,9 +100,24 @@ function LinearGuides({
 	return (
 		<g>
 			<title>Linear gradient guides</title>
-			<Guide point={startPoint} direction={direction} handle="start" />
-			<Guide point={endPoint} direction={direction} handle="end" />
-			<Guide point={center} direction={direction} handle="rotate" />
+			<Guide
+				point={startPoint}
+				direction={direction}
+				handle="start"
+				cursor={resizeCursor(startPoint, endPoint)}
+			/>
+			<Guide
+				point={endPoint}
+				direction={direction}
+				handle="end"
+				cursor={resizeCursor(startPoint, endPoint)}
+			/>
+			<Guide
+				point={center}
+				direction={direction}
+				handle="rotate"
+				cursor={rotationCursor}
+			/>
 			<Handle point={center} handle="move" label="Move gradient" />
 		</g>
 	);
@@ -112,6 +149,14 @@ function RadialGuides({
 			<g transform={transform} fill="none" stroke="white">
 				<circle
 					r="1"
+					fill="transparent"
+					stroke="none"
+					data-gradient-handle="move"
+					aria-label="Move radial gradient"
+					className="pointer-events-auto cursor-grab hover:fill-white/5"
+				/>
+				<circle
+					r="1"
 					stroke="black"
 					strokeOpacity="0.6"
 					strokeWidth="3"
@@ -130,25 +175,43 @@ function RadialGuides({
 				/>
 			</g>
 			<Handle point={center} handle="move" label="Move gradient" />
-			<Handle point={right} handle="radius-x" label="Radial right radius" />
+			<Handle
+				point={right}
+				handle="radius-x"
+				label="Radial right radius"
+				cursor={resizeCursor(center, right)}
+			/>
 			<Handle
 				point={screen(radialPoint(mask, -1, 0))}
 				handle="radius-x"
 				label="Radial left radius"
+				cursor={resizeCursor(center, right)}
 			/>
-			<Handle point={bottom} handle="radius-y" label="Radial bottom radius" />
+			<Handle
+				point={bottom}
+				handle="radius-y"
+				label="Radial bottom radius"
+				cursor={resizeCursor(center, bottom)}
+			/>
 			<Handle
 				point={screen(radialPoint(mask, 0, -1))}
 				handle="radius-y"
 				label="Radial top radius"
+				cursor={resizeCursor(center, bottom)}
 			/>
 			<Handle
 				point={screen(radialPoint(mask, 0, -rotationRadius))}
 				handle="rotate"
 				label="Rotate radial gradient"
+				cursor={rotationCursor}
 			/>
 			{showFeather && (
-				<Handle point={feather} handle="feather" label="Radial feather" />
+				<Handle
+					point={feather}
+					handle="feather"
+					label="Radial feather"
+					cursor={resizeCursor(center, right)}
+				/>
 			)}
 		</g>
 	);
