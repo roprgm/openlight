@@ -1,4 +1,4 @@
-import type { ColorMixer } from "@/lib/editor/scene";
+import type { ColorMixer } from "@/core/document";
 
 // Oklab angles of the eight full-saturation sRGB colors, for circular interpolation.
 export const colors = [

@@ -45,8 +45,8 @@ and closes when its last renderer closes. Slider changes, exposure, cropping and
 curves reuse the result. A RAW Kelvin/tint change develops a new snapshot of the
 filtered Bayer sensor, or recalculates RGB filtering for other RAW layouts.
 
-`blend.ts` owns each renderer's amount-blend output. Zero returns the unfiltered
-input. The scene stores only the amount, so undo/redo does not copy image data.
+`blend.ts` defines the amount-blend node; the renderer owns and reuses its output.
+Zero returns the unfiltered input. The scene stores only the amount, so undo/redo does not copy image data.
 Exports wait for their captured settings and retain the source during processing.
 The Details slider always stays available, including at zero and across modes.
 
@@ -93,8 +93,8 @@ Bayer filtering uses three packed RGBA32F images (about 275 MiB at 24 MP),
 a 512 KiB accumulation buffer and a temporary 46 MiB integer output, in addition
 to its private decoded sensor and developed images.
 
-Each cached result and each active blend adds a full-resolution RGBA16F texture
-(about 183 MiB at 24 MP). A changed RAW white point also retains its developed
+Each cached result adds a full-resolution RGBA16F texture (about 183 MiB at
+24 MP); blend outputs use the renderer's transient target pool. A changed RAW white point also retains its developed
 input. Tiling bounds scratch memory, not total image memory. Hardware latency
 still needs measurement; software-WebGPU tests are correctness checks.
 
@@ -116,5 +116,5 @@ repeated completed renders (8 warmups, 40 samples), then times the actual blend
 pass on 5000×4000 RGBA16F textures. React, display, export encoding and timing
 readback are outside the repeated-render interval. The expensive filter's compute
 dispatches are not timestamped; its first-use figure is a single diagnostic sample.
-See [the comparison and environment](../../../../docs/benchmarks/noise-reduction.md).
+Follow [the measurement and evidence rules](../../../../PERFORMANCE.md); keep results in the PR.
 Use hardware measurements to assess the 120 FPS budget; SwiftShader is not a proxy.

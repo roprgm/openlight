@@ -6,9 +6,11 @@ import {
 	useMemo,
 	useState,
 } from "react";
+import type { Gpu } from "vgpu";
 import { useGpu } from "vgpu-react";
-import { useDocument, useScene } from "@/components/editor/session";
-import type { createRenderer } from "@/lib/editor/renderer";
+import type { ImageSource } from "@/core/image";
+import type { createRenderer } from "@/core/renderer";
+import { useDocument, useScene } from "./session";
 
 const RendererContext = createContext<ReturnType<typeof createRenderer> | null>(
 	null,
@@ -35,7 +37,10 @@ function RendererError({ message }: { message: string }) {
 
 type RendererProviderProps = {
 	children: ReactNode;
-	createRenderer: typeof createRenderer;
+	createRenderer: (
+		gpu: Gpu,
+		source: ImageSource,
+	) => ReturnType<typeof createRenderer>;
 };
 
 export function RendererProvider({

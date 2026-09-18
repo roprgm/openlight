@@ -1,4 +1,4 @@
-import { display } from "../../lib/color.wgsl";
+import { display } from "../../core/image/color.wgsl";
 import { linearToSrgb3 } from "@vgpu/wgsl-std/color";
 
 struct Params {

@@ -1,8 +1,8 @@
 import { frame, type Gpu, surface, type Target } from "vgpu";
 import { createEditorRenderer } from "@/app/editor/renderer";
-import type { EditorDocument } from "@/lib/editor/document";
-import { createDisplay } from "@/lib/image-display";
-import type { Point } from "@/lib/image-frame/geometry";
+import type { EditorDocument } from "@/core/document";
+import type { Point } from "@/core/image/frame";
+import { createDisplay } from "@/core/renderer";
 
 const encodings = {
 	png: { type: "image/png", extension: "png" },

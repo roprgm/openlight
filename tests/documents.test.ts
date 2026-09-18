@@ -1,13 +1,13 @@
 import { expect, test } from "bun:test";
 import { init, target } from "vgpu/mock";
 import { createWorkspace } from "@/app/workspace";
-import { createDocument } from "@/lib/editor/document";
-import { setAdjustments, setToneCurve } from "@/lib/editor/document/edits";
-import { createResources } from "@/lib/editor/document/resources";
-import { defaultAdjustments } from "@/lib/editor/scene";
-import { imageFrame } from "@/lib/image-frame/geometry";
-import { createImageSource } from "@/lib/image-source";
-import { defaultCurve } from "@/lib/tone-curves/curve";
+import { createDocument, createResources } from "@/core/document";
+import { createImageSource } from "@/core/image";
+import { imageFrame } from "@/core/image/frame";
+import { setAdjustments } from "@/features/adjustments/edits";
+import { defaultAdjustments } from "@/features/adjustments/model";
+import { defaultCurve } from "@/features/tone-curves/curve";
+import { setToneCurve } from "@/features/tone-curves/edits";
 
 function document() {
 	return createDocument({

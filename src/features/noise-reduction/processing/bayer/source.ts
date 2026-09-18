@@ -1,5 +1,5 @@
 import type { Gpu } from "vgpu";
-import type { RawDevelopment, RawSensor } from "@/lib/image-source";
+import type { RawDevelopment, RawSensor } from "@/core/image";
 import { denoiseBayer, supportsBayerDenoising } from "./index";
 
 /** One private filtered sensor shared by the feature's preview/export cache. */

@@ -1,4 +1,4 @@
-import { rec2020ToSrgb, srgbToRec2020 } from "../../../lib/color.wgsl";
+import { rec2020ToSrgb, srgbToRec2020 } from "../../../core/image/color.wgsl";
 
 fn encode(v: vec3f) -> vec3f {
   let a = abs(v);

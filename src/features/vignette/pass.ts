@@ -1,0 +1,12 @@
+import type { Vignette } from "@/core/document";
+import { node } from "@/core/renderer";
+import shader from "./vignette.wgsl";
+
+export function vignette(settings?: Vignette) {
+	if (!settings || settings.intensity === 0) {
+		return;
+	}
+	return node("vignette", shader, {
+		set: { params: settings },
+	});
+}

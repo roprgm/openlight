@@ -2,12 +2,12 @@ import { expect, test } from "bun:test";
 import { createCameraRawXmpLoader } from "@/app/loaders/camera-raw-xmp";
 import { createLoaderRegistry, type FileLoader } from "@/app/loaders/registry";
 import { createWorkspace } from "@/app/workspace";
-import { canDecode } from "@/lib/decode";
-import { createDocument } from "@/lib/editor/document";
-import { setAdjustments } from "@/lib/editor/document/edits";
-import { defaultAdjustments } from "@/lib/editor/scene";
-import { imageFrame } from "@/lib/image-frame/geometry";
-import { defaultCurve } from "@/lib/tone-curves/curve";
+import { createDocument } from "@/core/document";
+import { canDecode } from "@/core/image/decode";
+import { imageFrame } from "@/core/image/frame";
+import { setAdjustments } from "@/features/adjustments/edits";
+import { defaultAdjustments } from "@/features/adjustments/model";
+import { defaultCurve } from "@/features/tone-curves/curve";
 
 function settings(attributes: string, name = "photo.xmp") {
 	return new File(

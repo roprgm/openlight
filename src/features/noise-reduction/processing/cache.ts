@@ -1,5 +1,5 @@
 import type { Gpu, Target } from "vgpu";
-import type { ImageSource, WhiteBalance } from "@/lib/image-source";
+import type { ImageSource, WhiteBalance } from "@/core/image";
 import { createBayerDenoising } from "./bayer/source";
 import { createDenoising } from "./index";
 

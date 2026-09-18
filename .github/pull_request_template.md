@@ -1,5 +1,5 @@
 <!-- Include evidence when opening the PR. Keep the description brief and direct;
-link detailed reports, raw data and reproduction steps. Omit work logs. -->
+use PR/CI attachments for generated evidence instead of committing it. Omit work logs. -->
 
 ## Change
 
@@ -8,7 +8,7 @@ Add only the implementation details or tradeoffs needed to review the change. --
 
 ## Validation
 
-<!-- Report the four required checks from README.md and any verification gaps. -->
+<!-- Report the required checks from AGENTS.md and any verification gaps. -->
 
 ## Visual evidence
 
@@ -17,7 +17,7 @@ visible in context for visual approval. Show before/after for existing UI change
 and representative states for new UI. Rendered output alone is insufficient.
 Rendering changes: also show before/after output side by side, using the same
 fixture and matching conditions; name the settings and state what varies.
-Include relevant quality metrics when a reference or expected property exists;
+Include quality metrics for a concrete quality claim or regression;
 state units and limits. Keep image-quality results separate from timings.
 Nonvisual code changes: show the exercised workflow. Verify that image links
 are accessible from this description. Documentation-only changes may mark
@@ -27,6 +27,6 @@ this section not applicable. -->
 
 <!-- Use a compact results table following PERFORMANCE.md: reproducible base/head
 comparison, workload and environment, timing scope, sample counts, median/p95,
-and a short interpretation. Link full measurements and reproduction steps.
+and a short interpretation. Include the reproduction command; link extra samples when useful.
 Separate neutral/bypass overhead from the cost of new active behavior.
 If rendering work is unaffected, explain why. Report missing evidence explicitly. -->

@@ -1,16 +1,32 @@
-import { effect, type Frame, frame, init, target, timer } from "vgpu";
+import { effect, frame, init, target, timer } from "vgpu";
 import { encodeImage } from "@/app/editor/export/export-image";
-import { createRenderer } from "@/lib/editor/renderer";
-import { defaultAdjustments, type Scene } from "@/lib/editor/scene";
-import { imageFrame } from "@/lib/image-frame/geometry";
-import { createImageSource } from "@/lib/image-source";
-import { defaultCurve } from "@/lib/tone-curves/curve";
+import { createEditorRenderer } from "@/app/editor/renderer";
+import type { Scene } from "@/core/document";
+import { createImageSource } from "@/core/image";
+import { imageFrame } from "@/core/image/frame";
+import { defaultAdjustments } from "@/features/adjustments/model";
+import { defaultCurve } from "@/features/tone-curves/curve";
 
-import { summarize } from "./gpu-timing";
+export type Workload =
+	| "neutral"
+	| "color-mixer"
+	| "vignette"
+	| "detail"
+	| "pipeline";
 
-export type Workload = "baseline" | "neutral" | "active";
+function summarize(values: number[]) {
+	const sorted = values.toSorted((a, b) => a - b);
+	return {
+		samples: values,
+		median:
+			(sorted[Math.floor((sorted.length - 1) / 2)] +
+				sorted[Math.ceil((sorted.length - 1) / 2)]) /
+			2,
+		p95: sorted[Math.ceil(sorted.length * 0.95) - 1],
+	};
+}
 
-/** Runs the production passes offscreen; React, display, and export encoding are outside timings. */
+/** Repeated processing of a resident texture; decoding, display, and export are outside timings. */
 export async function benchmarkRendering(
 	workload: Workload,
 	size: [number, number],
@@ -32,17 +48,35 @@ export async function benchmarkRendering(
 	const input = target(gpu, { size, format: "rgba16float" });
 	const source = createImageSource(input);
 	const clock = timestamps ? timer(gpu) : undefined;
-	let passMs: number | undefined;
-	clock?.onResults((spans) => {
-		passMs = spans["color-mixer"];
+	const measurements: Record<string, number>[] = [];
+	clock?.onResults((results) => {
+		measurements.push(results);
 	});
+	const combined = workload === "pipeline";
+	const detail = combined || workload === "detail";
 	const scene: Scene = {
 		source: "benchmark",
 		frame: imageFrame(size),
-		adjustments: { ...defaultAdjustments, exposure: 0.25, contrast: 10 },
-		toneCurve: defaultCurve,
+		adjustments: {
+			...defaultAdjustments,
+			exposure: 0.25,
+			contrast: 10,
+			clarity: detail ? 50 : 0,
+			sharpening: detail ? 75 : 0,
+		},
+		toneCurve: combined
+			? [
+					{ x: 0, y: 0 },
+					{ x: 0.5, y: 0.6 },
+					{ x: 1, y: 1 },
+				]
+			: defaultCurve,
+		vignette:
+			combined || workload === "vignette"
+				? { intensity: 80, softness: 60 }
+				: undefined,
 		colorMixer:
-			workload === "active"
+			combined || workload === "color-mixer"
 				? {
 						hue: new Array<number>(8).fill(20),
 						saturation: new Array<number>(8).fill(25),
@@ -50,55 +84,47 @@ export async function benchmarkRendering(
 					}
 				: undefined,
 	};
-	// The baseline also runs against revisions predating the mixer.
-	const path = "/src/features/color-mixer/pass.ts";
-	const createMixer =
-		workload === "baseline"
-			? undefined
-			: (
-					(await import(
-						/* @vite-ignore */ path
-					)) as typeof import("@/features/color-mixer/pass")
-				).createColorMixer;
 	const setupStart = performance.now();
-	const renderer = createMixer
-		? createRenderer(gpu, source, {
-				afterCurves: createMixer
-					? (gpu, resource) => createMixer(gpu, resource.image)
-					: undefined,
-			})
-		: createRenderer(gpu, source);
+	let renderer = createEditorRenderer(gpu, source);
 	const rendererSetupMs = performance.now() - setupStart;
-	const mixer = createMixer?.(gpu, input);
-	async function measure(render: () => void | Promise<void>, timed: boolean) {
+	async function measure() {
 		const encoding: number[] = [];
 		const completed: number[] = [];
-		const durations: number[] = [];
+		const totals: number[] = [];
+		const nodes: Record<string, number[]> = {};
 		for (let i = 0; i < warmup + samples; i++) {
-			passMs = undefined;
 			const start = performance.now();
-			await render();
+			await renderer.update(scene);
 			const encoded = performance.now();
 			await gpu.gpu.queue.onSubmittedWorkDone();
 			const end = performance.now();
 			await gpu.settled();
+			const spans = measurements.pop();
 			if (errors.length) {
 				throw errors[0];
 			}
 			if (i >= warmup) {
 				encoding.push(encoded - start);
 				completed.push(end - start);
-				if (passMs !== undefined) {
-					durations.push(passMs);
+				if (spans) {
+					totals.push(Object.values(spans).reduce((sum, ms) => sum + ms, 0));
+					for (const [name, ms] of Object.entries(spans)) {
+						nodes[name] ??= [];
+						nodes[name].push(ms);
+					}
 				}
 			}
 		}
 		return {
 			cpuEncodeMs: summarize(encoding),
 			completedMs: summarize(completed),
-			gpuMs: timed && durations.length ? summarize(durations) : null,
-			missingGpuSamples:
-				timed && timestamps ? samples - durations.length : null,
+			gpuMs: totals.length ? summarize(totals) : null,
+			nodes: Object.fromEntries(
+				Object.entries(nodes).map(([name, values]) => [
+					name,
+					summarize(values),
+				]),
+			),
 		};
 	}
 	try {
@@ -119,32 +145,22 @@ export async function benchmarkRendering(
 		await gpu.gpu.queue.onSubmittedWorkDone();
 		await gpu.settled();
 		const firstRenderMs = performance.now() - start;
-		const rendering = await measure(() => renderer.update(scene), false);
-		const renderMixer = (f: Frame) => {
-			// Instrument this owned frame only; execute the feature's actual pass unchanged.
-			const pass = f.pass.bind(f);
-			f.pass = (options, body) =>
-				pass(
-					{
-						...("target" in options ? options : { target: options }),
-						timer: clock?.span("color-mixer"),
-					},
-					body,
-				);
-			mixer?.render(f, input, scene);
-		};
-		const isolated = mixer
-			? await measure(() => {
-					frame(gpu, renderMixer);
-				}, workload === "active")
-			: null;
+		const rendering = await measure();
+		const storage = renderer.inspect();
 		const pixels = await renderer.outputImage().readFloats();
 		if (!pixels.every(Number.isFinite)) {
 			throw new Error("Benchmark output contains non-finite pixels.");
 		}
+		const pixelHash = new Uint8Array(
+			await crypto.subtle.digest("SHA-256", pixels.slice()),
+		);
 		const blob = await encodeImage(gpu, renderer.outputImage(), {
 			longEdge: 960,
 		});
+		// Profile separately so timestamp queries/readback do not affect the latency comparison.
+		renderer.dispose();
+		renderer = createEditorRenderer(gpu, source, clock);
+		const profile = clock ? await measure() : null;
 		return {
 			workload,
 			size,
@@ -160,12 +176,19 @@ export async function benchmarkRendering(
 			rendererSetupMs,
 			firstRenderMs,
 			rendering,
-			isolated,
-			outputBytes: workload === "active" ? size[0] * size[1] * 8 : 0,
+			profile,
+			storage,
+			pixelHash: [...pixelHash]
+				.map((value) => value.toString(16).padStart(2, "0"))
+				.join(""),
+			// All graph targets in these workloads are rgba16float. Source and driver memory excluded.
+			intermediateBytes: storage.textures.reduce(
+				(sum, { size }) => sum + size[0] * size[1] * 8,
+				0,
+			),
 			image: [...new Uint8Array(await blob.arrayBuffer())],
 		};
 	} finally {
-		mixer?.dispose();
 		renderer.dispose();
 		source.dispose();
 		clock?.dispose();

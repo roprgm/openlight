@@ -1,8 +1,4 @@
-import {
-	type ImageFrame,
-	type Point,
-	sourceOffset,
-} from "@/lib/image-frame/geometry";
+import { type ImageFrame, type Point, sourceOffset } from "@/core/image/frame";
 import { clamp } from "@/lib/math";
 
 function radius(frame: ImageFrame): Point {

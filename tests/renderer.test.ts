@@ -6,17 +6,22 @@ import {
 	init,
 	target,
 } from "vgpu/mock";
+import { createEditorRenderer as createRenderer } from "@/app/editor/renderer";
+import { createDocument, createResources } from "@/core/document";
+import { createImageSource } from "@/core/image";
+import { imageFrame } from "@/core/image/frame";
+import {
+	createDisplay,
+	createRenderGraph,
+	input,
+	pipeline,
+} from "@/core/renderer";
+import { setAdjustments } from "@/features/adjustments/edits";
+import { defaultAdjustments } from "@/features/adjustments/model";
+import { unsharpMask } from "@/features/adjustments/unsharp-mask";
+import { defaultCurve } from "@/features/tone-curves/curve";
+import { setToneCurve } from "@/features/tone-curves/edits";
 import { setWhiteBalance } from "@/features/white-balance/edits";
-import { createDocument } from "@/lib/editor/document";
-import { setAdjustments, setToneCurve } from "@/lib/editor/document/edits";
-import { createResources } from "@/lib/editor/document/resources";
-import { createRenderer } from "@/lib/editor/renderer";
-import { defaultAdjustments } from "@/lib/editor/scene";
-import { createDisplay } from "@/lib/image-display";
-import { imageFrame } from "@/lib/image-frame/geometry";
-import { createImageSource } from "@/lib/image-source";
-import { defaultCurve } from "@/lib/tone-curves/curve";
-import { createUnsharpMask } from "@/lib/unsharp-mask";
 
 test("RAW edits coalesce, recover from failure, and retain an exporting source after document replacement", async () => {
 	const gpu = await init();
@@ -121,21 +126,24 @@ test("RAW edits coalesce, recover from failure, and retain an exporting source a
 });
 
 test.each([1, 16])(
-	"unsharp mask at reduction %s bypasses zero, reuses pipelines, and owns its outputs",
+	"unsharp mask at reduction %s bypasses zero and shares graph storage",
 	async (reduction) => {
 		const gpu = await init();
 		const source = target(gpu, { size: [127, 65], format: "rgba16float" });
-		const clarity = createUnsharpMask(gpu, source, reduction);
+		const graph = createRenderGraph(gpu);
 		let output = source;
-		const render = (amount: number) =>
-			frame(gpu, (f) => {
-				output = clarity.render(
-					f,
-					source,
-					amount / 200,
-					reduction === 1 ? 1 : 64,
-				);
-			});
+		const render = (amount: number) => {
+			[output] = graph.render([
+				pipeline(input(source), [
+					unsharpMask(
+						"detail",
+						amount / 200,
+						reduction === 1 ? 1 : 64,
+						reduction,
+					),
+				]),
+			]);
+		};
 		try {
 			render(0);
 			expect(output).toBe(source);
@@ -146,6 +154,7 @@ test.each([1, 16])(
 			expect(filtered).not.toBe(source);
 			expect(filtered.size).toEqual(source.size);
 			const pipelines = calls.createRenderPipeline;
+			expect(graph.inspect().textures).toHaveLength(reduction === 1 ? 2 : 3);
 			for (const amount of [-100, -50, 25, 75]) {
 				render(amount);
 				expect(output).toBe(filtered);
@@ -153,11 +162,12 @@ test.each([1, 16])(
 			expect(calls.createRenderPipeline).toBe(pipelines);
 			render(0);
 			expect(output).toBe(source);
-			clarity.dispose();
+			expect(graph.inspect().textures).toHaveLength(0);
+			graph.dispose();
 			expect(() => filtered.color.view).toThrow("destroyed");
 			expect(() => source.color.view).not.toThrow();
 		} finally {
-			clarity.dispose();
+			graph.dispose();
 			source.color.dispose();
 			gpu.dispose();
 		}
@@ -230,12 +240,12 @@ test("rendering follows grouped edits and undo, reuses pipelines, and releases o
 		expect(renderer.outputImage()).toBe(adjusted);
 		expect(document.scene.getState().adjustments.exposure).toBe(0);
 		document.history.redo();
-		expect(renderer.outputImage()).toBe(curved);
+		expect(renderer.inspect().passes).toEqual(["adjustments", "curves"]);
 		document.history.begin();
 		setToneCurve(document);
 		expect(renderer.outputImage()).toBe(adjusted);
 		document.history.cancel();
-		expect(renderer.outputImage()).toBe(curved);
+		expect(renderer.inspect().passes).toEqual(["adjustments", "curves"]);
 		draw();
 		expect(calls.createRenderPipeline).toBe(pipelines);
 		expect(notify).toHaveBeenCalledTimes(8);

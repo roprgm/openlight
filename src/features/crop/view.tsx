@@ -11,8 +11,8 @@ import { RotateIcon } from "@/components/icons/rotate";
 import Button from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
 import { Slider } from "@/components/ui/slider";
+import { imageFrame, type Point } from "@/core/image/frame";
 import { useShortcuts } from "@/hooks/use-shortcuts";
-import { imageFrame, type Point } from "@/lib/image-frame/geometry";
 import { fitRatio, flip, rotate, turn } from "./geometry";
 import { CropOverlay } from "./overlay";
 

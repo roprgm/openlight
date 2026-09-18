@@ -1,6 +1,6 @@
 import { useRef } from "react";
 import Button from "@/components/ui/button";
-import { accept } from "@/lib/decode";
+import { accept } from "@/core/image/decode";
 import Backdrop from "./backdrop";
 
 type OpenProps = { onOpen: (files: File[]) => void };

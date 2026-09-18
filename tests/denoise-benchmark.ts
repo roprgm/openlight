@@ -1,10 +1,13 @@
 import { effect, frame, init, target, timer } from "vgpu";
 import { encodeImage } from "@/app/editor/export/export-image";
 import { createEditorRenderer } from "@/app/editor/renderer";
-import decode from "@/lib/decode";
-import { defaultAdjustments, type Scene } from "@/lib/editor/scene";
-import { imageFrame } from "@/lib/image-frame/geometry";
-import { defaultCurve } from "@/lib/tone-curves/curve";
+import type { Scene } from "@/core/document";
+import decode from "@/core/image/decode";
+import { imageFrame } from "@/core/image/frame";
+import { createRenderGraph, input } from "@/core/renderer";
+import { defaultAdjustments } from "@/features/adjustments/model";
+import { denoiseBlend } from "@/features/noise-reduction/processing/blend";
+import { defaultCurve } from "@/features/tone-curves/curve";
 import { measureFrames } from "./gpu-timing";
 
 const warmup = 8,
@@ -116,10 +119,6 @@ export async function benchmarkDenoising(fixture: string, active = true) {
 
 /** The production amount blend over precomputed textures. No expensive denoising is timed here. */
 export async function benchmarkBlend() {
-	const path = "/src/features/noise-reduction/processing/blend.ts";
-	const { createDenoiseBlend } = (await import(
-		/* @vite-ignore */ path
-	)) as typeof import("@/features/noise-reduction/processing/blend");
 	const adapter = await navigator.gpu.requestAdapter();
 	if (!adapter) {
 		throw Error("No WebGPU adapter.");
@@ -133,11 +132,11 @@ export async function benchmarkBlend() {
 	const size: [number, number] = [5000, 4000];
 	const source = target(gpu, { size, format: "rgba16float" });
 	const filtered = target(gpu, { size, format: source.format });
-	const blend = createDenoiseBlend(gpu, source, { texture: () => filtered });
 	const clock = timestamps ? timer(gpu) : undefined;
+	const graph = createRenderGraph(gpu, clock);
 	let elapsed: number | undefined;
 	clock?.onResults((spans) => {
-		elapsed = spans.blend;
+		elapsed = spans["noise-reduction"];
 	});
 	try {
 		const fill = effect(
@@ -157,18 +156,7 @@ export async function benchmarkBlend() {
 			gpu,
 			() => {
 				elapsed = undefined;
-				frame(gpu, (f) => {
-					const pass = f.pass.bind(f);
-					f.pass = (options, body) =>
-						pass(
-							{
-								...("target" in options ? options : { target: options }),
-								timer: clock?.span("blend"),
-							},
-							body,
-						);
-					blend.render(f, 50);
-				});
+				graph.render([denoiseBlend(input(source), filtered, 50)]);
 			},
 			warmup,
 			samples,
@@ -195,7 +183,7 @@ export async function benchmarkBlend() {
 		};
 	} finally {
 		clock?.dispose();
-		blend.dispose();
+		graph.dispose();
 		source.color.dispose();
 		filtered.color.dispose();
 		gpu.dispose();

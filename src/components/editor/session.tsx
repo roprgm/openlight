@@ -8,9 +8,8 @@ import {
 import { createPortal } from "react-dom";
 import { useStore } from "zustand";
 import ResizablePanel from "@/components/ui/resizable-panel";
+import type { EditorDocument, Scene } from "@/core/document";
 import { createCamera } from "@/hooks/use-pan-zoom";
-import type { EditorDocument } from "@/lib/editor/document";
-import type { Scene } from "@/lib/editor/scene";
 
 const Session = createContext<{
 	document: EditorDocument;
