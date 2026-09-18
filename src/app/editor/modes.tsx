@@ -3,12 +3,11 @@ import { PanelContent } from "@/components/editor/session";
 import { AdjustIcon } from "@/components/icons/adjust";
 import { CropIcon } from "@/components/icons/crop";
 import { ExportIcon } from "@/components/icons/export";
-import { LayersIcon } from "@/components/icons/layers";
 import { RetouchIcon } from "@/components/icons/retouch";
 import { CropEditor } from "@/features/crop/view";
 import { useGradientTool } from "@/features/layers/gradient-tool";
 import { EditorActions } from "./actions";
-import { AdjustPanel, LayersPanel } from "./adjust";
+import { AdjustPanel } from "./adjust";
 import { ExportMode } from "./export";
 
 const ModeContext = createContext<{
@@ -57,14 +56,6 @@ function CropMode() {
  */
 export const modes = [
 	adjust,
-	{
-		id: "layers",
-		label: "Layers",
-		key: "l",
-		Icon: LayersIcon,
-		group: "edit",
-		Panel: LayersPanel,
-	},
 	{
 		id: "retouch",
 		label: "Retouch",

@@ -28,7 +28,10 @@ export async function readImage(page: Page, bytes?: Uint8Array) {
 
 /** Sample the displayed canvas, including preview-only overlays. */
 export async function readPreview(page: Page) {
-	const bytes = await page.locator("canvas").screenshot();
+	const bytes = await page
+		.getByRole("region", { name: "Image canvas" })
+		.locator("canvas")
+		.screenshot();
 	return page.evaluate(
 		async (bytes) => {
 			const image = await createImageBitmap(new Blob([new Uint8Array(bytes)]));

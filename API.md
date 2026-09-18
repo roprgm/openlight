@@ -77,7 +77,7 @@ The base image is pinned below `scene.layers`, which are ordered bottom to top. 
 
 A gradient is `{ start: [x, y], end: [x, y] }` in original document pixel coordinates: full effect at `start`, no effect at `end`. Points must be finite and distinct. Crop, rotation, and viewport navigation do not move the mask within the document. No mask means full coverage; coverage multiplies layer opacity. Hidden layers and zero opacity bypass processing.
 
-In the UI, **Linear gradient** or **G** starts drawing and opens Adjust. Completing the drag creates a masked exposure layer as one undoable edit; Escape cancels it. Layers uses the same sidebar and inspector for explicit stack editing.
+In the UI, **Linear gradient** or **G** starts drawing and opens Adjust. Completing the drag creates a masked exposure layer as one undoable edit; Escape cancels it. The compact layer stack stays below the active editing inspector, including Crop. Selecting a layer opens its Adjust controls. Eye buttons toggle visibility, the header edits opacity, and double-clicking a layer name renames it.
 
 ## History
 

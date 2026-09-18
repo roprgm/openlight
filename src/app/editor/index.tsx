@@ -3,10 +3,11 @@ import { RendererProvider } from "@/components/editor/pipeline";
 import { DocumentProvider, EditorPanel } from "@/components/editor/session";
 import ResizablePanel from "@/components/ui/resizable-panel";
 import Spinner from "@/components/ui/spinner";
+import { LayersControls } from "@/features/layers/controls";
 import { GradientProvider } from "@/features/layers/gradient-tool";
 import { EditorCanvas } from "./canvas";
 import { ModeRail } from "./mode-rail";
-import { ModeProvider, useMode } from "./modes";
+import { ModeProvider, modes, useMode } from "./modes";
 import { createEditorRenderer } from "./renderer";
 
 function ModeView() {
@@ -22,12 +23,23 @@ function ModeView() {
 	);
 }
 
+function EditorSidebar() {
+	const { mode, setMode } = useMode();
+	return (
+		<EditorPanel>
+			{mode.group === "edit" && (
+				<LayersControls onSelect={() => setMode(modes[0])} />
+			)}
+		</EditorPanel>
+	);
+}
+
 function DocumentEditor() {
 	return (
 		<GradientProvider>
 			<ModeProvider>
 				<ModeView />
-				<EditorPanel />
+				<EditorSidebar />
 				<ModeRail />
 			</ModeProvider>
 		</GradientProvider>

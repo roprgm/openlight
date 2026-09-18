@@ -38,7 +38,9 @@ test("edit a photo, inspect the preview and histograms, undo changes, and export
 	await page
 		.locator('input[type="file"]')
 		.setInputFiles("tests/fixtures/photo.svg");
-	const canvas = page.locator("canvas");
+	const canvas = page
+		.getByRole("region", { name: "Image canvas" })
+		.locator("canvas");
 	const output = page
 		.getByLabel("output histogram", { exact: true })
 		.locator("polyline")
@@ -433,22 +435,19 @@ test("edit a photo, inspect the preview and histograms, undo changes, and export
 		const modes = page.getByRole("tablist", { name: "Editor mode" });
 		const selected = modes.getByRole("tab", { selected: true });
 		await expect(selected).toHaveText("Adjust");
-		await modes.getByRole("tab", { name: "Layers" }).click();
-		await expect(selected).toHaveText("Layers");
+		await modes.getByRole("tab", { name: "Retouch" }).click();
+		await expect(selected).toHaveText("Retouch");
 		await expect(
 			page.getByRole("region", { name: "Layers", exact: true }),
 		).toBeVisible();
 		await expect(
 			page.getByRole("button", { name: "Original Image · Develop" }),
 		).toHaveAttribute("aria-pressed", "true");
-		await page.keyboard.press("ArrowRight");
-		await expect(selected).toHaveText("Retouch");
-		await expect(selected).toBeFocused();
-		await page.keyboard.press("ArrowLeft");
 		await page.keyboard.press("ArrowLeft");
 		await expect(selected).toHaveText("Adjust");
-		await page.keyboard.press("l");
-		await expect(selected).toHaveText("Layers");
+		await expect(selected).toBeFocused();
+		await page.keyboard.press("r");
+		await expect(selected).toHaveText("Retouch");
 		await page.keyboard.press("a");
 		await expect(selected).toHaveText("Adjust");
 		await expect(page.getByRole("slider", { name: "Exposure" })).toBeVisible();

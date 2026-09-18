@@ -9,7 +9,9 @@ async function samples(page: Page, points: number[][]) {
 		const image = await createImageBitmap(await window.openlight.exportImage());
 		const canvas = new OffscreenCanvas(image.width, image.height);
 		const context = canvas.getContext("2d");
-		if (!context) throw new Error("Cannot read layer output.");
+		if (!context) {
+			throw new Error("Cannot read layer output.");
+		}
 		context.drawImage(image, 0, 0);
 		image.close();
 		return points.map(([x, y]) => [...context.getImageData(x, y, 1, 1).data]);
@@ -44,6 +46,27 @@ test("develop an image, draw and edit independent masked layers, then crop and e
 		.locator('input[type="file"]')
 		.setInputFiles("tests/fixtures/photo.svg");
 	await expect(field("Exposure")).toHaveValue("0.00");
+	const layersPanel = page.getByRole("region", { name: "Layers", exact: true });
+	await expect(layersPanel).toBeVisible();
+	const thumbnail = page.getByLabel("Original image thumbnail", {
+		exact: true,
+	});
+	await expect
+		.poll(() =>
+			thumbnail.evaluate((element) => {
+				if (!(element instanceof HTMLCanvasElement)) {
+					throw new Error("Missing thumbnail canvas.");
+				}
+				const context = element.getContext("2d");
+				if (!context) {
+					throw new Error("Cannot read thumbnail pixels.");
+				}
+				return context
+					.getImageData(0, 0, 64, 64)
+					.data.some((value, index) => index % 4 < 3 && value > 100);
+			}),
+		)
+		.toBe(true);
 	const original = await readImage(page);
 	await page.screenshot({ path: info.outputPath("image-develop-ui.png") });
 	await saveExport("image-original-export.png");
@@ -69,7 +92,6 @@ test("develop an image, draw and edit independent masked layers, then crop and e
 		expect(await readImage(page)).toEqual(original);
 	});
 
-	await page.getByRole("tab", { name: "Layers", exact: true }).click();
 	await page.getByRole("button", { name: "Original Image · Develop" }).click();
 	await page.keyboard.press("g");
 	const overlay = page.getByLabel("Gradient mask canvas", { exact: true });
@@ -103,7 +125,9 @@ test("develop an image, draw and edit independent masked layers, then crop and e
 		);
 	});
 
-	await page.getByRole("tab", { name: "Layers", exact: true }).click();
+	await expect(
+		layersPanel.getByRole("img", { name: "Gradient mask thumbnail" }),
+	).toBeVisible();
 	await page.screenshot({ path: info.outputPath("layers-gradient-ui.png") });
 	const gradientOutput = await samples(page, [
 		[600, 100],
@@ -111,7 +135,9 @@ test("develop an image, draw and edit independent masked layers, then crop and e
 	]);
 	await saveExport("layers-gradient-export.png");
 	const gradient = (await state()).scene?.layers[0];
-	if (!gradient) throw new Error("Missing gradient layer.");
+	if (!gradient) {
+		throw new Error("Missing gradient layer.");
+	}
 	await test.step("duplicates have independent settings and ordered visibility", async () => {
 		await setField("Opacity", "0");
 		expect(await readImage(page)).toEqual(original);
@@ -129,20 +155,20 @@ test("develop an image, draw and edit independent masked layers, then crop and e
 			layers?.map((layer) => layer.kind === "exposure" && layer.exposure),
 		).toEqual([2, -1]);
 		await page
-			.getByRole("checkbox", { name: "Show Exposure copy", exact: true })
-			.uncheck();
+			.getByRole("button", { name: "Show Exposure copy", exact: true })
+			.click();
 		const alone = await samples(page, [
 			[600, 100],
 			[600, 700],
 		]);
 		expect(alone).toEqual(gradientOutput);
 		await page
-			.getByRole("checkbox", { name: "Show Exposure", exact: true })
-			.uncheck();
+			.getByRole("button", { name: "Show Exposure", exact: true })
+			.click();
 		expect(await readImage(page)).toEqual(original);
 		await page
-			.getByRole("checkbox", { name: "Show Exposure", exact: true })
-			.check();
+			.getByRole("button", { name: "Show Exposure", exact: true })
+			.click();
 		await page.getByRole("button", { name: "Move down", exact: true }).click();
 		expect((await state()).scene?.layers[1].id).toBe(gradient.id);
 		await page.getByRole("button", { name: "Undo", exact: true }).click();
@@ -152,6 +178,22 @@ test("develop an image, draw and edit independent masked layers, then crop and e
 	});
 
 	await test.step("crop keeps the gradient on the document while vignette follows the output frame", async () => {
+		await page.getByRole("tab", { name: "Crop", exact: true }).click();
+		const cropPanel = page.getByRole("region", { name: "Crop tool" });
+		await expect(layersPanel).toBeVisible();
+		const eye = layersPanel.getByRole("button", {
+			name: "Show Exposure",
+			exact: true,
+		});
+		await eye.press("Enter");
+		await expect(eye).toHaveAttribute("aria-pressed", "false");
+		await expect(cropPanel).toBeVisible();
+		await eye.press("Enter");
+		await expect(eye).toHaveAttribute("aria-pressed", "true");
+		await page.screenshot({ path: info.outputPath("layers-crop-ui.png") });
+		await cropPanel
+			.getByRole("button", { name: "Cancel", exact: true })
+			.click();
 		const reference = await samples(page, [
 			[600, 310],
 			[600, 500],
@@ -159,7 +201,9 @@ test("develop an image, draw and edit independent masked layers, then crop and e
 		]);
 		await page.evaluate(() => {
 			const frame = window.openlight.getState().frame;
-			if (!frame) throw new Error("Missing document frame.");
+			if (!frame) {
+				throw new Error("Missing document frame.");
+			}
 			window.openlight.editScene({
 				frame: { ...frame, center: [600, 500], size: [400, 400] },
 			});

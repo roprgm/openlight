@@ -18,7 +18,7 @@ import {
 import { ColorMixerControls } from "@/features/color-mixer/controls";
 import { Histogram } from "@/features/histogram";
 import { createHistogram } from "@/features/histogram/histogram";
-import { EffectControls, LayersControls } from "@/features/layers/controls";
+import { EffectControls } from "@/features/layers/controls";
 import { useGradientTool } from "@/features/layers/gradient-tool";
 import { setToneCurve } from "@/features/tone-curves/edits";
 import { ToneCurves } from "@/features/tone-curves/tone-curves";
@@ -92,7 +92,7 @@ function SelectedControls({
 	);
 }
 
-export function AdjustPanel({ layers = false }: { layers?: boolean }) {
+export function AdjustPanel() {
 	const gpu = useGpu();
 	const document = useDocument();
 	const gesture = useEditGesture(document.history);
@@ -109,7 +109,6 @@ export function AdjustPanel({ layers = false }: { layers?: boolean }) {
 	return (
 		<PanelContent>
 			<div className="flex min-h-0 flex-1 flex-col divide-y divide-black">
-				{layers && <LayersControls />}
 				<div className="flex items-center justify-between gap-2 border-b border-black px-3 py-2">
 					<h2 className="truncate text-xs font-medium text-neutral-200">
 						{name}
@@ -148,8 +147,4 @@ export function AdjustPanel({ layers = false }: { layers?: boolean }) {
 			</div>
 		</PanelContent>
 	);
-}
-
-export function LayersPanel() {
-	return <AdjustPanel layers />;
 }

@@ -56,11 +56,16 @@ export function DocumentProvider({
 }
 
 /** The resizable panel; the active tool fills it through PanelContent. */
-export function EditorPanel() {
+export function EditorPanel({ children }: { children?: ReactNode }) {
 	const { width, onWidthChange, panelRef } = useEditorSession();
 	return (
-		<ResizablePanel width={width} onWidthChange={onWidthChange}>
-			<div ref={panelRef} className="flex h-full flex-col" />
+		<ResizablePanel
+			width={width}
+			onWidthChange={onWidthChange}
+			className="flex flex-col"
+		>
+			<div ref={panelRef} className="flex min-h-0 flex-1 flex-col" />
+			{children}
 		</ResizablePanel>
 	);
 }
