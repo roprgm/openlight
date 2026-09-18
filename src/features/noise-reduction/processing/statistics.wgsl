@@ -9,13 +9,20 @@ var<workgroup> valid: array<u32, 64>;
 
 @compute @workgroup_size(64)
 fn main(@builtin(workgroup_id) group: vec3u, @builtin(local_invocation_index) lane: u32) {
-  // Spaced differences capture noise correlated by demosaic; stride 3 covers every CFA phase.
-  let blocks = textureDimensions(source) / 24u;
-  let p = vec2i((group.xy * blocks / grid) * 24u + vec2u(lane % 8u, lane / 8u) * 3u);
-  let a = packColor(textureLoad(source, p, 0));
-  let b = packColor(textureLoad(source, p + vec2i(2, 0), 0));
-  let c = packColor(textureLoad(source, p + vec2i(0, 2), 0));
-  let d = packColor(textureLoad(source, p + vec2i(2, 2), 0));
+  // Cover the complete image, including its bottom/right shadows. Smaller pyramid
+  // levels use closer differences instead of silently losing their noise estimate.
+  let size = textureDimensions(source);
+  let step = min(3u, min(size.x, size.y) / 8u);
+  let offset = max(1u, step - 1u);
+  let span = step * 7u + offset + 1u;
+  let extent = size - min(size, vec2u(span));
+  let origin = group.xy * extent / max(grid - 1u, vec2u(1u));
+  let p = origin + vec2u(lane % 8u, lane / 8u) * step;
+  let last = size - 1u;
+  let a = packColor(textureLoad(source, min(p, last), 0));
+  let b = packColor(textureLoad(source, min(p + vec2u(offset, 0u), last), 0));
+  let c = packColor(textureLoad(source, min(p + vec2u(0u, offset), last), 0));
+  let d = packColor(textureLoad(source, min(p + vec2u(offset), last), 0));
   let opaque = min(min(a.a, b.a), min(c.a, d.a)) >= 1.0;
   let contrast = select(vec4f(1e20), abs((a - b - c + d) * 0.5), opaque);
   detail[lane] = contrast;

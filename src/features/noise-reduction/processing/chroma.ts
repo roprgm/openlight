@@ -5,16 +5,15 @@ import {
 	merge,
 	node,
 	pipeline,
+	type RenderImage,
 } from "@/core/renderer";
-import shader from "./chroma.wgsl";
+import shader from "./chroma-pyramid.wgsl";
 import downsample from "./downsample.wgsl";
-import { createDenoising } from "./index";
 import { estimateNoise } from "./noise";
 
-/** Clean developed Bayer color at quarter resolution; retain full-resolution luminance. */
+/** Scale-dependent chroma shrinkage; full-resolution working luminance is unchanged. */
 export function createChromaDenoising(gpu: Gpu, source: Target) {
 	const graph = createRenderGraph(gpu);
-	let filter: ReturnType<typeof createDenoising> | undefined;
 	let filtered: Target | undefined;
 	let disposed = false;
 	function checkOpen() {
@@ -29,69 +28,58 @@ export function createChromaDenoising(gpu: Gpu, source: Target) {
 			if (filtered) {
 				return;
 			}
-			if (Math.min(...source.size) < 96) {
-				filtered = source;
-				return;
-			}
-			const half = pipeline(input(source), [
-				node("chroma-half", downsample, {
-					size: [Math.ceil(source.size[0] / 2), Math.ceil(source.size[1] / 2)],
-				}),
-			]);
-			const quarter = pipeline(half, [
-				node("chroma-quarter", downsample, {
-					size: [Math.ceil(half.size[0] / 2), Math.ceil(half.size[1] / 2)],
-				}),
-			]);
-			const [halfImage, quarterImage] = graph.render([half, quarter]);
-			try {
-				// Correlated color needs stronger shrinkage than the fine-grain model.
-				// Only the color delta returns to the full-resolution image.
-				filter = createDenoising(gpu, quarterImage, 4);
-				await filter.prepare(100);
-				checkOpen();
-				const result = filter.texture();
-				if (!result) {
-					throw Error("Chroma noise reduction produced no image.");
+			const pyramid: RenderImage[] = [input(source)];
+			while (pyramid.length < 8) {
+				const previous = pyramid[pyramid.length - 1];
+				if (Math.min(...previous.size) < 8) {
+					break;
 				}
-				// Measure broad color variation where it becomes resolvable noise.
-				// Fine-scale estimates miss correlation and would reject its correction.
-				const variance = await estimateNoise(gpu, quarterImage);
+				pyramid.push(
+					pipeline(previous, [
+						node(`chroma-down-${pyramid.length}`, downsample, {
+							size: [
+								Math.ceil(previous.size[0] / 2),
+								Math.ceil(previous.size[1] / 2),
+							],
+						}),
+					]),
+				);
+			}
+			const images = graph.render(pyramid);
+			const variances: number[][][] = [];
+			for (const image of images.slice(0, -1)) {
+				const measured = await estimateNoise(gpu, image);
 				checkOpen();
-				const correctedHalf = merge(
+				const previous = variances[variances.length - 1];
+				// White noise decreases on downsampling; correlation can leave more energy.
+				// Never lose the fine-scale estimate just because a coarse level has few samples.
+				variances.push(
+					measured.map((bin, i) =>
+						bin.map((v, c) => Math.max(v, (previous?.[i][c] ?? 0) * 0.25)),
+					),
+				);
+			}
+			let restored: RenderImage = input(images[images.length - 1]);
+			for (let level = images.length - 2; level >= 0; level--) {
+				restored = merge(
 					{
-						source: input(halfImage),
-						coarse: input(quarterImage),
-						coarseFiltered: input(result),
+						source: input(images[level]),
+						coarse: input(images[level + 1]),
+						coarseFiltered: restored,
 					},
-					node("chroma-restore-half", shader, {
-						set: { variance },
+					node(`chroma-up-${level}`, shader, {
+						set: { variance: variances[level] },
 					}),
 				);
-				const corrected = merge(
-					{
-						source: input(source),
-						coarse: input(halfImage),
-						coarseFiltered: correctedHalf,
-					},
-					node("chroma-restore-full", shader, { set: { variance } }),
-				);
-				const [output] = graph.render([corrected]);
-				await gpu.gpu.queue.onSubmittedWorkDone();
-				checkOpen();
-				// Retain only the final correction, releasing the reduced pyramid targets.
-				filter.dispose();
-				filter = undefined;
-				graph.render([input(output)]);
-				filtered = output;
-			} finally {
-				filter?.dispose();
-				filter = undefined;
 			}
+			const [output] = graph.render([restored]);
+			await gpu.gpu.queue.onSubmittedWorkDone();
+			checkOpen();
+			graph.render([input(output)]);
+			filtered = output;
 		},
 		dispose() {
 			disposed = true;
-			filter?.dispose();
 			graph.dispose();
 		},
 	};

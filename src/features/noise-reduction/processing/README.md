@@ -46,14 +46,20 @@ variance regularization on the shared Bayer component retains more common detail
 color-difference components keep full regularization. This is a calibration
 tradeoff that can retain more luminance grain, not an exact noise model.
 
-`chroma.ts` downsamples the developed Bayer image to quarter resolution and reuses
-the RGB filter and its three-level pyramid there, using four times the measured
-chroma variance for stronger correlated-color shrinkage. Only the resulting color
-correction returns to half and full resolution. Coarse noise estimates guide
-color-edge protection; luminance texture does not block that correction. The
-reconstruction preserves linear Rec.2020 luminance and alpha, without clipping
-HDR or negative values. Images smaller than 96 pixels on either axis bypass
-this broad-color stage. No full-resolution collaborative filter is repeated.
+`chroma.ts` builds a dyadic perceptual-color pyramid with up to seven reductions,
+covering fine grain and broad chroma blotches. Every level estimates its own noise;
+sampling covers the full image, including bottom/right borders and small coarse
+levels. The preceding level's variance, divided by four, supplies a white-noise
+floor when a coarse estimate is weaker.
+
+Reconstruction shrinks Laplacian chroma bands with a smooth, noise-normalized
+local activity gain. A compact-feature term preserves small, strong color details.
+Joint bilateral interpolation follows color edges with strictly positive normalized
+weights: a fine-scale outlier cannot veto the coarse correction. Each band controls
+only its own detail, rather than masking the entire multiscale correction. This is
+not a guarantee of removing all noise or distinguishing every small feature from
+noise. Working-space luminance, alpha, HDR headroom and negative values are retained.
+The chroma stage no longer runs collaborative patch searches.
 
 `index.ts` owns RGB filtering and its temporary textures. `cache.ts` shares
 results by image source and absolute white balance between preview and export.
@@ -73,14 +79,17 @@ images and existing editor allocations are additional. Each full-resolution
 RGBA16F cached result adds approximately 183 MiB at 24 MP. Blend outputs use
 the renderer's transient target pool.
 
-Bayer chroma cleanup temporarily adds a full-resolution RGBA16F output (183 MiB
-at 24 MP), half/quarter-resolution images and the reduced RGB filter's scratch.
-The completed result replaces the private development, which is then released;
-steady-state caching retains one developed result per white balance. The collaborative work starts at 1/16 of the original image area;
-its pyramid adds smaller levels. Halo and minimum-tile overhead remain, so this
-is not a measured 16-fold speedup. Reduced graph targets and filter scratch are
-released after preparation. The extra work occurs once per cached white balance,
-not on slider, exposure, or curve changes.
+Bayer chroma cleanup retains a geometric pyramid of input levels plus reconstructed
+levels during preparation. At 24 MP in RGBA16F, their texture payload is bounded
+by roughly 305 MiB (5/3 of a full image, excluding the caller-owned input, rounding,
+statistics buffers and driver allocations). The completed 183 MiB result replaces
+the private development, which is released. Reduced graph targets are released
+after preparation; the result remains cached per white balance. Each level uses
+one reduction pass, one reconstruction pass and a small statistical compute pass
+with readback. At most seven levels are filtered. There are no patch accumulation
+buffers or per-tile completion waits in this chroma stage. The Bayer collaborative
+stage still has its original cost. Physical-GPU latency and total peak memory
+require hardware measurements; texture payload alone is not total memory.
 
 GPU submissions are bounded by a completion wait between accumulation tiles.
 This limits queued work, not total image memory or first-use latency. Packing

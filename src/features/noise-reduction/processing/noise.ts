@@ -45,10 +45,12 @@ export function fitNoise(statistics: Float32Array) {
 }
 
 export async function estimateNoise(gpu: Gpu, source: Target) {
-	const grid = source.size.map((size) => Math.min(32, Math.floor(size / 24)));
-	if (grid.includes(0)) {
+	const step = Math.min(3, Math.floor(Math.min(...source.size) / 8));
+	if (step === 0) {
 		return fitNoise(new Float32Array());
 	}
+	const span = step * 7 + Math.max(1, step - 1) + 1;
+	const grid = source.size.map((size) => Math.min(32, Math.ceil(size / span)));
 	const bytes = grid[0] * grid[1] * 32;
 	const statistics = gpu.device.createBuffer({
 		size: bytes,

@@ -46,6 +46,9 @@ test("chroma reconstruction stays continuous across noise bins and preserves lum
 		return renderChromaRamp();
 	});
 	expect(before[0]).toBeGreaterThan(0.005);
+	// A strong fine-scale outlier must still receive the broad color correction.
+	const spike = (4 * 128 + 64) * 4;
+	expect(Math.abs(after[spike] - before[spike])).toBeGreaterThan(0.0002);
 	expect(after.every(Number.isFinite)).toBe(true);
 	const corrections = Array.from(
 		{ length: 128 },
@@ -63,6 +66,20 @@ test("chroma reconstruction stays continuous across noise bins and preserves lum
 		expect(Math.abs(luminanceChange)).toBeLessThan(1e-7);
 		expect(after[i + 3]).toBe(before[i + 3]);
 	}
+});
+
+test("noise estimation includes bottom shadows in small pyramid levels", async ({
+	page,
+}) => {
+	await page.goto("/tests/gpu.html");
+	const variance = await page.evaluate(async () => {
+		const path = "/tests/chroma-transfer.ts";
+		const { sampleShadowNoise } = (await import(
+			path
+		)) as typeof import("./chroma-transfer");
+		return sampleShadowNoise();
+	});
+	expect(variance.some((bin) => bin[1] > 1e-5 && bin[2] > 1e-5)).toBe(true);
 });
 
 /** RGB error against the clean image, plus per-channel bias to catch color shifts. */
@@ -121,6 +138,27 @@ test("Bayer chroma cleanup removes broad color noise at +2 EV while retaining te
 			difference(noisy, clean, region).chromaMse * 0.85,
 		);
 	}
+	const shadowRatios: number[] = [];
+	for (let y = 248; y < 304; y += 8) {
+		for (let x = 16; x < 208; x += 8) {
+			const region = [x, y, 8, 8];
+			const noise = difference(noisy, clean, region).chromaMse;
+			if (noise > 100) {
+				shadowRatios.push(
+					difference(filtered, clean, region).chromaMse / noise,
+				);
+			}
+		}
+	}
+	// Whole-image averages can hide small unfiltered islands in the shadows.
+	shadowRatios.sort((a, b) => a - b);
+	expect(shadowRatios.length).toBeGreaterThan(100);
+	expect(shadowRatios[Math.ceil(shadowRatios.length * 0.9) - 1]).toBeLessThan(
+		0.9,
+	);
+	expect(
+		difference(filtered, clean, [16, 248, 192, 56]).chromaMse,
+	).toBeLessThan(difference(noisy, clean, [16, 248, 192, 56]).chromaMse * 0.4);
 	const flat = [16, 16, 128, 96];
 	expect(difference(filtered, clean, flat).chromaMse).toBeLessThan(
 		difference(noisy, clean, flat).chromaMse * 0.7,

@@ -1,5 +1,6 @@
 import { effect, frame, init, target } from "vgpu";
-import shader from "@/features/noise-reduction/processing/chroma.wgsl";
+import shader from "@/features/noise-reduction/processing/chroma-pyramid.wgsl";
+import { estimateNoise } from "@/features/noise-reduction/processing/noise";
 
 /** A continuous dark ramp crossing a measured noise-bin boundary, with a fixed color correction. */
 export async function renderChromaRamp() {
@@ -14,7 +15,8 @@ export async function renderChromaRamp() {
     @group(0) @binding(0) var<uniform> params: vec2f;
     @fragment fn fs_main(@builtin(position) p: vec4f) -> @location(0) vec4f {
       let brightness = 0.06 + 0.014 * p.x / params.x;
-      let rgb = vec3f(brightness + params.y, brightness, brightness - params.y);
+      let spike = select(0.0, 0.6, params.y > 0.02 && all(vec2i(p.xy) == vec2i(64, 4)));
+      let rgb = vec3f(brightness + params.y + spike, brightness, brightness - params.y);
       let linear = select(pow((rgb + 0.055) / 1.055, vec3f(2.4)), rgb / 12.92, rgb <= vec3f(0.04045));
       let r = linear.r; let g = linear.g; let b = linear.b;
       return vec4f(0.6274*r + 0.3293*g + 0.0433*b,
@@ -54,6 +56,31 @@ export async function renderChromaRamp() {
 		for (const image of [source, coarse, filtered, output]) {
 			image.color.dispose();
 		}
+		gpu.dispose();
+	}
+}
+
+/** Noise confined to the bottom of a coarse level used to miss every sample. */
+export async function sampleShadowNoise() {
+	const gpu = await init();
+	const source = target(gpu, { size: [40, 40], format: "rgba32float" });
+	try {
+		frame(gpu, (f) =>
+			f.pass(
+				source,
+				effect(
+					gpu,
+					`
+   @fragment fn fs_main(@builtin(position) p: vec4f) -> @location(0) vec4f {
+    let n = fract(sin(dot(p.xy, vec2f(12.9898,78.233))) * vec3f(43758.5453,22578.1459,19642.349));
+    return vec4f(select(vec3f(0.2), vec3f(0.03) + (n-0.5)*0.03, p.y >= 24.0), 1.0);
+   }`,
+				),
+			),
+		);
+		return await estimateNoise(gpu, source);
+	} finally {
+		source.color.dispose();
 		gpu.dispose();
 	}
 }
