@@ -160,7 +160,7 @@ function LayerRow({
 				data-selected={selected === layer.id}
 				data-hidden={!visible}
 				style={{ paddingLeft: depth * 12 }}
-				className="group flex h-10 items-center pointer-coarse:h-11 rounded-md pr-1 text-neutral-300 data-[selected=false]:hover:bg-white/5 data-[selected=true]:bg-neutral-700 data-[hidden=true]:text-neutral-500"
+				className="group mb-0.5 flex h-9.5 items-center last:mb-0 pointer-coarse:h-11 rounded-md pr-1 text-neutral-300 data-[selected=false]:hover:bg-white/5 data-[selected=true]:bg-neutral-700 data-[hidden=true]:text-neutral-500"
 			>
 				<button
 					type="button"
