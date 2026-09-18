@@ -160,7 +160,7 @@ function LayerRow({
 				data-selected={selected === layer.id}
 				data-hidden={!visible}
 				style={{ marginLeft: depth * 12 }}
-				className="group flex h-11 items-center rounded-md pr-1 text-neutral-300 data-[selected=true]:bg-neutral-700 data-[hidden=true]:text-neutral-500"
+				className="group flex h-10 items-center pointer-coarse:h-11 rounded-md pr-1 text-neutral-300 data-[selected=true]:bg-neutral-700 data-[hidden=true]:text-neutral-500"
 			>
 				<button
 					type="button"
@@ -229,10 +229,9 @@ function LayerRow({
 					/>
 				)}
 			</div>
-			{expanded &&
-				layer.children
-					.toReversed()
-					.map((child) => (
+			{expanded && layer.children.length > 0 && (
+				<div className="relative before:pointer-events-none before:absolute before:inset-y-1 before:left-1.5 before:border-l before:border-neutral-600/50">
+					{layer.children.toReversed().map((child) => (
 						<LayerRow
 							key={child.id}
 							layer={child}
@@ -244,6 +243,8 @@ function LayerRow({
 							onSelect={onSelect}
 						/>
 					))}
+				</div>
+			)}
 		</>
 	);
 }
@@ -272,7 +273,7 @@ export function LayersControls({
 	return (
 		<section
 			aria-label="Layers"
-			className="flex h-[30%] min-h-24 max-h-72 shrink-0 flex-col border-b border-black bg-neutral-900"
+			className="flex h-[30%] min-h-24 max-h-72 shrink-0 flex-col border-b border-black bg-panel"
 			onKeyDown={(event) => {
 				const menu = event.currentTarget.querySelector<HTMLElement>(
 					"[popover]:popover-open",

@@ -45,7 +45,7 @@ export function DocumentProvider({
 }) {
 	const size = useStore(value.scene, (scene) => scene.frame.size);
 	const camera = useMemo(createCamera, [size[0], size[1]]);
-	const [width, onWidthChange] = useState(288);
+	const [width, onWidthChange] = useState(320);
 	const [panel, panelRef] = useState<HTMLElement | null>(null);
 	return (
 		<Session
