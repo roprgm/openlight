@@ -205,6 +205,31 @@ test("Bayer filtering cleans noisier sky corners without removing lawn color", a
 	expect(
 		difference(filtered, clean, [100, 660, 600, 210]).chromaMse,
 	).toBeLessThan(5);
+	// Stronger noise exposed a false corrugated texture in otherwise smooth sky.
+	await loadFixture(page, "denoise-noisy.rough-surfaces.dng");
+	await page.evaluate(() => {
+		window.openlight.setAdjustments({ exposure: 2 });
+		window.openlight.setNoiseReduction(100);
+	});
+	const rough = await readPixels(page);
+	expect(difference(rough, clean, [100, 100, 650, 450]).mse).toBeLessThan(2);
+	let ripple = 0;
+	for (let y = 100; y < 550; y++) {
+		for (let x = 100; x < 748; x++) {
+			const i = (y * rough.width + x) * 4;
+			let residual = 0;
+			for (let c = 0; c < 3; c++) {
+				residual +=
+					(rough.pixels[i + c] -
+						clean.pixels[i + c] -
+						rough.pixels[i + 8 + c] +
+						clean.pixels[i + 8 + c]) /
+					3;
+			}
+			ripple += residual * residual;
+		}
+	}
+	expect(ripple / (648 * 450)).toBeLessThan(2);
 });
 
 for (const format of ["png", "tif", "dng", "detail.dng", "correlated.png"]) {

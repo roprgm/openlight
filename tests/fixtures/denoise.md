@@ -71,3 +71,10 @@ span 0–1 across the image. Variance grows toward the upper-right corner while
 brightness stays comparable. Rounded sensor codes use black 512 and white 16383.
 This pair checks spatial noise estimation and preservation of a broad colored
 surface beside a different color, at exposure +2 EV. It contains no photo pixels.
+
+`denoise-noisy.rough-surfaces.dng` uses the same clean surface and seed, with
+noise standard deviation 0.008 instead of 0.002. It exposes false corrugated
+texture from under-regularizing the common Bayer component. The regression
+checks smooth-sky RGB error and the squared two-pixel horizontal difference
+of the mean-channel residual against the clean companion, at +2 EV / NR100.
+The existing detail fixtures separately guard against simply blurring everything.

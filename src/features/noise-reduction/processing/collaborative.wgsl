@@ -182,9 +182,9 @@ fn main(@builtin(workgroup_id) group: vec3u, @builtin(local_invocation_index) la
   workgroupBarrier();
   transformVariance(lane);
   if params.bayer != 0u {
-    // Preserve more shared Bayer detail; color differences retain full denoising.
-    // Residual broad chroma is cleaned after development, independently of luminance.
-    variances[lane] = dot(variances[lane], vec4f(0.25)) * vec4f(0.5, 1.0, 1.0, 1.0);
+    // A modest common-detail allowance avoids over-smoothing. Half variance left
+    // corrugated noise in flat areas; color differences retain full denoising.
+    variances[lane] = dot(variances[lane], vec4f(0.25)) * vec4f(0.75, 1.0, 1.0, 1.0);
   }
   workgroupBarrier();
   spatial(lane, false);

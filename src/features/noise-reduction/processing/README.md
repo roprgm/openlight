@@ -42,10 +42,12 @@ or RGB denoise for other sources → amount blend → adjustments → curves →
 its first development. The original sensor is preserved. It normalizes and packs
 four physical Bayer phases, estimates per-phase shot/read noise, and builds a
 32×32 spatial variance-gain field from those same samples. It runs both filter
-stages and copies the restored sensor codes into that private source. Half-strength
+stages and copies the restored sensor codes into that private source. Three-quarter-strength
 variance regularization on the shared Bayer component retains more common detail;
 color-difference components keep full regularization. This is a calibration
-tradeoff that can retain more luminance grain, not an exact noise model.
+tradeoff, not an exact noise model. The former half-strength setting left
+oscillating false texture in smooth noisy areas; full strength removed more weak
+texture. The intermediate setting reduces those artifacts without extra passes.
 The spatial field raises underestimated noise using local median residuals
 against the global fit, bounded to 1–4× variance. Images with fewer than 32×32
 statistical samples retain 1×. Bilinear
