@@ -8,7 +8,10 @@ export fn transferChroma(source: texture_2d<f32>, coarse: texture_2d<f32>, coars
   let coordinate = (vec2f(p) + 0.5) * 0.5 - 0.5;
   let base = vec2i(floor(coordinate));
   let fraction = fract(coordinate);
-  let noise = variance[u32(clamp(original.x * 0.5773502692, 0.0, 1.0) * 15.0)].xyz;
+  let brightness = clamp(original.x * 0.5773502692, 0.0, 1.0) * 15.0;
+  let lower = u32(brightness);
+  // Match the collaborative filter's continuous model; bin boundaries are not image edges.
+  let noise = mix(variance[lower], variance[min(lower + 1u, 15u)], fract(brightness)).xyz;
   var correction = vec2f(0.0);
   var weight = 0.0;
   for (var y = 0; y < 2; y++) {

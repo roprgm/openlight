@@ -34,6 +34,37 @@ async function readPixels(page: Page) {
 
 type Image = Awaited<ReturnType<typeof readPixels>>;
 
+test("chroma reconstruction stays continuous across noise bins and preserves luminance", async ({
+	page,
+}) => {
+	await page.goto("/tests/gpu.html");
+	const { before, after } = await page.evaluate(async () => {
+		const path = "/tests/chroma-transfer.ts";
+		const { renderChromaRamp } = (await import(
+			path
+		)) as typeof import("./chroma-transfer");
+		return renderChromaRamp();
+	});
+	expect(before[0]).toBeGreaterThan(0.005);
+	expect(after.every(Number.isFinite)).toBe(true);
+	const corrections = Array.from(
+		{ length: 128 },
+		(_, x) => after[x * 4] - before[x * 4],
+	);
+	expect(Math.max(...corrections.map(Math.abs))).toBeGreaterThan(0.0005);
+	for (let x = 1; x < corrections.length; x++) {
+		expect(Math.abs(corrections[x] - corrections[x - 1])).toBeLessThan(1e-5);
+	}
+	for (let i = 0; i < before.length; i += 4) {
+		const luminanceChange = [0.2627, 0.678, 0.0593].reduce(
+			(sum, weight, c) => sum + weight * (after[i + c] - before[i + c]),
+			0,
+		);
+		expect(Math.abs(luminanceChange)).toBeLessThan(1e-7);
+		expect(after[i + 3]).toBe(before[i + 3]);
+	}
+});
+
 /** RGB error against the clean image, plus per-channel bias to catch color shifts. */
 function difference(
 	image: Image,
