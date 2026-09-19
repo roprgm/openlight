@@ -31,7 +31,7 @@ export function CropEditor({ onClose }: { onClose: () => void }) {
 	const [ratio, setRatio] = useState<number | null>(
 		frame.size[0] / frame.size[1],
 	);
-	const sourceId = document.scene.getState().source;
+	const sourceId = document.scene.getState().layers[0].source;
 	const [width, height] = document.resources.get(sourceId).image.size;
 	const source: Point = [width, height];
 	function fitView() {
@@ -107,7 +107,7 @@ export function CropEditor({ onClose }: { onClose: () => void }) {
 						}
 					}}
 				>
-					<div className="flex-1 space-y-5 overflow-y-auto p-4">
+					<div className="space-y-5 p-4">
 						<label className="flex items-center justify-between text-sm text-neutral-400">
 							Aspect ratio
 							<Field className="relative w-24">

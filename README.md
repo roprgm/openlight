@@ -8,12 +8,13 @@ Image processing runs locally with WebGPU. Built with TypeScript and React; requ
 
 - Light and color adjustments, tone curves, clarity, sharpening, and vignette.
 - Color Mixer with eight hue, saturation, and luminance ranges.
+- Image adjustments, draggable effect layers, and editable linear/radial masks with child effects and Add/Subtract submasks.
 - Crop, rotate, straighten, flip, pan, and zoom.
 - Undo/redo, before/after comparison, RGB histogram, and clipping overlays.
 - Camera Raw XMP import; HEIC, TIFF at 16-bit and floating-point precision, and camera RAW/DNG with absolute white balance and As Shot reset.
 - PNG, JPEG, and WebP export with resizing, live preview, and file size.
 
-Documents currently live in memory; export saves a flattened image. Layers and Retouch modes are placeholders.
+Documents currently live in memory; export saves a flattened image. Layers support one locked base image and two levels of effects and masks. Curves, Color Mixer, Exposure, and Vignette can be added independently. Retouch remains a placeholder.
 
 RAW decoding and GPU development use [raw-webgpu](https://github.com/roprgm/raw-webgpu), which documents format support and limitations. OpenLight owns editing, history and preview/export lifetimes.
 

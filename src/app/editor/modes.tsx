@@ -3,10 +3,9 @@ import { PanelContent } from "@/components/editor/session";
 import { AdjustIcon } from "@/components/icons/adjust";
 import { CropIcon } from "@/components/icons/crop";
 import { ExportIcon } from "@/components/icons/export";
-import { LayersIcon } from "@/components/icons/layers";
 import { RetouchIcon } from "@/components/icons/retouch";
 import { CropEditor } from "@/features/crop/view";
-import { EditorActions } from "./actions";
+import { useGradientTool } from "@/features/layers/gradient-tool";
 import { AdjustPanel } from "./adjust";
 import { ExportMode } from "./export";
 
@@ -30,7 +29,6 @@ function PlaceholderPanel() {
 				<p className="grid flex-1 place-items-center text-neutral-500 text-sm">
 					Coming soon
 				</p>
-				<EditorActions />
 			</div>
 		</PanelContent>
 	);
@@ -57,17 +55,9 @@ function CropMode() {
 export const modes = [
 	adjust,
 	{
-		id: "layers",
-		label: "Layers",
-		key: "l",
-		Icon: LayersIcon,
-		group: "edit",
-		Panel: PlaceholderPanel,
-	},
-	{
 		id: "retouch",
 		label: "Retouch",
-		key: "r",
+		key: "t",
 		Icon: RetouchIcon,
 		group: "edit",
 		Panel: PlaceholderPanel,
@@ -93,6 +83,11 @@ export const modes = [
 export type Mode = (typeof modes)[number];
 
 export function ModeProvider({ children }: { children: ReactNode }) {
-	const [mode, setMode] = useState<Mode>(adjust);
+	const [mode, updateMode] = useState<Mode>(adjust);
+	const tool = useGradientTool();
+	function setMode(mode: Mode) {
+		tool.close();
+		updateMode(mode);
+	}
 	return <ModeContext value={{ mode, setMode }}>{children}</ModeContext>;
 }

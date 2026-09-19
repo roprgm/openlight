@@ -1,16 +1,11 @@
-import type { ComponentProps, ReactNode } from "react";
-import { useDocument, useScene } from "@/components/editor/session";
-import { Collapsible } from "@/components/ui/collapsible";
+import type { ReactNode } from "react";
+import { useDocument } from "@/components/editor/session";
 import { Slider } from "@/components/ui/slider";
 import type { Adjustments } from "@/core/document";
 import { setAdjustments } from "./edits";
-import {
-	adjustmentLimits,
-	adjustmentMinimums,
-	defaultAdjustments,
-} from "./model";
+import { adjustmentLimits, defaultAdjustments } from "./model";
 
-const stops = {
+const stops: Partial<Record<keyof Adjustments, string[]>> = {
 	incrementalTemperature: ["#4a6fc3", "#c3b84a"],
 	incrementalTint: ["#5ab34a", "#b34ab3"],
 	saturation: [
@@ -22,90 +17,60 @@ const stops = {
 	],
 };
 
-type AdjustmentSliderProps = Pick<
-	ComponentProps<typeof Slider>,
-	"label" | "step" | "stops"
-> & {
-	name: keyof Adjustments;
-};
-
-function AdjustmentSlider({ name, ...props }: AdjustmentSliderProps) {
-	const value = useScene((scene) => scene.adjustments[name]);
-	const document = useDocument();
-	return (
-		<Slider
-			{...props}
-			value={value}
-			onChange={(value) => setAdjustments(document, { [name]: value })}
-			defaultValue={defaultAdjustments[name]}
-			min={adjustmentMinimums[name] ?? -adjustmentLimits[name]}
-			max={adjustmentLimits[name]}
-		/>
-	);
-}
-
-export function TemperatureControls() {
-	return (
-		<>
-			<AdjustmentSlider
-				name="incrementalTemperature"
-				label="Temp"
-				stops={stops.incrementalTemperature}
-			/>
-			<AdjustmentSlider
-				name="incrementalTint"
-				label="Tint"
-				stops={stops.incrementalTint}
-			/>
-		</>
-	);
-}
+const controls = [
+	["exposure", "Exposure"],
+	["contrast", "Contrast"],
+	["highlights", "Highlights"],
+	["shadows", "Shadows"],
+	["whites", "Whites"],
+	["blacks", "Blacks"],
+	["incrementalTemperature", "Temp"],
+	["incrementalTint", "Tint"],
+	["vibrance", "Vibrance"],
+	["saturation", "Saturation"],
+] as const;
 
 export function AdjustmentControls({
-	curves,
-	colorMixer,
+	id,
+	adjustments,
 	temperature,
 }: {
-	curves: ReactNode;
-	colorMixer: ReactNode;
-	temperature: ReactNode;
+	id: string;
+	adjustments: Readonly<Adjustments>;
+	temperature?: ReactNode;
 }) {
+	const document = useDocument();
 	return (
-		<>
-			<Collapsible title="Light">
-				<div className="flex flex-col gap-2">
-					<AdjustmentSlider name="exposure" label="Exposure" step={0.01} />
-					<AdjustmentSlider name="contrast" label="Contrast" />
-					<AdjustmentSlider name="highlights" label="Highlights" />
-					<AdjustmentSlider name="shadows" label="Shadows" />
-					<AdjustmentSlider name="whites" label="Whites" />
-					<AdjustmentSlider name="blacks" label="Blacks" />
-				</div>
-				<div className="pt-3">{curves}</div>
-			</Collapsible>
-			<Collapsible title="Color">
-				<div className="flex flex-col gap-2">
-					{temperature}
-					<AdjustmentSlider
-						name="vibrance"
-						label="Vibrance"
-						stops={stops.saturation}
+		<section className="flex flex-col gap-2 p-3">
+			{controls.map(([name, label]) => {
+				if (temperature && name === "incrementalTemperature") {
+					return (
+						<div key={name} className="flex flex-col gap-2">
+							{temperature}
+						</div>
+					);
+				}
+				if (temperature && name === "incrementalTint") {
+					return null;
+				}
+				const step = name === "exposure" ? 0.01 : 1;
+				const gradient = name === "vibrance" ? stops.saturation : stops[name];
+				return (
+					<Slider
+						key={name}
+						label={label}
+						value={adjustments[name]}
+						step={step}
+						stops={gradient}
+						min={-adjustmentLimits[name]}
+						max={adjustmentLimits[name]}
+						defaultValue={defaultAdjustments[name]}
+						onChange={(value) =>
+							setAdjustments(document, { [name]: value }, id)
+						}
 					/>
-					<AdjustmentSlider
-						name="saturation"
-						label="Saturation"
-						stops={stops.saturation}
-					/>
-				</div>
-			</Collapsible>
-			{colorMixer}
-			<Collapsible title="Details">
-				<div className="flex flex-col gap-2">
-					<AdjustmentSlider name="clarity" label="Clarity" />
-					<AdjustmentSlider name="sharpening" label="Sharpening" />
-					<AdjustmentSlider name="sharpenRadius" label="Radius" step={0.1} />
-				</div>
-			</Collapsible>
-		</>
+				);
+			})}
+		</section>
 	);
 }

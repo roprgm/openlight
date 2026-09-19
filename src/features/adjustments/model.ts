@@ -11,9 +11,6 @@ export const defaultAdjustments: Adjustments = {
 	blacks: 0,
 	vibrance: 0,
 	saturation: 0,
-	clarity: 0,
-	sharpening: 0,
-	sharpenRadius: 1,
 };
 
 export const adjustmentLimits: Adjustments = {
@@ -27,12 +24,4 @@ export const adjustmentLimits: Adjustments = {
 	blacks: 100,
 	vibrance: 100,
 	saturation: 100,
-	clarity: 100,
-	sharpening: 150,
-	sharpenRadius: 3,
-};
-
-export const adjustmentMinimums: Partial<Adjustments> = {
-	sharpening: 0,
-	sharpenRadius: 0.5,
 };

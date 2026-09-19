@@ -38,7 +38,9 @@ test("edit a photo, inspect the preview and histograms, undo changes, and export
 	await page
 		.locator('input[type="file"]')
 		.setInputFiles("tests/fixtures/photo.svg");
-	const canvas = page.locator("canvas");
+	const canvas = page
+		.getByRole("region", { name: "Image canvas" })
+		.locator("canvas");
 	const output = page
 		.getByLabel("output histogram", { exact: true })
 		.locator("polyline")
@@ -52,25 +54,19 @@ test("edit a photo, inspect the preview and histograms, undo changes, and export
 	const initial = await state();
 	expect((await readImage(page)).center).toEqual([128, 128, 128, 255]);
 
-	await test.step("adjustment sections collapse independently without changing the scene", async () => {
-		for (const [title, label] of [
-			["Light", "Exposure"],
-			["Color", "Temp"],
-			["Details", "Clarity"],
-		]) {
-			const summary = page.getByRole("button", { name: title, exact: true });
-			const control = page.getByRole("slider", { name: label, exact: true });
-			await summary.click();
-			await expect(summary).toHaveAttribute("aria-expanded", "false");
-			await expect(control).toBeHidden();
-			if (title === "Light")
-				await expect(
-					page.getByRole("region", { name: "Curves", exact: true }),
-				).toBeHidden();
-			expect(await state()).toEqual(initial);
-			await summary.press("Enter");
-			await expect(control).toBeVisible();
-		}
+	await test.step("image adjustments share a single section", async () => {
+		await expect(
+			page.getByRole("heading", { name: "Adjustments", exact: true }),
+		).toBeVisible();
+		await expect(
+			page.getByRole("slider", { name: "Clarity", exact: true }),
+		).toHaveCount(0);
+		await expect(
+			page.getByRole("slider", { name: "Exposure", exact: true }),
+		).toBeVisible();
+		await expect(
+			page.getByRole("slider", { name: "Temp", exact: true }),
+		).toBeVisible();
 	});
 
 	await test.step("zoomed rendering reaches the edges of the editor viewport", async () => {
@@ -309,6 +305,11 @@ test("edit a photo, inspect the preview and histograms, undo changes, and export
 	await colorMixerEditing(page);
 
 	await test.step("clarity changes local contrast and histogram, then undoes and resets", async () => {
+		await page.getByRole("button", { name: "Add effect", exact: true }).click();
+		await page
+			.locator("[popover]:popover-open")
+			.getByRole("button", { name: "Details", exact: true })
+			.click();
 		const field = page.getByRole("textbox", { name: "Clarity", exact: true });
 		const slider = page.getByRole("slider", { name: "Clarity", exact: true });
 		await field.fill("100");
@@ -360,13 +361,9 @@ test("edit a photo, inspect the preview and histograms, undo changes, and export
 			window.openlight.setAdjustments({ exposure: -1 }),
 		);
 		const adjusted = await readImage(page);
+		await page.getByRole("button", { name: "Curves", exact: true }).click();
 		const graph = page.getByRole("application", { name: "Tone curve" });
 		await graph.scrollIntoViewIfNeeded();
-		const input = page
-			.getByLabel("input histogram", { exact: true })
-			.locator("polyline");
-		await expect(input).toHaveAttribute("points", /,\d{1,2}\./);
-		const inputBefore = await input.getAttribute("points");
 		const before = await page.evaluate(
 			() => window.openlight.getState().history.undoCount,
 		);
@@ -380,7 +377,6 @@ test("edit a photo, inspect the preview and histograms, undo changes, and export
 		);
 		await expect(graph.locator("circle")).toHaveCount(3);
 		expect((await state()).history.undoCount).toBe(before + 1);
-		await expect(input).toHaveAttribute("points", inputBefore ?? "");
 		const curved = await readImage(page);
 		const curve = await page.evaluate(
 			() => window.openlight.getState().toneCurve,
@@ -429,21 +425,26 @@ test("edit a photo, inspect the preview and histograms, undo changes, and export
 		}
 	});
 
+	await page.getByRole("button", { name: "photo.svg", exact: true }).click();
 	await test.step("mode bar switches panels by click, arrow keys, and letters", async () => {
 		const modes = page.getByRole("tablist", { name: "Editor mode" });
 		const selected = modes.getByRole("tab", { selected: true });
 		await expect(selected).toHaveText("Adjust");
-		await modes.getByRole("tab", { name: "Layers" }).click();
-		await expect(selected).toHaveText("Layers");
-		await expect(page.getByText("Coming soon")).toBeVisible();
-		await page.keyboard.press("ArrowRight");
+		await modes.getByRole("tab", { name: "Retouch" }).click();
 		await expect(selected).toHaveText("Retouch");
-		await expect(selected).toBeFocused();
-		await page.keyboard.press("ArrowLeft");
+		await expect(
+			page.getByRole("region", { name: "Layers", exact: true }),
+		).toBeVisible();
+		await expect(
+			page
+				.getByRole("button", { name: "photo.svg", exact: true })
+				.locator(".."),
+		).toHaveAttribute("data-selected", "true");
 		await page.keyboard.press("ArrowLeft");
 		await expect(selected).toHaveText("Adjust");
-		await page.keyboard.press("l");
-		await expect(selected).toHaveText("Layers");
+		await expect(selected).toBeFocused();
+		await page.keyboard.press("r");
+		await expect(selected).toHaveText("Retouch");
 		await page.keyboard.press("a");
 		await expect(selected).toHaveText("Adjust");
 		await expect(page.getByRole("slider", { name: "Exposure" })).toBeVisible();
@@ -892,6 +893,8 @@ test("edit a photo, inspect the preview and histograms, undo changes, and export
 				shadows: 30,
 				whites: 10,
 				blacks: -5,
+			});
+			window.openlight.setDetails({
 				clarity: -50,
 				sharpening: 100,
 				sharpenRadius: 1,

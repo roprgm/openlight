@@ -1,11 +1,27 @@
 import type { Workspace } from "@/app/workspace";
 import { RendererProvider } from "@/components/editor/pipeline";
-import { DocumentProvider, EditorPanel } from "@/components/editor/session";
+import {
+	DocumentProvider,
+	EditorPanel,
+	useDocument,
+} from "@/components/editor/session";
 import ResizablePanel from "@/components/ui/resizable-panel";
 import Spinner from "@/components/ui/spinner";
+import type { Gradient, ProcessingLayer } from "@/core/document";
+import { findLayer } from "@/core/document";
+import { LayersControls } from "@/features/layers/controls";
+import { addLayer } from "@/features/layers/edits";
+import {
+	GradientProvider,
+	useGradientTool,
+} from "@/features/layers/gradient-tool";
+import { useShortcuts } from "@/hooks/use-shortcuts";
+import { EditorActions } from "./actions";
 import { EditorCanvas } from "./canvas";
+import { ImageHistogram } from "./histogram";
+import { createLayer } from "./layers";
 import { ModeRail } from "./mode-rail";
-import { ModeProvider, useMode } from "./modes";
+import { ModeProvider, modes, useMode } from "./modes";
 import { createEditorRenderer } from "./renderer";
 
 function ModeView() {
@@ -21,13 +37,76 @@ function ModeView() {
 	);
 }
 
-function DocumentEditor() {
+function EditorSidebar() {
+	const { setMode } = useMode();
+	const tool = useGradientTool();
+	useShortcuts({
+		l: () => {
+			setMode(modes[0]);
+			tool.draw();
+		},
+		r: () => {
+			setMode(modes[0]);
+			tool.draw("radial");
+		},
+	});
+	const document = useDocument();
+	function add(kind: ProcessingLayer["kind"]) {
+		const scene = document.scene.getState();
+		const selected = findLayer(
+			scene.layers,
+			document.selection.getState().layerId,
+		);
+		const size = document.resources.get(scene.layers[0].source).image.size;
+		const parentId =
+			selected?.kind === "mask" && scene.layers.includes(selected)
+				? selected.id
+				: undefined;
+		addLayer(document, createLayer(kind, [size[0], size[1]]), parentId);
+	}
 	return (
-		<ModeProvider>
-			<ModeView />
-			<EditorPanel />
-			<ModeRail />
-		</ModeProvider>
+		<EditorPanel footer={<EditorActions />}>
+			<ImageHistogram />
+			<LayersControls onSelect={() => setMode(modes[0])} onAdd={add} />
+		</EditorPanel>
+	);
+}
+
+function DocumentEditor() {
+	const document = useDocument();
+	function createMask(
+		mask: Gradient,
+		target: { parentId?: string; operation: "add" | "subtract" },
+	) {
+		const scene = document.scene.getState();
+		const size = document.resources.get(scene.layers[0].source).image.size;
+		const layer = createLayer("mask", [size[0], size[1]]);
+		if (!target.parentId) {
+			const selected = document.selection.getState().layerId;
+			const root = scene.layers.find((item) => findLayer([item], selected));
+			if (root) {
+				document.selectLayer(root.id);
+			}
+		}
+		addLayer(
+			document,
+			{
+				...layer,
+				name: mask.kind === "radial" ? "Radial Gradient" : "Linear Gradient",
+				mask,
+				operation: target.operation,
+			},
+			target.parentId,
+		);
+	}
+	return (
+		<GradientProvider onCreate={createMask}>
+			<ModeProvider>
+				<ModeView />
+				<EditorSidebar />
+				<ModeRail />
+			</ModeProvider>
+		</GradientProvider>
 	);
 }
 

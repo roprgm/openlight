@@ -4,7 +4,6 @@ import { createDocument, createResources } from "@/core/document";
 import decode, { canDecode } from "@/core/image/decode";
 import { imageFrame } from "@/core/image/frame";
 import { defaultAdjustments } from "@/features/adjustments/model";
-import { defaultCurve } from "@/features/tone-curves/curve";
 import type { FileLoader } from "./registry";
 
 export function createImageLoader(gpu: Gpu, workspace: Workspace): FileLoader {
@@ -22,10 +21,17 @@ export function createImageLoader(gpu: Gpu, workspace: Workspace): FileLoader {
 				return createDocument(
 					{
 						frame: imageFrame(decoded.image.size),
-						whiteBalance: decoded.raw?.asShot,
-						source,
-						adjustments: { ...defaultAdjustments },
-						toneCurve: defaultCurve,
+						layers: [
+							{
+								kind: "image",
+								name: file.name,
+								children: [],
+								id: crypto.randomUUID(),
+								whiteBalance: decoded.raw?.asShot,
+								source,
+								adjustments: { ...defaultAdjustments },
+							},
+						],
 					},
 					resources,
 				);

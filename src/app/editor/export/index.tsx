@@ -211,7 +211,7 @@ export function ExportMode() {
 			<PanelContent>
 				<section
 					aria-label="Export settings"
-					className="flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto p-4"
+					className="flex flex-col gap-5 p-4"
 				>
 					<FormatSelect value={format} onChange={setFormat} />
 					{format.lossy && (

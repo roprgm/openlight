@@ -1,9 +1,10 @@
 import type { Gpu, Timer } from "vgpu";
-import type { Scene } from "@/core/document";
+import { type Scene, walkLayers } from "@/core/document";
 import type { ImageSource, WhiteBalance } from "@/core/image";
 import { createRenderGraph } from "./graph";
 import { input, type RenderImage } from "./node";
 
+export { mixAdjustment } from "./blend";
 export { type Clipping, createDisplay, type View } from "./display";
 export {
 	input,
@@ -26,7 +27,6 @@ export type SceneProcessing = (
 	scene: Scene,
 ) => {
 	original: RenderImage;
-	input: RenderImage;
 	full: RenderImage;
 	output: RenderImage;
 };
@@ -47,7 +47,6 @@ export function createRenderer(
 	const release = resource.retain();
 	const raw = resource.raw?.createPass();
 	let original = source;
-	let previewInput = source;
 	let full = source;
 	const listeners = new Set<() => void>();
 	let rendered = false;
@@ -56,11 +55,18 @@ export function createRenderer(
 	let next: Scene | undefined;
 	let pending: Promise<void> | undefined;
 	let disposed = false;
+	let instances = new Set<string>();
 	function render(scene: Scene) {
+		const active = new Set(walkLayers(scene.layers).map((layer) => layer.id));
+		for (const id of instances) {
+			if (!active.has(id)) {
+				graph.release(`layer/${id}/`);
+			}
+		}
+		instances = active;
 		const images = compose(input(raw?.render() ?? source), scene);
-		[original, previewInput, full, output] = graph.render([
+		[original, full, output] = graph.render([
 			images.original,
-			images.input,
 			images.full,
 			images.output,
 		]);
@@ -74,7 +80,7 @@ export function createRenderer(
 		while (next && !disposed) {
 			const scene = next;
 			next = undefined;
-			const selected = scene.whiteBalance ?? resource.raw?.asShot;
+			const selected = scene.layers[0].whiteBalance ?? resource.raw?.asShot;
 			if (raw && selected && !sameBalance(balance, selected)) {
 				await raw.prepare(selected);
 				if (disposed) {
@@ -113,7 +119,6 @@ export function createRenderer(
 
 	return {
 		originalImage: () => original,
-		inputImage: () => previewInput,
 		fullImage: () => full,
 		outputImage: () => output,
 		inspect: graph.inspect,

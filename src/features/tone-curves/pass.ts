@@ -3,11 +3,11 @@ import { node } from "@/core/renderer";
 import { sampleCurve } from "./curve";
 import shader from "./curves.wgsl";
 
-export function toneCurves(points: ToneCurve) {
+export function toneCurves(points: ToneCurve, name = "curves") {
 	if (points.every((point) => point.x === point.y)) {
 		return;
 	}
-	return node("curves", shader, {
+	return node(name, shader, {
 		storage: { curve: sampleCurve(points, 1024) },
 	});
 }

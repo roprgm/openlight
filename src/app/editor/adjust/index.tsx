@@ -1,99 +1,92 @@
-import { useEffect, useMemo } from "react";
-import { useGpu } from "vgpu-react";
-import { EditorActions } from "@/app/editor/actions";
-import { useRenderer } from "@/components/editor/pipeline";
+import { useStore } from "zustand";
 import {
 	PanelContent,
 	useDocument,
 	useScene,
 } from "@/components/editor/session";
-import {
-	AdjustmentControls,
-	TemperatureControls,
-} from "@/features/adjustments/controls";
+import { Slider } from "@/components/ui/slider";
+import { findLayer, type Layer, walkLayers } from "@/core/document";
+import { AdjustmentControls } from "@/features/adjustments/controls";
 import { ColorMixerControls } from "@/features/color-mixer/controls";
-import { Histogram } from "@/features/histogram";
-import { createHistogram } from "@/features/histogram/histogram";
+import { DetailsControls } from "@/features/details/controls";
+import { setExposure } from "@/features/layers/edits";
 import { setToneCurve } from "@/features/tone-curves/edits";
 import { ToneCurves } from "@/features/tone-curves/tone-curves";
 import { VignetteControls } from "@/features/vignette/controls";
 import { WhiteBalanceControls } from "@/features/white-balance/controls";
 import { useEditGesture } from "@/hooks/use-edit-gesture";
-import { ClippingControls } from "./clipping-controls";
 
-const histogramColors = ["#f25445", "#6bd175", "#5c8ffa"] as const;
-const curveHistogramColors = ["#a3a3a3"] as const;
-
-function ColorTemperatureControls() {
+function SelectedControls({ layer }: { layer: Layer }) {
 	const document = useDocument();
-	const source = useScene((scene) => scene.source);
-	if (document.resources.get(source).raw) {
-		return <WhiteBalanceControls />;
+	switch (layer.kind) {
+		case "details":
+			return <DetailsControls id={layer.id} details={layer.details} />;
+		case "image":
+			return (
+				<AdjustmentControls
+					id={layer.id}
+					adjustments={layer.adjustments}
+					temperature={
+						document.resources.get(layer.source).raw && <WhiteBalanceControls />
+					}
+				/>
+			);
+		case "color-mixer":
+			return <ColorMixerControls id={layer.id} mixer={layer.colorMixer} />;
+		case "curves":
+			return (
+				<div className="p-3">
+					<ToneCurves
+						points={layer.toneCurve}
+						onChange={(points) => setToneCurve(document, points, layer.id)}
+					/>
+				</div>
+			);
+		case "vignette":
+			return <VignetteControls id={layer.id} vignette={layer.vignette} />;
+		case "exposure":
+			return (
+				<section className="p-3">
+					<Slider
+						label="Exposure"
+						value={layer.exposure}
+						min={-5}
+						max={5}
+						step={0.01}
+						defaultValue={0}
+						onChange={(value) => setExposure(document, layer.id, value)}
+					/>
+				</section>
+			);
+		case "mask":
+			return (
+				<AdjustmentControls id={layer.id} adjustments={layer.adjustments} />
+			);
 	}
-	return <TemperatureControls />;
-}
-
-function ToneCurvesPanel({
-	histogram,
-}: {
-	histogram: ReturnType<typeof createHistogram>;
-}) {
-	const renderer = useRenderer();
-	const toneCurve = useScene((scene) => scene.toneCurve);
-	const document = useDocument();
-	return (
-		<ToneCurves
-			points={toneCurve}
-			onChange={(points) => setToneCurve(document, points)}
-		>
-			<Histogram
-				histogram={histogram}
-				image={renderer.inputImage}
-				subscribe={renderer.subscribe}
-				colors={curveHistogramColors}
-				working
-				fillOpacity={0.65}
-				aria-label="input histogram"
-				className="pointer-events-none absolute inset-0 h-full w-full opacity-25"
-			/>
-		</ToneCurves>
-	);
 }
 
 export function AdjustPanel() {
-	const gpu = useGpu();
 	const document = useDocument();
 	const gesture = useEditGesture(document.history);
-	const renderer = useRenderer();
-	const histogram = useMemo(() => createHistogram(gpu), [gpu]);
-	useEffect(() => () => histogram.dispose(), [histogram]);
+	const selected = useStore(document.selection, (state) => state.layerId);
+	const layer = useScene(
+		(scene) => findLayer(scene.layers, selected) ?? scene.layers[0],
+	);
+	const parent = useScene((scene) =>
+		walkLayers(scene.layers).find((item) =>
+			item.children.some((child) => child.id === layer.id),
+		),
+	);
+	// A child mask edits coverage; the parent owns the resulting adjustments.
+	const target =
+		layer.kind === "mask" && parent?.kind === "mask" ? parent : layer;
 	return (
 		<PanelContent>
-			<div className="flex min-h-0 flex-1 flex-col divide-y divide-black">
-				<div
-					{...gesture}
-					className="min-h-0 flex-1 divide-y divide-black overflow-y-auto"
-				>
-					<section className="relative bg-neutral-900 p-0.5 pb-0">
-						<ClippingControls />
-						<Histogram
-							histogram={histogram}
-							image={renderer.outputImage}
-							subscribe={renderer.subscribe}
-							colors={histogramColors}
-							fillOpacity={0.2}
-							className="h-30 w-full"
-							aria-label="output histogram"
-						/>
-					</section>
-					<AdjustmentControls
-						curves={<ToneCurvesPanel histogram={histogram} />}
-						colorMixer={<ColorMixerControls />}
-						temperature={<ColorTemperatureControls />}
-					/>
-					<VignetteControls />
-				</div>
-				<EditorActions />
+			<div {...gesture}>
+				<h2 className="flex h-10 items-center border-b border-black/50 px-3 text-xs font-medium text-neutral-200">
+					Adjustments
+				</h2>
+				<SelectedControls layer={target} />
 			</div>
 		</PanelContent>
 	);

@@ -111,7 +111,7 @@ export async function exportImage(
 	options: ExportOptions = {},
 ) {
 	const scene = document.scene.getState();
-	const source = document.resources.get(scene.source);
+	const source = document.resources.get(scene.layers[0].source);
 	const renderer = createEditorRenderer(gpu, source);
 	try {
 		await renderer.update(scene);

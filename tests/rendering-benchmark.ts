@@ -1,18 +1,20 @@
 import { effect, frame, init, target, timer } from "vgpu";
 import { encodeImage } from "@/app/editor/export/export-image";
 import { createEditorRenderer } from "@/app/editor/renderer";
-import type { Scene } from "@/core/document";
+import type { Gradient, ProcessingLayer, Scene } from "@/core/document";
 import { createImageSource } from "@/core/image";
 import { imageFrame } from "@/core/image/frame";
 import { defaultAdjustments } from "@/features/adjustments/model";
-import { defaultCurve } from "@/features/tone-curves/curve";
 
 export type Workload =
 	| "neutral"
 	| "color-mixer"
 	| "vignette"
 	| "detail"
-	| "pipeline";
+	| "pipeline"
+	| "masked-exposure"
+	| "radial-exposure"
+	| "layer-stack";
 
 function summarize(values: number[]) {
 	const sorted = values.toSorted((a, b) => a - b);
@@ -54,35 +56,109 @@ export async function benchmarkRendering(
 	});
 	const combined = workload === "pipeline";
 	const detail = combined || workload === "detail";
-	const scene: Scene = {
-		source: "benchmark",
-		frame: imageFrame(size),
-		adjustments: {
-			...defaultAdjustments,
-			exposure: 0.25,
-			contrast: 10,
-			clarity: detail ? 50 : 0,
-			sharpening: detail ? 75 : 0,
-		},
-		toneCurve: combined
-			? [
-					{ x: 0, y: 0 },
-					{ x: 0.5, y: 0.6 },
-					{ x: 1, y: 1 },
-				]
-			: defaultCurve,
-		vignette:
-			combined || workload === "vignette"
-				? { intensity: 80, softness: 60 }
-				: undefined,
-		colorMixer:
-			combined || workload === "color-mixer"
+	const effects: ProcessingLayer[] = [];
+	const common = { visible: true, opacity: 1, children: [] };
+	if (detail) {
+		effects.push({
+			...common,
+			id: "benchmark-details",
+			name: "Details",
+			kind: "details",
+			details: { clarity: 50, sharpening: 75, sharpenRadius: 1 },
+		});
+	}
+	if (combined || workload === "color-mixer") {
+		effects.push({
+			...common,
+			id: "benchmark-mixer",
+			name: "Color Mixer",
+			kind: "color-mixer",
+			colorMixer: {
+				hue: new Array<number>(8).fill(20),
+				saturation: new Array<number>(8).fill(25),
+				luminance: new Array<number>(8).fill(10),
+			},
+		});
+	}
+	if (combined) {
+		effects.push({
+			...common,
+			id: "benchmark-curve",
+			name: "Curves",
+			kind: "curves",
+			toneCurve: [
+				{ x: 0, y: 0 },
+				{ x: 0.5, y: 0.6 },
+				{ x: 1, y: 1 },
+			],
+		});
+	}
+	if (
+		workload === "masked-exposure" ||
+		workload === "radial-exposure" ||
+		workload === "layer-stack"
+	) {
+		const mask: Gradient =
+			workload === "radial-exposure"
 				? {
-						hue: new Array<number>(8).fill(20),
-						saturation: new Array<number>(8).fill(25),
-						luminance: new Array<number>(8).fill(10),
+						kind: "radial",
+						center: [size[0] / 2, size[1] / 2],
+						radius: [size[0] * 0.3, size[1] * 0.35],
+						angle: 20,
+						feather: 0.5,
 					}
-				: undefined,
+				: {
+						kind: "linear",
+						start: [0, size[1] * 0.2],
+						end: [0, size[1] * 0.8],
+					};
+		effects.push({
+			...common,
+			id: "benchmark-gradient",
+			name: "Gradient",
+			kind: "mask",
+			operation: "add",
+			adjustments: defaultAdjustments,
+			opacity: 0.75,
+			mask,
+			children: [
+				{
+					...common,
+					id: "benchmark-exposure",
+					name: "Exposure",
+					kind: "exposure",
+					exposure: 1,
+				},
+			],
+		});
+	}
+	if (combined || workload === "vignette" || workload === "layer-stack") {
+		effects.push({
+			...common,
+			id: "benchmark-vignette",
+			name: "Vignette",
+			kind: "vignette",
+			opacity: workload === "layer-stack" ? 0.6 : 1,
+			vignette: { intensity: 80, softness: 60 },
+		});
+	}
+	const scene: Scene = {
+		frame: imageFrame(size),
+		layers: [
+			{
+				kind: "image",
+				id: "benchmark-image",
+				name: "Benchmark",
+				source: "benchmark",
+				children: [],
+				adjustments: {
+					...defaultAdjustments,
+					exposure: 0.25,
+					contrast: 10,
+				},
+			},
+			...effects,
+		],
 	};
 	const setupStart = performance.now();
 	let renderer = createEditorRenderer(gpu, source);

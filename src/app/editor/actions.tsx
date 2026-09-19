@@ -4,9 +4,9 @@ import { HistoryControls } from "./history";
 /** Document actions shared by mode panels. */
 export function EditorActions() {
 	return (
-		<div className="flex shrink-0 items-center gap-2 bg-panel p-3">
+		<footer className="flex shrink-0 items-center gap-2 border-t border-black bg-panel p-3 shadow-ridge">
 			<HistoryControls />
 			<ComparisonControl />
-		</div>
+		</footer>
 	);
 }

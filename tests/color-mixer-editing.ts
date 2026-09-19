@@ -5,6 +5,11 @@ import { box, drag } from "./pointer";
 export async function colorMixerEditing(page: Page) {
 	const state = () => page.evaluate(() => window.openlight.getState());
 	await test.step("color mixer switches channels, groups vertical drags, exports selected colors and resets", async () => {
+		await page.getByRole("button", { name: "Add effect", exact: true }).click();
+		await page
+			.locator("[popover]:popover-open")
+			.getByRole("button", { name: "Color Mixer", exact: true })
+			.click();
 		const before = (await state()).history.undoCount;
 		const hue = page.getByRole("slider", { name: "Blue hue", exact: true });
 		await hue.scrollIntoViewIfNeeded();
@@ -76,4 +81,5 @@ export async function colorMixerEditing(page: Page) {
 		await page.keyboard.press("ControlOrMeta+Shift+z");
 		await expect(saturation).toHaveValue("0");
 	});
+	await page.getByRole("button", { name: "photo.svg", exact: true }).click();
 }
