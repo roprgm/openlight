@@ -1,6 +1,6 @@
 import { useStore } from "zustand";
 import { useDocument, useScene } from "@/components/editor/session";
-import { ScrubInput } from "@/components/ui/scrub-input";
+import { Slider } from "@/components/ui/slider";
 import { findLayer, type MaskLayer, walkLayers } from "@/core/document";
 import { useEditGesture } from "@/hooks/use-edit-gesture";
 import { setLayer, setLayerMask, setMaskOperation } from "./edits";
@@ -19,13 +19,14 @@ function MaskOptions({ layer }: { layer: MaskLayer }) {
 	return (
 		<>
 			{layer.mask.kind === "radial" && (
-				<ScrubInput
-					variant="text"
-					className="w-28 gap-2 [&>span]:w-auto"
+				<Slider
 					label="Feather"
 					value={layer.mask.feather * 100}
 					min={0}
 					max={100}
+					defaultValue={50}
+					unit="%"
+					variant="toolbar"
 					onChange={(value) => {
 						if (layer.mask.kind === "radial") {
 							setLayerMask(document, layer.id, {
@@ -37,12 +38,12 @@ function MaskOptions({ layer }: { layer: MaskLayer }) {
 				/>
 			)}
 			{isSubmask && (
-				<label className="flex items-center gap-2 text-xs text-neutral-400">
-					Combine
+				<label className="flex flex-col gap-1 text-neutral-500 text-xs">
+					<span>Combine</span>
 					<select
 						aria-label="Mask operation"
 						value={layer.operation}
-						className="rounded bg-neutral-800 px-2 py-1"
+						className="h-7 rounded border border-black bg-neutral-800 px-2 text-neutral-200 shadow-groove"
 						onChange={(event) => {
 							const operation = event.target.value;
 							if (operation === "add" || operation === "subtract") {
@@ -56,33 +57,36 @@ function MaskOptions({ layer }: { layer: MaskLayer }) {
 				</label>
 			)}
 			{!parent && (
-				<div className="flex items-center gap-1 border-l border-black/50 pl-2">
-					{(["add", "subtract"] as const).map((operation) => {
-						const label =
-							operation === "add" ? "Add to mask" : "Subtract from mask";
-						const text = operation === "add" ? "Add" : "Subtract";
-						return (
-							<LayerMenu
-								className="w-auto px-2 pointer-coarse:w-auto"
-								key={operation}
-								label={label}
-								icon={<span>{text}</span>}
-							>
-								<button
-									type="submit"
-									onClick={() => tool.add(layer.id, operation, "linear")}
+				<div className="flex flex-col gap-0.5 text-neutral-500 text-xs">
+					<span>Mask</span>
+					<div className="flex items-center gap-1">
+						{(["add", "subtract"] as const).map((operation) => {
+							const label =
+								operation === "add" ? "Add to mask" : "Subtract from mask";
+							const text = operation === "add" ? "Add" : "Subtract";
+							return (
+								<LayerMenu
+									className="h-7 w-auto px-2 pointer-coarse:h-10 pointer-coarse:w-auto"
+									key={operation}
+									label={label}
+									icon={<span>{text}</span>}
 								>
-									Linear gradient
-								</button>
-								<button
-									type="submit"
-									onClick={() => tool.add(layer.id, operation, "radial")}
-								>
-									Radial gradient
-								</button>
-							</LayerMenu>
-						);
-					})}
+									<button
+										type="submit"
+										onClick={() => tool.add(layer.id, operation, "linear")}
+									>
+										Linear gradient
+									</button>
+									<button
+										type="submit"
+										onClick={() => tool.add(layer.id, operation, "radial")}
+									>
+										Radial gradient
+									</button>
+								</LayerMenu>
+							);
+						})}
+					</div>
 				</div>
 			)}
 		</>
@@ -100,20 +104,23 @@ export function LayerToolbar() {
 		<fieldset
 			aria-label="Layer options"
 			{...gesture}
-			className="flex h-22 min-w-0 shrink-0 flex-wrap content-center items-center gap-x-4 gap-y-1 overflow-x-auto md:h-11 md:flex-nowrap [&>*]:shrink-0 border-b border-black bg-panel px-3 py-1 text-xs text-neutral-400 shadow-ridge"
+			className="flex h-16 min-w-0 shrink-0 items-center gap-4 overflow-x-auto border-b border-black bg-panel px-3 shadow-ridge [&>*]:shrink-0"
 		>
-			<span className="max-w-40 truncate text-neutral-300" title={layer.name}>
-				{layer.name}
-			</span>
+			<div className="flex min-w-24 max-w-40 flex-col gap-0.5">
+				<span className="text-neutral-500 text-xs">Layer</span>
+				<span className="truncate text-neutral-200 text-sm" title={layer.name}>
+					{layer.name}
+				</span>
+			</div>
 			{layer.kind !== "image" && (
-				<ScrubInput
+				<Slider
 					label="Opacity"
-					aria-label="Opacity"
-					variant="text"
-					className="w-28 gap-2 [&>span]:w-auto"
 					value={layer.opacity * 100}
 					min={0}
 					max={100}
+					defaultValue={100}
+					unit="%"
+					variant="toolbar"
 					onChange={(value) =>
 						setLayer(document, layer.id, { opacity: value / 100 })
 					}

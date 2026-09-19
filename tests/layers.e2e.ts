@@ -289,6 +289,12 @@ test("draw a mask, edit its child effects, reorder layers and undo", async ({
 		await page.keyboard.press("ControlOrMeta+z");
 		const options = page.getByRole("group", { name: "Layer options" });
 		await expect(
+			options.getByRole("slider", { name: "Opacity", exact: true }),
+		).toBeVisible();
+		await expect(
+			options.getByRole("slider", { name: "Feather", exact: true }),
+		).toBeVisible();
+		await expect(
 			options.getByRole("textbox", { name: "Feather", exact: true }),
 		).toBeVisible();
 		const panel = page.getByRole("region", { name: "Editor controls" });

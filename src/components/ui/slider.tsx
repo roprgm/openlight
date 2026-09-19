@@ -1,3 +1,5 @@
+import { cva } from "class-variance-authority";
+import { cn } from "cn";
 import { ScrubInput } from "./scrub-input";
 
 type SliderProps = {
@@ -11,7 +13,19 @@ type SliderProps = {
 	defaultValue?: number;
 	/** CSS color stops painting the bar left to right, e.g. ["#46f", "#fc3"]. */
 	stops?: string[];
+	unit?: string;
+	variant?: "panel" | "toolbar";
+	className?: string;
 };
+
+const root = cva("grid grid-cols-[1fr_auto] items-center text-neutral-400", {
+	variants: {
+		variant: {
+			panel: "gap-y-0.5 text-sm",
+			toolbar: "w-36 gap-x-3 gap-y-1 text-xs",
+		},
+	},
+});
 
 /** Labeled slider paired with a scrubbable numeric field. */
 export function Slider({
@@ -23,6 +37,9 @@ export function Slider({
 	step = 1,
 	defaultValue,
 	stops,
+	unit,
+	variant = "panel",
+	className,
 }: SliderProps) {
 	const gradient = stops && {
 		background: `linear-gradient(to right, ${stops.join()})`,
@@ -30,9 +47,9 @@ export function Slider({
 	const reset = () => defaultValue !== undefined && onChange(defaultValue);
 
 	return (
-		<div className="grid grid-cols-[1fr_auto] items-center gap-y-0.5 text-neutral-400 text-sm">
+		<div className={cn(root({ variant }), className)}>
 			<span>{label}</span>
-			<div className="relative z-10">
+			<div className="relative z-10 flex items-center gap-1">
 				<ScrubInput
 					aria-label={label}
 					max={max}
@@ -42,6 +59,7 @@ export function Slider({
 					value={value}
 					variant="text"
 				/>
+				{unit && <span className="text-neutral-500">{unit}</span>}
 			</div>
 			<div
 				className="relative col-span-2 my-1 h-1 min-w-11 rounded-full bg-neutral-900 shadow-groove"
