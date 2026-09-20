@@ -14,6 +14,7 @@ export function ImageThumbnail() {
 	const sourceId = useScene((scene) => scene.layers[0].source);
 	const source = document.resources.get(sourceId);
 	const display = useMemo(() => createDisplay(gpu), [gpu]);
+	useEffect(() => () => display.dispose(), [display]);
 	const canvas = useRef<HTMLCanvasElement>(null);
 	const [error, setError] = useState<string>();
 	useEffect(() => {

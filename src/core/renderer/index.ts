@@ -5,7 +5,12 @@ import { createRenderGraph } from "./graph";
 import { input, type RenderImage } from "./node";
 
 export { mixAdjustment } from "./blend";
-export { type Clipping, createDisplay, type View } from "./display";
+export {
+	type Clipping,
+	createDisplay,
+	type MaskOverlay,
+	type View,
+} from "./display";
 export {
 	input,
 	merge,

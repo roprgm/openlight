@@ -1,4 +1,4 @@
-import { type PointerEvent, useEffect, useRef, useState } from "react";
+import { type PointerEvent, useEffect, useMemo, useRef, useState } from "react";
 import { useStore } from "zustand";
 import { useDocument, useScene } from "@/components/editor/session";
 import { useViewport } from "@/components/editor/viewport";
@@ -14,7 +14,6 @@ import {
 } from "./gradient";
 import { GradientGuides } from "./gradient-guides";
 import { useGradientTool } from "./gradient-tool";
-import { MaskOverlay } from "./mask-overlay";
 
 type Drag = {
 	pointer: number;
@@ -36,8 +35,6 @@ export function GradientOverlay() {
 		return item?.kind === "mask" ? item : undefined;
 	});
 	const mask = layer?.mask;
-	const sourceId = useScene((scene) => scene.layers[0].source);
-	const [width, height] = document.resources.get(sourceId).image.size;
 	const [draft, setDraft] = useState<Gradient | null>(null);
 	const dragging = useRef<Drag | null>(null);
 	const [dragCursor, setDragCursor] = useState<string>();
@@ -203,30 +200,30 @@ export function GradientOverlay() {
 		tool.close();
 		event.currentTarget.releasePointerCapture(event.pointerId);
 	}
-	function documentTransform() {
-		const [ax, ay] = outputOffset(frame, camera.scale, 0);
-		const [bx, by] = outputOffset(frame, 0, camera.scale);
-		const [ox, oy] = screenPoint([0, 0]);
-		return `matrix(${ax} ${ay} ${bx} ${by} ${ox} ${oy})`;
-	}
-	function imageRect() {
-		const shown = [frame.size[0] * camera.scale, frame.size[1] * camera.scale];
-		return {
-			x: camera.viewport[0] / 2 + camera.view.pan[0] - shown[0] / 2,
-			y: camera.viewport[1] / 2 + camera.view.pan[1] - shown[1] / 2,
-			width: shown[0],
-			height: shown[1],
-		};
-	}
 	const visible = draft ?? mask;
 	const preview =
 		!!draft || dragCursor !== undefined || tool.overlay !== "hidden";
-	const modifiers = draft
-		? []
-		: (layer?.children.filter(
-				(child): child is MaskLayer =>
-					child.kind === "mask" && child.visible && child.opacity > 0,
-			) ?? []);
+	const children = layer?.children;
+	const modifiers = useMemo(
+		() =>
+			draft
+				? []
+				: (children?.filter(
+						(child): child is MaskLayer =>
+							child.kind === "mask" && child.visible && child.opacity > 0,
+					) ?? []),
+		[draft, children],
+	);
+	const shown = visible && preview && !camera.panMode;
+	useEffect(() => {
+		document.preview.setState({
+			maskOverlay: shown ? { mask: visible, modifiers } : undefined,
+		});
+	}, [document, shown, visible, modifiers]);
+	useEffect(
+		() => () => document.preview.setState({ maskOverlay: undefined }),
+		[document],
+	);
 	const cursor = dragCursor ?? (tool.target ? "crosshair" : undefined);
 	const pointerEvents =
 		(tool.target || dragCursor) && !camera.panMode ? "auto" : "none";
@@ -248,15 +245,6 @@ export function GradientOverlay() {
 				}
 			}}
 		>
-			{visible && preview && !camera.panMode && (
-				<MaskOverlay
-					mask={visible}
-					modifiers={modifiers}
-					size={[width, height]}
-					transform={documentTransform()}
-					clip={imageRect()}
-				/>
-			)}
 			{visible && !camera.panMode && (
 				<GradientGuides
 					mask={visible}

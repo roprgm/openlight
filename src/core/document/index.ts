@@ -2,7 +2,7 @@ import { createStore } from "zustand/vanilla";
 import { validateFrame } from "@/core/image/frame";
 import { createHistory } from "./history";
 import { createResources } from "./resources";
-import type { Scene } from "./scene";
+import type { Gradient, MaskModifier, Scene } from "./scene";
 import { findLayer } from "./tree";
 
 export type {
@@ -16,6 +16,7 @@ export type {
 	Layer,
 	LinearGradient,
 	MaskLayer,
+	MaskModifier,
 	ProcessingLayer,
 	RadialGradient,
 	Scene,
@@ -32,11 +33,18 @@ export {
 } from "./tree";
 export { createResources };
 
+export type MaskPreview = {
+	readonly mask: Gradient;
+	readonly modifiers: readonly MaskModifier[];
+};
+
 export type Preview = {
 	comparison: "edited" | "original" | "split";
 	split: number;
 	shadows: boolean;
 	highlights: boolean;
+	/** The mask whose coverage the display tints red. */
+	maskOverlay?: MaskPreview;
 };
 
 /** Scenes contain only plain values; unchanged branches keep their identity. */

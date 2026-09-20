@@ -1,13 +1,29 @@
-import { effect, type Frame, type Gpu, sampler, type Target } from "vgpu";
+import {
+	type Buffer,
+	effect,
+	type Frame,
+	type Gpu,
+	sampler,
+	type Target,
+} from "vgpu";
+import type { Gradient, MaskModifier } from "@/core/document";
 import {
 	frameTransform,
 	type ImageFrame,
 	imageFrame,
 } from "@/core/image/frame";
+import { gradientParams, modifierData } from "@/core/renderer/blend";
 import shader from "./image.wgsl";
 
 export type View = { zoom: number; pan: readonly [number, number] };
 export type Clipping = { shadows: boolean; highlights: boolean };
+/** A mask to tint over the displayed image; its geometry lives in source pixels. */
+export type MaskOverlay = {
+	mask: Gradient;
+	modifiers: readonly MaskModifier[];
+	frame: ImageFrame;
+	sourceSize: readonly number[];
+};
 type DisplayOptions = {
 	view: View;
 	viewport?: readonly number[];
@@ -15,24 +31,42 @@ type DisplayOptions = {
 	original?: Target;
 	split?: number;
 	clipping?: Clipping;
+	overlay?: MaskOverlay;
 };
 
-/** Display any transformed image with optional comparison and clipping indicators. */
+/** Display any transformed image with optional comparison, clipping indicators, and mask overlay. */
 export function createDisplay(gpu: Gpu) {
 	const draw = effect(gpu, shader, {
 		set: {
 			sourceSampler: sampler(gpu, { magFilter: "linear", minFilter: "linear" }),
 		},
 	});
-	return (
+	let modifiers: Buffer | undefined;
+	function writeModifiers(overlay?: MaskOverlay) {
+		const data = modifierData(overlay?.modifiers ?? []);
+		if (!modifiers || modifiers.options.size < data.byteLength) {
+			modifiers?.dispose();
+			modifiers = gpu.device.createBuffer({
+				size: data.byteLength,
+				usage: ["storage", "copy_dst"],
+			});
+			draw.set({ modifiers });
+		}
+		if (overlay) {
+			modifiers.write(data);
+		}
+	}
+	function display(
 		frame: Frame,
 		canvas: Target & { dpr: number },
 		image: Target,
 		options: DisplayOptions,
-	) => {
+	) {
 		const geometry = options.frame ?? imageFrame(image.size);
 		const viewport =
 			options.viewport ?? canvas.size.map((value) => value / canvas.dpr);
+		const overlay = options.overlay;
+		writeModifiers(overlay);
 		frame.pass(
 			canvas,
 			draw.set({
@@ -49,7 +83,22 @@ export function createDisplay(gpu: Gpu) {
 					shadows: Number(options.clipping?.shadows ?? false),
 					highlights: Number(options.clipping?.highlights ?? false),
 				},
+				maskTransform: frameTransform(
+					overlay?.frame ?? geometry,
+					overlay?.sourceSize ?? image.size,
+				),
+				overlay: {
+					...gradientParams(overlay?.mask),
+					modifierCount: overlay?.modifiers.length ?? 0,
+					sourceSize: overlay?.sourceSize ?? image.size,
+				},
 			}),
 		);
-	};
+	}
+	return Object.assign(display, {
+		dispose() {
+			modifiers?.dispose();
+			modifiers = undefined;
+		},
+	});
 }

@@ -1,15 +1,11 @@
-import type { Gradient } from "@/core/document";
+import type { Gradient, MaskModifier } from "@/core/document";
 import { merge, node, type RenderImage } from "@/core/renderer/node";
 import shader from "./mix.wgsl";
 
-type MaskModifier = {
-	readonly mask: Gradient;
-	readonly opacity: number;
-	readonly operation: "add" | "subtract";
-};
 const emptyModifiers = new Float32Array(8);
 
-function geometry(mask?: Gradient) {
+/** Uniform fields for one gradient; kind 0 means full coverage. */
+export function gradientParams(mask?: Gradient) {
 	if (mask?.kind === "radial") {
 		return {
 			kind: 2,
@@ -28,13 +24,14 @@ function geometry(mask?: Gradient) {
 	};
 }
 
-function modifierData(modifiers: readonly MaskModifier[]) {
+/** Two vec4 per modifier: geometry, then signed strength, kind, feather, and angle. */
+export function modifierData(modifiers: readonly MaskModifier[]) {
 	if (!modifiers.length) {
 		return emptyModifiers;
 	}
 	const data = new Float32Array(modifiers.length * 8);
 	modifiers.forEach(({ mask, opacity, operation }, index) => {
-		const { first, second, kind, feather, angle } = geometry(mask);
+		const { first, second, kind, feather, angle } = gradientParams(mask);
 		data.set(
 			[
 				...first,
@@ -70,7 +67,11 @@ export function mixAdjustment(
 		node(name, shader, {
 			storage: { modifiers: modifierData(modifiers) },
 			set: {
-				params: { opacity, ...geometry(mask), modifierCount: modifiers.length },
+				params: {
+					opacity,
+					...gradientParams(mask),
+					modifierCount: modifiers.length,
+				},
 			},
 		}),
 	);

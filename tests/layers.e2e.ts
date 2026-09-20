@@ -1,7 +1,7 @@
 import { writeFile } from "node:fs/promises";
 import type { Page } from "@playwright/test";
 import { expect, test } from "./fixtures";
-import { readImage } from "./images";
+import { readImage, readPreview } from "./images";
 import { box, drag } from "./pointer";
 
 async function samples(page: Page) {
@@ -106,20 +106,27 @@ test("draw a mask, edit its child effects, reorder layers and undo", async ({
 		await page.keyboard.press("Escape");
 		await page.mouse.up();
 		expect((await state()).scene?.layers).toHaveLength(1);
-		const overlayImage = page.getByRole("img", { name: "Mask overlay" });
+		// Sample above the center, clear of the guide lines and the move handle.
+		async function maskPreview() {
+			const { center } = await readPreview(page, [0, -100 * scale]);
+			return {
+				shown: (await state()).preview?.maskOverlay !== undefined,
+				tinted: center[0] > center[1] + 30,
+			};
+		}
 		await page.keyboard.press("l");
 		await drag(page, from, to);
-		await expect(overlayImage).toBeVisible();
+		await expect.poll(maskPreview).toEqual({ shown: true, tinted: true });
 		await page.keyboard.press("Escape");
 		expect((await state()).scene?.layers).toHaveLength(1);
-		await expect(overlayImage).toHaveCount(0);
+		await expect.poll(maskPreview).toEqual({ shown: false, tinted: false });
 		await page.keyboard.press("l");
 		await drag(page, from, to);
-		await expect(overlayImage).toBeVisible();
+		await expect.poll(maskPreview).toEqual({ shown: true, tinted: true });
 		await page.keyboard.press("Enter");
-		await expect(overlayImage).toHaveCount(0);
+		await expect.poll(maskPreview).toEqual({ shown: false, tinted: false });
 		await page.keyboard.press("o");
-		await expect(overlayImage).toBeVisible();
+		await expect.poll(maskPreview).toEqual({ shown: true, tinted: true });
 		const layers = (await state()).scene?.layers;
 		expect(layers).toHaveLength(2);
 		expect(layers?.[1]).toMatchObject({
@@ -127,7 +134,7 @@ test("draw a mask, edit its child effects, reorder layers and undo", async ({
 			children: [],
 		});
 		await setField("Exposure", "1");
-		await expect(overlayImage).toHaveCount(0);
+		await expect.poll(maskPreview).toEqual({ shown: false, tinted: false });
 		const [top, bottom] = await samples(page);
 		expect(top[0]).toBeGreaterThan(170);
 		expect(bottom).toEqual([128, 128, 128, 255]);
