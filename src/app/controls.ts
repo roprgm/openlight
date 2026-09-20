@@ -13,12 +13,12 @@ import {
 	type Gradient,
 	type Preview,
 	type ProcessingLayer,
-	type Scene,
 	type ToneCurve,
 	type Vignette,
 	walkLayers,
 } from "@/core/document";
 import type { WhiteBalance } from "@/core/image";
+import type { ImageFrame } from "@/core/image/frame";
 import { setAdjustments } from "@/features/adjustments/edits";
 import { defaultAdjustments } from "@/features/adjustments/model";
 import {
@@ -183,9 +183,9 @@ export function createControls(gpu: Gpu, workspace: Workspace) {
 		moveLayer: (id: string, index: number, parentId?: string) =>
 			moveLayer(workspace.getDocument(), id, index, parentId),
 		selectLayer: (id: string) => workspace.getDocument().selectLayer(id),
-		editScene(change: Partial<Scene>) {
+		setFrame(frame: ImageFrame) {
 			const document = workspace.getDocument();
-			document.edit({ ...document.scene.getState(), ...change });
+			document.edit({ ...document.scene.getState(), frame });
 		},
 		setPreview: (change: Partial<Preview>) =>
 			workspace.getDocument().preview.setState(change),

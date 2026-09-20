@@ -1,4 +1,7 @@
+import { useCallback, useEffect, useMemo } from "react";
+import { useGpu } from "vgpu-react";
 import { useStore } from "zustand";
+import { useRenderer } from "@/components/editor/pipeline";
 import {
 	PanelContent,
 	useDocument,
@@ -9,12 +12,36 @@ import { findLayer, type Layer, walkLayers } from "@/core/document";
 import { AdjustmentControls } from "@/features/adjustments/controls";
 import { ColorMixerControls } from "@/features/color-mixer/controls";
 import { DetailsControls } from "@/features/details/controls";
+import { Histogram } from "@/features/histogram";
+import { createHistogram } from "@/features/histogram/histogram";
 import { setExposure } from "@/features/layers/edits";
 import { setToneCurve } from "@/features/tone-curves/edits";
 import { ToneCurves } from "@/features/tone-curves/tone-curves";
 import { VignetteControls } from "@/features/vignette/controls";
 import { WhiteBalanceControls } from "@/features/white-balance/controls";
 import { useEditGesture } from "@/hooks/use-edit-gesture";
+
+const curveHistogramColors = ["#a3a3a3"] as const;
+
+function CurveInputHistogram({ id }: { id: string }) {
+	const gpu = useGpu();
+	const renderer = useRenderer();
+	const histogram = useMemo(() => createHistogram(gpu), [gpu]);
+	const image = useCallback(() => renderer.inputImage(id), [renderer, id]);
+	useEffect(() => () => histogram.dispose(), [histogram]);
+	return (
+		<Histogram
+			histogram={histogram}
+			image={image}
+			subscribe={renderer.subscribe}
+			colors={curveHistogramColors}
+			working
+			fillOpacity={0.65}
+			aria-label="curve input histogram"
+			className="pointer-events-none absolute inset-0 h-full w-full opacity-25"
+		/>
+	);
+}
 
 function SelectedControls({ layer }: { layer: Layer }) {
 	const document = useDocument();
@@ -39,7 +66,9 @@ function SelectedControls({ layer }: { layer: Layer }) {
 					<ToneCurves
 						points={layer.toneCurve}
 						onChange={(points) => setToneCurve(document, points, layer.id)}
-					/>
+					>
+						<CurveInputHistogram id={layer.id} />
+					</ToneCurves>
 				</div>
 			);
 		case "vignette":

@@ -363,7 +363,12 @@ test("edit a photo, inspect the preview and histograms, undo changes, and export
 		const adjusted = await readImage(page);
 		await page.getByRole("button", { name: "Curves", exact: true }).click();
 		const graph = page.getByRole("application", { name: "Tone curve" });
+		const curveHistogram = page
+			.getByLabel("curve input histogram", { exact: true })
+			.locator("polyline");
 		await graph.scrollIntoViewIfNeeded();
+		await expect(curveHistogram).toHaveAttribute("points", /,\d{1,2}\./);
+		const curveInput = await curveHistogram.getAttribute("points");
 		const before = await page.evaluate(
 			() => window.openlight.getState().history.undoCount,
 		);
@@ -376,6 +381,7 @@ test("edit a photo, inspect the preview and histograms, undo changes, and export
 			8,
 		);
 		await expect(graph.locator("circle")).toHaveCount(3);
+		await expect(curveHistogram).toHaveAttribute("points", curveInput ?? "");
 		expect((await state()).history.undoCount).toBe(before + 1);
 		const curved = await readImage(page);
 		const curve = await page.evaluate(
@@ -460,10 +466,7 @@ test("edit a photo, inspect the preview and histograms, undo changes, and export
 	const rotation = panel.getByRole("slider", { name: "Rotation", exact: true });
 	async function setFrame(change: Partial<ImageFrame> = {}) {
 		const frame = { ...imageFrame([1200, 800]), ...change };
-		await page.evaluate(
-			(frame) => window.openlight.editScene({ frame }),
-			frame,
-		);
+		await page.evaluate((frame) => window.openlight.setFrame(frame), frame);
 	}
 
 	async function expectImage(size: number[], corner: number) {

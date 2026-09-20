@@ -8,7 +8,7 @@ import {
 } from "vgpu/mock";
 import { createLayer } from "@/app/editor/layers";
 import { createEditorRenderer as createRenderer } from "@/app/editor/renderer";
-import { createDocument, createResources } from "@/core/document";
+import { createDocument, createResources, type Scene } from "@/core/document";
 import { createImageSource } from "@/core/image";
 import { imageFrame } from "@/core/image/frame";
 import {
@@ -194,6 +194,77 @@ test.each([1, 16])(
 	},
 );
 
+test("a selected curve exposes the image entering that layer", async () => {
+	const gpu = await init();
+	const source = target(gpu, { size: [32, 16], format: "rgba16float" });
+	const resource = createImageSource(source);
+	const renderer = createRenderer(gpu, resource);
+	const exposure = {
+		...createLayer("exposure", [32, 16]),
+		id: "exposure",
+	};
+	const curve = {
+		...createLayer("curves", [32, 16]),
+		id: "curve",
+		toneCurve: [
+			{ x: 0, y: 0 },
+			{ x: 0.5, y: 0.7 },
+			{ x: 1, y: 1 },
+		],
+	};
+	const scene: Scene = {
+		frame: imageFrame(source.size),
+		layers: [
+			{
+				kind: "image" as const,
+				name: "Photo",
+				children: [exposure, curve],
+				id: "base",
+				source: "photo",
+				adjustments: { ...defaultAdjustments },
+			},
+		],
+	};
+	try {
+		await renderer.update(scene, curve.id);
+		const curveInput = renderer.inputImage(curve.id);
+		if (!curveInput) {
+			throw Error("Missing curve input.");
+		}
+		expect(curveInput).not.toBe(renderer.outputImage());
+		expect(renderer.inputImage(exposure.id)).toBeUndefined();
+		expect(renderer.inspect().passes).toEqual([
+			"layer/base/adjustments",
+			"layer/exposure/exposure",
+			"layer/curve/curves",
+		]);
+
+		const hidden = { ...curve, visible: false };
+		await renderer.update(
+			{
+				...scene,
+				layers: [{ ...scene.layers[0], children: [exposure, hidden] }],
+			},
+			curve.id,
+		);
+		expect(renderer.inputImage(curve.id)).toBe(renderer.outputImage());
+		expect(renderer.inspect().passes).toEqual([
+			"layer/base/adjustments",
+			"layer/exposure/exposure",
+		]);
+
+		await renderer.update({
+			...scene,
+			layers: [{ ...scene.layers[0], children: [exposure] }],
+		});
+		expect(renderer.inputImage(curve.id)).toBeUndefined();
+	} finally {
+		renderer.dispose();
+		resource.dispose();
+		gpu.dispose();
+	}
+});
+
 test("rendering follows grouped edits and undo, reuses pipelines, and releases owned targets", async () => {
 	const gpu = await init();
 	const source = target(gpu, { size: [32, 16], format: "rgba16float" });
@@ -225,7 +296,9 @@ test("rendering follows grouped edits and undo, reuses pipelines, and releases o
 	const renderer = createRenderer(gpu, resource);
 	const notify = mock(() => {});
 	const detach = renderer.subscribe(notify);
-	const unsubscribe = document.scene.subscribe(renderer.update);
+	const unsubscribe = document.scene.subscribe((scene) =>
+		renderer.update(scene),
+	);
 	const display = createDisplay(gpu);
 	const draw = () =>
 		frame(gpu, (frame) =>

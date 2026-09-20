@@ -68,7 +68,7 @@ test("nested layers compose in order, move atomically, and duplicate with indepe
 			vignette: { intensity: 0, softness: 75 },
 		});
 		controls.undo();
-		controls.editScene({ frame: { ...original.frame, size: [8, 8] } });
+		controls.setFrame({ ...original.frame, size: [8, 8] });
 		const defaultMask = controls.addLayer("mask");
 		expect(
 			findLayer(document.scene.getState().layers, defaultMask),

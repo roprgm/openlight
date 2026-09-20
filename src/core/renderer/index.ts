@@ -1,4 +1,4 @@
-import type { Gpu, Timer } from "vgpu";
+import type { Gpu, Target, Timer } from "vgpu";
 import { type Scene, walkLayers } from "@/core/document";
 import type { ImageSource, WhiteBalance } from "@/core/image";
 import { createRenderGraph } from "./graph";
@@ -25,10 +25,17 @@ export { createRenderGraph };
 export type SceneProcessing = (
 	source: RenderImage,
 	scene: Scene,
+	inputId?: string,
 ) => {
 	original: RenderImage;
 	full: RenderImage;
 	output: RenderImage;
+	input?: RenderImage;
+};
+
+type RenderRequest = {
+	scene: Scene;
+	inputId?: string;
 };
 
 function sameBalance(a: WhiteBalance | undefined, b: WhiteBalance | undefined) {
@@ -51,12 +58,13 @@ export function createRenderer(
 	const listeners = new Set<() => void>();
 	let rendered = false;
 	let output = source;
+	let inspected: { id: string; image: Target } | undefined;
 	let balance = resource.raw?.asShot;
-	let next: Scene | undefined;
+	let next: RenderRequest | undefined;
 	let pending: Promise<void> | undefined;
 	let disposed = false;
 	let instances = new Set<string>();
-	function render(scene: Scene) {
+	function render({ scene, inputId }: RenderRequest) {
 		const active = new Set(walkLayers(scene.layers).map((layer) => layer.id));
 		for (const id of instances) {
 			if (!active.has(id)) {
@@ -64,12 +72,16 @@ export function createRenderer(
 			}
 		}
 		instances = active;
-		const images = compose(input(raw?.render() ?? source), scene);
-		[original, full, output] = graph.render([
+		const images = compose(input(raw?.render() ?? source), scene, inputId);
+		const targets = graph.render([
 			images.original,
 			images.full,
 			images.output,
+			...(images.input ? [images.input] : []),
 		]);
+		[original, full, output] = targets;
+		inspected =
+			inputId && targets[3] ? { id: inputId, image: targets[3] } : undefined;
 		rendered = true;
 		for (const listener of listeners) {
 			listener();
@@ -78,8 +90,9 @@ export function createRenderer(
 	/** Only calibration crosses the worker; each renderer owns its GPU RAW pass. */
 	async function develop() {
 		while (next && !disposed) {
-			const scene = next;
+			const request = next;
 			next = undefined;
+			const { scene } = request;
 			const selected = scene.layers[0].whiteBalance ?? resource.raw?.asShot;
 			if (raw && selected && !sameBalance(balance, selected)) {
 				await raw.prepare(selected);
@@ -89,19 +102,19 @@ export function createRenderer(
 				balance = selected;
 			}
 			if (!next) {
-				render(scene);
+				render(request);
 			}
 		}
 	}
-	async function update(scene: Scene): Promise<void> {
+	async function update(scene: Scene, inputId?: string): Promise<void> {
 		if (disposed) {
 			throw Error("Renderer is closed.");
 		}
 		if (!resource.raw) {
-			render(scene);
+			render({ scene, inputId });
 			return;
 		}
-		next = scene;
+		next = { scene, inputId };
 		pending ??= develop()
 			.catch((error) => {
 				if (!next) {
@@ -111,7 +124,7 @@ export function createRenderer(
 			.finally(() => {
 				pending = undefined;
 				if (next && !disposed) {
-					return update(next);
+					return update(next.scene, next.inputId);
 				}
 			});
 		return pending;
@@ -121,6 +134,8 @@ export function createRenderer(
 		originalImage: () => original,
 		fullImage: () => full,
 		outputImage: () => output,
+		inputImage: (id: string) =>
+			inspected?.id === id ? inspected.image : undefined,
 		inspect: graph.inspect,
 		subscribe(listener: () => void) {
 			listeners.add(listener);

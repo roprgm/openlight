@@ -1,5 +1,5 @@
 import type { Gpu, Timer } from "vgpu";
-import type { MaskLayer, ProcessingLayer, Scene } from "@/core/document";
+import type { MaskLayer, ProcessingLayer } from "@/core/document";
 import type { ImageSource } from "@/core/image";
 import {
 	createRenderer,
@@ -30,13 +30,19 @@ function maskAdjustments(layer: MaskLayer) {
 	return exposure(`${name}/exposure`, values.exposure);
 }
 
+type Composition = {
+	image: RenderImage;
+	input?: RenderImage;
+};
+
 function composeLayer(
 	below: RenderImage,
 	layer: ProcessingLayer,
-	scene: Scene,
-): RenderImage {
+	inputId?: string,
+): Composition {
+	let input = layer.id === inputId ? below : undefined;
 	if (!layer.visible || layer.opacity === 0) {
-		return below;
+		return { image: below, input };
 	}
 	const name = `layer/${layer.id}`;
 	let edited = below;
@@ -58,9 +64,7 @@ function composeLayer(
 			edited = pipeline(below, [exposure(`${name}/exposure`, layer.exposure)]);
 			break;
 		case "vignette":
-			edited = pipeline(below, [
-				vignette(layer.vignette, `${name}/vignette`, scene.frame, below.size),
-			]);
+			edited = pipeline(below, [vignette(layer.vignette, `${name}/vignette`)]);
 			break;
 		case "curves":
 			edited = pipeline(below, [toneCurves(layer.toneCurve, `${name}/curves`)]);
@@ -78,18 +82,38 @@ function composeLayer(
 				masks.push(child);
 			}
 		} else {
-			edited = composeLayer(edited, child, scene);
+			const childComposition = composeLayer(edited, child, inputId);
+			edited = childComposition.image;
+			input ??= childComposition.input;
 		}
 	}
 
-	return mixAdjustment(
-		`${name}/mix`,
-		below,
-		edited,
-		layer.opacity,
-		layer.kind === "mask" ? layer.mask : undefined,
-		masks,
-	);
+	return {
+		image: mixAdjustment(
+			`${name}/mix`,
+			below,
+			edited,
+			layer.opacity,
+			layer.kind === "mask" ? layer.mask : undefined,
+			masks,
+		),
+		input,
+	};
+}
+
+function composeLayers(
+	below: RenderImage,
+	layers: readonly ProcessingLayer[],
+	inputId?: string,
+): Composition {
+	let image = below;
+	let input: RenderImage | undefined;
+	for (const layer of layers) {
+		const composition = composeLayer(image, layer, inputId);
+		image = composition.image;
+		input ??= composition.input;
+	}
+	return { image, input };
 }
 
 /** Pure layer composition shares the same graph for preview, crop, and export. */
@@ -101,7 +125,7 @@ export function createEditorRenderer(
 	return createRenderer(
 		gpu,
 		source,
-		(image, scene) => {
+		(image, scene, inputId) => {
 			const [sourceLayer, ...layers] = scene.layers;
 			const base = pipeline(image, [
 				adjustments(
@@ -109,19 +133,19 @@ export function createEditorRenderer(
 					`layer/${sourceLayer.id}/adjustments`,
 				),
 			]);
-			const children = sourceLayer.children.reduce(
-				(below, layer) => composeLayer(below, layer, scene),
-				base,
-			);
-			const full = layers.reduce(
-				(below, layer) => composeLayer(below, layer, scene),
-				children,
-			);
+			const children = composeLayers(base, sourceLayer.children, inputId);
+			const composition = composeLayers(children.image, layers, inputId);
+			const full = composition.image;
 			const [original, output] = transformImages(
 				[input(source.image), full],
 				scene.frame,
 			);
-			return { original, full, output };
+			return {
+				original,
+				full,
+				output,
+				input: children.input ?? composition.input,
+			};
 		},
 		timer,
 	);

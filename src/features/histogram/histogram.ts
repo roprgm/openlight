@@ -27,7 +27,7 @@ export function createHistogram(gpu: Gpu) {
 		read,
 		attach(
 			svg: SVGSVGElement,
-			image: () => Target,
+			image: () => Target | undefined,
 			colors: readonly [string] | readonly [string, string, string],
 			working = false,
 		) {
@@ -56,7 +56,11 @@ export function createHistogram(gpu: Gpu) {
 				try {
 					do {
 						requested = false;
-						const values = await read(image(), working, colors.length);
+						const source = image();
+						if (!source) {
+							return;
+						}
+						const values = await read(source, working, colors.length);
 						if (!plot.isConnected) {
 							return;
 						}
