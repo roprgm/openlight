@@ -16,6 +16,17 @@ function MaskOptions({ layer }: { layer: MaskLayer }) {
 	const isSubmask = parent?.kind === "mask";
 	return (
 		<>
+			<button
+				type="button"
+				aria-pressed={tool.overlay !== "hidden"}
+				title="Show mask overlay (O)"
+				onClick={() =>
+					tool.setOverlay(tool.overlay === "hidden" ? "shown" : "hidden")
+				}
+				className="h-7 rounded px-2 text-neutral-400 text-xs hover:bg-neutral-600/40 hover:text-neutral-100 aria-pressed:bg-neutral-600/40 aria-pressed:text-neutral-100 pointer-coarse:h-10"
+			>
+				Overlay
+			</button>
 			{layer.mask.kind === "radial" && (
 				<Slider
 					label="Feather"

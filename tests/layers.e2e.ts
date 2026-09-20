@@ -106,8 +106,20 @@ test("draw a mask, edit its child effects, reorder layers and undo", async ({
 		await page.keyboard.press("Escape");
 		await page.mouse.up();
 		expect((await state()).scene?.layers).toHaveLength(1);
+		const overlayImage = page.getByRole("img", { name: "Mask overlay" });
 		await page.keyboard.press("l");
 		await drag(page, from, to);
+		await expect(overlayImage).toBeVisible();
+		await page.keyboard.press("Escape");
+		expect((await state()).scene?.layers).toHaveLength(1);
+		await expect(overlayImage).toHaveCount(0);
+		await page.keyboard.press("l");
+		await drag(page, from, to);
+		await expect(overlayImage).toBeVisible();
+		await page.keyboard.press("Enter");
+		await expect(overlayImage).toHaveCount(0);
+		await page.keyboard.press("o");
+		await expect(overlayImage).toBeVisible();
 		const layers = (await state()).scene?.layers;
 		expect(layers).toHaveLength(2);
 		expect(layers?.[1]).toMatchObject({
@@ -115,6 +127,7 @@ test("draw a mask, edit its child effects, reorder layers and undo", async ({
 			children: [],
 		});
 		await setField("Exposure", "1");
+		await expect(overlayImage).toHaveCount(0);
 		const [top, bottom] = await samples(page);
 		expect(top[0]).toBeGreaterThan(170);
 		expect(bottom).toEqual([128, 128, 128, 255]);

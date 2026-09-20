@@ -315,8 +315,8 @@ export function LayersControls({
 					return;
 				}
 				if (
-					event.key === "Enter" ||
-					(event.key === "Escape" && event.target instanceof HTMLInputElement)
+					(event.key === "Enter" || event.key === "Escape") &&
+					event.target instanceof HTMLInputElement
 				) {
 					event.stopPropagation();
 				}

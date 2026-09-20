@@ -5,6 +5,7 @@ import { useDocument, useScene } from "@/components/editor/session";
 import type { Gradient } from "@/core/document";
 import type { Point } from "@/core/image/frame";
 import { createDisplay } from "@/core/renderer";
+import { MaskFill } from "./mask-fill";
 
 /** A small original-image snapshot, rendered once when the source changes. */
 export function ImageThumbnail() {
@@ -63,38 +64,6 @@ export function ImageThumbnail() {
 	);
 }
 
-function MaskFill({ mask, id }: { mask: Gradient; id: string }) {
-	if (mask.kind === "radial") {
-		const transform = `translate(${mask.center[0]} ${mask.center[1]}) rotate(${mask.angle}) scale(${mask.radius[0]} ${mask.radius[1]})`;
-		return (
-			<radialGradient
-				id={id}
-				gradientUnits="userSpaceOnUse"
-				cx="0"
-				cy="0"
-				r="1"
-				gradientTransform={transform}
-			>
-				<stop offset={1 - mask.feather} stopColor="white" />
-				<stop offset="1" stopColor="black" />
-			</radialGradient>
-		);
-	}
-	return (
-		<linearGradient
-			id={id}
-			gradientUnits="userSpaceOnUse"
-			x1={mask.start[0]}
-			y1={mask.start[1]}
-			x2={mask.end[0]}
-			y2={mask.end[1]}
-		>
-			<stop offset="0" stopColor="white" />
-			<stop offset="1" stopColor="black" />
-		</linearGradient>
-	);
-}
-
 export function MaskThumbnail({ mask, size }: { mask: Gradient; size: Point }) {
 	const id = useId();
 	return (
@@ -105,7 +74,7 @@ export function MaskThumbnail({ mask, size }: { mask: Gradient; size: Point }) {
 			className="size-8 shrink-0 rounded-sm border border-neutral-600 bg-neutral-950"
 		>
 			<defs>
-				<MaskFill mask={mask} id={id} />
+				<MaskFill id={id} mask={mask} />
 			</defs>
 			<rect width={size[0]} height={size[1]} fill={`url(#${id})`} />
 		</svg>

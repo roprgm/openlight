@@ -2,7 +2,7 @@ import { type PointerEvent, useEffect, useRef, useState } from "react";
 import { useStore } from "zustand";
 import { useDocument, useScene } from "@/components/editor/session";
 import { useViewport } from "@/components/editor/viewport";
-import { findLayer, type Gradient } from "@/core/document";
+import { findLayer, type Gradient, type MaskLayer } from "@/core/document";
 import { outputOffset, type Point, sourceOffset } from "@/core/image/frame";
 import { useShortcuts } from "@/hooks/use-shortcuts";
 import { deleteLayer, setLayerMask } from "./edits";
@@ -14,6 +14,7 @@ import {
 } from "./gradient";
 import { GradientGuides } from "./gradient-guides";
 import { useGradientTool } from "./gradient-tool";
+import { MaskOverlay } from "./mask-overlay";
 
 type Drag = {
 	pointer: number;
@@ -30,10 +31,13 @@ export function GradientOverlay() {
 	const camera = useViewport();
 	const frame = useScene((scene) => scene.frame);
 	const selected = useStore(document.selection, (state) => state.layerId);
-	const mask = useScene((scene) => {
-		const layer = findLayer(scene.layers, selected);
-		return layer?.kind === "mask" ? layer.mask : undefined;
+	const layer = useScene((scene) => {
+		const item = findLayer(scene.layers, selected);
+		return item?.kind === "mask" ? item : undefined;
 	});
+	const mask = layer?.mask;
+	const sourceId = useScene((scene) => scene.layers[0].source);
+	const [width, height] = document.resources.get(sourceId).image.size;
 	const [draft, setDraft] = useState<Gradient | null>(null);
 	const dragging = useRef<Drag | null>(null);
 	const [dragCursor, setDragCursor] = useState<string>();
@@ -60,9 +64,25 @@ export function GradientOverlay() {
 			deleteLayer(document, selected);
 		}
 	}
+	function dismiss() {
+		if (dragging.current || tool.target) {
+			cancel();
+			return;
+		}
+		if (tool.overlay === "new" && mask) {
+			deleteLayer(document, selected);
+		}
+		tool.setOverlay("hidden");
+	}
+	function toggleOverlay() {
+		tool.setOverlay(tool.overlay === "hidden" ? "shown" : "hidden");
+	}
 	useShortcuts({
-		escape: cancel,
-		...(mask ? { delete: remove, backspace: remove } : {}),
+		escape: dismiss,
+		...(tool.overlay === "hidden"
+			? {}
+			: { enter: () => tool.setOverlay("hidden") }),
+		...(mask ? { o: toggleOverlay, delete: remove, backspace: remove } : {}),
 	});
 	function documentPoint(event: PointerEvent): Point {
 		const box = camera.ref.current?.getBoundingClientRect();
@@ -183,7 +203,30 @@ export function GradientOverlay() {
 		tool.close();
 		event.currentTarget.releasePointerCapture(event.pointerId);
 	}
+	function documentTransform() {
+		const [ax, ay] = outputOffset(frame, camera.scale, 0);
+		const [bx, by] = outputOffset(frame, 0, camera.scale);
+		const [ox, oy] = screenPoint([0, 0]);
+		return `matrix(${ax} ${ay} ${bx} ${by} ${ox} ${oy})`;
+	}
+	function imageRect() {
+		const shown = [frame.size[0] * camera.scale, frame.size[1] * camera.scale];
+		return {
+			x: camera.viewport[0] / 2 + camera.view.pan[0] - shown[0] / 2,
+			y: camera.viewport[1] / 2 + camera.view.pan[1] - shown[1] / 2,
+			width: shown[0],
+			height: shown[1],
+		};
+	}
 	const visible = draft ?? mask;
+	const preview =
+		!!draft || dragCursor !== undefined || tool.overlay !== "hidden";
+	const modifiers = draft
+		? []
+		: (layer?.children.filter(
+				(child): child is MaskLayer =>
+					child.kind === "mask" && child.visible && child.opacity > 0,
+			) ?? []);
 	const cursor = dragCursor ?? (tool.target ? "crosshair" : undefined);
 	const pointerEvents =
 		(tool.target || dragCursor) && !camera.panMode ? "auto" : "none";
@@ -205,12 +248,26 @@ export function GradientOverlay() {
 				}
 			}}
 		>
+			{visible && preview && !camera.panMode && (
+				<MaskOverlay
+					mask={visible}
+					modifiers={modifiers}
+					size={[width, height]}
+					transform={documentTransform()}
+					clip={imageRect()}
+				/>
+			)}
 			{visible && !camera.panMode && (
 				<GradientGuides
 					mask={visible}
 					screen={screenPoint}
 					extent={Math.hypot(...camera.viewport)}
 				/>
+			)}
+			{tool.overlay === "new" && !tool.target && (
+				<p className="pointer-events-none absolute top-3 left-1/2 -translate-x-1/2 rounded bg-black/70 px-3 py-2 text-xs text-white">
+					Adjust the mask · Enter to keep · Esc to remove · O toggles overlay
+				</p>
 			)}
 			{tool.target && (
 				<p className="pointer-events-none absolute top-3 left-1/2 -translate-x-1/2 rounded bg-black/70 px-3 py-2 text-xs text-white">
