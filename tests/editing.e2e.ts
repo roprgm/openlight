@@ -462,8 +462,8 @@ test("edit a photo, inspect the preview and histograms, undo changes, and export
 		const modes = page.getByRole("tablist", { name: "Editor mode" });
 		const selected = modes.getByRole("tab", { selected: true });
 		await expect(selected).toHaveText("Adjust");
-		await modes.getByRole("tab", { name: "Retouch" }).click();
-		await expect(selected).toHaveText("Retouch");
+		await modes.getByRole("tab", { name: "Export" }).click();
+		await expect(selected).toHaveText("Export");
 		await expect(
 			page.getByRole("region", { name: "Layers", exact: true }),
 		).toBeVisible();
@@ -473,10 +473,12 @@ test("edit a photo, inspect the preview and histograms, undo changes, and export
 				.locator(".."),
 		).toHaveAttribute("data-selected", "true");
 		await page.keyboard.press("ArrowLeft");
-		await expect(selected).toHaveText("Adjust");
+		await expect(selected).toHaveText("Crop");
 		await expect(selected).toBeFocused();
-		await page.keyboard.press("t");
-		await expect(selected).toHaveText("Retouch");
+		await page.keyboard.press("ArrowLeft");
+		await expect(selected).toHaveText("Adjust");
+		await page.keyboard.press("e");
+		await expect(selected).toHaveText("Export");
 		await page.keyboard.press("a");
 		await expect(selected).toHaveText("Adjust");
 		await expect(page.getByRole("slider", { name: "Exposure" })).toBeVisible();

@@ -102,9 +102,9 @@ function DocumentEditor() {
 	return (
 		<GradientProvider onCreate={addMask}>
 			<ModeProvider>
+				<ModeRail />
 				<ModeView />
 				<EditorSidebar />
-				<ModeRail />
 			</ModeProvider>
 		</GradientProvider>
 	);

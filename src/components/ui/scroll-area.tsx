@@ -4,12 +4,15 @@ import type { ComponentProps } from "react";
 
 type ScrollAreaProps = ComponentProps<"div"> & {
 	viewportClassName?: string;
+	/** Fade the content toward an edge while more of it is clipped there. */
+	fade?: boolean;
 };
 
 export function ScrollArea({
 	children,
 	className,
 	viewportClassName,
+	fade = false,
 	...props
 }: ScrollAreaProps) {
 	return (
@@ -20,6 +23,8 @@ export function ScrollArea({
 			<Primitive.Viewport
 				className={cn(
 					"h-full overscroll-contain focus-visible:outline focus-visible:outline-neutral-500 focus-visible:-outline-offset-1",
+					fade &&
+						"[--fade-bottom:min(calc(var(--scroll-area-overflow-y-end,0)*1px),1.5rem)] [--fade-top:min(calc(var(--scroll-area-overflow-y-start,0)*1px),1.5rem)] [mask-image:linear-gradient(to_bottom,transparent,black_var(--fade-top),black_calc(100%-var(--fade-bottom)),transparent)]",
 					viewportClassName,
 				)}
 			>

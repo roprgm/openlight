@@ -1,9 +1,7 @@
 import { createContext, type ReactNode, useContext, useState } from "react";
-import { PanelContent } from "@/components/editor/session";
 import { AdjustIcon } from "@/components/icons/adjust";
 import { CropIcon } from "@/components/icons/crop";
 import { ExportIcon } from "@/components/icons/export";
-import { RetouchIcon } from "@/components/icons/retouch";
 import { CropEditor } from "@/features/crop/view";
 import { useGradientTool } from "@/features/layers/gradient-tool";
 import { AdjustPanel } from "./adjust";
@@ -20,18 +18,6 @@ export function useMode() {
 		throw new Error("A mode provider is required.");
 	}
 	return context;
-}
-
-function PlaceholderPanel() {
-	return (
-		<PanelContent>
-			<div className="flex min-h-0 flex-1 flex-col divide-y divide-black">
-				<p className="grid flex-1 place-items-center text-neutral-500 text-sm">
-					Coming soon
-				</p>
-			</div>
-		</PanelContent>
-	);
 }
 
 const adjust = {
@@ -54,14 +40,6 @@ function CropMode() {
  */
 export const modes = [
 	adjust,
-	{
-		id: "retouch",
-		label: "Retouch",
-		key: "t",
-		Icon: RetouchIcon,
-		group: "edit",
-		Panel: PlaceholderPanel,
-	},
 	{
 		id: "crop",
 		label: "Crop",

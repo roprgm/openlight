@@ -17,7 +17,7 @@ function ModeTab({ entry }: { entry: Mode }) {
 	);
 }
 
-/** A column at the window's right edge on desktop, a scrollable bar below the panel on mobile. Letter shortcuts work anywhere. */
+/** A column at the window's left edge on desktop, a scrollable bar above the canvas on mobile. Letter shortcuts work anywhere. */
 export function ModeRail() {
 	const { setMode } = useMode();
 	useShortcuts(
@@ -30,7 +30,7 @@ export function ModeRail() {
 	return (
 		<TabList
 			aria-label="Editor mode"
-			className="shrink-0 overflow-auto border-black border-t bg-panel p-2 shadow-ridge md:w-17.5 md:flex-col md:border-t-0 md:border-l"
+			className="shrink-0 overflow-auto border-black border-b bg-panel p-2 shadow-ridge md:w-17.5 md:flex-col md:border-r md:border-b-0"
 		>
 			{editing.map((entry) => (
 				<ModeTab key={entry.id} entry={entry} />

@@ -369,7 +369,7 @@ export function LayersControls({
 					</button>
 				</LayerMenu>
 			</div>
-			<ScrollArea className="flex-1" viewportClassName="px-2 py-1.5">
+			<ScrollArea fade className="flex-1" viewportClassName="px-2 py-1.5">
 				<TreeDrag
 					canDrop={(target) => Boolean(layerDrop(scene, target))}
 					onDrop={drop}

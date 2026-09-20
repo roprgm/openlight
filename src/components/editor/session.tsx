@@ -73,6 +73,7 @@ export function EditorPanel({
 		>
 			{children}
 			<ScrollArea
+				fade
 				className="flex-1 shadow-ridge"
 				role="region"
 				aria-label="Editor controls"
