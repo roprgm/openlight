@@ -15,7 +15,7 @@ export function ImageHistogram() {
 	return (
 		<section
 			aria-label="Image histogram"
-			className="relative shrink-0 border-b border-black bg-neutral-900 p-2"
+			className="relative shrink-0 border-b border-black bg-neutral-900 px-1 pt-1 pb-0.5"
 		>
 			<ClippingControls />
 			<Histogram
@@ -24,7 +24,7 @@ export function ImageHistogram() {
 				subscribe={renderer.subscribe}
 				colors={colors}
 				fillOpacity={0.2}
-				className="h-20 w-full"
+				className="h-25 w-full"
 				aria-label="output histogram"
 			/>
 		</section>

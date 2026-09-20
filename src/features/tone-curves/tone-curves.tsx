@@ -25,7 +25,7 @@ export function ToneCurves({ points, onChange, children }: ToneCurvesProps) {
 				</Button>
 			</div>
 			<div className="px-0.5">
-				<div className="relative aspect-square rounded border border-black bg-neutral-900 shadow-groove">
+				<div className="relative aspect-square max-h-60 rounded border border-black bg-neutral-900 shadow-groove">
 					{children}
 					<Graph onChange={onChange} points={points} />
 				</div>

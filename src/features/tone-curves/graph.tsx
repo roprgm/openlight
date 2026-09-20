@@ -2,6 +2,8 @@ import {
 	type KeyboardEvent,
 	type MouseEvent,
 	type PointerEvent,
+	useEffect,
+	useRef,
 	useState,
 } from "react";
 import type { CurvePoint, ToneCurve } from "@/core/document";
@@ -13,11 +15,30 @@ import {
 	sampleCurve,
 } from "./curve";
 
-function gridLines(spacing: number) {
-	return Array.from({ length: 256 / spacing - 1 }, (_, index) => {
-		const position = (index + 1) * spacing;
-		return `M${position} 0V256 M0 ${position}H256`;
+function gridLines(divisions: number, [width, height]: readonly number[]) {
+	return Array.from({ length: divisions - 1 }, (_, index) => {
+		const x = ((index + 1) * width) / divisions;
+		const y = ((index + 1) * height) / divisions;
+		return `M${x} 0V${height} M0 ${y}H${width}`;
 	}).join(" ");
+}
+
+/** The graph draws in pixels so lines and points keep their weight at any box aspect. */
+function useBoxSize(ref: React.RefObject<SVGSVGElement | null>) {
+	const [size, setSize] = useState<readonly [number, number]>([256, 256]);
+	useEffect(() => {
+		const element = ref.current;
+		if (!element) {
+			return;
+		}
+		const observer = new ResizeObserver(([entry]) => {
+			const { width, height } = entry.contentRect;
+			setSize([width, height]);
+		});
+		observer.observe(element);
+		return () => observer.disconnect();
+	}, [ref]);
+	return size;
 }
 
 function position(event: MouseEvent<SVGSVGElement>): CurvePoint {
@@ -35,9 +56,11 @@ type GraphProps = {
 
 export function Graph({ points, onChange }: GraphProps) {
 	const [selected, select] = useState<number | null>(null);
+	const svg = useRef<SVGSVGElement>(null);
+	const [width, height] = useBoxSize(svg);
 	const line = Array.from(
 		sampleCurve(points, 257),
-		(y, x) => `${x},${256 * (1 - y)}`,
+		(y, x) => `${(x / 256) * width},${height * (1 - y)}`,
 	).join(" ");
 	function move(index: number, point: CurvePoint) {
 		onChange(moveCurvePoint(points, index, point));
@@ -51,10 +74,13 @@ export function Graph({ points, onChange }: GraphProps) {
 	}
 	function hitTest(event: MouseEvent<SVGSVGElement>) {
 		const point = position(event);
-		const size = event.currentTarget.getBoundingClientRect().width;
+		const bounds = event.currentTarget.getBoundingClientRect();
 		return points.findIndex(
 			(candidate) =>
-				Math.hypot(candidate.x - point.x, candidate.y - point.y) * size <= 12,
+				Math.hypot(
+					(candidate.x - point.x) * bounds.width,
+					(candidate.y - point.y) * bounds.height,
+				) <= 12,
 		);
 	}
 	function doubleClick(event: MouseEvent<SVGSVGElement>) {
@@ -140,26 +166,24 @@ export function Graph({ points, onChange }: GraphProps) {
 					move(selected, position(event));
 				}
 			}}
+			ref={svg}
 			role="application"
 			tabIndex={-1}
-			viewBox="0 0 256 256"
 		>
 			<path
-				d={gridLines(8)}
+				d={gridLines(32, [width, height])}
 				fill="none"
 				stroke="white"
 				strokeOpacity="0.04"
-				vectorEffect="non-scaling-stroke"
 			/>
 			<path
-				d={gridLines(32)}
+				d={gridLines(8, [width, height])}
 				fill="none"
 				stroke="white"
 				strokeOpacity="0.07"
-				vectorEffect="non-scaling-stroke"
 			/>
 			<path
-				d="M0 256L256 0"
+				d={`M0 ${height}L${width} 0`}
 				fill="none"
 				stroke="#a3a3a3"
 				strokeDasharray="3 4"
@@ -175,8 +199,8 @@ export function Graph({ points, onChange }: GraphProps) {
 			{points.map((point, index) => (
 				<circle
 					className="fill-neutral-800 stroke-neutral-200 data-[selected=true]:fill-neutral-100"
-					cx={point.x * 256}
-					cy={(1 - point.y) * 256}
+					cx={point.x * width}
+					cy={(1 - point.y) * height}
 					data-selected={selected === index}
 					key={point.x}
 					r="4"
