@@ -37,6 +37,7 @@ import {
 	addLayer,
 	deleteLayer,
 	duplicateLayer,
+	type LayerPlacement,
 	moveLayer,
 	setExposure,
 	setLayer,
@@ -158,7 +159,7 @@ export function createControls(gpu: Gpu, workspace: Workspace) {
 				},
 			);
 		},
-		addLayer(kind: ProcessingLayer["kind"], parentId?: string) {
+		addLayer(kind: ProcessingLayer["kind"], placement?: LayerPlacement) {
 			const document = workspace.getDocument();
 			const source = document.resources.get(
 				document.scene.getState().layers[0].source,
@@ -167,7 +168,7 @@ export function createControls(gpu: Gpu, workspace: Workspace) {
 			return addLayer(
 				document,
 				createLayer(kind, [size[0], size[1]]),
-				parentId,
+				placement,
 			);
 		},
 		setLayer: (id: string, change: Parameters<typeof setLayer>[2]) =>

@@ -76,10 +76,37 @@ function validateDepth(layers: readonly Layer[]) {
 	}
 }
 
+/** Above a sibling, inside a processing layer, or on top of the root stack. */
+export type LayerPlacement = { above: string } | { inside: string };
+
+function placementIndex(
+	scene: Scene,
+	placement?: LayerPlacement,
+): { parentId?: string; index?: number } {
+	if (placement === undefined) {
+		return {};
+	}
+	if (typeof placement !== "object" || placement === null) {
+		throw Error("Invalid layer placement.");
+	}
+	if ("inside" in placement) {
+		return { parentId: placement.inside };
+	}
+	const location = locateLayer(scene.layers, placement.above);
+	if (!location) {
+		throw Error("Layer is unavailable.");
+	}
+	const index =
+		location.siblings.findIndex((item) => item.id === location.layer.id) +
+		(location.parent ? 1 : 0);
+	return { parentId: location.parent?.id, index };
+}
+
+/** Structural commands commit an open gesture and record one entry each. */
 export function addLayer(
 	document: EditorDocument,
 	layer: ProcessingLayer,
-	parentId?: string,
+	placement?: LayerPlacement,
 ) {
 	const scene = document.scene.getState();
 	const existing = new Set(walkLayers(scene.layers).map((item) => item.id));
@@ -89,13 +116,10 @@ export function addLayer(
 		}
 		existing.add(item.id);
 	}
-	const selected = document.selection.getState().layerId;
-	const parent = parentId ?? locateLayer(scene.layers, selected)?.parent?.id;
-	const next = changeChildren(scene, parent, (layers) => {
-		const selectedIndex = layers.findIndex((item) => item.id === selected);
-		const index = parentId ? layers.length : selectedIndex + 1;
-		return layers.toSpliced(index, 0, layer);
-	});
+	const { parentId, index } = placementIndex(scene, placement);
+	const next = changeChildren(scene, parentId, (layers) =>
+		layers.toSpliced(index ?? layers.length, 0, layer),
+	);
 	validateDepth(next.layers);
 	document.history.commit();
 	document.edit(next);

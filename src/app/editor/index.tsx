@@ -60,16 +60,14 @@ function EditorSidebar() {
 	const document = useDocument();
 	function add(kind: ProcessingLayer["kind"]) {
 		const scene = document.scene.getState();
-		const selected = findLayer(
-			scene.layers,
-			document.selection.getState().layerId,
-		);
+		const selected = document.selection.getState().layerId;
+		const layer = findLayer(scene.layers, selected);
 		const size = document.resources.get(scene.layers[0].source).image.size;
-		const parentId =
-			selected?.kind === "mask" && scene.layers.includes(selected)
-				? selected.id
-				: undefined;
-		addLayer(document, createLayer(kind, [size[0], size[1]]), parentId);
+		const placement =
+			layer?.kind === "mask" && scene.layers.includes(layer)
+				? { inside: selected }
+				: { above: selected };
+		addLayer(document, createLayer(kind, [size[0], size[1]]), placement);
 	}
 	return (
 		<EditorPanel footer={<EditorActions />}>
@@ -88,13 +86,14 @@ function DocumentEditor() {
 		const scene = document.scene.getState();
 		const size = document.resources.get(scene.layers[0].source).image.size;
 		const layer = createLayer("mask", [size[0], size[1]]);
-		if (!target.parentId) {
-			const selected = document.selection.getState().layerId;
-			const root = scene.layers.find((item) => findLayer([item], selected));
-			if (root) {
-				document.selectLayer(root.id);
-			}
-		}
+		const selected = document.selection.getState().layerId;
+		// A new top-level mask goes above the selection's root ancestor.
+		const root =
+			scene.layers.find((item) => findLayer([item], selected)) ??
+			scene.layers[0];
+		const placement = target.parentId
+			? { inside: target.parentId }
+			: { above: root.id };
 		addLayer(
 			document,
 			{
@@ -103,7 +102,7 @@ function DocumentEditor() {
 				mask,
 				operation: target.operation,
 			},
-			target.parentId,
+			placement,
 		);
 	}
 	return (

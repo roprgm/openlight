@@ -93,16 +93,12 @@ test("nested layers compose in order, move atomically, and duplicate with indepe
 		controls.undo();
 		controls.undo();
 		const mask = addLayer(document, createLayer("mask", [32, 16]));
-		const exposure = addLayer(
-			document,
-			createLayer("exposure", [32, 16]),
-			mask,
-		);
-		const vignette = addLayer(
-			document,
-			createLayer("vignette", [32, 16]),
-			mask,
-		);
+		const exposure = addLayer(document, createLayer("exposure", [32, 16]), {
+			inside: mask,
+		});
+		const vignette = addLayer(document, createLayer("vignette", [32, 16]), {
+			inside: mask,
+		});
 		expect(document.scene.getState().layers[0]).toBe(original.layers[0]);
 		const unchangedScene = document.scene.getState();
 		document.edit(structuredClone(unchangedScene));
@@ -154,7 +150,7 @@ test("nested layers compose in order, move atomically, and duplicate with indepe
 		).toBe(exposure);
 		const unchanged = document.scene.getState();
 		expect(() =>
-			addLayer(document, createLayer("curves", [32, 16]), exposure),
+			addLayer(document, createLayer("curves", [32, 16]), { inside: exposure }),
 		).toThrow("two levels");
 		expect(() => moveLayer(document, mask, 0, exposure)).toThrow("itself");
 		expect(() => moveLayer(document, exposure, 0, "base")).toThrow("image");
@@ -175,6 +171,22 @@ test("nested layers compose in order, move atomically, and duplicate with indepe
 		).toThrow("distinct");
 		expect(() => setExposure(document, exposure, NaN)).toThrow("Exposure");
 		expect(() => deleteLayer(document, "base")).toThrow("unavailable");
+		expect(document.scene.getState()).toBe(unchanged);
+		const curves = addLayer(document, createLayer("curves", [32, 16]), {
+			above: exposure,
+		});
+		expect(
+			findLayer(document.scene.getState().layers, mask)?.children.map(
+				(layer) => layer.id,
+			),
+		).toEqual([exposure, curves, vignette]);
+		const top = addLayer(document, createLayer("curves", [32, 16]));
+		expect(document.scene.getState().layers.at(-1)?.id).toBe(top);
+		expect(() =>
+			addLayer(document, createLayer("curves", [32, 16]), { above: "missing" }),
+		).toThrow("unavailable");
+		document.history.undo();
+		document.history.undo();
 		expect(document.scene.getState()).toBe(unchanged);
 		document.selectLayer(exposure);
 		deleteLayer(document, mask);

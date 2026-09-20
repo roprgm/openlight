@@ -60,7 +60,7 @@ Edits update the scene and history synchronously. Rendering may finish later, pa
 
 ## Layers
 
-`scene.layers` is ordered bottom to top, beginning with the locked image at index 0. Processing layers have `children`, also ordered bottom to top; the image cannot contain layers. Editing supports two levels. Selecting a layer changes the inspector without adding history; changing selection commits an active gesture. Removing the selected layer or an ancestor returns selection to the image.
+`scene.layers` is ordered bottom to top, beginning with the locked image at index 0. Processing layers have `children`, also ordered bottom to top; the image cannot contain layers. Editing supports two levels. Adding, duplicating, moving, and deleting commit an open gesture and record one history entry each. Selecting a layer changes the inspector without adding history; changing selection commits an active gesture. Removing the selected layer or an ancestor returns selection to the image.
 
 Images own basic adjustments. An effect processes the image below, then its children. A mask processes its basic adjustments and child effects, then blends that result with its input using coverage × opacity. A neutral mask with no effects does nothing. Hidden layers and zero opacity bypass the complete branch.
 
@@ -68,7 +68,7 @@ Direct mask children of another mask modify coverage instead of processing image
 
 | Method | Behavior |
 | --- | --- |
-| `addLayer(kind, parentId?)` | Adds `"exposure"`, `"curves"`, `"color-mixer"`, `"details"`, `"vignette"`, or `"mask"`; selects and returns its ID. An explicit processing-layer parent appends a child; otherwise inserts above the selected sibling. Exposure starts at +1 EV, Vignette at intensity 50; Curves, Color Mixer, Details, and masks start neutral. |
+| `addLayer(kind, placement?)` | Adds `"exposure"`, `"curves"`, `"color-mixer"`, `"details"`, `"vignette"`, or `"mask"`; selects and returns its ID. `{ inside: id }` appends a child to a processing layer; `{ above: id }` inserts directly above that layer among its siblings; without a placement, the layer goes on top of the root stack. Exposure starts at +1 EV, Vignette at intensity 50; Curves, Color Mixer, Details, and masks start neutral. |
 | `selectLayer(id)` | Selects any layer. |
 | `setLayer(id, change)` | Updates processing-layer `name`, `visible`, or `opacity` (0–1). |
 | `setExposure(id, value)` | Sets an Exposure layer to -5…5 EV. |

@@ -121,7 +121,7 @@ test("file batches preserve ordering, group imports, recover from failures, and 
 		}
 		const document = workspace.getDocument();
 		const maskId = addLayer(document, createLayer("mask", [32, 32]));
-		addLayer(document, createLayer("details", [32, 32]), maskId);
+		addLayer(document, createLayer("details", [32, 32]), { inside: maskId });
 		const beforeDetails = document.scene.getState();
 		await xmp.load(settings('crs:Exposure2012="0.5" crs:Clarity2012="35"'));
 		expect(document.scene.getState().layers[1]).toMatchObject({
