@@ -40,11 +40,11 @@ function composeLayer(
 	layer: ProcessingLayer,
 	inputId?: string,
 ): Composition {
-	let input = layer.id === inputId ? below : undefined;
 	if (!layer.visible || layer.opacity === 0) {
-		return { image: below, input };
+		return { image: below };
 	}
 	const name = `layer/${layer.id}`;
+	let input: RenderImage | undefined;
 	let edited = below;
 	switch (layer.kind) {
 		case "details":
@@ -57,17 +57,21 @@ function composeLayer(
 				),
 			]);
 			break;
-		case "mask":
-			edited = pipeline(below, [maskAdjustments(layer)]);
+		case "mask": {
+			const adjusted = pipeline(below, [maskAdjustments(layer)]);
+			if (layer.id === inputId) {
+				input = adjusted;
+			}
+			edited = pipeline(adjusted, [
+				toneCurves(layer.toneCurve, `${name}/curves`),
+			]);
 			break;
+		}
 		case "exposure":
 			edited = pipeline(below, [exposure(`${name}/exposure`, layer.exposure)]);
 			break;
 		case "vignette":
 			edited = pipeline(below, [vignette(layer.vignette, `${name}/vignette`)]);
-			break;
-		case "curves":
-			edited = pipeline(below, [toneCurves(layer.toneCurve, `${name}/curves`)]);
 			break;
 		case "color-mixer":
 			edited = pipeline(below, [
@@ -127,11 +131,12 @@ export function createEditorRenderer(
 		source,
 		(image, scene, inputId) => {
 			const [sourceLayer, ...layers] = scene.layers;
-			const base = pipeline(image, [
-				adjustments(
-					sourceLayer.adjustments,
-					`layer/${sourceLayer.id}/adjustments`,
-				),
+			const name = `layer/${sourceLayer.id}`;
+			const adjusted = pipeline(image, [
+				adjustments(sourceLayer.adjustments, `${name}/adjustments`),
+			]);
+			const base = pipeline(adjusted, [
+				toneCurves(sourceLayer.toneCurve, `${name}/curves`),
 			]);
 			const children = composeLayers(base, sourceLayer.children, inputId);
 			const composition = composeLayers(children.image, layers, inputId);
@@ -144,7 +149,10 @@ export function createEditorRenderer(
 				original,
 				full,
 				output,
-				input: children.input ?? composition.input,
+				input:
+					inputId === sourceLayer.id
+						? adjusted
+						: (children.input ?? composition.input),
 			};
 		},
 		timer,

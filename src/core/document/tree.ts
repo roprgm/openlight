@@ -32,6 +32,16 @@ export function findLayer(layers: readonly Layer[], id: string) {
 	return locateLayer(layers, id)?.layer;
 }
 
+/** A mask inside a mask only shapes coverage; its parent owns the adjustments and curve. */
+export function adjustmentTarget(layers: readonly Layer[], id: string) {
+	const location = locateLayer(layers, id);
+	if (!location) {
+		return undefined;
+	}
+	const { layer, parent } = location;
+	return layer.kind === "mask" && parent?.kind === "mask" ? parent : layer;
+}
+
 function updateChildren(
 	layers: readonly ProcessingLayer[],
 	id: string,

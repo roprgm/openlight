@@ -7,6 +7,7 @@ import { imageFrame } from "@/core/image/frame";
 import { defaultAdjustments } from "@/features/adjustments/model";
 import { resetColorMixer, setColorMixer } from "@/features/color-mixer/edits";
 import { defaultMixer } from "@/features/color-mixer/model";
+import { defaultCurve } from "@/features/tone-curves/curve";
 
 test("color edits validate, group, cancel and reset while renderers reuse and release their outputs", async () => {
 	const gpu = await init();
@@ -32,6 +33,7 @@ test("color edits validate, group, cancel and reset while renderers reuse and re
 				id: "base",
 				source: "photo",
 				adjustments: defaultAdjustments,
+				toneCurve: defaultCurve,
 			},
 		],
 	});

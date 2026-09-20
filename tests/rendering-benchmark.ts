@@ -6,6 +6,7 @@ import { createImageSource } from "@/core/image";
 import { imageFrame } from "@/core/image/frame";
 import { defaultAdjustments } from "@/features/adjustments/model";
 import { createHistogram } from "@/features/histogram/histogram";
+import { defaultCurve } from "@/features/tone-curves/curve";
 
 export type Workload =
 	| "neutral"
@@ -56,7 +57,7 @@ export async function benchmarkRendering(
 	clock?.onResults((results) => {
 		measurements.push(results);
 	});
-	const inputId = workload === "pipeline-input" ? "benchmark-curve" : undefined;
+	const inputId = workload === "pipeline-input" ? "benchmark-image" : undefined;
 	const histogram = inputId ? createHistogram(gpu) : undefined;
 	const combined = workload === "pipeline" || workload === "pipeline-input";
 	const detail = combined || workload === "detail";
@@ -82,19 +83,6 @@ export async function benchmarkRendering(
 				saturation: new Array<number>(8).fill(25),
 				luminance: new Array<number>(8).fill(10),
 			},
-		});
-	}
-	if (combined) {
-		effects.push({
-			...common,
-			id: "benchmark-curve",
-			name: "Curves",
-			kind: "curves",
-			toneCurve: [
-				{ x: 0, y: 0 },
-				{ x: 0.5, y: 0.6 },
-				{ x: 1, y: 1 },
-			],
 		});
 	}
 	if (
@@ -123,6 +111,7 @@ export async function benchmarkRendering(
 			kind: "mask",
 			operation: "add",
 			adjustments: defaultAdjustments,
+			toneCurve: defaultCurve,
 			opacity: 0.75,
 			mask,
 			children: [
@@ -160,6 +149,13 @@ export async function benchmarkRendering(
 					exposure: 0.25,
 					contrast: 10,
 				},
+				toneCurve: combined
+					? [
+							{ x: 0, y: 0 },
+							{ x: 0.5, y: 0.6 },
+							{ x: 1, y: 1 },
+						]
+					: defaultCurve,
 			},
 			...effects,
 		],

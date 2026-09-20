@@ -20,7 +20,6 @@ import {
 import { setAdjustments } from "@/features/adjustments/edits";
 import { defaultAdjustments } from "@/features/adjustments/model";
 import { unsharpMask } from "@/features/details/unsharp-mask";
-import { setLayer } from "@/features/layers/edits";
 import { defaultCurve } from "@/features/tone-curves/curve";
 import { setToneCurve } from "@/features/tone-curves/edits";
 import { setWhiteBalance } from "@/features/white-balance/edits";
@@ -65,20 +64,11 @@ test("RAW edits coalesce, recover from failure, and retain an exporting source a
 				{
 					kind: "image",
 					name: "Photo",
-					children: [
-						{
-							id: "curve",
-							name: "Curves",
-							kind: "curves",
-							visible: true,
-							opacity: 1,
-							children: [],
-							toneCurve: defaultCurve,
-						},
-					],
+					children: [],
 					id: "base",
 					source: id,
 					adjustments: { ...defaultAdjustments },
+					toneCurve: defaultCurve,
 					whiteBalance: asShot,
 				},
 			],
@@ -205,20 +195,11 @@ test("rendering follows grouped edits and undo, reuses pipelines, and releases o
 			{
 				kind: "image",
 				name: "Photo",
-				children: [
-					{
-						id: "curve",
-						name: "Curves",
-						kind: "curves",
-						visible: true,
-						opacity: 1,
-						children: [],
-						toneCurve: defaultCurve,
-					},
-				],
+				children: [],
 				id: "base",
 				source: "photo",
 				adjustments: { ...defaultAdjustments },
+				toneCurve: defaultCurve,
 			},
 		],
 	});
@@ -254,15 +235,11 @@ test("rendering follows grouped edits and undo, reuses pipelines, and releases o
 		document.history.begin();
 		setAdjustments(document, { exposure: 0.5 });
 		setAdjustments(document, { exposure: 1 });
-		setToneCurve(
-			document,
-			[
-				{ x: 0, y: 0 },
-				{ x: 0.5, y: 0.7 },
-				{ x: 1, y: 1 },
-			],
-			"curve",
-		);
+		setToneCurve(document, [
+			{ x: 0, y: 0 },
+			{ x: 0.5, y: 0.7 },
+			{ x: 1, y: 1 },
+		]);
 		document.history.commit();
 		const curved = renderer.outputImage();
 		expect(curved).not.toBe(adjusted);
@@ -285,15 +262,15 @@ test("rendering follows grouped edits and undo, reuses pipelines, and releases o
 		document.history.redo();
 		expect(renderer.inspect().passes).toEqual([
 			"layer/base/adjustments",
-			"layer/curve/curves",
+			"layer/base/curves",
 		]);
 		document.history.begin();
-		setToneCurve(document, undefined, "curve");
+		setToneCurve(document);
 		expect(renderer.outputImage()).toBe(adjusted);
 		document.history.cancel();
 		expect(renderer.inspect().passes).toEqual([
 			"layer/base/adjustments",
-			"layer/curve/curves",
+			"layer/base/curves",
 		]);
 		draw();
 		expect(calls.createRenderPipeline).toBe(pipelines);
@@ -314,20 +291,17 @@ test("rendering follows grouped edits and undo, reuses pipelines, and releases o
 				},
 			],
 		});
-		await renderer.update(document.scene.getState(), "curve");
-		expect(renderer.inputImage("curve")).toBeDefined();
-		expect(renderer.inputImage("curve")).not.toBe(renderer.outputImage());
+		await renderer.update(document.scene.getState(), "base");
+		expect(renderer.inputImage("base")).toBeDefined();
+		expect(renderer.inputImage("base")).not.toBe(renderer.outputImage());
 		expect(renderer.inputImage("exposure")).toBeUndefined();
 		expect(renderer.inspect().passes).toEqual([
 			"layer/base/adjustments",
+			"layer/base/curves",
 			"layer/exposure/exposure",
-			"layer/curve/curves",
 		]);
-		setLayer(document, "curve", { visible: false });
-		await renderer.update(document.scene.getState(), "curve");
-		expect(renderer.inputImage("curve")).toBe(renderer.outputImage());
 		document.edit(beforeInput);
-		expect(renderer.inputImage("curve")).toBeUndefined();
+		expect(renderer.inputImage("base")).toBeUndefined();
 		setAdjustments(document, { exposure: -1 });
 		const scene = document.scene.getState();
 		const [image, ...effects] = scene.layers;

@@ -8,7 +8,7 @@ import {
 } from "react";
 import type { Gpu } from "vgpu";
 import { useGpu } from "vgpu-react";
-import { findLayer } from "@/core/document";
+import { adjustmentTarget } from "@/core/document";
 import type { ImageSource } from "@/core/image";
 import type { createRenderer } from "@/core/renderer";
 import { useDocument, useScene } from "./session";
@@ -64,11 +64,11 @@ export function RendererProvider({
 		let requestedInput: string | undefined;
 		const render = () => {
 			const scene = document.scene.getState();
-			const selected = findLayer(
+			const target = adjustmentTarget(
 				scene.layers,
 				document.selection.getState().layerId,
 			);
-			const input = selected?.kind === "curves" ? selected.id : undefined;
+			const input = target && "toneCurve" in target ? target.id : undefined;
 			if (scene === requestedScene && input === requestedInput) {
 				return;
 			}

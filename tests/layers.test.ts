@@ -24,6 +24,7 @@ import {
 	setLayerMask,
 } from "@/features/layers/edits";
 import { defaultGradient } from "@/features/layers/gradient";
+import { defaultCurve } from "@/features/tone-curves/curve";
 
 test("nested layers compose in order, move atomically, and duplicate with independent IDs", async () => {
 	const gpu = await init();
@@ -42,6 +43,7 @@ test("nested layers compose in order, move atomically, and duplicate with indepe
 					name: "Photo",
 					source: sourceId,
 					adjustments: defaultAdjustments,
+					toneCurve: defaultCurve,
 					children: [],
 				},
 			],
@@ -151,7 +153,7 @@ test("nested layers compose in order, move atomically, and duplicate with indepe
 		).toBe(exposure);
 		const unchanged = document.scene.getState();
 		expect(() =>
-			addLayer(document, createLayer("curves"), { inside: exposure }),
+			addLayer(document, createLayer("vignette"), { inside: exposure }),
 		).toThrow("two levels");
 		expect(() => moveLayer(document, mask, 0, exposure)).toThrow("itself");
 		expect(() => moveLayer(document, exposure, 0, "base")).toThrow("image");
@@ -173,18 +175,18 @@ test("nested layers compose in order, move atomically, and duplicate with indepe
 		expect(() => setExposure(document, exposure, NaN)).toThrow("Exposure");
 		expect(() => deleteLayer(document, "base")).toThrow("unavailable");
 		expect(document.scene.getState()).toBe(unchanged);
-		const curves = addLayer(document, createLayer("curves"), {
+		const added = addLayer(document, createLayer("vignette"), {
 			above: exposure,
 		});
 		expect(
 			findLayer(document.scene.getState().layers, mask)?.children.map(
 				(layer) => layer.id,
 			),
-		).toEqual([exposure, curves, vignette]);
-		const top = addLayer(document, createLayer("curves"));
+		).toEqual([exposure, added, vignette]);
+		const top = addLayer(document, createLayer("vignette"));
 		expect(document.scene.getState().layers.at(-1)?.id).toBe(top);
 		expect(() =>
-			addLayer(document, createLayer("curves"), { above: "missing" }),
+			addLayer(document, createLayer("vignette"), { above: "missing" }),
 		).toThrow("unavailable");
 		document.history.undo();
 		document.history.undo();

@@ -14,7 +14,7 @@ Image processing runs locally with WebGPU. Built with TypeScript and React; requ
 - Camera Raw XMP import; HEIC, TIFF at 16-bit and floating-point precision, and camera RAW/DNG with absolute white balance and As Shot reset.
 - PNG, JPEG, and WebP export with resizing, live preview, and file size.
 
-Documents currently live in memory; export saves a flattened image. Layers support one locked base image and two levels of effects and masks. Curves, Color Mixer, Exposure, and Vignette can be added independently. Retouch remains a placeholder.
+Documents currently live in memory; export saves a flattened image. Layers support one locked base image and two levels of effects and masks. Color Mixer, Details, Exposure, and Vignette can be added independently. Retouch remains a placeholder.
 
 RAW decoding and GPU development use [raw-webgpu](https://github.com/roprgm/raw-webgpu), which documents format support and limitations. OpenLight owns editing, history and preview/export lifetimes.
 
@@ -67,7 +67,7 @@ After [browser setup](#browser-setup), run `bun run test:browser --config playwr
 
 Results and rendered PNGs are written under `test-results/benchmarks`; keep generated artifacts out of Git. JSON includes environment details, samples, median/p95, setup, first render, completed-render latency, intermediate texture storage, and per-node GPU timestamps when supported. Timestamp profiling runs separately from the latency comparison. Decoding, display, readback, and image encoding run outside the measured loop. Software-adapter results describe that backend only. A hardware measurement requires a browser configuration that does not force SwiftShader; record the adapter actually used.
 
-Compare `pipeline` with `pipeline-input` to measure selecting Curves: the latter retains the curve's upstream image and computes its histogram. Completed latency includes histogram compute and its buffer copy; per-node timestamps cover only image processing.
+Compare `pipeline` with `pipeline-input` to measure the curve input histogram: the latter retains the image entering the base curve and computes its histogram. Completed latency includes histogram compute and its buffer copy; per-node timestamps cover only image processing.
 
 For revision comparisons, use identical fixtures, settings, sampling, and browser configuration in both checkouts. The benchmark is opt-in and excluded from the regular test suite; correctness remains covered by GPU pixel tests and the editing session. See [PERFORMANCE.md](PERFORMANCE.md) for the node contract, measurement scope, and interpretation.
 

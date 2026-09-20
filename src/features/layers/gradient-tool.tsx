@@ -44,6 +44,7 @@ export function useGradientTool() {
 function adjusted(before: MaskLayer, after: MaskLayer) {
 	return (
 		before.adjustments !== after.adjustments ||
+		before.toneCurve !== after.toneCurve ||
 		before.children !== after.children ||
 		before.opacity !== after.opacity
 	);

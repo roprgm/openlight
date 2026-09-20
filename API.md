@@ -34,7 +34,7 @@ Loading calls are queued. XMP import is skipped if no document is ready; an inva
 
 ## Editing
 
-Commands take explicit layer IDs rather than using UI selection. Without an ID, adjustments and white balance address the base image; curve, color-mixer, Details, and vignette commands use the first matching root effect or create one at the top of the stack; effects nested in other layers stay untouched. Creation and parameter changes are one edit, respecting an open history group.
+Commands take explicit layer IDs rather than using UI selection. Without an ID, adjustments, the tone curve, and white balance address the base image; color-mixer, Details, and vignette commands use the first matching root effect or create one at the top of the stack; effects nested in other layers stay untouched. Creation and parameter changes are one edit, respecting an open history group.
 
 `setAdjustments(change, id?)` updates only the supplied adjustments on an image or mask. Values must be finite numbers within these inclusive ranges. Unknown names and invalid values throw.
 
@@ -44,7 +44,7 @@ Commands take explicit layer IDs rather than using UI selection. Without an ID, 
 | `contrast`, `highlights`, `shadows`, `whites`, `blacks` | -100 to 100 | 0 |
 | `incrementalTemperature`, `incrementalTint`, `vibrance`, `saturation` | -100 to 100 | 0 |
 
-`setToneCurve(points, id?)` replaces a Curves layer's tone curve. Each point is `{ x, y }` with coordinates between 0 and 1. Supply at least two points, ordered by `x` with a minimum gap of `1/1024`. The first point must have `x = 0` or `y = 0`; the last must have `x = 1` or `y = 1`. Call `setToneCurve()` to reset it.
+`setToneCurve(points, id?)` replaces the tone curve of an image or mask layer, applied after its basic adjustments. Each point is `{ x, y }` with coordinates between 0 and 1. Supply at least two points, ordered by `x` with a minimum gap of `1/1024`. The first point must have `x = 0` or `y = 0`; the last must have `x = 1` or `y = 1`. Call `setToneCurve()` to reset it.
 
 `setDetails(change, id?)` edits a Details effect: `clarity` (−100 to 100, default 0), `sharpening` (0 to 150, default 0), and `sharpenRadius` (0.5 to 3, default 1). Values must be finite. Like other effect commands, it creates a layer when no matching layer exists.
 
@@ -62,13 +62,13 @@ Edits update the scene and history synchronously. Rendering may finish later, pa
 
 `scene.layers` is ordered bottom to top, beginning with the locked image at index 0. Processing layers have `children`, also ordered bottom to top; the image cannot contain layers. Editing supports two levels. Adding, duplicating, moving, and deleting commit an open gesture and record one history entry each. Selecting a layer changes the inspector without adding history; changing selection commits an active gesture. Removing the selected layer or an ancestor returns selection to the image.
 
-Images own basic adjustments. An effect processes the image below, then its children. A mask processes its basic adjustments and child effects, then blends that result with its input using coverage × opacity. A neutral mask with no effects does nothing. Hidden layers and zero opacity bypass the complete branch.
+Images own basic adjustments and a tone curve. An effect processes the image below, then its children. A mask processes its basic adjustments, its tone curve, and child effects, then blends that result with its input using coverage × opacity. A neutral mask with no effects does nothing. Hidden layers and zero opacity bypass the complete branch.
 
 Direct mask children of another mask modify coverage instead of processing image pixels: Add sums coverage, Subtract removes it, clamping to 0–1 after each child in stored order. Each child's opacity scales its contribution. Its stored basic adjustments are inactive in this position. Other children process the image within the combined mask. Layer opacity always controls effect strength, preserving the input image's alpha.
 
 | Method | Behavior |
 | --- | --- |
-| `addLayer(kind, placement?)` | Adds `"exposure"`, `"curves"`, `"color-mixer"`, `"details"`, `"vignette"`, or `"mask"`; selects and returns its ID. `{ inside: id }` appends a child to a processing layer; `{ above: id }` inserts directly above that layer among its siblings; without a placement, the layer goes on top of the root stack. Exposure starts at +1 EV, Vignette at intensity 50; Curves, Color Mixer, Details, and masks start neutral. |
+| `addLayer(kind, placement?)` | Adds `"exposure"`, `"color-mixer"`, `"details"`, `"vignette"`, or `"mask"`; selects and returns its ID. `{ inside: id }` appends a child to a processing layer; `{ above: id }` inserts directly above that layer among its siblings; without a placement, the layer goes on top of the root stack. Exposure starts at +1 EV, Vignette at intensity 50; Color Mixer, Details, and masks start neutral. |
 | `selectLayer(id)` | Selects any layer. |
 | `setLayer(id, change)` | Updates processing-layer `name`, `visible`, or `opacity` (0–1). |
 | `setExposure(id, value)` | Sets an Exposure layer to -5…5 EV. |
@@ -133,6 +133,6 @@ The image renders at the document dimensions and downsamples to `longEdge` with 
 
 ## State
 
-`getState()` returns a detached snapshot containing `file`, `documentId`, `scene`, `selectedLayerId`, `size`, `frame`, `adjustments`, `whiteBalance`, `details`, `toneCurve`, `colorMixer`, `vignette`, `preview`, and `history`. `scene` contains `frame` and the layer tree. The top-level adjustment and white-balance values come from `scene.layers[0]`; details, curve, color-mixer, and vignette values describe the first matching root layer from the bottom, or its defaults. `colorMixer` contains eight-value `hue`, `saturation`, and `luminance` arrays in the color order above, defaulting to zero. `whiteBalance` contains absolute temperature/tint for RAW sources and is undefined for other sources. `file` is the filename, and `history` contains `undoCount` and `redoCount`.
+`getState()` returns a detached snapshot containing `file`, `documentId`, `scene`, `selectedLayerId`, `size`, `frame`, `adjustments`, `whiteBalance`, `details`, `toneCurve`, `colorMixer`, `vignette`, `preview`, and `history`. `scene` contains `frame` and the layer tree. The top-level adjustment, tone-curve, and white-balance values come from `scene.layers[0]`; details, color-mixer, and vignette values describe the first matching root layer from the bottom, or its defaults. `colorMixer` contains eight-value `hue`, `saturation`, and `luminance` arrays in the color order above, defaulting to zero. `whiteBalance` contains absolute temperature/tint for RAW sources and is undefined for other sources. `file` is the filename, and `history` contains `undoCount` and `redoCount`.
 
 Without a document, `documentId`, `size`, `frame`, and `preview` are undefined. Adjustments, details, and the tone curve use their defaults, and history counts are zero. Mutating the snapshot does not edit the document.

@@ -43,6 +43,7 @@ export type ImageLayer = {
 	readonly source: string;
 	readonly whiteBalance?: Readonly<WhiteBalance>;
 	readonly adjustments: Readonly<Adjustments>;
+	readonly toneCurve: ToneCurve;
 	readonly children: readonly ProcessingLayer[];
 };
 
@@ -70,13 +71,13 @@ export type ProcessingLayer = {
 	| { readonly kind: "details"; readonly details: Readonly<Details> }
 	| { readonly kind: "exposure"; readonly exposure: number }
 	| { readonly kind: "vignette"; readonly vignette: Vignette }
-	| { readonly kind: "curves"; readonly toneCurve: ToneCurve }
 	| { readonly kind: "color-mixer"; readonly colorMixer: ColorMixer }
 	| {
 			readonly kind: "mask";
 			readonly operation: "add" | "subtract";
 			readonly mask: Gradient;
 			readonly adjustments: Readonly<Adjustments>;
+			readonly toneCurve: ToneCurve;
 	  }
 );
 export type MaskLayer = Extract<ProcessingLayer, { kind: "mask" }>;

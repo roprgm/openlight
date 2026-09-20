@@ -361,7 +361,7 @@ test("edit a photo, inspect the preview and histograms, undo changes, and export
 			window.openlight.setAdjustments({ exposure: -1 }),
 		);
 		const adjusted = await readImage(page);
-		await page.getByRole("button", { name: "Curves", exact: true }).click();
+		await page.getByRole("button", { name: "photo.svg", exact: true }).click();
 		const graph = page.getByRole("application", { name: "Tone curve" });
 		const curveHistogram = page
 			.getByLabel("curve input histogram", { exact: true })
@@ -432,19 +432,12 @@ test("edit a photo, inspect the preview and histograms, undo changes, and export
 	});
 
 	await page.getByRole("button", { name: "photo.svg", exact: true }).click();
-	await test.step("a nested curve clears unavailable input and restores it when its parent returns", async () => {
-		const mask = await page.evaluate(() => {
+	await test.step("a mask's curve input clears while the mask is hidden and returns on undo", async () => {
+		await page.evaluate(() => {
 			const api = window.openlight;
-			const curve = api
-				.getState()
-				.scene?.layers.find((layer) => layer.kind === "curves");
-			if (!curve) throw Error("Missing curve layer.");
 			const mask = api.addLayer("mask");
 			api.setLayer(mask, { name: "Curve input mask" });
 			api.setAdjustments({ exposure: 1 }, mask);
-			api.moveLayer(curve.id, 0, mask);
-			api.selectLayer(curve.id);
-			return mask;
 		});
 		const plot = page
 			.getByLabel("curve input histogram", { exact: true })
@@ -457,13 +450,12 @@ test("edit a photo, inspect the preview and histograms, undo changes, and export
 		await expect(plot).toHaveAttribute("points", "");
 		await page.getByRole("button", { name: "Undo", exact: true }).click();
 		await expect(plot).toHaveAttribute("points", points ?? "");
-		await page.evaluate((mask) => {
+		await page.evaluate(() => {
 			const api = window.openlight;
-			const curve = api.getState().selectedLayerId;
-			if (!curve) throw Error("Missing curve selection.");
-			api.moveLayer(curve, 1);
+			const mask = api.getState().selectedLayerId;
+			if (!mask) throw Error("Missing mask selection.");
 			api.deleteLayer(mask);
-		}, mask);
+		});
 	});
 	await page.getByRole("button", { name: "photo.svg", exact: true }).click();
 	await test.step("mode bar switches panels by click, arrow keys, and letters", async () => {

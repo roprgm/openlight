@@ -23,13 +23,6 @@ import { ImageThumbnail, MaskThumbnail } from "./thumbnails";
 
 function EffectSymbol({ kind }: { kind: ProcessingLayer["kind"] }) {
 	switch (kind) {
-		case "curves":
-			return (
-				<>
-					<path d="M4 20V4h16v16Z" />
-					<path d="M5 19C16 19 8 5 19 5" />
-				</>
-			);
 		case "color-mixer":
 			return (
 				<>
@@ -367,9 +360,6 @@ export function LayersControls({
 					</button>
 					<button type="submit" onClick={() => add("exposure")}>
 						Exposure
-					</button>
-					<button type="submit" onClick={() => add("curves")}>
-						Curves
 					</button>
 					<button type="submit" onClick={() => add("color-mixer")}>
 						Color Mixer

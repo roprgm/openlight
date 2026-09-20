@@ -31,8 +31,6 @@ export function createLayer(kind: EffectLayer["kind"]): EffectLayer {
 				name: "Vignette",
 				vignette: { intensity: 50, softness: 50 },
 			};
-		case "curves":
-			return { ...base, kind, name: "Curves", toneCurve: defaultCurve };
 		case "color-mixer":
 			return { ...base, kind, name: "Color Mixer", colorMixer: defaultMixer };
 		default:
@@ -50,6 +48,7 @@ export function createMask(
 		name: mask.kind === "radial" ? "Radial Gradient" : "Linear Gradient",
 		operation,
 		adjustments: { ...defaultAdjustments },
+		toneCurve: defaultCurve,
 		mask,
 	};
 }

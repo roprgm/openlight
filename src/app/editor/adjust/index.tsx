@@ -8,7 +8,7 @@ import {
 	useScene,
 } from "@/components/editor/session";
 import { Slider } from "@/components/ui/slider";
-import { findLayer, type Layer, locateLayer } from "@/core/document";
+import { adjustmentTarget, type Layer, type ToneCurve } from "@/core/document";
 import { AdjustmentControls } from "@/features/adjustments/controls";
 import { ColorMixerControls } from "@/features/color-mixer/controls";
 import { DetailsControls } from "@/features/details/controls";
@@ -43,6 +43,20 @@ function CurveInputHistogram({ id }: { id: string }) {
 	);
 }
 
+function LayerCurve({ id, toneCurve }: { id: string; toneCurve: ToneCurve }) {
+	const document = useDocument();
+	return (
+		<div className="px-3 pb-3">
+			<ToneCurves
+				points={toneCurve}
+				onChange={(points) => setToneCurve(document, points, id)}
+			>
+				<CurveInputHistogram id={id} />
+			</ToneCurves>
+		</div>
+	);
+}
+
 function SelectedControls({ layer }: { layer: Layer }) {
 	const document = useDocument();
 	switch (layer.kind) {
@@ -50,27 +64,21 @@ function SelectedControls({ layer }: { layer: Layer }) {
 			return <DetailsControls id={layer.id} details={layer.details} />;
 		case "image":
 			return (
-				<AdjustmentControls
-					id={layer.id}
-					adjustments={layer.adjustments}
-					temperature={
-						document.resources.get(layer.source).raw && <WhiteBalanceControls />
-					}
-				/>
+				<>
+					<AdjustmentControls
+						id={layer.id}
+						adjustments={layer.adjustments}
+						temperature={
+							document.resources.get(layer.source).raw && (
+								<WhiteBalanceControls />
+							)
+						}
+					/>
+					<LayerCurve id={layer.id} toneCurve={layer.toneCurve} />
+				</>
 			);
 		case "color-mixer":
 			return <ColorMixerControls id={layer.id} mixer={layer.colorMixer} />;
-		case "curves":
-			return (
-				<div className="p-3">
-					<ToneCurves
-						points={layer.toneCurve}
-						onChange={(points) => setToneCurve(document, points, layer.id)}
-					>
-						<CurveInputHistogram id={layer.id} />
-					</ToneCurves>
-				</div>
-			);
 		case "vignette":
 			return <VignetteControls id={layer.id} vignette={layer.vignette} />;
 		case "exposure":
@@ -89,7 +97,10 @@ function SelectedControls({ layer }: { layer: Layer }) {
 			);
 		case "mask":
 			return (
-				<AdjustmentControls id={layer.id} adjustments={layer.adjustments} />
+				<>
+					<AdjustmentControls id={layer.id} adjustments={layer.adjustments} />
+					<LayerCurve id={layer.id} toneCurve={layer.toneCurve} />
+				</>
 			);
 	}
 }
@@ -98,15 +109,9 @@ export function AdjustPanel() {
 	const document = useDocument();
 	const gesture = useEditGesture(document.history);
 	const selected = useStore(document.selection, (state) => state.layerId);
-	const layer = useScene(
-		(scene) => findLayer(scene.layers, selected) ?? scene.layers[0],
+	const target = useScene(
+		(scene) => adjustmentTarget(scene.layers, selected) ?? scene.layers[0],
 	);
-	const parent = useScene(
-		(scene) => locateLayer(scene.layers, layer.id)?.parent,
-	);
-	// A child mask edits coverage; the parent owns the resulting adjustments.
-	const target =
-		layer.kind === "mask" && parent?.kind === "mask" ? parent : layer;
 	return (
 		<PanelContent>
 			<div {...gesture}>

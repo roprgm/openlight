@@ -23,6 +23,7 @@ export type {
 	Vignette,
 } from "./scene";
 export {
+	adjustmentTarget,
 	editLayer,
 	findLayer,
 	locateLayer,

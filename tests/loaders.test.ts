@@ -10,6 +10,7 @@ import { setAdjustments } from "@/features/adjustments/edits";
 import { defaultAdjustments } from "@/features/adjustments/model";
 import { addLayer } from "@/features/layers/edits";
 import { defaultGradient } from "@/features/layers/gradient";
+import { defaultCurve } from "@/features/tone-curves/curve";
 
 function settings(attributes: string, name = "photo.xmp") {
 	return new File(
@@ -42,6 +43,7 @@ test("file batches preserve ordering, group imports, recover from failures, and 
 							id: "base",
 							source: file.name,
 							adjustments: { ...defaultAdjustments },
+							toneCurve: defaultCurve,
 						},
 					],
 				});

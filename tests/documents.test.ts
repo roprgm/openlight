@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
 import { init, target } from "vgpu/mock";
 import { createWorkspace } from "@/app/workspace";
-import { createDocument, createResources, findLayer } from "@/core/document";
+import { createDocument, createResources } from "@/core/document";
 import { createImageSource } from "@/core/image";
 import { imageFrame } from "@/core/image/frame";
 import { setAdjustments } from "@/features/adjustments/edits";
@@ -17,20 +17,11 @@ function document() {
 			{
 				kind: "image",
 				name: "Photo",
-				children: [
-					{
-						id: "curve",
-						name: "Curves",
-						kind: "curves",
-						visible: true,
-						opacity: 1,
-						children: [],
-						toneCurve: defaultCurve,
-					},
-				],
+				children: [],
 				id: "base",
 				source: "image-1",
 				adjustments: { ...defaultAdjustments },
+				toneCurve: defaultCurve,
 			},
 		],
 	});
@@ -55,9 +46,9 @@ test("documents edit independently without React, retain bounded history, and re
 		{ x: 0.5, y: 0.7 },
 		{ x: 1, y: 1 },
 	];
-	setToneCurve(first, points, "curve");
+	setToneCurve(first, points);
 	points[1].y = 0.2;
-	expect(findLayer(first.scene.getState().layers, "curve")).toMatchObject({
+	expect(first.scene.getState().layers[0]).toMatchObject({
 		toneCurve: [
 			{ x: 0, y: 0 },
 			{ x: 0.5, y: 0.7 },
@@ -100,11 +91,11 @@ test("documents edit independently without React, retain bounded history, and re
 			{ x: 0.9, y: 0.9 },
 		],
 	]) {
-		expect(() => setToneCurve(first, curve, "curve")).toThrow();
+		expect(() => setToneCurve(first, curve)).toThrow();
 	}
 	expect(first.scene.getState()).toBe(unchanged);
 	first.history.undo();
-	expect(findLayer(first.scene.getState().layers, "curve")).toMatchObject({
+	expect(first.scene.getState().layers[0]).toMatchObject({
 		toneCurve: defaultCurve,
 	});
 	for (let i = 0; i < 150; i++) setAdjustments(first, { exposure: i % 2 });

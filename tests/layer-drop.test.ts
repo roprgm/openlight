@@ -5,6 +5,7 @@ import { imageFrame } from "@/core/image/frame";
 import { defaultAdjustments } from "@/features/adjustments/model";
 import { type LayerDrop, layerDrop } from "@/features/layers/drop";
 import { defaultGradient } from "@/features/layers/gradient";
+import { defaultCurve } from "@/features/tone-curves/curve";
 
 const gradient = defaultGradient([32, 16]);
 const exposure = { ...createLayer("exposure"), id: "exposure" };
@@ -16,7 +17,7 @@ const mask = {
 	children: [exposure, vignette],
 };
 const other = { ...createMask(gradient), id: "other", children: [details] };
-const curves = { ...createLayer("curves"), id: "curves" };
+const top = { ...createLayer("exposure"), id: "top" };
 const scene: Scene = {
 	frame: imageFrame([32, 16]),
 	layers: [
@@ -26,11 +27,12 @@ const scene: Scene = {
 			name: "Photo",
 			source: "photo",
 			adjustments: defaultAdjustments,
+			toneCurve: defaultCurve,
 			children: [],
 		},
 		mask,
 		other,
-		curves,
+		top,
 	],
 };
 
@@ -38,12 +40,12 @@ const scene: Scene = {
 test.each<[string, LayerDrop, ReturnType<typeof layerDrop>]>([
 	[
 		"above a root sibling",
-		{ id: "curves", target: "mask", position: "before" },
+		{ id: "top", target: "mask", position: "before" },
 		{ index: 2 },
 	],
 	[
 		"below a root sibling",
-		{ id: "curves", target: "mask", position: "after" },
+		{ id: "top", target: "mask", position: "after" },
 		{ index: 1 },
 	],
 	[
@@ -53,17 +55,17 @@ test.each<[string, LayerDrop, ReturnType<typeof layerDrop>]>([
 	],
 	[
 		"into a mask",
-		{ id: "curves", target: "mask", position: "inside" },
+		{ id: "top", target: "mask", position: "inside" },
 		{ parentId: "mask", index: 2 },
 	],
 	[
 		"above a nested sibling",
-		{ id: "curves", target: "exposure", position: "before" },
+		{ id: "top", target: "exposure", position: "before" },
 		{ parentId: "mask", index: 1 },
 	],
 	[
 		"below a nested sibling",
-		{ id: "curves", target: "exposure", position: "after" },
+		{ id: "top", target: "exposure", position: "after" },
 		{ parentId: "mask", index: 0 },
 	],
 	[
@@ -73,12 +75,12 @@ test.each<[string, LayerDrop, ReturnType<typeof layerDrop>]>([
 	],
 	[
 		"into the image",
-		{ id: "curves", target: "image", position: "inside" },
+		{ id: "top", target: "image", position: "inside" },
 		undefined,
 	],
 	[
 		"the image itself",
-		{ id: "image", target: "curves", position: "before" },
+		{ id: "image", target: "top", position: "before" },
 		undefined,
 	],
 	[
@@ -96,14 +98,10 @@ test.each<[string, LayerDrop, ReturnType<typeof layerDrop>]>([
 		{ id: "mask", target: "details", position: "before" },
 		undefined,
 	],
-	[
-		"onto itself",
-		{ id: "curves", target: "curves", position: "inside" },
-		undefined,
-	],
+	["onto itself", { id: "top", target: "top", position: "inside" }, undefined],
 	[
 		"an unknown target",
-		{ id: "curves", target: "missing", position: "before" },
+		{ id: "top", target: "missing", position: "before" },
 		undefined,
 	],
 ])("layerDrop rejects or resolves %s", (_, drop, expected) => {

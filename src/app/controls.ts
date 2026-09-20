@@ -43,7 +43,7 @@ import {
 	setMaskOperation,
 } from "@/features/layers/edits";
 import { defaultGradient } from "@/features/layers/gradient";
-import { defaultCurve, validateCurve } from "@/features/tone-curves/curve";
+import { defaultCurve } from "@/features/tone-curves/curve";
 import { setToneCurve } from "@/features/tone-curves/edits";
 import { setVignette, validateVignette } from "@/features/vignette/edits";
 import { defaultVignette } from "@/features/vignette/model";
@@ -83,22 +83,8 @@ export function createControls(gpu: Gpu, workspace: Workspace) {
 			setAdjustments(workspace.getDocument(), change, id),
 		setWhiteBalance: (change?: Partial<WhiteBalance>) =>
 			setWhiteBalance(workspace.getDocument(), change),
-		setToneCurve(curve: ToneCurve = defaultCurve, id?: string) {
-			const document = workspace.getDocument();
-			editEffect(
-				document,
-				"curves",
-				id,
-				(id) => setToneCurve(document, curve, id),
-				() => {
-					validateCurve(curve);
-					return {
-						...createLayer("curves"),
-						toneCurve: curve.map((point) => ({ ...point })),
-					};
-				},
-			);
-		},
+		setToneCurve: (curve?: ToneCurve, id?: string) =>
+			setToneCurve(workspace.getDocument(), curve, id),
 		setColorMixer(color: MixerColor, change: MixerChange, id?: string) {
 			const document = workspace.getDocument();
 			editEffect(
@@ -195,9 +181,7 @@ export function createControls(gpu: Gpu, workspace: Workspace) {
 				details:
 					scene?.layers.find((layer) => layer.kind === "details")?.details ??
 					defaultDetails,
-				toneCurve:
-					scene?.layers.find((layer) => layer.kind === "curves")?.toneCurve ??
-					defaultCurve,
+				toneCurve: scene?.layers[0].toneCurve ?? defaultCurve,
 				colorMixer:
 					scene?.layers.find((layer) => layer.kind === "color-mixer")
 						?.colorMixer ?? defaultMixer,
