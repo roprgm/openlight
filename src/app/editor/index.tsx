@@ -69,9 +69,15 @@ function EditorSidebar() {
 		addLayer(document, createLayer(kind), placement);
 	}
 	return (
-		<EditorPanel footer={<EditorActions />}>
+		<EditorPanel
+			footer={
+				<>
+					<LayersControls onSelect={() => setMode(modes[0])} onAdd={add} />
+					<EditorActions />
+				</>
+			}
+		>
 			<ImageHistogram />
-			<LayersControls onSelect={() => setMode(modes[0])} onAdd={add} />
 		</EditorPanel>
 	);
 }

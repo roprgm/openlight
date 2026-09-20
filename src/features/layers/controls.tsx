@@ -303,7 +303,7 @@ export function LayersControls({
 	return (
 		<section
 			aria-label="Layers"
-			className="flex h-[30%] min-h-24 max-h-72 shrink-0 flex-col border-b border-black bg-panel shadow-ridge"
+			className="flex h-[30%] min-h-24 max-h-72 shrink-0 flex-col border-t border-black bg-panel shadow-ridge"
 			onKeyDown={(event) => {
 				// Crop's Enter and Escape shortcuts listen on inputs too; keep rename and menu keys local.
 				const menu = event.currentTarget.querySelector<HTMLElement>(
