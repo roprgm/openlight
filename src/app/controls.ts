@@ -6,16 +6,14 @@ import {
 import { createCameraRawXmpLoader } from "@/app/loaders/camera-raw-xmp";
 import { createImageLoader } from "@/app/loaders/image";
 import { createLoaderRegistry } from "@/app/loaders/registry";
-import {
-	type Adjustments,
-	type Details,
-	type EditorDocument,
-	type Gradient,
-	type Preview,
-	type ProcessingLayer,
-	type ToneCurve,
-	type Vignette,
-	walkLayers,
+import type {
+	Adjustments,
+	Details,
+	Gradient,
+	Preview,
+	ProcessingLayer,
+	ToneCurve,
+	Vignette,
 } from "@/core/document";
 import type { WhiteBalance } from "@/core/image";
 import type { ImageFrame } from "@/core/image/frame";
@@ -49,27 +47,8 @@ import { setToneCurve } from "@/features/tone-curves/edits";
 import { setVignette, validateVignette } from "@/features/vignette/edits";
 import { defaultVignette } from "@/features/vignette/model";
 import { setWhiteBalance } from "@/features/white-balance/edits";
-import { createLayer } from "./editor/layers";
+import { createLayer, editEffect } from "./editor/layers";
 import type { Workspace } from "./workspace";
-
-/** Legacy convenience commands create their first effect as one undoable edit. */
-function editEffect(
-	document: EditorDocument,
-	kind: ProcessingLayer["kind"],
-	id: string | undefined,
-	edit: (id: string) => void,
-	create: () => ProcessingLayer,
-) {
-	const scene = document.scene.getState();
-	const existing =
-		id ?? walkLayers(scene.layers).find((layer) => layer.kind === kind)?.id;
-	if (existing) {
-		edit(existing);
-		return;
-	}
-	const layer = create();
-	document.edit({ ...scene, layers: [...scene.layers, layer] });
-}
 
 /** Imperative commands bound to an explicit workspace, usable without React. */
 export function createControls(gpu: Gpu, workspace: Workspace) {
@@ -136,9 +115,9 @@ export function createControls(gpu: Gpu, workspace: Workspace) {
 			const document = workspace.getDocument();
 			const existing =
 				id ??
-				walkLayers(document.scene.getState().layers).find(
-					(layer) => layer.kind === "color-mixer",
-				)?.id;
+				document.scene
+					.getState()
+					.layers.find((layer) => layer.kind === "color-mixer")?.id;
 			if (existing) {
 				resetColorMixer(document, existing);
 			}
@@ -203,7 +182,6 @@ export function createControls(gpu: Gpu, workspace: Workspace) {
 		getState() {
 			const { file, document } = workspace.state.getState();
 			const scene = document?.scene.getState();
-			const layers = scene ? walkLayers(scene.layers) : [];
 			return structuredClone({
 				file,
 				preview: document?.preview.getState(),
@@ -215,16 +193,16 @@ export function createControls(gpu: Gpu, workspace: Workspace) {
 				adjustments: scene?.layers[0].adjustments ?? defaultAdjustments,
 				whiteBalance: scene?.layers[0].whiteBalance,
 				details:
-					layers.find((layer) => layer.kind === "details")?.details ??
+					scene?.layers.find((layer) => layer.kind === "details")?.details ??
 					defaultDetails,
 				toneCurve:
-					layers.find((layer) => layer.kind === "curves")?.toneCurve ??
+					scene?.layers.find((layer) => layer.kind === "curves")?.toneCurve ??
 					defaultCurve,
 				colorMixer:
-					layers.find((layer) => layer.kind === "color-mixer")?.colorMixer ??
-					defaultMixer,
+					scene?.layers.find((layer) => layer.kind === "color-mixer")
+						?.colorMixer ?? defaultMixer,
 				vignette:
-					layers.find((layer) => layer.kind === "vignette")?.vignette ??
+					scene?.layers.find((layer) => layer.kind === "vignette")?.vignette ??
 					defaultVignette,
 				history: document?.history.status.getState() ?? {
 					undoCount: 0,

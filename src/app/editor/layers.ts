@@ -1,4 +1,4 @@
-import type { ProcessingLayer } from "@/core/document";
+import type { EditorDocument, ProcessingLayer } from "@/core/document";
 import { defaultAdjustments } from "@/features/adjustments/model";
 import { defaultMixer } from "@/features/color-mixer/model";
 import { defaultDetails } from "@/features/details/model";
@@ -50,4 +50,21 @@ export function createLayer(
 		default:
 			throw Error("Unknown layer kind.");
 	}
+}
+
+/** Convenience commands address the first root effect of a kind or create one on top of the stack. */
+export function editEffect(
+	document: EditorDocument,
+	kind: ProcessingLayer["kind"],
+	id: string | undefined,
+	edit: (id: string) => void,
+	create: () => ProcessingLayer,
+) {
+	const scene = document.scene.getState();
+	const existing = id ?? scene.layers.find((layer) => layer.kind === kind)?.id;
+	if (existing) {
+		edit(existing);
+		return;
+	}
+	document.edit({ ...scene, layers: [...scene.layers, create()] });
 }

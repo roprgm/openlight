@@ -34,7 +34,7 @@ Loading calls are queued. XMP import is skipped if no document is ready; an inva
 
 ## Editing
 
-Commands take explicit layer IDs rather than using UI selection. Without an ID, adjustments and white balance address the base image; curve, color-mixer, Details, and vignette commands use the first matching effect or create one at the top of the stack. Creation and parameter changes are one edit, respecting an open history group.
+Commands take explicit layer IDs rather than using UI selection. Without an ID, adjustments and white balance address the base image; curve, color-mixer, Details, and vignette commands use the first matching root effect or create one at the top of the stack; effects nested in other layers stay untouched. Creation and parameter changes are one edit, respecting an open history group.
 
 `setAdjustments(change, id?)` updates only the supplied adjustments on an image or mask. Values must be finite numbers within these inclusive ranges. Unknown names and invalid values throw.
 
@@ -133,6 +133,6 @@ The image renders at the document dimensions and downsamples to `longEdge` with 
 
 ## State
 
-`getState()` returns a detached snapshot containing `file`, `documentId`, `scene`, `selectedLayerId`, `size`, `frame`, `adjustments`, `whiteBalance`, `details`, `toneCurve`, `colorMixer`, `vignette`, `preview`, and `history`. `scene` contains `frame` and the layer tree. The top-level adjustment and white-balance values come from `scene.layers[0]`; details, curve, color-mixer, and vignette values describe the first matching layer in bottom-to-top depth-first order, or its defaults. `colorMixer` contains eight-value `hue`, `saturation`, and `luminance` arrays in the color order above, defaulting to zero. `whiteBalance` contains absolute temperature/tint for RAW sources and is undefined for other sources. `file` is the filename, and `history` contains `undoCount` and `redoCount`.
+`getState()` returns a detached snapshot containing `file`, `documentId`, `scene`, `selectedLayerId`, `size`, `frame`, `adjustments`, `whiteBalance`, `details`, `toneCurve`, `colorMixer`, `vignette`, `preview`, and `history`. `scene` contains `frame` and the layer tree. The top-level adjustment and white-balance values come from `scene.layers[0]`; details, curve, color-mixer, and vignette values describe the first matching root layer from the bottom, or its defaults. `colorMixer` contains eight-value `hue`, `saturation`, and `luminance` arrays in the color order above, defaulting to zero. `whiteBalance` contains absolute temperature/tint for RAW sources and is undefined for other sources. `file` is the filename, and `history` contains `undoCount` and `redoCount`.
 
 Without a document, `documentId`, `size`, `frame`, and `preview` are undefined. Adjustments, details, and the tone curve use their defaults, and history counts are zero. Mutating the snapshot does not edit the document.

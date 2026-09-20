@@ -124,21 +124,21 @@ test("file batches preserve ordering, group imports, recover from failures, and 
 		addLayer(document, createLayer("details", [32, 32]), { inside: maskId });
 		const beforeDetails = document.scene.getState();
 		await xmp.load(settings('crs:Exposure2012="0.5" crs:Clarity2012="35"'));
-		expect(document.scene.getState().layers[1]).toMatchObject({
+		expect(document.scene.getState().layers[2]).toMatchObject({
 			kind: "details",
 			details: { clarity: 35 },
 		});
 		expect(document.scene.getState().layers[0].adjustments.exposure).toBe(0.5);
-		expect(document.scene.getState().layers[2]).toBe(beforeDetails.layers[1]);
+		expect(document.scene.getState().layers[1]).toBe(beforeDetails.layers[1]);
 		document.history.undo();
 		expect(document.scene.getState()).toEqual(beforeDetails);
 		document.history.redo();
 		await xmp.load(settings('crs:Clarity2012="0"'));
 		expect(document.scene.getState().layers).toHaveLength(3);
-		expect(document.scene.getState().layers[1]).toMatchObject({
+		expect(document.scene.getState().layers[2]).toMatchObject({
 			details: { clarity: 0 },
 		});
-		expect(document.scene.getState().layers[2]).toBe(beforeDetails.layers[1]);
+		expect(document.scene.getState().layers[1]).toBe(beforeDetails.layers[1]);
 		await Promise.all([
 			registry.openFiles([exposure, new File([], "first.png")]),
 			registry.openFiles([

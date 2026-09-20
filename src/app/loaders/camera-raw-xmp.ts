@@ -1,4 +1,4 @@
-import { createLayer } from "@/app/editor/layers";
+import { createLayer, editEffect } from "@/app/editor/layers";
 import type { Workspace } from "@/app/workspace";
 import type { Adjustments, EditorDocument } from "@/core/document";
 import { setAdjustments } from "@/features/adjustments/edits";
@@ -8,7 +8,7 @@ import {
 	readCameraRawXmp,
 } from "@/features/camera-raw-xmp/xmp";
 import { setDetails } from "@/features/details/edits";
-import { validateDetails } from "@/features/details/model";
+import { defaultDetails, validateDetails } from "@/features/details/model";
 import type { FileLoader } from "./registry";
 
 function toAdjustments(xmp: CameraRawXmp): Partial<Adjustments> {
@@ -30,24 +30,22 @@ function toAdjustments(xmp: CameraRawXmp): Partial<Adjustments> {
 function applyClarity(document: EditorDocument, clarity: number) {
 	validateDetails({ clarity });
 	const scene = document.scene.getState();
-	const existing = scene.layers.find((layer) => layer.kind === "details");
-	if (existing) {
-		setDetails(document, { clarity }, existing.id);
+	if (
+		clarity === 0 &&
+		!scene.layers.some((layer) => layer.kind === "details")
+	) {
 		return;
 	}
-	if (clarity === 0) {
-		return;
-	}
-	const layer = createLayer("details", [0, 0]);
-	const [image, ...effects] = scene.layers;
-	document.edit({
-		...scene,
-		layers: [
-			image,
-			{ ...layer, details: { ...layer.details, clarity } },
-			...effects,
-		],
-	});
+	editEffect(
+		document,
+		"details",
+		undefined,
+		(id) => setDetails(document, { clarity }, id),
+		() => ({
+			...createLayer("details", [0, 0]),
+			details: { ...defaultDetails, clarity },
+		}),
+	);
 }
 
 export function createCameraRawXmpLoader(workspace: Workspace): FileLoader {
