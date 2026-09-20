@@ -13,6 +13,7 @@ import {
 import { createImageSource } from "@/core/image";
 import { imageFrame } from "@/core/image/frame";
 import { defaultAdjustments } from "@/features/adjustments/model";
+import { layerDrop } from "@/features/layers/drop";
 import {
 	addLayer,
 	deleteLayer,
@@ -156,6 +157,14 @@ test("nested layers compose in order, move atomically, and duplicate with indepe
 			addLayer(document, createLayer("curves", [32, 16]), exposure),
 		).toThrow("two levels");
 		expect(() => moveLayer(document, mask, 0, exposure)).toThrow("itself");
+		expect(() => moveLayer(document, exposure, 0, "base")).toThrow("image");
+		expect(
+			layerDrop(document.scene.getState(), {
+				id: exposure,
+				target: "base",
+				position: "inside",
+			}),
+		).toBeUndefined();
 		expect(() => moveLayer(document, exposure, 0)).toThrow("position");
 		expect(() =>
 			setLayerMask(document, mask, {

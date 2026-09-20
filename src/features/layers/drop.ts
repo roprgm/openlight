@@ -24,7 +24,11 @@ export function layerDrop(
 		return;
 	}
 	if (drop.position === "inside") {
-		if (source.children.length || !scene.layers.includes(target)) {
+		if (
+			source.children.length ||
+			target.kind === "image" ||
+			!scene.layers.includes(target)
+		) {
 			return;
 		}
 		return {

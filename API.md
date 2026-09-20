@@ -60,7 +60,7 @@ Edits update the scene and history synchronously. Rendering may finish later, pa
 
 ## Layers
 
-`scene.layers` is ordered bottom to top, beginning with the locked image at index 0. Every layer has `children`, also ordered bottom to top. Editing supports two levels. Selecting a layer changes the inspector without adding history; changing selection commits an active gesture. Removing the selected layer or an ancestor returns selection to the image.
+`scene.layers` is ordered bottom to top, beginning with the locked image at index 0. Processing layers have `children`, also ordered bottom to top; the image cannot contain layers. Editing supports two levels. Selecting a layer changes the inspector without adding history; changing selection commits an active gesture. Removing the selected layer or an ancestor returns selection to the image.
 
 Images own basic adjustments. An effect processes the image below, then its children. A mask processes its basic adjustments and child effects, then blends that result with its input using coverage × opacity. A neutral mask with no effects does nothing. Hidden layers and zero opacity bypass the complete branch.
 
@@ -68,14 +68,14 @@ Direct mask children of another mask modify coverage instead of processing image
 
 | Method | Behavior |
 | --- | --- |
-| `addLayer(kind, parentId?)` | Adds `"exposure"`, `"curves"`, `"color-mixer"`, `"details"`, `"vignette"`, or `"mask"`; selects and returns its ID. An explicit parent appends a child; otherwise inserts above the selected sibling. Exposure starts at +1 EV, Vignette at intensity 50; Curves, Color Mixer, Details, and masks start neutral. |
+| `addLayer(kind, parentId?)` | Adds `"exposure"`, `"curves"`, `"color-mixer"`, `"details"`, `"vignette"`, or `"mask"`; selects and returns its ID. An explicit processing-layer parent appends a child; otherwise inserts above the selected sibling. Exposure starts at +1 EV, Vignette at intensity 50; Curves, Color Mixer, Details, and masks start neutral. |
 | `selectLayer(id)` | Selects any layer. |
 | `setLayer(id, change)` | Updates processing-layer `name`, `visible`, or `opacity` (0–1). |
 | `setExposure(id, value)` | Sets an Exposure layer to -5…5 EV. |
 | `setLayerMask(id, mask)` | Replaces a mask layer's gradient: `{ kind: "linear", start, end }` or `{ kind: "radial", center, radius, angle, feather }`. Geometry uses source pixels; radial angle is degrees and feather is 0–1. |
 | `setMaskOperation(id, operation)` | Sets `"add"` or `"subtract"`; used when this mask is inside another mask. |
 | `duplicateLayer(id)` | Copies a processing layer and its children above itself with independent IDs; selects and returns the new ID. |
-| `moveLayer(id, index, parentId?)` | Moves to a final sibling index, bottom to top. Omit the parent for the root stack, where index 0 is reserved for the image. Cycles and third-level nesting are rejected. |
+| `moveLayer(id, index, parentId?)` | Moves to a final sibling index, bottom to top. Omit the parent for the root stack, where index 0 is reserved for the image. Image parents, cycles, and third-level nesting are rejected. |
 | `deleteLayer(id)` | Removes a processing layer and its children; undo restores them. |
 
 A linear gradient has full coverage at `start`, zero at `end`; its points must be finite and distinct. A radial gradient covers the ellipse inside `radius`, with positive radii and a feathered falloff toward its edge. Crop, rotation, and viewport navigation do not move it within the document.

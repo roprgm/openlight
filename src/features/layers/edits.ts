@@ -57,6 +57,9 @@ function changeChildren(
 	if (!parentId) {
 		return { ...scene, layers: [image, ...change(layers)] };
 	}
+	if (parentId === image.id) {
+		throw Error("The image layer cannot contain layers.");
+	}
 	return updateLayer(scene, parentId, (layer) => ({
 		...layer,
 		children: change(layer.children),

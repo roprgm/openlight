@@ -68,6 +68,7 @@ export function LayerActions({
 	const containers = scene.layers.filter(
 		(item) =>
 			layer.children.length === 0 &&
+			item.kind !== "image" &&
 			item.id !== parent?.id &&
 			!findLayer([layer], item.id),
 	);
