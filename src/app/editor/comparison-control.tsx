@@ -58,10 +58,11 @@ export function ComparisonControl() {
 	return (
 		<Button
 			variant="ghost"
+			size="icon"
 			aria-label="Compare before and after"
 			aria-pressed={comparison !== "edited"}
 			title="Compare before and after (hold backslash for original)"
-			className="flex size-8 items-center justify-center rounded-md p-0 aria-pressed:bg-neutral-700 aria-pressed:text-neutral-100"
+			className="aria-pressed:bg-neutral-700 aria-pressed:text-neutral-100"
 			onClick={() =>
 				preview.setState({
 					comparison: comparison === "split" ? "edited" : "split",
@@ -71,7 +72,7 @@ export function ComparisonControl() {
 			<svg
 				aria-hidden="true"
 				viewBox="0 0 20 20"
-				className="size-5"
+				className="size-4"
 				fill="none"
 				stroke="currentColor"
 				strokeWidth="1.5"

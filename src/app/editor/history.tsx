@@ -17,7 +17,8 @@ export function HistoryControls() {
 		<fieldset aria-label="History" className="flex items-center gap-0.5">
 			<Button
 				variant="ghost"
-				className="flex size-8 items-center justify-center rounded-md p-0 disabled:pointer-events-none disabled:opacity-25"
+				size="icon"
+				className="disabled:pointer-events-none disabled:opacity-25"
 				aria-label="Undo"
 				title="Undo (Ctrl/⌘ Z)"
 				disabled={!undoCount}
@@ -29,7 +30,8 @@ export function HistoryControls() {
 			</Button>
 			<Button
 				variant="ghost"
-				className="flex size-8 items-center justify-center rounded-md p-0 disabled:pointer-events-none disabled:opacity-25"
+				size="icon"
+				className="disabled:pointer-events-none disabled:opacity-25"
 				aria-label="Redo"
 				title="Redo (Ctrl/⌘ Shift Z)"
 				disabled={!redoCount}
