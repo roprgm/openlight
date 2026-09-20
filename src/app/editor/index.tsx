@@ -1,10 +1,8 @@
+import type { ReactNode } from "react";
 import type { Workspace } from "@/app/workspace";
+import { EditorPanel } from "@/components/editor/panel";
 import { RendererProvider } from "@/components/editor/pipeline";
-import {
-	DocumentProvider,
-	EditorPanel,
-	useDocument,
-} from "@/components/editor/session";
+import { DocumentProvider, useDocument } from "@/components/editor/session";
 import Button from "@/components/ui/button";
 import ResizablePanel from "@/components/ui/resizable-panel";
 import Spinner from "@/components/ui/spinner";
@@ -27,32 +25,7 @@ import { ModeRail } from "./mode-rail";
 import { type Mode, ModeProvider, modes, useMode } from "./modes";
 import { createEditorRenderer } from "./renderer";
 
-function ModeView() {
-	const { mode } = useMode();
-	if ("View" in mode) {
-		return <mode.View />;
-	}
-	return (
-		<>
-			<EditorCanvas />
-			<mode.Panel />
-		</>
-	);
-}
-
-function EditorSidebar() {
-	const { setMode } = useMode();
-	const tool = useGradientTool();
-	useShortcuts({
-		l: () => {
-			setMode(modes[0]);
-			tool.draw();
-		},
-		r: () => {
-			setMode(modes[0]);
-			tool.draw("radial");
-		},
-	});
+function EditorSidebar({ children }: { children: ReactNode }) {
 	const document = useDocument();
 	function add(kind: EffectLayer["kind"]) {
 		const scene = document.scene.getState();
@@ -66,10 +39,38 @@ function EditorSidebar() {
 	}
 	return (
 		<EditorPanel
-			footer={<LayersControls onSelect={() => setMode(modes[0])} onAdd={add} />}
+			header={<ImageHistogram />}
+			footer={<LayersControls onAdd={add} />}
 		>
-			<ImageHistogram />
+			{children}
 		</EditorPanel>
+	);
+}
+
+/** A View replaces the canvas and sidebar; a Panel fills the sidebar beside the canvas. */
+function ModeView() {
+	const { mode, setMode } = useMode();
+	const tool = useGradientTool();
+	useShortcuts({
+		l: () => {
+			setMode(modes[0]);
+			tool.draw();
+		},
+		r: () => {
+			setMode(modes[0]);
+			tool.draw("radial");
+		},
+	});
+	if ("View" in mode) {
+		return <mode.View onClose={() => setMode(modes[0])} />;
+	}
+	return (
+		<>
+			<EditorCanvas />
+			<EditorSidebar>
+				<mode.Panel />
+			</EditorSidebar>
+		</>
 	);
 }
 
@@ -110,13 +111,16 @@ function DocumentEditor({ file }: { file: string }) {
 			<ModeProvider>
 				<EditorHeader file={file}>
 					<HistoryControls />
+					<hr
+						aria-orientation="vertical"
+						className="mx-1 h-4 w-px border-0 bg-neutral-600"
+					/>
 					<ComparisonControl />
 					<ExportButton />
 				</EditorHeader>
 				<div className="flex min-h-0 flex-1 flex-col md:flex-row">
 					<ModeRail />
 					<ModeView />
-					<EditorSidebar />
 				</div>
 			</ModeProvider>
 		</GradientProvider>

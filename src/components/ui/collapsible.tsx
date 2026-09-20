@@ -13,7 +13,7 @@ export function Collapsible({
 	const [open, setOpen] = useState(defaultOpen);
 	const id = useId();
 	return (
-		<section className="shadow-ridge">
+		<section>
 			<button
 				type="button"
 				aria-expanded={open}

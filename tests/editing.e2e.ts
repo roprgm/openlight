@@ -469,13 +469,16 @@ test("edit a photo, inspect the preview and histograms, undo changes, and export
 		await exportButton.click();
 		await expect(exportButton).toHaveAttribute("aria-pressed", "true");
 		await expect(
-			page.getByRole("region", { name: "Layers", exact: true }),
+			page.getByRole("region", { name: "Export settings" }),
 		).toBeVisible();
 		await expect(
-			page
-				.getByRole("button", { name: "photo.svg", exact: true })
-				.locator(".."),
-		).toHaveAttribute("data-selected", "true");
+			page.getByRole("region", { name: "Layers", exact: true }),
+		).toHaveCount(0);
+		await page.getByRole("button", { name: "Close", exact: true }).click();
+		await expect(selected).toHaveText("Adjust");
+		await expect(
+			page.getByRole("region", { name: "Layers", exact: true }),
+		).toBeVisible();
 		await modes.getByRole("tab", { name: "Crop" }).click();
 		await expect(selected).toHaveText("Crop");
 		await page.keyboard.press("ArrowLeft");

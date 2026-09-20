@@ -24,7 +24,7 @@ export function ScrollArea({
 				className={cn(
 					"h-full overscroll-contain focus-visible:outline focus-visible:outline-neutral-500 focus-visible:-outline-offset-1",
 					fade &&
-						"[--fade-bottom:min(calc(var(--scroll-area-overflow-y-end,0)*1px),1.5rem)] [--fade-top:min(calc(var(--scroll-area-overflow-y-start,0)*1px),1.5rem)] [mask-image:linear-gradient(to_bottom,transparent,black_var(--fade-top),black_calc(100%-var(--fade-bottom)),transparent)]",
+						"[--fade-bottom:min(var(--scroll-area-overflow-y-end,0px),1.5rem)] [--fade-top:min(var(--scroll-area-overflow-y-start,0px),1.5rem)] [mask-image:linear-gradient(to_bottom,transparent,black_var(--fade-top),black_calc(100%-var(--fade-bottom)),transparent)]",
 					viewportClassName,
 				)}
 			>

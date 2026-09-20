@@ -16,6 +16,10 @@ function MaskOptions({ layer }: { layer: MaskLayer }) {
 	const isSubmask = parent?.kind === "mask";
 	return (
 		<>
+			<hr
+				aria-orientation="vertical"
+				className="h-4 w-px border-0 bg-white/15"
+			/>
 			<button
 				type="button"
 				aria-pressed={tool.overlay !== "hidden"}

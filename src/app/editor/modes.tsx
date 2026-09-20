@@ -29,13 +29,8 @@ const adjust = {
 	Panel: AdjustPanel,
 } as const;
 
-function CropMode() {
-	const { setMode } = useMode();
-	return <CropEditor onClose={() => setMode(adjust)} />;
-}
-
 /**
- * A mode edits over the shared canvas through a Panel, or brings its own View when it needs another viewport.
+ * A mode edits over the shared canvas through a Panel, or brings its own View with a viewport and panel.
  * The output mode opens from the header rather than the rail.
  */
 export const modes = [
@@ -46,7 +41,7 @@ export const modes = [
 		key: "c",
 		Icon: CropIcon,
 		group: "edit",
-		View: CropMode,
+		View: CropEditor,
 	},
 	{
 		id: "export",

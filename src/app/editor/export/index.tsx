@@ -2,11 +2,8 @@ import { cn } from "cn";
 import { type ReactNode, useMemo, useRef, useState } from "react";
 import { useGpu } from "vgpu-react";
 import { Image } from "@/components/editor/image";
-import {
-	PanelContent,
-	useDocument,
-	useScene,
-} from "@/components/editor/session";
+import { EditorPanel, PanelHeader } from "@/components/editor/panel";
+import { useDocument, useScene } from "@/components/editor/session";
 import { EditorViewport } from "@/components/editor/viewport";
 import Button from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
@@ -14,6 +11,7 @@ import { ScrubInput } from "@/components/ui/scrub-input";
 import { Slider } from "@/components/ui/slider";
 import Spinner from "@/components/ui/spinner";
 import type { Point } from "@/core/image/frame";
+import { useShortcuts } from "@/hooks/use-shortcuts";
 import { type ExportFormat, exportImage, exportSize } from "./export-image";
 import { useEncodedPreview } from "./preview";
 
@@ -163,7 +161,7 @@ function LoadingOverlay() {
 }
 
 /** Shows the encoded file on the canvas; a spinner marks results from earlier settings as loading. */
-export function ExportMode() {
+export function ExportMode({ onClose }: { onClose: () => void }) {
 	const gpu = useGpu();
 	const editorDocument = useDocument();
 	const size = useScene((scene) => scene.frame.size);
@@ -178,6 +176,7 @@ export function ExportMode() {
 	const options = { format: format.id, quality, longEdge: edge };
 	const output = useMemo(() => exportSize(size, edge), [size, edge]);
 	const { encoded, pending } = useEncodedPreview(options);
+	useShortcuts({ escape: onClose });
 	const save = async () => {
 		if (exporting.current) {
 			return;
@@ -208,7 +207,7 @@ export function ExportMode() {
 			>
 				{encoded && <Image image={encoded.image} />}
 			</EditorViewport>
-			<PanelContent>
+			<EditorPanel header={<PanelHeader title="Export" onClose={onClose} />}>
 				<section
 					aria-label="Export settings"
 					className="flex flex-col gap-5 p-4"
@@ -245,7 +244,7 @@ export function ExportMode() {
 						</p>
 					)}
 				</section>
-			</PanelContent>
+			</EditorPanel>
 		</>
 	);
 }

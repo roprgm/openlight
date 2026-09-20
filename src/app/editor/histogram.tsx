@@ -15,7 +15,7 @@ export function ImageHistogram() {
 	return (
 		<section
 			aria-label="Image histogram"
-			className="relative shrink-0 border-b border-black bg-neutral-900 px-1 pt-1 pb-0.5"
+			className="relative shrink-0 border-b border-black bg-neutral-900"
 		>
 			<ClippingControls />
 			<Histogram

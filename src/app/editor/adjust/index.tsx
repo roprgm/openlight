@@ -1,12 +1,9 @@
 import { useCallback, useEffect, useMemo } from "react";
 import { useGpu } from "vgpu-react";
 import { useStore } from "zustand";
+import { PanelHeader } from "@/components/editor/panel";
 import { useRenderer } from "@/components/editor/pipeline";
-import {
-	PanelContent,
-	useDocument,
-	useScene,
-} from "@/components/editor/session";
+import { useDocument, useScene } from "@/components/editor/session";
 import { Slider } from "@/components/ui/slider";
 import { adjustmentTarget, type Layer, type ToneCurve } from "@/core/document";
 import { AdjustmentControls } from "@/features/adjustments/controls";
@@ -47,6 +44,7 @@ function LayerCurve({ id, toneCurve }: { id: string; toneCurve: ToneCurve }) {
 	const document = useDocument();
 	return (
 		<div className="px-3 pb-3">
+			<hr className="mb-3 border-black/50" />
 			<ToneCurves
 				points={toneCurve}
 				onChange={(points) => setToneCurve(document, points, id)}
@@ -113,13 +111,9 @@ export function AdjustPanel() {
 		(scene) => adjustmentTarget(scene.layers, selected) ?? scene.layers[0],
 	);
 	return (
-		<PanelContent>
-			<div {...gesture}>
-				<h2 className="flex h-10 items-center border-b border-black/50 px-3 text-xs font-medium text-neutral-200">
-					Adjustments
-				</h2>
-				<SelectedControls layer={target} />
-			</div>
-		</PanelContent>
+		<div {...gesture}>
+			<PanelHeader title="Adjustments" />
+			<SelectedControls layer={target} />
+		</div>
 	);
 }

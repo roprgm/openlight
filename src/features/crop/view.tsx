@@ -1,10 +1,7 @@
 import { useState } from "react";
 import { Image } from "@/components/editor/image";
-import {
-	PanelContent,
-	useDocument,
-	useEditorSession,
-} from "@/components/editor/session";
+import { EditorPanel, PanelHeader } from "@/components/editor/panel";
+import { useDocument, useEditorSession } from "@/components/editor/session";
 import { EditorViewport } from "@/components/editor/viewport";
 import { FlipIcon } from "@/components/icons/flip";
 import { RotateIcon } from "@/components/icons/rotate";
@@ -93,7 +90,7 @@ export function CropEditor({ onClose }: { onClose: () => void }) {
 					onChange={setFrame}
 				/>
 			</EditorViewport>
-			<PanelContent>
+			<EditorPanel header={<PanelHeader title="Crop" onClose={onClose} />}>
 				<section
 					aria-label="Crop tool"
 					className="flex min-h-0 flex-1 flex-col bg-panel"
@@ -184,7 +181,7 @@ export function CropEditor({ onClose }: { onClose: () => void }) {
 						<Button onClick={apply}>Apply crop</Button>
 					</div>
 				</section>
-			</PanelContent>
+			</EditorPanel>
 		</>
 	);
 }

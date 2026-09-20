@@ -29,7 +29,7 @@ export function ModeRail() {
 	return (
 		<TabList
 			aria-label="Editor mode"
-			className="shrink-0 overflow-auto border-black border-b bg-panel p-2 shadow-ridge md:w-17.5 md:flex-col md:border-r md:border-b-0"
+			className="shrink-0 overflow-auto border-black border-b bg-panel p-2 md:w-17.5 md:flex-col md:border-r md:border-b-0"
 		>
 			{editing.map((entry) => (
 				<ModeTab key={entry.id} entry={entry} />
