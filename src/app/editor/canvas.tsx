@@ -14,15 +14,17 @@ export function EditorCanvas() {
 	}
 	const size = useScene((scene) => scene.frame.size);
 	return (
-		<div className="flex min-h-0 min-w-0 flex-1 flex-col">
-			<LayerToolbar />
-			<EditorViewport
-				size={size}
-				overlay={<ComparisonDivider />}
-				tools={<GradientOverlay key={gradientKey} />}
-			>
-				<Image original="originalImage" />
-			</EditorViewport>
-		</div>
+		<EditorViewport
+			size={size}
+			overlay={
+				<>
+					<ComparisonDivider />
+					<LayerToolbar />
+				</>
+			}
+			tools={<GradientOverlay key={gradientKey} />}
+		>
+			<Image original="originalImage" />
+		</EditorViewport>
 	);
 }

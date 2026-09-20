@@ -47,57 +47,49 @@ function MaskOptions({ layer }: { layer: MaskLayer }) {
 				/>
 			)}
 			{isSubmask && (
-				<label className="flex flex-col gap-1 text-neutral-500 text-xs">
-					<span>Combine</span>
-					<select
-						aria-label="Mask operation"
-						value={layer.operation}
-						className="h-7 rounded border border-black bg-neutral-800 px-2 text-neutral-200 shadow-groove"
-						onChange={(event) => {
-							const operation = event.target.value;
-							if (operation === "add" || operation === "subtract") {
-								setMaskOperation(document, layer.id, operation);
-							}
-						}}
-					>
-						<option value="add">Add</option>
-						<option value="subtract">Subtract</option>
-					</select>
-				</label>
+				<select
+					aria-label="Mask operation"
+					title="Combine with the parent mask"
+					value={layer.operation}
+					className="h-7 rounded-full bg-neutral-800/80 px-2 text-neutral-200"
+					onChange={(event) => {
+						const operation = event.target.value;
+						if (operation === "add" || operation === "subtract") {
+							setMaskOperation(document, layer.id, operation);
+						}
+					}}
+				>
+					<option value="add">Add</option>
+					<option value="subtract">Subtract</option>
+				</select>
 			)}
-			{!parent && (
-				<div className="flex flex-col gap-0.5 text-neutral-500 text-xs">
-					<span>Mask</span>
-					<div className="flex items-center gap-1">
-						{(["add", "subtract"] as const).map((operation) => {
-							const label =
-								operation === "add" ? "Add to mask" : "Subtract from mask";
-							const text = operation === "add" ? "Add" : "Subtract";
-							return (
-								<LayerMenu
-									className="h-7 w-auto px-2 pointer-coarse:h-10 pointer-coarse:w-auto"
-									key={operation}
-									label={label}
-									icon={<span>{text}</span>}
-								>
-									<button
-										type="submit"
-										onClick={() => tool.add(layer.id, operation, "linear")}
-									>
-										Linear gradient
-									</button>
-									<button
-										type="submit"
-										onClick={() => tool.add(layer.id, operation, "radial")}
-									>
-										Radial gradient
-									</button>
-								</LayerMenu>
-							);
-						})}
-					</div>
-				</div>
-			)}
+			{!parent &&
+				(["add", "subtract"] as const).map((operation) => {
+					const label =
+						operation === "add" ? "Add to mask" : "Subtract from mask";
+					const text = operation === "add" ? "Add" : "Subtract";
+					return (
+						<LayerMenu
+							className="h-7 w-auto px-2 pointer-coarse:h-10 pointer-coarse:w-auto"
+							key={operation}
+							label={label}
+							icon={<span>{text}</span>}
+						>
+							<button
+								type="submit"
+								onClick={() => tool.add(layer.id, operation, "linear")}
+							>
+								Linear gradient
+							</button>
+							<button
+								type="submit"
+								onClick={() => tool.add(layer.id, operation, "radial")}
+							>
+								Radial gradient
+							</button>
+						</LayerMenu>
+					);
+				})}
 		</>
 	);
 }
@@ -109,32 +101,30 @@ export function LayerToolbar() {
 	const layer = useScene(
 		(scene) => findLayer(scene.layers, selected) ?? scene.layers[0],
 	);
+	if (layer.kind === "image") {
+		return null;
+	}
 	return (
 		<fieldset
 			aria-label="Layer options"
 			{...gesture}
-			className="flex h-16 min-w-0 shrink-0 items-center gap-4 overflow-x-auto border-b border-black bg-panel px-3 shadow-ridge [&>*]:shrink-0"
+			className="absolute top-3 left-3 flex max-w-[calc(100%-1.5rem)] items-center gap-3 overflow-x-auto rounded-full bg-neutral-900/65 py-1 pr-2 pl-3 text-xs shadow-md backdrop-blur-sm [scrollbar-width:none] [&>*]:shrink-0"
 		>
-			<div className="flex min-w-24 max-w-40 flex-col gap-0.5">
-				<span className="text-neutral-500 text-xs">Layer</span>
-				<span className="truncate text-neutral-200 text-sm" title={layer.name}>
-					{layer.name}
-				</span>
-			</div>
-			{layer.kind !== "image" && (
-				<Slider
-					label="Opacity"
-					value={layer.opacity * 100}
-					min={0}
-					max={100}
-					defaultValue={100}
-					unit="%"
-					variant="toolbar"
-					onChange={(value) =>
-						setLayer(document, layer.id, { opacity: value / 100 })
-					}
-				/>
-			)}
+			<span className="max-w-40 truncate text-neutral-200" title={layer.name}>
+				{layer.name}
+			</span>
+			<Slider
+				label="Opacity"
+				value={layer.opacity * 100}
+				min={0}
+				max={100}
+				defaultValue={100}
+				unit="%"
+				variant="toolbar"
+				onChange={(value) =>
+					setLayer(document, layer.id, { opacity: value / 100 })
+				}
+			/>
 			{layer.kind === "mask" && <MaskOptions layer={layer} />}
 		</fieldset>
 	);
