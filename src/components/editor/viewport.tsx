@@ -72,7 +72,7 @@ export function EditorViewport({
 	const viewport = usePanZoom(camera, size, { constrain });
 	return (
 		<section
-			className="relative min-h-0 min-w-0 flex-1 overflow-hidden p-6"
+			className="@container relative min-h-0 min-w-0 flex-1 overflow-hidden p-6"
 			aria-label="Image canvas"
 		>
 			<Viewport value={viewport}>
