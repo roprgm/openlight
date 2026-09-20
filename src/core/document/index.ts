@@ -10,6 +10,7 @@ export type {
 	ColorMixer,
 	CurvePoint,
 	Details,
+	EffectLayer,
 	Gradient,
 	ImageLayer,
 	Layer,

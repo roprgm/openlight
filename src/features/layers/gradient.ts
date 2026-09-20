@@ -163,3 +163,12 @@ export function moveGradient(
 	}
 	return mask;
 }
+
+/** A horizontal gradient across the middle of an image. */
+export function defaultGradient(size: Point): LinearGradient {
+	return {
+		kind: "linear",
+		start: [size[0] * 0.2, size[1] * 0.5],
+		end: [size[0] * 0.8, size[1] * 0.5],
+	};
+}

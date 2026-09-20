@@ -80,6 +80,7 @@ export type ProcessingLayer = {
 	  }
 );
 export type MaskLayer = Extract<ProcessingLayer, { kind: "mask" }>;
+export type EffectLayer = Exclude<ProcessingLayer, MaskLayer>;
 export type Layer = ImageLayer | ProcessingLayer;
 
 /** The sole image source is pinned below the ordered processing tree. */

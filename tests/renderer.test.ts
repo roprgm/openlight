@@ -308,7 +308,7 @@ test("rendering follows grouped edits and undo, reuses pipelines, and releases o
 				{
 					...base,
 					children: [
-						{ ...createLayer("exposure", [32, 16]), id: "exposure" },
+						{ ...createLayer("exposure"), id: "exposure" },
 						...base.children,
 					],
 				},
@@ -336,7 +336,7 @@ test("rendering follows grouped edits and undo, reuses pipelines, and releases o
 			layers: [
 				image,
 				{
-					...createLayer("details", [32, 16]),
+					...createLayer("details"),
 					details: { clarity: 50, sharpening: 100, sharpenRadius: 2 },
 				},
 				...effects,

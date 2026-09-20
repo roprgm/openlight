@@ -42,12 +42,13 @@ import {
 	setLayerMask,
 	setMaskOperation,
 } from "@/features/layers/edits";
+import { defaultGradient } from "@/features/layers/gradient";
 import { defaultCurve, validateCurve } from "@/features/tone-curves/curve";
 import { setToneCurve } from "@/features/tone-curves/edits";
 import { setVignette, validateVignette } from "@/features/vignette/edits";
 import { defaultVignette } from "@/features/vignette/model";
 import { setWhiteBalance } from "@/features/white-balance/edits";
-import { createLayer, editEffect } from "./editor/layers";
+import { createLayer, createMask, editEffect } from "./editor/layers";
 import type { Workspace } from "./workspace";
 
 /** Imperative commands bound to an explicit workspace, usable without React. */
@@ -73,7 +74,7 @@ export function createControls(gpu: Gpu, workspace: Workspace) {
 				id,
 				(id) => setDetails(document, change, id),
 				() => ({
-					...createLayer("details", [0, 0]),
+					...createLayer("details"),
 					details: { ...defaultDetails, ...change },
 				}),
 			);
@@ -92,7 +93,7 @@ export function createControls(gpu: Gpu, workspace: Workspace) {
 				() => {
 					validateCurve(curve);
 					return {
-						...createLayer("curves", document.scene.getState().frame.size),
+						...createLayer("curves"),
 						toneCurve: curve.map((point) => ({ ...point })),
 					};
 				},
@@ -106,7 +107,7 @@ export function createControls(gpu: Gpu, workspace: Workspace) {
 				id,
 				(id) => setColorMixer(document, color, change, id),
 				() => ({
-					...createLayer("color-mixer", document.scene.getState().frame.size),
+					...createLayer("color-mixer"),
 					colorMixer: changeColorMixer(defaultMixer, color, change),
 				}),
 			);
@@ -132,7 +133,7 @@ export function createControls(gpu: Gpu, workspace: Workspace) {
 				() => {
 					validateVignette(change);
 					return {
-						...createLayer("vignette", document.scene.getState().frame.size),
+						...createLayer("vignette"),
 						vignette: { ...defaultVignette, ...change },
 					};
 				},
@@ -140,15 +141,14 @@ export function createControls(gpu: Gpu, workspace: Workspace) {
 		},
 		addLayer(kind: ProcessingLayer["kind"], placement?: LayerPlacement) {
 			const document = workspace.getDocument();
-			const source = document.resources.get(
-				document.scene.getState().layers[0].source,
-			);
-			const size = source.image.size;
-			return addLayer(
-				document,
-				createLayer(kind, [size[0], size[1]]),
-				placement,
-			);
+			if (kind !== "mask") {
+				return addLayer(document, createLayer(kind), placement);
+			}
+			const scene = document.scene.getState();
+			const [width, height] = document.resources.get(scene.layers[0].source)
+				.image.size;
+			const mask = createMask(defaultGradient([width, height]));
+			return addLayer(document, mask, placement);
 		},
 		setLayer: (id: string, change: Parameters<typeof setLayer>[2]) =>
 			setLayer(workspace.getDocument(), id, change),

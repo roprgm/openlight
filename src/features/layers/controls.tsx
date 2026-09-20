@@ -8,7 +8,12 @@ import {
 	type TreeDrop,
 	useTreeDragItem,
 } from "@/components/ui/tree-drag";
-import { findLayer, type Layer, type ProcessingLayer } from "@/core/document";
+import {
+	type EffectLayer,
+	findLayer,
+	type Layer,
+	type ProcessingLayer,
+} from "@/core/document";
 import type { Point } from "@/core/image/frame";
 import { layerDrop } from "./drop";
 import { moveLayer, setLayer } from "./edits";
@@ -271,7 +276,7 @@ export function LayersControls({
 	onAdd,
 }: {
 	onSelect: () => void;
-	onAdd: (kind: ProcessingLayer["kind"]) => void;
+	onAdd: (kind: EffectLayer["kind"]) => void;
 }) {
 	const document = useDocument();
 	const scene = useScene((scene) => scene);
@@ -283,7 +288,7 @@ export function LayersControls({
 		document.selectLayer(id);
 		onSelect();
 	}
-	function add(kind: ProcessingLayer["kind"]) {
+	function add(kind: EffectLayer["kind"]) {
 		onAdd(kind);
 		onSelect();
 	}

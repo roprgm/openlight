@@ -42,7 +42,7 @@ function applyClarity(document: EditorDocument, clarity: number) {
 		undefined,
 		(id) => setDetails(document, { clarity }, id),
 		() => ({
-			...createLayer("details", [0, 0]),
+			...createLayer("details"),
 			details: { ...defaultDetails, clarity },
 		}),
 	);

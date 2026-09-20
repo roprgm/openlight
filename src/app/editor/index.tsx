@@ -7,7 +7,7 @@ import {
 } from "@/components/editor/session";
 import ResizablePanel from "@/components/ui/resizable-panel";
 import Spinner from "@/components/ui/spinner";
-import type { Gradient, ProcessingLayer } from "@/core/document";
+import type { EffectLayer, Gradient } from "@/core/document";
 import { findLayer } from "@/core/document";
 import { LayersControls } from "@/features/layers/controls";
 import { addLayer } from "@/features/layers/edits";
@@ -19,7 +19,7 @@ import { useShortcuts } from "@/hooks/use-shortcuts";
 import { EditorActions } from "./actions";
 import { EditorCanvas } from "./canvas";
 import { ImageHistogram } from "./histogram";
-import { createLayer } from "./layers";
+import { createLayer, createMask } from "./layers";
 import { ModeRail } from "./mode-rail";
 import { ModeProvider, modes, useMode } from "./modes";
 import { createEditorRenderer } from "./renderer";
@@ -58,16 +58,15 @@ function EditorSidebar() {
 		},
 	});
 	const document = useDocument();
-	function add(kind: ProcessingLayer["kind"]) {
+	function add(kind: EffectLayer["kind"]) {
 		const scene = document.scene.getState();
 		const selected = document.selection.getState().layerId;
 		const layer = findLayer(scene.layers, selected);
-		const size = document.resources.get(scene.layers[0].source).image.size;
 		const placement =
 			layer?.kind === "mask" && scene.layers.includes(layer)
 				? { inside: selected }
 				: { above: selected };
-		addLayer(document, createLayer(kind, [size[0], size[1]]), placement);
+		addLayer(document, createLayer(kind), placement);
 	}
 	return (
 		<EditorPanel footer={<EditorActions />}>
@@ -79,13 +78,11 @@ function EditorSidebar() {
 
 function DocumentEditor() {
 	const document = useDocument();
-	function createMask(
+	function addMask(
 		mask: Gradient,
 		target: { parentId?: string; operation: "add" | "subtract" },
 	) {
 		const scene = document.scene.getState();
-		const size = document.resources.get(scene.layers[0].source).image.size;
-		const layer = createLayer("mask", [size[0], size[1]]);
 		const selected = document.selection.getState().layerId;
 		// A new top-level mask goes above the selection's root ancestor.
 		const root =
@@ -94,19 +91,10 @@ function DocumentEditor() {
 		const placement = target.parentId
 			? { inside: target.parentId }
 			: { above: root.id };
-		addLayer(
-			document,
-			{
-				...layer,
-				name: mask.kind === "radial" ? "Radial Gradient" : "Linear Gradient",
-				mask,
-				operation: target.operation,
-			},
-			placement,
-		);
+		addLayer(document, createMask(mask, target.operation), placement);
 	}
 	return (
-		<GradientProvider onCreate={createMask}>
+		<GradientProvider onCreate={addMask}>
 			<ModeProvider>
 				<ModeView />
 				<EditorSidebar />
