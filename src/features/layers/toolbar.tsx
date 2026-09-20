@@ -108,7 +108,7 @@ export function LayerToolbar() {
 		<fieldset
 			aria-label="Layer options"
 			{...gesture}
-			className="absolute top-3 left-3 flex max-w-[calc(100%-1.5rem)] items-center gap-3 overflow-x-auto rounded-full bg-neutral-900/65 py-1 pr-2 pl-3 text-xs shadow-md backdrop-blur-sm [scrollbar-width:none] [&>*]:shrink-0"
+			className="absolute top-3 left-3 flex max-w-[calc(100%-1.5rem)] items-center gap-3 overflow-x-auto rounded-full bg-neutral-700/75 py-1 pr-2 pl-3 text-xs backdrop-blur-sm [scrollbar-width:none] [&>*]:shrink-0"
 		>
 			<span className="max-w-40 truncate text-neutral-200" title={layer.name}>
 				{layer.name}

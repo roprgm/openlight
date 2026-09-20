@@ -21,7 +21,7 @@ function ZoomControl() {
 	const percent = Math.round(scale * devicePixelRatio * 100);
 	return (
 		<div className="absolute right-3 bottom-3">
-			<div className="flex items-center rounded-full bg-neutral-900/65 p-0.5 shadow-md backdrop-blur-sm">
+			<div className="flex items-center rounded-full bg-neutral-700/75 p-0.5 backdrop-blur-sm">
 				<Button
 					variant="ghost"
 					aria-label="Zoom out"
