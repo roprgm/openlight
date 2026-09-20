@@ -30,7 +30,16 @@ export function frameValues(frame: ImageFrame) {
 
 export function validateFrame(frame: ImageFrame) {
 	if (
-		!frameValues(frame).every(Number.isFinite) ||
+		!frame ||
+		![frame.center, frame.size, frame.scale].every(
+			(point) =>
+				Array.isArray(point) &&
+				point.length === 2 &&
+				Number.isFinite(point[0]) &&
+				Number.isFinite(point[1]),
+		) ||
+		!Number.isFinite(frame.rotation) ||
+		!Number.isFinite(frame.angle) ||
 		frame.size.some((value) => value < 1) ||
 		frame.scale.some((value) => value === 0)
 	) {

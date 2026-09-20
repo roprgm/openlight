@@ -1,7 +1,7 @@
 import { useStore } from "zustand";
 import { useDocument, useScene } from "@/components/editor/session";
 import { Slider } from "@/components/ui/slider";
-import { findLayer, type MaskLayer, walkLayers } from "@/core/document";
+import { findLayer, locateLayer, type MaskLayer } from "@/core/document";
 import { useEditGesture } from "@/hooks/use-edit-gesture";
 import { setLayer, setLayerMask, setMaskOperation } from "./edits";
 import { useGradientTool } from "./gradient-tool";
@@ -10,10 +10,8 @@ import { LayerMenu } from "./menu";
 function MaskOptions({ layer }: { layer: MaskLayer }) {
 	const document = useDocument();
 	const tool = useGradientTool();
-	const parent = useScene((scene) =>
-		walkLayers(scene.layers).find((item) =>
-			item.children.some((child) => child.id === layer.id),
-		),
+	const parent = useScene(
+		(scene) => locateLayer(scene.layers, layer.id)?.parent,
 	);
 	const isSubmask = parent?.kind === "mask";
 	return (

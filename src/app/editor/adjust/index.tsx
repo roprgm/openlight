@@ -8,7 +8,7 @@ import {
 	useScene,
 } from "@/components/editor/session";
 import { Slider } from "@/components/ui/slider";
-import { findLayer, type Layer, walkLayers } from "@/core/document";
+import { findLayer, type Layer, locateLayer } from "@/core/document";
 import { AdjustmentControls } from "@/features/adjustments/controls";
 import { ColorMixerControls } from "@/features/color-mixer/controls";
 import { DetailsControls } from "@/features/details/controls";
@@ -101,10 +101,8 @@ export function AdjustPanel() {
 	const layer = useScene(
 		(scene) => findLayer(scene.layers, selected) ?? scene.layers[0],
 	);
-	const parent = useScene((scene) =>
-		walkLayers(scene.layers).find((item) =>
-			item.children.some((child) => child.id === layer.id),
-		),
+	const parent = useScene(
+		(scene) => locateLayer(scene.layers, layer.id)?.parent,
 	);
 	// A child mask edits coverage; the parent owns the resulting adjustments.
 	const target =

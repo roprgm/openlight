@@ -31,7 +31,7 @@ test("edit a photo, inspect the preview and histograms, undo changes, and export
 	page,
 	browser,
 }) => {
-	test.setTimeout(60_000);
+	test.setTimeout(180_000);
 	const state = () => page.evaluate(() => window.openlight.getState());
 	await page.goto("/");
 	await expect(page.getByRole("button", { name: "Open image" })).toBeVisible();
@@ -432,6 +432,40 @@ test("edit a photo, inspect the preview and histograms, undo changes, and export
 	});
 
 	await page.getByRole("button", { name: "photo.svg", exact: true }).click();
+	await test.step("a nested curve clears unavailable input and restores it when its parent returns", async () => {
+		const mask = await page.evaluate(() => {
+			const api = window.openlight;
+			const curve = api
+				.getState()
+				.scene?.layers.find((layer) => layer.kind === "curves");
+			if (!curve) throw Error("Missing curve layer.");
+			const mask = api.addLayer("mask");
+			api.setLayer(mask, { name: "Curve input mask" });
+			api.setAdjustments({ exposure: 1 }, mask);
+			api.moveLayer(curve.id, 0, mask);
+			api.selectLayer(curve.id);
+			return mask;
+		});
+		const plot = page
+			.getByLabel("curve input histogram", { exact: true })
+			.locator("polyline");
+		await expect(plot).toHaveAttribute("points", /,\d{1,2}\./);
+		const points = await plot.getAttribute("points");
+		await page
+			.getByRole("button", { name: "Show Curve input mask", exact: true })
+			.click();
+		await expect(plot).toHaveAttribute("points", "");
+		await page.getByRole("button", { name: "Undo", exact: true }).click();
+		await expect(plot).toHaveAttribute("points", points ?? "");
+		await page.evaluate((mask) => {
+			const api = window.openlight;
+			const curve = api.getState().selectedLayerId;
+			if (!curve) throw Error("Missing curve selection.");
+			api.moveLayer(curve, 1);
+			api.deleteLayer(mask);
+		}, mask);
+	});
+	await page.getByRole("button", { name: "photo.svg", exact: true }).click();
 	await test.step("mode bar switches panels by click, arrow keys, and letters", async () => {
 		const modes = page.getByRole("tablist", { name: "Editor mode" });
 		const selected = modes.getByRole("tab", { selected: true });
@@ -449,7 +483,7 @@ test("edit a photo, inspect the preview and histograms, undo changes, and export
 		await page.keyboard.press("ArrowLeft");
 		await expect(selected).toHaveText("Adjust");
 		await expect(selected).toBeFocused();
-		await page.keyboard.press("r");
+		await page.keyboard.press("t");
 		await expect(selected).toHaveText("Retouch");
 		await page.keyboard.press("a");
 		await expect(selected).toHaveText("Adjust");

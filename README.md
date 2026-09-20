@@ -18,6 +18,8 @@ Documents currently live in memory; export saves a flattened image. Layers suppo
 
 RAW decoding and GPU development use [raw-webgpu](https://github.com/roprgm/raw-webgpu), which documents format support and limitations. OpenLight owns editing, history and preview/export lifetimes.
 
+HEIC decoding requires a browser with a WebCodecs HEVC decoder. The HEIC browser test reports a skip when that decoder is unavailable.
+
 ## Development
 
 ```sh
@@ -35,7 +37,7 @@ bunx --no-install playwright install --with-deps chromium
 
 On Linux, installing system dependencies requires administrator access. If Chromium is already installed but libraries such as `libnspr4.so` are missing, run `bunx --no-install playwright install-deps chromium`. In environments without administrator access, use a browser environment with those dependencies supplied. See [Playwright's setup instructions](https://playwright.dev/docs/browsers#install-system-dependencies).
 
-[playwright.config.ts](playwright.config.ts) starts Vite automatically and selects Chromium's bundled SwiftShader on Linux and Windows. Linux also uses SwiftShader's Vulkan backend for image transfers and offscreen export. These tests execute WebGPU on the CPU without a physical GPU or a separate SwiftShader installation. Use this configuration when testing; another browser session does not inherit its launch flags.
+[playwright.config.ts](playwright.config.ts) starts Vite automatically and selects Chromium's bundled SwiftShader on Linux and Windows. Linux uses SwiftShader's Vulkan backend for image transfers and ANGLE's SwiftShader backend for canvas presentation. These tests execute WebGPU on the CPU without a physical GPU or a separate SwiftShader installation. Use this configuration when testing; another browser session does not inherit its launch flags.
 
 If the environment blocks local ports or browser processes, use its permitted execution mechanism. A launch failure or missing system library is an environment problem, not a shader failure.
 
@@ -48,7 +50,7 @@ If the environment blocks local ports or browser processes, use its permitted ex
 | `bun run test` | Browser-free integration and core unit tests using real modules and `vgpu/mock`. |
 | `bun run test:browser` | GPU pixels, UI, and codec integration in Chromium. |
 
-Run all four for code changes before committing. [CI](.github/workflows/ci.yml) currently checks formatting/lint, Bun tests, and the build; it does not run browser tests.
+Run all four for code changes before committing. [CI](.github/workflows/ci.yml) checks formatting/lint, Bun tests, the build, and the main editing and layer browser workflows in Chromium.
 
 During development, select an existing test by path:
 
@@ -64,6 +66,8 @@ One browser worker reduces CPU contention with SwiftShader. The mock does not ex
 After [browser setup](#browser-setup), run `bun run test:browser --config playwright.bench.config.ts` separately from other GPU/browser work. Workloads cover neutral effects, color mixing, vignette, detail filters, and the combined pipeline. The fixture is a deterministic 2400×1600 linear Rec.2020 gradient containing neutrals, saturated colors, and HDR values; exposure is 0.25 and contrast is 10. Each workload uses 8 warmups and 40 measured samples. Settings live in [the benchmark](tests/rendering-benchmark.ts); select a workload with e.g. `--grep 'rendering vignette'`.
 
 Results and rendered PNGs are written under `test-results/benchmarks`; keep generated artifacts out of Git. JSON includes environment details, samples, median/p95, setup, first render, completed-render latency, intermediate texture storage, and per-node GPU timestamps when supported. Timestamp profiling runs separately from the latency comparison. Decoding, display, readback, and image encoding run outside the measured loop. Software-adapter results describe that backend only. A hardware measurement requires a browser configuration that does not force SwiftShader; record the adapter actually used.
+
+Compare `pipeline` with `pipeline-input` to measure selecting Curves: the latter retains the curve's upstream image and computes its histogram. Completed latency includes histogram compute and its buffer copy; per-node timestamps cover only image processing.
 
 For revision comparisons, use identical fixtures, settings, sampling, and browser configuration in both checkouts. The benchmark is opt-in and excluded from the regular test suite; correctness remains covered by GPU pixel tests and the editing session. See [PERFORMANCE.md](PERFORMANCE.md) for the node contract, measurement scope, and interpretation.
 

@@ -56,7 +56,7 @@ For RAW sources, `setWhiteBalance({ temperature, tint })` sets absolute Kelvin a
 
 Edits update the scene and history synchronously. Rendering may finish later, particularly RAW development. Tests should wait for visible results; `exportImage()` renders and waits for its captured scene independently of the preview.
 
-`setFrame(frame)` replaces the complete [ImageFrame](src/core/image/frame.ts) as an undoable edit. Frame geometry is validated before the scene changes.
+`setFrame(frame)` replaces the complete [ImageFrame](src/core/image/frame.ts) as an undoable edit. Geometry uses finite two-element coordinate pairs, positive dimensions, and nonzero scale. The frame is validated and copied; later changes to the supplied object do not affect the document.
 
 ## Layers
 

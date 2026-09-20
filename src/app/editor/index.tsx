@@ -27,7 +27,14 @@ import { createEditorRenderer } from "./renderer";
 function ModeView() {
 	const { mode } = useMode();
 	if ("View" in mode) {
-		return <mode.View />;
+		return (
+			<div className="flex min-h-0 min-w-0 flex-1 flex-col">
+				<header className="flex h-16 shrink-0 items-center border-b border-black bg-panel px-3 text-neutral-200 text-sm shadow-ridge">
+					{mode.label}
+				</header>
+				<mode.View />
+			</div>
+		);
 	}
 	return (
 		<>

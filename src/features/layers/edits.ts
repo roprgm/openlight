@@ -4,8 +4,10 @@ import {
 	findLayer,
 	type Gradient,
 	type Layer,
+	locateLayer,
 	type ProcessingLayer,
 	type Scene,
+	updateLayer,
 	walkLayers,
 } from "@/core/document";
 
@@ -46,19 +48,6 @@ function processingLayer(document: EditorDocument, id: string) {
 	return layer;
 }
 
-function parentOf(layers: readonly Layer[], id: string): string | undefined {
-	for (const layer of layers) {
-		if (layer.children.some((child) => child.id === id)) {
-			return layer.id;
-		}
-		const parent = parentOf(layer.children, id);
-		if (parent) {
-			return parent;
-		}
-	}
-	return undefined;
-}
-
 function changeChildren(
 	scene: Scene,
 	parentId: string | undefined,
@@ -68,16 +57,10 @@ function changeChildren(
 	if (!parentId) {
 		return { ...scene, layers: [image, ...change(layers)] };
 	}
-	if (!findLayer(scene.layers, parentId)) {
-		throw Error("Parent layer is unavailable.");
-	}
-	function visit<T extends Layer>(layer: T): T {
-		if (layer.id === parentId) {
-			return { ...layer, children: change(layer.children) };
-		}
-		return { ...layer, children: layer.children.map(visit) };
-	}
-	return { ...scene, layers: [visit(image), ...layers.map(visit)] };
+	return updateLayer(scene, parentId, (layer) => ({
+		...layer,
+		children: change(layer.children),
+	}));
 }
 
 function validateDepth(layers: readonly Layer[]) {
@@ -104,7 +87,7 @@ export function addLayer(
 		existing.add(item.id);
 	}
 	const selected = document.selection.getState().layerId;
-	const parent = parentId ?? parentOf(scene.layers, selected);
+	const parent = parentId ?? locateLayer(scene.layers, selected)?.parent?.id;
 	const next = changeChildren(scene, parent, (layers) => {
 		const selectedIndex = layers.findIndex((item) => item.id === selected);
 		const index = parentId ? layers.length : selectedIndex + 1;
@@ -198,7 +181,7 @@ export function duplicateLayer(document: EditorDocument, id: string) {
 	}
 	const layer = { ...clone(source), name: `${source.name} copy` };
 	const scene = document.scene.getState();
-	const parent = parentOf(scene.layers, id);
+	const parent = locateLayer(scene.layers, id)?.parent?.id;
 	const next = changeChildren(scene, parent, (layers) =>
 		layers.toSpliced(layers.findIndex((item) => item.id === id) + 1, 0, layer),
 	);
@@ -212,8 +195,10 @@ export function duplicateLayer(document: EditorDocument, id: string) {
 export function deleteLayer(document: EditorDocument, id: string) {
 	processingLayer(document, id);
 	const scene = document.scene.getState();
-	const next = changeChildren(scene, parentOf(scene.layers, id), (layers) =>
-		layers.filter((layer) => layer.id !== id),
+	const next = changeChildren(
+		scene,
+		locateLayer(scene.layers, id)?.parent?.id,
+		(layers) => layers.filter((layer) => layer.id !== id),
 	);
 	validateDepth(next.layers);
 	document.history.commit();
@@ -232,8 +217,10 @@ export function moveLayer(
 	if (parentId && findLayer([layer], parentId)) {
 		throw Error("A layer cannot contain itself.");
 	}
-	const removed = changeChildren(scene, parentOf(scene.layers, id), (layers) =>
-		layers.filter((item) => item.id !== id),
+	const removed = changeChildren(
+		scene,
+		locateLayer(scene.layers, id)?.parent?.id,
+		(layers) => layers.filter((item) => item.id !== id),
 	);
 	const next = changeChildren(removed, parentId, (layers) => {
 		const position = parentId ? index : index - 1;

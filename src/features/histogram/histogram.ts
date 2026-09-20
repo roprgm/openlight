@@ -58,11 +58,18 @@ export function createHistogram(gpu: Gpu) {
 						requested = false;
 						const source = image();
 						if (!source) {
+							for (const { polygon, polyline } of curves) {
+								polygon.setAttribute("points", "");
+								polyline.setAttribute("points", "");
+							}
 							return;
 						}
 						const values = await read(source, working, colors.length);
 						if (!plot.isConnected) {
 							return;
+						}
+						if (requested) {
+							continue;
 						}
 						curves.forEach(({ polygon, polyline }, channel) => {
 							const points = Array.from(

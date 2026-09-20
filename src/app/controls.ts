@@ -185,7 +185,10 @@ export function createControls(gpu: Gpu, workspace: Workspace) {
 		selectLayer: (id: string) => workspace.getDocument().selectLayer(id),
 		setFrame(frame: ImageFrame) {
 			const document = workspace.getDocument();
-			document.edit({ ...document.scene.getState(), frame });
+			document.edit({
+				...document.scene.getState(),
+				frame: structuredClone(frame),
+			});
 		},
 		setPreview: (change: Partial<Preview>) =>
 			workspace.getDocument().preview.setState(change),

@@ -68,7 +68,23 @@ test("nested layers compose in order, move atomically, and duplicate with indepe
 			vignette: { intensity: 0, softness: 75 },
 		});
 		controls.undo();
-		controls.setFrame({ ...original.frame, size: [8, 8] });
+		for (const field of ["center", "size", "scale"]) {
+			for (const value of [[8], [8, 8, 8], [], [8, NaN], null]) {
+				expect(() =>
+					Reflect.apply(controls.setFrame, undefined, [
+						{ ...original.frame, [field]: value },
+					]),
+				).toThrow("Invalid image frame");
+			}
+		}
+		const size: [number, number] = [8, 8];
+		const frame = { ...original.frame, size };
+		controls.setFrame(frame);
+		const cropped = document.scene.getState();
+		frame.size[0] = 99;
+		expect(cropped.frame.size).toEqual([8, 8]);
+		controls.setFrame(structuredClone(cropped.frame));
+		expect(document.scene.getState()).toBe(cropped);
 		const defaultMask = controls.addLayer("mask");
 		expect(
 			findLayer(document.scene.getState().layers, defaultMask),
@@ -86,6 +102,10 @@ test("nested layers compose in order, move atomically, and duplicate with indepe
 			createLayer("vignette", [32, 16]),
 			mask,
 		);
+		expect(document.scene.getState().layers[0]).toBe(original.layers[0]);
+		const unchangedScene = document.scene.getState();
+		document.edit(structuredClone(unchangedScene));
+		expect(document.scene.getState()).toBe(unchangedScene);
 		document.history.begin();
 		setExposure(document, exposure, 2);
 		setExposure(document, exposure, 3);

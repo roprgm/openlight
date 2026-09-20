@@ -5,20 +5,31 @@ export function walkLayers(layers: readonly Layer[]): Layer[] {
 	return layers.flatMap((layer) => [layer, ...walkLayers(layer.children)]);
 }
 
-export function findLayer(
+type LayerLocation = {
+	layer: Layer;
+	siblings: readonly Layer[];
+	parent?: Layer;
+};
+
+export function locateLayer(
 	layers: readonly Layer[],
 	id: string,
-): Layer | undefined {
+	parent?: Layer,
+): LayerLocation | undefined {
 	for (const layer of layers) {
 		if (layer.id === id) {
-			return layer;
+			return { layer, siblings: layers, parent };
 		}
-		const child = findLayer(layer.children, id);
+		const child = locateLayer(layer.children, id, layer);
 		if (child) {
 			return child;
 		}
 	}
 	return undefined;
+}
+
+export function findLayer(layers: readonly Layer[], id: string) {
+	return locateLayer(layers, id)?.layer;
 }
 
 function updateChildren(
@@ -41,26 +52,35 @@ function updateChildren(
 	});
 }
 
+export function updateLayer(
+	scene: Scene,
+	id: string,
+	update: (layer: Layer) => Layer,
+): Scene {
+	if (!findLayer(scene.layers, id)) {
+		throw Error("Layer is unavailable.");
+	}
+	const [image, ...layers] = scene.layers;
+	const children = updateChildren(image.children, id, update);
+	const base = image.id === id ? update(image) : image;
+	if (base.kind !== "image") {
+		throw Error("The image layer is pinned.");
+	}
+	return {
+		...scene,
+		layers: [
+			children.every((child, index) => child === image.children[index])
+				? base
+				: { ...base, children },
+			...updateChildren(layers, id, update),
+		],
+	};
+}
+
 export function editLayer(
 	document: EditorDocument,
 	id: string,
 	update: (layer: Layer) => Layer,
 ) {
-	const scene = document.scene.getState();
-	if (!findLayer(scene.layers, id)) {
-		throw Error("Layer is unavailable.");
-	}
-	const [image, ...layers] = scene.layers;
-	const base =
-		image.id === id
-			? update(image)
-			: { ...image, children: updateChildren(image.children, id, update) };
-	if (base.kind !== "image") {
-		throw Error("The image layer is pinned.");
-	}
-	const next: Scene = {
-		...scene,
-		layers: [base, ...updateChildren(layers, id, update)],
-	};
-	document.edit(next);
+	document.edit(updateLayer(document.scene.getState(), id, update));
 }

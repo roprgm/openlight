@@ -30,7 +30,7 @@ export type ColorMixer = {
 	readonly luminance: readonly number[];
 };
 
-/** Frame-centered darkening in 0..100 UI units. */
+/** Source-centered darkening in 0..100 UI units. */
 export type Vignette = {
 	readonly intensity: number;
 	readonly softness: number;

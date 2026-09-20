@@ -5,12 +5,11 @@ if (process.platform !== "darwin") {
 	args.push("--use-webgpu-adapter=swiftshader");
 }
 if (process.platform === "linux") {
-	// Canvas presentation and image copies must use the same software Vulkan backend.
+	// Vulkan enables image transfers; ANGLE's SwiftShader path presents canvases in headless Chromium.
 	args.push(
 		"--enable-features=Vulkan",
-		"--use-angle=vulkan",
+		"--use-angle=swiftshader",
 		"--use-vulkan=swiftshader",
-		"--disable-vulkan-surface",
 	);
 }
 

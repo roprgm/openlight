@@ -5,6 +5,7 @@ import type { Gradient, ProcessingLayer, Scene } from "@/core/document";
 import { createImageSource } from "@/core/image";
 import { imageFrame } from "@/core/image/frame";
 import { defaultAdjustments } from "@/features/adjustments/model";
+import { createHistogram } from "@/features/histogram/histogram";
 
 export type Workload =
 	| "neutral"
@@ -12,6 +13,7 @@ export type Workload =
 	| "vignette"
 	| "detail"
 	| "pipeline"
+	| "pipeline-input"
 	| "masked-exposure"
 	| "radial-exposure"
 	| "layer-stack";
@@ -54,7 +56,9 @@ export async function benchmarkRendering(
 	clock?.onResults((results) => {
 		measurements.push(results);
 	});
-	const combined = workload === "pipeline";
+	const inputId = workload === "pipeline-input" ? "benchmark-curve" : undefined;
+	const histogram = inputId ? createHistogram(gpu) : undefined;
+	const combined = workload === "pipeline" || workload === "pipeline-input";
 	const detail = combined || workload === "detail";
 	const effects: ProcessingLayer[] = [];
 	const common = { visible: true, opacity: 1, children: [] };
@@ -170,10 +174,16 @@ export async function benchmarkRendering(
 		const nodes: Record<string, number[]> = {};
 		for (let i = 0; i < warmup + samples; i++) {
 			const start = performance.now();
-			await renderer.update(scene);
+			await renderer.update(scene, inputId);
+			const inspected = inputId && renderer.inputImage(inputId);
+			if (inputId && !inspected) {
+				throw Error("Missing benchmark curve input.");
+			}
+			const reading = inspected && histogram?.read(inspected, true, 1);
 			const encoded = performance.now();
 			await gpu.gpu.queue.onSubmittedWorkDone();
 			const end = performance.now();
+			await reading;
 			await gpu.settled();
 			const spans = measurements.pop();
 			if (errors.length) {
@@ -217,7 +227,7 @@ export async function benchmarkRendering(
 		frame(gpu, (f) => f.pass(input, fill));
 		await gpu.gpu.queue.onSubmittedWorkDone();
 		const start = performance.now();
-		await renderer.update(scene);
+		await renderer.update(scene, inputId);
 		await gpu.gpu.queue.onSubmittedWorkDone();
 		await gpu.settled();
 		const firstRenderMs = performance.now() - start;
@@ -265,6 +275,7 @@ export async function benchmarkRendering(
 			image: [...new Uint8Array(await blob.arrayBuffer())],
 		};
 	} finally {
+		histogram?.dispose();
 		renderer.dispose();
 		source.dispose();
 		clock?.dispose();

@@ -1,9 +1,8 @@
 import { createStore } from "zustand/vanilla";
-import { shallow } from "zustand/vanilla/shallow";
-import { frameValues, validateFrame } from "@/core/image/frame";
+import { validateFrame } from "@/core/image/frame";
 import { createHistory } from "./history";
 import { createResources } from "./resources";
-import type { Gradient, Layer, Scene } from "./scene";
+import type { Scene } from "./scene";
 import { findLayer } from "./tree";
 
 export type {
@@ -22,7 +21,13 @@ export type {
 	ToneCurve,
 	Vignette,
 } from "./scene";
-export { editLayer, findLayer, walkLayers } from "./tree";
+export {
+	editLayer,
+	findLayer,
+	locateLayer,
+	updateLayer,
+	walkLayers,
+} from "./tree";
 export { createResources };
 
 export type Preview = {
@@ -32,86 +37,28 @@ export type Preview = {
 	highlights: boolean;
 };
 
-function equalGradient(a: Gradient, b: Gradient) {
-	if (a.kind === "linear" && b.kind === "linear") {
-		return shallow(a.start, b.start) && shallow(a.end, b.end);
-	}
-	return (
-		a.kind === "radial" &&
-		b.kind === "radial" &&
-		shallow(a.center, b.center) &&
-		shallow(a.radius, b.radius) &&
-		a.angle === b.angle &&
-		a.feather === b.feather
-	);
-}
-
-function equalLayer(a: Layer, b: Layer): boolean {
+/** Scenes contain only plain values; unchanged branches keep their identity. */
+function equal(a: unknown, b: unknown): boolean {
 	if (a === b) {
 		return true;
 	}
 	if (
-		a.kind !== b.kind ||
-		a.id !== b.id ||
-		a.name !== b.name ||
-		a.children.length !== b.children.length ||
-		!a.children.every((child, index) => equalLayer(child, b.children[index]))
+		!a ||
+		!b ||
+		typeof a !== "object" ||
+		typeof b !== "object" ||
+		Array.isArray(a) !== Array.isArray(b)
 	) {
 		return false;
 	}
-	if (a.kind === "image" && b.kind === "image") {
-		return (
-			a.source === b.source &&
-			shallow(a.adjustments, b.adjustments) &&
-			shallow(a.whiteBalance, b.whiteBalance)
-		);
-	}
-	if (
-		a.kind === "image" ||
-		b.kind === "image" ||
-		a.visible !== b.visible ||
-		a.opacity !== b.opacity
-	) {
-		return false;
-	}
-	if (a.kind === "exposure" && b.kind === "exposure") {
-		return a.exposure === b.exposure;
-	}
-	if (a.kind === "details" && b.kind === "details") {
-		return shallow(a.details, b.details);
-	}
-	if (a.kind === "vignette" && b.kind === "vignette") {
-		return shallow(a.vignette, b.vignette);
-	}
-	if (a.kind === "mask" && b.kind === "mask") {
-		return (
-			a.operation === b.operation &&
-			equalGradient(a.mask, b.mask) &&
-			shallow(a.adjustments, b.adjustments)
-		);
-	}
-
-	if (a.kind === "curves" && b.kind === "curves") {
-		return (
-			a.toneCurve.length === b.toneCurve.length &&
-			a.toneCurve.every((point, index) => shallow(point, b.toneCurve[index]))
-		);
-	}
+	const keys = Object.keys(a);
 	return (
-		a.kind === "color-mixer" &&
-		b.kind === "color-mixer" &&
-		shallow(a.colorMixer.hue, b.colorMixer.hue) &&
-		shallow(a.colorMixer.saturation, b.colorMixer.saturation) &&
-		shallow(a.colorMixer.luminance, b.colorMixer.luminance)
-	);
-}
-
-function equal(a: Scene, b: Scene) {
-	return (
-		a === b ||
-		(shallow(frameValues(a.frame), frameValues(b.frame)) &&
-			a.layers.length === b.layers.length &&
-			a.layers.every((layer, index) => equalLayer(layer, b.layers[index])))
+		keys.length === Object.keys(b).length &&
+		keys.every(
+			(key) =>
+				Object.hasOwn(b, key) &&
+				equal(Reflect.get(a, key), Reflect.get(b, key)),
+		)
 	);
 }
 

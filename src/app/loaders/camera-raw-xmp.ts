@@ -1,7 +1,6 @@
 import { createLayer } from "@/app/editor/layers";
 import type { Workspace } from "@/app/workspace";
 import type { Adjustments, EditorDocument } from "@/core/document";
-import { walkLayers } from "@/core/document";
 import { setAdjustments } from "@/features/adjustments/edits";
 import {
 	type CameraRawXmp,
@@ -31,9 +30,7 @@ function toAdjustments(xmp: CameraRawXmp): Partial<Adjustments> {
 function applyClarity(document: EditorDocument, clarity: number) {
 	validateDetails({ clarity });
 	const scene = document.scene.getState();
-	const existing = walkLayers(scene.layers).find(
-		(layer) => layer.kind === "details",
-	);
+	const existing = scene.layers.find((layer) => layer.kind === "details");
 	if (existing) {
 		setDetails(document, { clarity }, existing.id);
 		return;

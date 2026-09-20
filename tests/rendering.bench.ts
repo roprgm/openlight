@@ -10,6 +10,7 @@ for (const workload of [
 	"vignette",
 	"detail",
 	"pipeline",
+	"pipeline-input",
 	"masked-exposure",
 	"radial-exposure",
 	"layer-stack",
