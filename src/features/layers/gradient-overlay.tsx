@@ -3,7 +3,7 @@ import { useStore } from "zustand";
 import { useDocument, useScene } from "@/components/editor/session";
 import { useViewport } from "@/components/editor/viewport";
 import { findLayer, type Gradient } from "@/core/document";
-import { type Point, sourceOffset } from "@/core/image/frame";
+import { outputOffset, type Point, sourceOffset } from "@/core/image/frame";
 import { useShortcuts } from "@/hooks/use-shortcuts";
 import { deleteLayer, setLayerMask } from "./edits";
 import {
@@ -79,18 +79,14 @@ export function GradientOverlay() {
 		return [frame.center[0] + offset[0], frame.center[1] + offset[1]];
 	}
 	function screenPoint(point: Point): Point {
-		const angle = ((frame.rotation + frame.angle) * Math.PI) / 180;
-		const dx = point[0] - frame.center[0];
-		const dy = point[1] - frame.center[1];
+		const [x, y] = outputOffset(
+			frame,
+			point[0] - frame.center[0],
+			point[1] - frame.center[1],
+		);
 		return [
-			camera.viewport[0] / 2 +
-				camera.view.pan[0] +
-				((Math.cos(angle) * dx - Math.sin(angle) * dy) / frame.scale[0]) *
-					camera.scale,
-			camera.viewport[1] / 2 +
-				camera.view.pan[1] +
-				((Math.sin(angle) * dx + Math.cos(angle) * dy) / frame.scale[1]) *
-					camera.scale,
+			camera.viewport[0] / 2 + camera.view.pan[0] + x * camera.scale,
+			camera.viewport[1] / 2 + camera.view.pan[1] + y * camera.scale,
 		];
 	}
 	function start(event: PointerEvent<HTMLDivElement>) {

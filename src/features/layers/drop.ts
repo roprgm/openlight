@@ -13,16 +13,15 @@ export function layerDrop(
 ): { index: number; parentId?: string } | undefined {
 	const source = findLayer(scene.layers, drop.id);
 	const location = locateLayer(scene.layers, drop.target);
-	const target = location?.layer;
 	if (
 		!source ||
 		source.kind === "image" ||
-		!target ||
 		!location ||
-		findLayer([source], target.id)
+		findLayer([source], location.layer.id)
 	) {
 		return;
 	}
+	const target = location.layer;
 	if (drop.position === "inside") {
 		if (
 			source.children.length ||

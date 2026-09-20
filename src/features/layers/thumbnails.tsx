@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { frame, surface } from "vgpu";
 import { useGpu } from "vgpu-react";
 import { useDocument, useScene } from "@/components/editor/session";
@@ -12,6 +12,7 @@ export function ImageThumbnail() {
 	const document = useDocument();
 	const sourceId = useScene((scene) => scene.layers[0].source);
 	const source = document.resources.get(sourceId);
+	const display = useMemo(() => createDisplay(gpu), [gpu]);
 	const canvas = useRef<HTMLCanvasElement>(null);
 	const [error, setError] = useState<string>();
 	useEffect(() => {
@@ -21,7 +22,6 @@ export function ImageThumbnail() {
 		let active = true;
 		async function draw() {
 			try {
-				const display = createDisplay(gpu);
 				frame(gpu, (frame) =>
 					display(frame, output, source.image, {
 						view: { zoom: 1, pan: [0, 0] },
@@ -50,7 +50,7 @@ export function ImageThumbnail() {
 		return () => {
 			active = false;
 		};
-	}, [gpu, source]);
+	}, [gpu, source, display]);
 	return (
 		<canvas
 			ref={canvas}

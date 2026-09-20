@@ -1,6 +1,6 @@
 import { cn } from "cn";
 import { type ReactNode, useId, useRef } from "react";
-import { useDocument } from "@/components/editor/session";
+import { useDocument, useScene } from "@/components/editor/session";
 import { Icon } from "@/components/icons/icon";
 import { findLayer, type Layer, type ProcessingLayer } from "@/core/document";
 import { deleteLayer, duplicateLayer, moveLayer } from "./edits";
@@ -63,9 +63,9 @@ export function LayerActions({
 	onSelect: (id: string) => void;
 }) {
 	const document = useDocument();
-	const scene = document.scene.getState();
+	const layers = useScene((scene) => scene.layers);
 	const index = siblings.findIndex((item) => item.id === layer.id);
-	const containers = scene.layers.filter(
+	const containers = layers.filter(
 		(item) =>
 			layer.children.length === 0 &&
 			item.kind !== "image" &&
@@ -77,7 +77,7 @@ export function LayerActions({
 		if (!parent) {
 			return;
 		}
-		const index = scene.layers.findIndex((item) => item.id === parent.id);
+		const index = layers.findIndex((item) => item.id === parent.id);
 		moveLayer(document, layer.id, index + 1);
 	}
 	return (
@@ -120,7 +120,7 @@ export function LayerActions({
 						value=""
 						className="min-w-0 max-w-32 bg-neutral-800"
 						onChange={(event) => {
-							const target = findLayer(scene.layers, event.target.value);
+							const target = findLayer(layers, event.target.value);
 							if (target) {
 								moveLayer(
 									document,

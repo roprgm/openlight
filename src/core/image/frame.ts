@@ -57,6 +57,15 @@ export function sourceOffset(frame: ImageFrame, x: number, y: number): Point {
 	];
 }
 
+/** Output offset of a source-pixel offset: the inverse of sourceOffset. */
+export function outputOffset(frame: ImageFrame, dx: number, dy: number): Point {
+	const angle = ((frame.rotation + frame.angle) * Math.PI) / 180;
+	return [
+		(Math.cos(angle) * dx - Math.sin(angle) * dy) / frame.scale[0],
+		(Math.sin(angle) * dx + Math.cos(angle) * dy) / frame.scale[1],
+	];
+}
+
 /** Affine UV mapping used by image display and resampling, independent of editing tools. */
 export function frameTransform(
 	frame: ImageFrame,
