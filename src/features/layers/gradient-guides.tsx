@@ -227,7 +227,7 @@ export function GradientGuides({
 	extent: number;
 }) {
 	return (
-		<svg className="pointer-events-none absolute inset-0 size-full overflow-hidden">
+		<svg className="pointer-events-none absolute inset-0 size-full overflow-visible">
 			<title>Gradient guides</title>
 			{mask.kind === "linear" && (
 				<LinearGuides

@@ -49,7 +49,7 @@ export function MaskOverlay({
 		<svg
 			aria-label="Mask overlay"
 			role="img"
-			className="pointer-events-none absolute inset-0 size-full overflow-hidden"
+			className="pointer-events-none absolute inset-0 size-full overflow-visible"
 		>
 			<defs>
 				<clipPath id={`${id}-clip`}>
