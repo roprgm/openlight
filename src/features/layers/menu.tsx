@@ -1,20 +1,32 @@
-import { cn } from "cn";
+import { cva } from "class-variance-authority";
 import { type ReactNode, useId, useRef } from "react";
 import { useDocument, useScene } from "@/components/editor/session";
 import { Icon } from "@/components/icons/icon";
 import { findLayer, type Layer, type ProcessingLayer } from "@/core/document";
 import { deleteLayer, duplicateLayer, moveLayer } from "./edits";
 
+const trigger = cva(
+	"grid shrink-0 place-items-center text-neutral-400 hover:text-neutral-100",
+	{
+		variants: {
+			variant: {
+				row: "size-7 rounded hover:bg-neutral-600/40 pointer-coarse:size-10",
+				pill: "h-7 rounded-full px-2.5 hover:bg-white/10 pointer-coarse:h-9",
+			},
+		},
+	},
+);
+
 export function LayerMenu({
 	label,
 	children,
 	icon,
-	className,
+	variant = "row",
 }: {
 	label: string;
 	children: ReactNode;
 	icon: ReactNode;
-	className?: string;
+	variant?: "row" | "pill";
 }) {
 	const id = useId();
 	const popover = useRef<HTMLDivElement>(null);
@@ -25,10 +37,7 @@ export function LayerMenu({
 				aria-label={label}
 				title={label}
 				popoverTarget={id}
-				className={cn(
-					"grid size-7 shrink-0 place-items-center rounded text-neutral-400 hover:bg-neutral-600/40 hover:text-neutral-100 pointer-coarse:size-10",
-					className,
-				)}
+				className={trigger({ variant })}
 			>
 				{icon}
 			</button>

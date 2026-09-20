@@ -23,7 +23,7 @@ function MaskOptions({ layer }: { layer: MaskLayer }) {
 				onClick={() =>
 					tool.setOverlay(tool.overlay === "hidden" ? "shown" : "hidden")
 				}
-				className="h-7 rounded px-2 text-neutral-400 text-xs hover:bg-neutral-600/40 hover:text-neutral-100 aria-pressed:bg-neutral-600/40 aria-pressed:text-neutral-100 pointer-coarse:h-10"
+				className="h-7 rounded-full px-2.5 text-neutral-400 hover:bg-white/10 hover:text-neutral-100 aria-pressed:bg-white/15 aria-pressed:text-neutral-100 pointer-coarse:h-9"
 			>
 				Overlay
 			</button>
@@ -51,7 +51,7 @@ function MaskOptions({ layer }: { layer: MaskLayer }) {
 					aria-label="Mask operation"
 					title="Combine with the parent mask"
 					value={layer.operation}
-					className="h-7 rounded-full bg-neutral-800/80 px-2 text-neutral-200"
+					className="h-7 rounded-full bg-white/10 px-2.5 text-neutral-200 hover:bg-white/15"
 					onChange={(event) => {
 						const operation = event.target.value;
 						if (operation === "add" || operation === "subtract") {
@@ -70,7 +70,7 @@ function MaskOptions({ layer }: { layer: MaskLayer }) {
 					const text = operation === "add" ? "Add" : "Subtract";
 					return (
 						<LayerMenu
-							className="h-7 w-auto px-2 pointer-coarse:h-10 pointer-coarse:w-auto"
+							variant="pill"
 							key={operation}
 							label={label}
 							icon={<span>{text}</span>}
