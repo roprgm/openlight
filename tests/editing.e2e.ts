@@ -462,8 +462,12 @@ test("edit a photo, inspect the preview and histograms, undo changes, and export
 		const modes = page.getByRole("tablist", { name: "Editor mode" });
 		const selected = modes.getByRole("tab", { selected: true });
 		await expect(selected).toHaveText("Adjust");
-		await modes.getByRole("tab", { name: "Export" }).click();
-		await expect(selected).toHaveText("Export");
+		const exportButton = page.getByRole("button", {
+			name: "Export",
+			exact: true,
+		});
+		await exportButton.click();
+		await expect(exportButton).toHaveAttribute("aria-pressed", "true");
 		await expect(
 			page.getByRole("region", { name: "Layers", exact: true }),
 		).toBeVisible();
@@ -472,13 +476,13 @@ test("edit a photo, inspect the preview and histograms, undo changes, and export
 				.getByRole("button", { name: "photo.svg", exact: true })
 				.locator(".."),
 		).toHaveAttribute("data-selected", "true");
-		await page.keyboard.press("ArrowLeft");
+		await modes.getByRole("tab", { name: "Crop" }).click();
 		await expect(selected).toHaveText("Crop");
-		await expect(selected).toBeFocused();
 		await page.keyboard.press("ArrowLeft");
 		await expect(selected).toHaveText("Adjust");
+		await expect(selected).toBeFocused();
 		await page.keyboard.press("e");
-		await expect(selected).toHaveText("Export");
+		await expect(exportButton).toHaveAttribute("aria-pressed", "true");
 		await page.keyboard.press("a");
 		await expect(selected).toHaveText("Adjust");
 		await expect(page.getByRole("slider", { name: "Exposure" })).toBeVisible();
@@ -945,7 +949,7 @@ test("edit a photo, inspect the preview and histograms, undo changes, and export
 		await canvas.hover();
 		await zoom(page, Math.E);
 		const panel = page.getByRole("region", { name: "Export settings" });
-		await page.getByRole("tab", { name: "Export" }).click();
+		await page.getByRole("button", { name: "Export", exact: true }).click();
 		const quality = panel.getByRole("textbox", { name: "Quality" });
 		async function save(name: string) {
 			const pending = page.waitForEvent("download");

@@ -5,6 +5,7 @@ import {
 	EditorPanel,
 	useDocument,
 } from "@/components/editor/session";
+import Button from "@/components/ui/button";
 import ResizablePanel from "@/components/ui/resizable-panel";
 import Spinner from "@/components/ui/spinner";
 import type { EffectLayer, Gradient } from "@/core/document";
@@ -16,12 +17,14 @@ import {
 	useGradientTool,
 } from "@/features/layers/gradient-tool";
 import { useShortcuts } from "@/hooks/use-shortcuts";
-import { EditorActions } from "./actions";
 import { EditorCanvas } from "./canvas";
+import { ComparisonControl } from "./comparison-control";
+import { EditorHeader } from "./header";
 import { ImageHistogram } from "./histogram";
+import { HistoryControls } from "./history";
 import { createLayer, createMask } from "./layers";
 import { ModeRail } from "./mode-rail";
-import { ModeProvider, modes, useMode } from "./modes";
+import { type Mode, ModeProvider, modes, useMode } from "./modes";
 import { createEditorRenderer } from "./renderer";
 
 function ModeView() {
@@ -70,19 +73,29 @@ function EditorSidebar() {
 	}
 	return (
 		<EditorPanel
-			footer={
-				<>
-					<LayersControls onSelect={() => setMode(modes[0])} onAdd={add} />
-					<EditorActions />
-				</>
-			}
+			footer={<LayersControls onSelect={() => setMode(modes[0])} onAdd={add} />}
 		>
 			<ImageHistogram />
 		</EditorPanel>
 	);
 }
 
-function DocumentEditor() {
+function ExportButton() {
+	const { mode, setMode } = useMode();
+	const target: Mode = mode.id === "export" ? modes[0] : modes[2];
+	return (
+		<Button
+			aria-pressed={mode.id === "export"}
+			title="Export (E)"
+			className="ml-1 aria-pressed:bg-neutral-600"
+			onClick={() => setMode(target)}
+		>
+			Export
+		</Button>
+	);
+}
+
+function DocumentEditor({ file }: { file: string }) {
 	const document = useDocument();
 	function addMask(
 		mask: Gradient,
@@ -102,9 +115,16 @@ function DocumentEditor() {
 	return (
 		<GradientProvider onCreate={addMask}>
 			<ModeProvider>
-				<ModeRail />
-				<ModeView />
-				<EditorSidebar />
+				<EditorHeader file={file}>
+					<HistoryControls />
+					<ComparisonControl />
+					<ExportButton />
+				</EditorHeader>
+				<div className="flex min-h-0 flex-1 flex-col md:flex-row">
+					<ModeRail />
+					<ModeView />
+					<EditorSidebar />
+				</div>
 			</ModeProvider>
 		</GradientProvider>
 	);
@@ -126,23 +146,26 @@ function EditorContent({ state }: EditorProps) {
 		return (
 			<DocumentProvider key={state.document.id} value={state.document}>
 				<RendererProvider createRenderer={createEditorRenderer}>
-					<DocumentEditor />
+					<DocumentEditor file={state.file} />
 				</RendererProvider>
 			</DocumentProvider>
 		);
 	}
 	return (
 		<>
-			<div className="grid flex-1 place-items-center">
-				<LoadingStatus state={state} />
+			<EditorHeader file={state.file} />
+			<div className="flex min-h-0 flex-1 flex-col md:flex-row">
+				<div className="grid flex-1 place-items-center">
+					<LoadingStatus state={state} />
+				</div>
+				<ResizablePanel />
 			</div>
-			<ResizablePanel />
 		</>
 	);
 }
 export default function Editor({ state }: EditorProps) {
 	return (
-		<main className="flex h-dvh flex-col md:flex-row">
+		<main className="flex h-dvh flex-col">
 			<EditorContent state={state} />
 		</main>
 	);

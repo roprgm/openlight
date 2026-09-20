@@ -26,17 +26,12 @@ export function ModeRail() {
 		),
 	);
 	const editing = modes.filter((entry) => entry.group === "edit");
-	const output = modes.filter((entry) => entry.group === "output");
 	return (
 		<TabList
 			aria-label="Editor mode"
 			className="shrink-0 overflow-auto border-black border-b bg-panel p-2 shadow-ridge md:w-17.5 md:flex-col md:border-r md:border-b-0"
 		>
 			{editing.map((entry) => (
-				<ModeTab key={entry.id} entry={entry} />
-			))}
-			<div className="my-1 w-px shrink-0 bg-black md:my-0 md:w-auto md:flex-1 md:bg-transparent" />
-			{output.map((entry) => (
 				<ModeTab key={entry.id} entry={entry} />
 			))}
 		</TabList>

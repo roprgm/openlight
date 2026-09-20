@@ -36,7 +36,7 @@ function CropMode() {
 
 /**
  * A mode edits over the shared canvas through a Panel, or brings its own View when it needs another viewport.
- * Output modes sit at the end of the rail, apart from editing modes.
+ * The output mode opens from the header rather than the rail.
  */
 export const modes = [
 	adjust,
