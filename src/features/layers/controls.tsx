@@ -290,21 +290,14 @@ export function LayersControls({
 	return (
 		<section
 			aria-label="Layers"
-			className="flex h-[30%] min-h-24 max-h-72 shrink-0 flex-col border-t border-black bg-panel"
+			className="grid max-h-1/2 min-h-30 shrink-0 grid-rows-[auto_minmax(0,1fr)] border-t border-black bg-panel"
 			onKeyDown={(event) => {
-				// Crop's Enter and Escape shortcuts listen on inputs too; keep rename and menu keys local.
+				// Escape closes an open menu before the mask shortcuts see it.
 				const menu = event.currentTarget.querySelector<HTMLElement>(
 					"[popover]:popover-open",
 				);
 				if (event.key === "Escape" && menu) {
 					menu.hidePopover();
-					event.stopPropagation();
-					return;
-				}
-				if (
-					(event.key === "Enter" || event.key === "Escape") &&
-					event.target instanceof HTMLInputElement
-				) {
 					event.stopPropagation();
 				}
 			}}
@@ -356,7 +349,7 @@ export function LayersControls({
 					</button>
 				</LayerMenu>
 			</PanelHeader>
-			<ScrollArea fade className="flex-1">
+			<ScrollArea fade>
 				<TreeDrag
 					canDrop={(target) => Boolean(layerDrop(scene, target))}
 					onDrop={drop}

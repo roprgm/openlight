@@ -9,7 +9,7 @@ function ModeTab({ entry }: { entry: Mode }) {
 			selected={entry === mode}
 			title={`${entry.label} (${entry.key.toUpperCase()})`}
 			onClick={() => setMode(entry)}
-			className="flex min-w-16 flex-1 flex-col items-center gap-0.5 rounded-md px-0 py-1.5 md:min-w-0 md:flex-none md:py-2"
+			className="flex min-w-16 flex-col items-center gap-0.5 rounded-md px-0 py-1.5 md:min-w-0 md:py-2"
 		>
 			<entry.Icon className="size-5" />
 			{entry.label}

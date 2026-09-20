@@ -516,8 +516,8 @@ test("edit a photo, inspect the preview and histograms, undo changes, and export
 		const before = await state();
 		await open.click();
 		await aspect.selectOption({ label: "Square" });
-		await panel
-			.getByRole("button", { name: "Cancel", exact: true })
+		await page
+			.getByRole("button", { name: "Close", exact: true })
 			.press("Enter");
 		await expect(panel).toBeHidden();
 		expect((await state()).frame).toEqual(before.frame);
@@ -529,7 +529,7 @@ test("edit a photo, inspect the preview and histograms, undo changes, and export
 		await expect(panel).toBeVisible();
 		expect((await state()).frame).toEqual(before.frame);
 		await reset.press("Enter");
-		await panel.getByRole("button", { name: "Apply crop" }).press("Enter");
+		await page.getByRole("button", { name: "Apply crop" }).press("Enter");
 		await expect(panel).toBeHidden();
 		expect((await state()).frame).toEqual(before.frame);
 		expect((await state()).history).toEqual(before.history);
@@ -594,7 +594,7 @@ test("edit a photo, inspect the preview and histograms, undo changes, and export
 				expect(resized.width).toBeCloseTo(bounds.width - widthChange, 0);
 				expect(resized.height).toBeCloseTo(bounds.height - heightChange, 0);
 				expectCentered(resized, bounds);
-				await panel.getByRole("button", { name: "Apply crop" }).click();
+				await page.getByRole("button", { name: "Apply crop" }).click();
 				const frame = (await state()).frame;
 				if (!frame) throw new Error("Missing cropped frame");
 				const exported = await readImage(page);
@@ -699,7 +699,7 @@ test("edit a photo, inspect the preview and histograms, undo changes, and export
 		await open.click();
 		await panel.getByRole("button", { name: "Rotate clockwise" }).click();
 		await panel.getByRole("button", { name: "Rotate clockwise" }).click();
-		await panel.getByRole("button", { name: "Apply crop" }).click();
+		await page.getByRole("button", { name: "Apply crop" }).click();
 		await expectImage([800, 1200], 32);
 		await open.click();
 		await reset.click();
@@ -713,7 +713,7 @@ test("edit a photo, inspect the preview and histograms, undo changes, and export
 		await expectImage([1200, 800], 32);
 		await open.click();
 		await reset.click();
-		await panel.getByRole("button", { name: "Apply crop" }).click();
+		await page.getByRole("button", { name: "Apply crop" }).click();
 		await expect.poll(() => canvas.screenshot()).toEqual(original);
 	});
 

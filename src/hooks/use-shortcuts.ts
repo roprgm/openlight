@@ -12,9 +12,14 @@ export function useShortcuts(
 			return;
 		}
 		const target = event.target;
+		if (!(target instanceof HTMLElement)) {
+			return;
+		}
+		if (event.key === "Enter" && target.closest("button")) {
+			return;
+		}
 		if (
 			!inputs &&
-			target instanceof HTMLElement &&
 			(target.isContentEditable ||
 				target.closest(
 					'input:not([type="range"]), textarea, select, dialog, [role="dialog"]',

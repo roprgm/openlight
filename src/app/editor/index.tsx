@@ -61,8 +61,14 @@ function ModeView() {
 			tool.draw("radial");
 		},
 	});
+	function close() {
+		setMode(modes[0]);
+		if (window.document.activeElement instanceof HTMLElement) {
+			window.document.activeElement.blur();
+		}
+	}
 	if ("View" in mode) {
-		return <mode.View onClose={() => setMode(modes[0])} />;
+		return <mode.View onClose={close} />;
 	}
 	return (
 		<>

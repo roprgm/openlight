@@ -14,7 +14,7 @@ export function ClippingControls() {
 					aria-label={`Show clipped ${range}`}
 					title={`Show clipped ${range}`}
 					aria-pressed={state[range]}
-					className="pointer-events-auto flex size-6 items-center justify-center rounded-sm bg-neutral-900/80 p-0 aria-pressed:bg-neutral-700 aria-pressed:text-white"
+					className="pointer-events-auto flex size-6 items-center justify-center rounded-sm bg-neutral-900/80 p-0 opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100 aria-pressed:bg-neutral-700 aria-pressed:text-white aria-pressed:opacity-100 pointer-coarse:opacity-100"
 					onClick={() => preview.setState({ [range]: !state[range] })}
 				>
 					<svg
