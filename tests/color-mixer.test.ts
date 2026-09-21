@@ -40,7 +40,6 @@ test("color edits validate, group, cancel and reset while renderers reuse and re
 	const renderer = createEditorRenderer(gpu, source);
 	try {
 		await renderer.update(document.scene.getState());
-		const original = renderer.outputImage();
 		setColorMixer(document, "blue", { hue: 0 }, "mixer");
 		resetColorMixer(document, "mixer");
 		expect(document.history.status.getState().undoCount).toBe(0);
@@ -56,8 +55,11 @@ test("color edits validate, group, cancel and reset while renderers reuse and re
 			mixer?.kind === "color-mixer" && mixer.colorMixer.saturation[5],
 		).toBe(-20);
 		await renderer.update(scene);
+		expect(renderer.inspect().passes).toEqual([
+			"layer/mixer/color-mixer",
+			"layer/base/adjustments",
+		]);
 		const edited = renderer.outputImage();
-		expect(edited).not.toBe(original);
 		expect(edited.format).toBe("rgba16float");
 		const calls = getMockGPUDeviceInstrumentation(gpu.gpu).calls;
 		const pipelines = calls.createRenderPipeline;
@@ -69,12 +71,12 @@ test("color edits validate, group, cancel and reset while renderers reuse and re
 		expect(document.scene.getState()).toEqual(scene);
 		document.history.undo();
 		await renderer.update(document.scene.getState());
-		expect(renderer.outputImage()).toBe(original);
+		expect(renderer.inspect().passes).toEqual(["layer/base/adjustments"]);
 		document.history.redo();
 		await renderer.update(document.scene.getState());
 		expect(renderer.inspect().passes).toEqual([
-			"layer/base/adjustments",
 			"layer/mixer/color-mixer",
+			"layer/base/adjustments",
 		]);
 		expect(calls.createRenderPipeline).toBe(pipelines);
 		for (const value of [NaN, Infinity, -101, 101]) {

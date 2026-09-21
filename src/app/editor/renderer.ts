@@ -120,7 +120,11 @@ function composeLayers(
 	return { image, input };
 }
 
-/** Pure layer composition shares the same graph for preview, crop, and export. */
+/**
+ * Pure layer composition shares the same graph for preview, crop, and export.
+ * Layers process the source; the image layer's adjustments and curve then tone the composite,
+ * so a local exposure still sees the light a global exposure would push past white.
+ */
 export function createEditorRenderer(
 	gpu: Gpu,
 	source: ImageSource,
@@ -132,15 +136,14 @@ export function createEditorRenderer(
 		(image, scene, inputId) => {
 			const [sourceLayer, ...layers] = scene.layers;
 			const name = `layer/${sourceLayer.id}`;
-			const adjusted = pipeline(image, [
+			const children = composeLayers(image, sourceLayer.children, inputId);
+			const composition = composeLayers(children.image, layers, inputId);
+			const adjusted = pipeline(composition.image, [
 				adjustments(sourceLayer.adjustments, `${name}/adjustments`),
 			]);
-			const base = pipeline(adjusted, [
+			const full = pipeline(adjusted, [
 				toneCurves(sourceLayer.toneCurve, `${name}/curves`),
 			]);
-			const children = composeLayers(base, sourceLayer.children, inputId);
-			const composition = composeLayers(children.image, layers, inputId);
-			const full = composition.image;
 			const [original, output] = transformImages(
 				[input(source.image), full],
 				scene.frame,

@@ -88,6 +88,48 @@ test("draw a mask, edit its child effects, reorder layers and undo", async ({
 		await page.getByRole("button", { name: "Undo", exact: true }).click();
 	});
 	const original = await samples(page);
+	await test.step("a local exposure recovers light the global exposure pushed past white", async () => {
+		// Export pixels at the gray field and the light band, both inside the radial mask below.
+		const tones = () =>
+			page.evaluate(async () => {
+				const image = await createImageBitmap(
+					await window.openlight.exportImage(),
+				);
+				const canvas = new OffscreenCanvas(image.width, image.height);
+				const context = canvas.getContext("2d");
+				if (!context) throw new Error("Cannot read layer output.");
+				context.drawImage(image, 0, 0);
+				image.close();
+				return [600, 1100].map(
+					(x) => context.getImageData(x, 700, 1, 1).data[0],
+				);
+			});
+		const [gray, band] = await tones();
+		expect([gray, band]).toEqual([128, 224]);
+		await page.evaluate(() => window.openlight.setAdjustments({ exposure: 2 }));
+		expect((await tones())[0]).toBeGreaterThan(200);
+		await page.evaluate(() => {
+			const api = window.openlight;
+			const mask = api.addLayer("mask");
+			api.setLayerMask(mask, {
+				kind: "radial",
+				center: [850, 700],
+				radius: [400, 200],
+				angle: 0,
+				feather: 0,
+			});
+			api.setAdjustments({ exposure: -2 }, mask);
+		});
+		const recovered = await tones();
+		expect(Math.abs(recovered[0] - gray)).toBeLessThan(30);
+		expect(Math.abs(recovered[1] - band)).toBeLessThan(30);
+		expect(recovered[1] - recovered[0]).toBeGreaterThan(0.6 * (band - gray));
+		expect((await samples(page))[0][0]).toBeGreaterThan(200);
+		await page.evaluate(() => {
+			for (let i = 0; i < 4; i++) window.openlight.undo();
+		});
+		expect(await samples(page)).toEqual(original);
+	});
 	await page.screenshot({ path: info.outputPath("layers-before-ui.png") });
 	await saveExport("layers-before-export.png");
 	await page

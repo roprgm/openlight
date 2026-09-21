@@ -296,9 +296,9 @@ test("rendering follows grouped edits and undo, reuses pipelines, and releases o
 		expect(renderer.inputImage("base")).not.toBe(renderer.outputImage());
 		expect(renderer.inputImage("exposure")).toBeUndefined();
 		expect(renderer.inspect().passes).toEqual([
+			"layer/exposure/exposure",
 			"layer/base/adjustments",
 			"layer/base/curves",
-			"layer/exposure/exposure",
 		]);
 		document.edit(beforeInput);
 		expect(renderer.inputImage("base")).toBeUndefined();

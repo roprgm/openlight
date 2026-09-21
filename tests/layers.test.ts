@@ -117,10 +117,10 @@ test("nested layers compose in order, move atomically, and duplicate with indepe
 		expect(document.selection.getState().layerId).toBe("base");
 		await renderer.update(document.scene.getState());
 		expect(renderer.inspect().passes).toEqual([
-			"layer/base/adjustments",
 			`layer/${exposure}/exposure`,
 			`layer/${vignette}/vignette`,
 			`layer/${mask}/mix`,
+			"layer/base/adjustments",
 		]);
 		const calls = getMockGPUDeviceInstrumentation(gpu.gpu).calls;
 		const compiled = calls.createRenderPipeline;
