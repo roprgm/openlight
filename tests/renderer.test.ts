@@ -6,7 +6,7 @@ import {
 	init,
 	target,
 } from "vgpu/mock";
-import { createLayer } from "@/app/editor/layers";
+import { createImageLayer, createLayer } from "@/app/editor/layers";
 import { createEditorRenderer as createRenderer } from "@/app/editor/renderer";
 import { createDocument, createResources } from "@/core/document";
 import { createImageSource } from "@/core/image";
@@ -20,7 +20,6 @@ import {
 import { setAdjustments } from "@/features/adjustments/edits";
 import { defaultAdjustments } from "@/features/adjustments/model";
 import { unsharpMask } from "@/features/details/unsharp-mask";
-import { defaultCurve } from "@/features/tone-curves/curve";
 import { setToneCurve } from "@/features/tone-curves/edits";
 import { setWhiteBalance } from "@/features/white-balance/edits";
 
@@ -60,18 +59,7 @@ test("RAW edits coalesce, recover from failure, and retain an exporting source a
 	const document = createDocument(
 		{
 			frame: imageFrame(image.size),
-			layers: [
-				{
-					kind: "image",
-					name: "Photo",
-					children: [],
-					id: "base",
-					source: id,
-					adjustments: { ...defaultAdjustments },
-					toneCurve: defaultCurve,
-					whiteBalance: asShot,
-				},
-			],
+			layers: [{ ...createImageLayer(id, "Photo", asShot), id: "base" }],
 		},
 		resources,
 	);
@@ -193,13 +181,9 @@ test("rendering follows grouped edits and undo, reuses pipelines, and releases o
 		frame: imageFrame([32, 16]),
 		layers: [
 			{
-				kind: "image",
-				name: "Photo",
-				children: [],
+				...createImageLayer("photo", "Photo"),
 				id: "base",
-				source: "photo",
-				adjustments: { ...defaultAdjustments },
-				toneCurve: defaultCurve,
+				adjustments: { ...defaultAdjustments, exposure: 0.25 },
 			},
 		],
 	});
@@ -258,10 +242,10 @@ test("rendering follows grouped edits and undo, reuses pipelines, and releases o
 		detachLate();
 		document.history.undo();
 		expect(renderer.outputImage()).toBe(adjusted);
-		expect(document.scene.getState().layers[0].adjustments.exposure).toBe(0);
+		expect(document.scene.getState().layers[0].adjustments.exposure).toBe(0.25);
 		document.history.redo();
 		expect(renderer.inspect().passes).toEqual([
-			"layer/base/adjustments",
+			"layer/base/exposure",
 			"layer/base/curves",
 		]);
 		document.history.begin();
@@ -269,7 +253,7 @@ test("rendering follows grouped edits and undo, reuses pipelines, and releases o
 		expect(renderer.outputImage()).toBe(adjusted);
 		document.history.cancel();
 		expect(renderer.inspect().passes).toEqual([
-			"layer/base/adjustments",
+			"layer/base/exposure",
 			"layer/base/curves",
 		]);
 		draw();
@@ -297,7 +281,7 @@ test("rendering follows grouped edits and undo, reuses pipelines, and releases o
 		expect(renderer.inputImage("exposure")).toBeUndefined();
 		expect(renderer.inspect().passes).toEqual([
 			"layer/exposure/exposure",
-			"layer/base/adjustments",
+			"layer/base/exposure",
 			"layer/base/curves",
 		]);
 		document.edit(beforeInput);

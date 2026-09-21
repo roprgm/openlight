@@ -1,5 +1,6 @@
 import type { Gradient, LinearGradient, RadialGradient } from "@/core/document";
 import type { Point } from "@/core/image/frame";
+import { clamp } from "@/lib/math";
 
 export const gradientHandles = [
 	"move",
@@ -21,18 +22,9 @@ export function drawGradient(
 	const dx = to[0] - from[0];
 	const dy = to[1] - from[1];
 	if (kind === "radial") {
-		const radius: Point = [
-			Math.max(1, Math.abs(dx)),
-			Math.max(1, Math.abs(dy)),
-		];
+		let radius: Point = [Math.max(1, Math.abs(dx)), Math.max(1, Math.abs(dy))];
 		if (constrain) {
-			return {
-				kind,
-				center: from,
-				radius: [Math.max(...radius), Math.max(...radius)],
-				angle: 0,
-				feather: 0.5,
-			};
+			radius = [Math.max(...radius), Math.max(...radius)];
 		}
 		return { kind, center: from, radius, angle: 0, feather: 0.5 };
 	}
@@ -134,31 +126,19 @@ export function moveGradient(
 		[from[0] - mask.center[0], from[1] - mask.center[1]],
 		angle,
 	);
-	if (handle === "radius-x") {
-		return {
-			...mask,
-			radius: [
-				Math.max(1, mask.radius[0] + delta[0] * Math.sign(origin[0])),
-				mask.radius[1],
-			],
-		};
-	}
-	if (handle === "radius-y") {
-		return {
-			...mask,
-			radius: [
-				mask.radius[0],
-				Math.max(1, mask.radius[1] + delta[1] * Math.sign(origin[1])),
-			],
-		};
+	if (handle === "radius-x" || handle === "radius-y") {
+		const axis = handle === "radius-x" ? 0 : 1;
+		const radius: [number, number] = [...mask.radius];
+		radius[axis] = Math.max(
+			1,
+			mask.radius[axis] + delta[axis] * Math.sign(origin[axis]),
+		);
+		return { ...mask, radius };
 	}
 	if (handle === "feather") {
 		return {
 			...mask,
-			feather: Math.max(
-				0,
-				Math.min(1, mask.feather - delta[0] / mask.radius[0]),
-			),
+			feather: clamp(mask.feather - delta[0] / mask.radius[0]),
 		};
 	}
 	return mask;

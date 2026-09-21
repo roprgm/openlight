@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { createLayer, createMask } from "@/app/editor/layers";
+import { createImageLayer, createLayer, createMask } from "@/app/editor/layers";
 import { createCameraRawXmpLoader } from "@/app/loaders/camera-raw-xmp";
 import { createLoaderRegistry, type FileLoader } from "@/app/loaders/registry";
 import { createWorkspace } from "@/app/workspace";
@@ -10,7 +10,6 @@ import { setAdjustments } from "@/features/adjustments/edits";
 import { defaultAdjustments } from "@/features/adjustments/model";
 import { addLayer } from "@/features/layers/edits";
 import { defaultGradient } from "@/features/layers/gradient";
-import { defaultCurve } from "@/features/tone-curves/curve";
 
 function settings(attributes: string, name = "photo.xmp") {
 	return new File(
@@ -35,17 +34,7 @@ test("file batches preserve ordering, group imports, recover from failures, and 
 				if (file.name === "broken.png") throw new Error("Decode failed");
 				return createDocument({
 					frame: imageFrame([32, 32]),
-					layers: [
-						{
-							kind: "image",
-							name: "Photo",
-							children: [],
-							id: "base",
-							source: file.name,
-							adjustments: { ...defaultAdjustments },
-							toneCurve: defaultCurve,
-						},
-					],
+					layers: [{ ...createImageLayer(file.name, "Photo"), id: "base" }],
 				});
 			}),
 	};

@@ -2,8 +2,10 @@ import {
 	type Buffer,
 	effect,
 	type Frame,
+	frame,
 	type Gpu,
 	sampler,
+	surface,
 	type Target,
 } from "vgpu";
 import type { Gradient, MaskModifier } from "@/core/document";
@@ -11,6 +13,7 @@ import {
 	frameTransform,
 	type ImageFrame,
 	imageFrame,
+	type Point,
 } from "@/core/image/frame";
 import { gradientParams, modifierData } from "@/core/renderer/blend";
 import shader from "./image.wgsl";
@@ -101,4 +104,27 @@ export function createDisplay(gpu: Gpu) {
 			modifiers = undefined;
 		},
 	});
+}
+
+const displays = new WeakMap<Gpu, ReturnType<typeof createDisplay>>();
+
+/** Draws an image into an off-screen canvas of `size` and takes its pixels; one display serves each GPU. */
+export async function renderBitmap(gpu: Gpu, image: Target, size: Point) {
+	let display = displays.get(gpu);
+	if (!display) {
+		display = createDisplay(gpu);
+		displays.set(gpu, display);
+	}
+	const canvas = new OffscreenCanvas(size[0], size[1]);
+	const output = surface(gpu, canvas, { size, dpr: 1 });
+	try {
+		frame(gpu, (frame) =>
+			display(frame, output, image, { view: { zoom: 1, pan: [0, 0] } }),
+		);
+		// Finish the draw before the 2D canvas reads it; otherwise Chrome waits a full second for the sync.
+		await gpu.gpu.queue.onSubmittedWorkDone();
+		return canvas.transferToImageBitmap();
+	} finally {
+		output.dispose();
+	}
 }

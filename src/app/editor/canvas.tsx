@@ -9,7 +9,7 @@ import { ComparisonDivider } from "./comparison-divider";
 export function EditorCanvas() {
 	const tool = useGradientTool();
 	let gradientKey = "selection";
-	if (tool.target?.kind === "new") {
+	if (tool.target) {
 		gradientKey = `new/${tool.target.shape}/${tool.target.parentId ?? "root"}/${tool.target.operation}`;
 	}
 	const size = useScene((scene) => scene.frame.size);

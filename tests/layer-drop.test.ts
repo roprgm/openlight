@@ -1,11 +1,9 @@
 import { expect, test } from "bun:test";
-import { createLayer, createMask } from "@/app/editor/layers";
+import { createImageLayer, createLayer, createMask } from "@/app/editor/layers";
 import type { Scene } from "@/core/document";
 import { imageFrame } from "@/core/image/frame";
-import { defaultAdjustments } from "@/features/adjustments/model";
 import { type LayerDrop, layerDrop } from "@/features/layers/drop";
 import { defaultGradient } from "@/features/layers/gradient";
-import { defaultCurve } from "@/features/tone-curves/curve";
 
 const gradient = defaultGradient([32, 16]);
 const exposure = { ...createLayer("exposure"), id: "exposure" };
@@ -21,15 +19,7 @@ const top = { ...createLayer("exposure"), id: "top" };
 const scene: Scene = {
 	frame: imageFrame([32, 16]),
 	layers: [
-		{
-			kind: "image",
-			id: "image",
-			name: "Photo",
-			source: "photo",
-			adjustments: defaultAdjustments,
-			toneCurve: defaultCurve,
-			children: [],
-		},
+		{ ...createImageLayer("photo", "Photo"), id: "image" },
 		mask,
 		other,
 		top,

@@ -12,6 +12,9 @@ export function useShortcuts(
 			return;
 		}
 		const target = event.target;
+		if (window.document.querySelector(":popover-open")) {
+			return;
+		}
 		if (
 			!inputs &&
 			target instanceof HTMLElement &&

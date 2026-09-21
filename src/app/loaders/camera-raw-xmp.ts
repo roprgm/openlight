@@ -1,4 +1,4 @@
-import { createLayer, editEffect } from "@/app/editor/layers";
+import { editEffect } from "@/app/editor/layers";
 import type { Workspace } from "@/app/workspace";
 import type { Adjustments, EditorDocument } from "@/core/document";
 import { setAdjustments } from "@/features/adjustments/edits";
@@ -8,7 +8,7 @@ import {
 	readCameraRawXmp,
 } from "@/features/camera-raw-xmp/xmp";
 import { setDetails } from "@/features/details/edits";
-import { defaultDetails, validateDetails } from "@/features/details/model";
+import { validateDetails } from "@/features/details/model";
 import type { FileLoader } from "./registry";
 
 function toAdjustments(xmp: CameraRawXmp): Partial<Adjustments> {
@@ -36,15 +36,8 @@ function applyClarity(document: EditorDocument, clarity: number) {
 	) {
 		return;
 	}
-	editEffect(
-		document,
-		"details",
-		undefined,
-		(id) => setDetails(document, { clarity }, id),
-		() => ({
-			...createLayer("details"),
-			details: { ...defaultDetails, clarity },
-		}),
+	editEffect(document, "details", undefined, (id) =>
+		setDetails(document, { clarity }, id),
 	);
 }
 

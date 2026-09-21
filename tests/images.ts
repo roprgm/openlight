@@ -1,9 +1,13 @@
 import type { Page } from "@playwright/test";
 
-/** Read actual exported or downloaded pixels, independently of the renderer. */
-export async function readImage(page: Page, bytes?: Uint8Array) {
+/** Read actual exported or downloaded pixels, independently of the renderer; `points` adds samples at those pixels. */
+export async function readImage(
+	page: Page,
+	bytes?: Uint8Array,
+	points?: readonly (readonly [number, number])[],
+) {
 	return page.evaluate(
-		async (bytes) => {
+		async ([bytes, points]) => {
 			const file = bytes
 				? new Blob([new Uint8Array(bytes)])
 				: await window.openlight.exportImage();
@@ -20,9 +24,12 @@ export async function readImage(page: Page, bytes?: Uint8Array) {
 						.data,
 				],
 				corner: [...context.getImageData(10, 10, 1, 1).data],
+				samples: points?.map(([x, y]) => [
+					...context.getImageData(x, y, 1, 1).data,
+				]),
 			};
 		},
-		bytes ? [...bytes] : null,
+		[bytes ? [...bytes] : null, points] as const,
 	);
 }
 

@@ -4,7 +4,8 @@ import { useDocument } from "@/components/editor/session";
 
 export function ComparisonDivider() {
 	const { preview } = useDocument();
-	const { comparison, split } = useStore(preview);
+	const comparison = useStore(preview, (state) => state.comparison);
+	const split = useStore(preview, (state) => state.split);
 	if (comparison !== "split") {
 		return null;
 	}

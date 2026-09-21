@@ -7,6 +7,11 @@ import { setLayer, setLayerMask, setMaskOperation } from "./edits";
 import { useGradientTool } from "./gradient-tool";
 import { LayerMenu } from "./menu";
 
+const maskOperations = [
+	["add", "Add", "Add to mask"],
+	["subtract", "Subtract", "Subtract from mask"],
+] as const;
+
 function MaskOptions({ layer }: { layer: MaskLayer }) {
 	const document = useDocument();
 	const tool = useGradientTool();
@@ -24,9 +29,7 @@ function MaskOptions({ layer }: { layer: MaskLayer }) {
 				type="button"
 				aria-pressed={tool.overlay !== "hidden"}
 				title="Show mask overlay (O)"
-				onClick={() =>
-					tool.setOverlay(tool.overlay === "hidden" ? "shown" : "hidden")
-				}
+				onClick={tool.toggleOverlay}
 				className="h-7 rounded-full px-2.5 text-neutral-400 hover:bg-white/10 hover:text-neutral-100 aria-pressed:bg-white/15 aria-pressed:text-neutral-100 pointer-coarse:h-9"
 			>
 				Overlay
@@ -68,32 +71,27 @@ function MaskOptions({ layer }: { layer: MaskLayer }) {
 				</select>
 			)}
 			{!parent &&
-				(["add", "subtract"] as const).map((operation) => {
-					const label =
-						operation === "add" ? "Add to mask" : "Subtract from mask";
-					const text = operation === "add" ? "Add" : "Subtract";
-					return (
-						<LayerMenu
-							variant="pill"
-							key={operation}
-							label={label}
-							icon={<span>{text}</span>}
+				maskOperations.map(([operation, text, label]) => (
+					<LayerMenu
+						variant="pill"
+						key={operation}
+						label={label}
+						icon={<span>{text}</span>}
+					>
+						<button
+							type="submit"
+							onClick={() => tool.add(layer.id, operation, "linear")}
 						>
-							<button
-								type="submit"
-								onClick={() => tool.add(layer.id, operation, "linear")}
-							>
-								Linear gradient
-							</button>
-							<button
-								type="submit"
-								onClick={() => tool.add(layer.id, operation, "radial")}
-							>
-								Radial gradient
-							</button>
-						</LayerMenu>
-					);
-				})}
+							Linear gradient
+						</button>
+						<button
+							type="submit"
+							onClick={() => tool.add(layer.id, operation, "radial")}
+						>
+							Radial gradient
+						</button>
+					</LayerMenu>
+				))}
 		</>
 	);
 }

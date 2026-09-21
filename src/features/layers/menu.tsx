@@ -1,8 +1,8 @@
 import { cva } from "class-variance-authority";
-import { type ReactNode, useId, useRef } from "react";
+import { type ReactNode, useId, useRef, useState } from "react";
 import { useDocument, useScene } from "@/components/editor/session";
 import { Icon } from "@/components/icons/icon";
-import { findLayer, type Layer, type ProcessingLayer } from "@/core/document";
+import { findLayer, locateLayer, type ProcessingLayer } from "@/core/document";
 import { deleteLayer, duplicateLayer, moveLayer } from "./edits";
 
 const trigger = cva(
@@ -30,6 +30,7 @@ export function LayerMenu({
 }) {
 	const id = useId();
 	const popover = useRef<HTMLDivElement>(null);
+	const [open, setOpen] = useState(false);
 	return (
 		<>
 			<button
@@ -45,6 +46,7 @@ export function LayerMenu({
 				id={id}
 				ref={popover}
 				popover="auto"
+				onBeforeToggle={(event) => setOpen(event.newState === "open")}
 				className="fixed inset-auto z-50 m-0 [position-area:bottom_span-left] max-h-[calc(100dvh-1rem)] min-w-40 overflow-y-auto rounded-md [position-try-fallbacks:flip-block] border border-neutral-600 bg-neutral-800 p-1 text-neutral-200 shadow-xl [&_button]:block [&_button]:w-full [&_button]:rounded [&_button]:px-2 [&_button]:py-1.5 [&_button]:text-left [&_button:hover]:bg-neutral-700 [&_button:disabled]:text-neutral-600"
 			>
 				<form
@@ -52,34 +54,25 @@ export function LayerMenu({
 						event.preventDefault();
 						popover.current?.hidePopover();
 					}}
-					onKeyDown={(event) => {
-						// Escape closes the menu without reaching the mask shortcuts.
-						if (event.key === "Escape") {
-							popover.current?.hidePopover();
-							event.stopPropagation();
-						}
-					}}
 				>
-					{children}
+					{open && children}
 				</form>
 			</div>
 		</>
 	);
 }
 
-export function LayerActions({
+/** Mounted only while the menu is open, so rows do not track siblings and containers. */
+function LayerActionItems({
 	layer,
-	siblings,
-	parent,
 	onSelect,
 }: {
 	layer: ProcessingLayer;
-	siblings: readonly Layer[];
-	parent?: Layer;
 	onSelect: (id: string) => void;
 }) {
 	const document = useDocument();
 	const layers = useScene((scene) => scene.layers);
+	const { siblings = [], parent } = locateLayer(layers, layer.id) ?? {};
 	const index = siblings.findIndex((item) => item.id === layer.id);
 	const containers = layers.filter(
 		(item) =>
@@ -97,18 +90,7 @@ export function LayerActions({
 		moveLayer(document, layer.id, index + 1);
 	}
 	return (
-		<LayerMenu
-			label={`${layer.name} actions`}
-			icon={
-				<Icon className="size-4">
-					<path
-						d="M5 12h.01M12 12h.01M19 12h.01"
-						strokeWidth="3"
-						strokeLinecap="round"
-					/>
-				</Icon>
-			}
-		>
+		<>
 			<button
 				type="submit"
 				disabled={index === siblings.length - 1}
@@ -168,6 +150,28 @@ export function LayerActions({
 			<button type="submit" onClick={() => deleteLayer(document, layer.id)}>
 				Delete
 			</button>
+		</>
+	);
+}
+
+export function LayerActions(props: {
+	layer: ProcessingLayer;
+	onSelect: (id: string) => void;
+}) {
+	return (
+		<LayerMenu
+			label={`${props.layer.name} actions`}
+			icon={
+				<Icon className="size-4">
+					<path
+						d="M5 12h.01M12 12h.01M19 12h.01"
+						strokeWidth="3"
+						strokeLinecap="round"
+					/>
+				</Icon>
+			}
+		>
+			<LayerActionItems {...props} />
 		</LayerMenu>
 	);
 }

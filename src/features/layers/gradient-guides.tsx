@@ -1,9 +1,9 @@
-import rotateCursor from "@/components/icons/rotate-cursor.svg?raw";
+import { rotateCursor } from "@/components/icons/rotate-cursor";
 import type { Gradient, RadialGradient } from "@/core/document";
 import type { Point } from "@/core/image/frame";
 import { type GradientHandle, radialPoint } from "./gradient";
 
-const rotationCursor = `url("data:image/svg+xml,${encodeURIComponent(rotateCursor)}") 12 12, crosshair`;
+const rotationCursor = rotateCursor();
 
 function resizeCursor(from: Point, to: Point) {
 	const angle = Math.atan2(to[1] - from[1], to[0] - from[0]);

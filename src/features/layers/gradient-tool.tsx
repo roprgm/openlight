@@ -1,6 +1,7 @@
 import {
 	createContext,
 	type ReactNode,
+	useCallback,
 	useContext,
 	useEffect,
 	useState,
@@ -9,7 +10,6 @@ import { useDocument } from "@/components/editor/session";
 import { findLayer, type Gradient, type MaskLayer } from "@/core/document";
 
 type NewMask = {
-	kind: "new";
 	shape: Gradient["kind"];
 	parentId?: string;
 	operation: "add" | "subtract";
@@ -30,6 +30,7 @@ const GradientTool = createContext<{
 	close: () => void;
 	create: (mask: Gradient, target: NewMask) => void;
 	setOverlay: (overlay: Overlay) => void;
+	toggleOverlay: () => void;
 } | null>(null);
 
 export function useGradientTool() {
@@ -59,6 +60,7 @@ export function GradientProvider({
 }) {
 	const [target, setTarget] = useState<NewMask | null>(null);
 	const [overlay, setOverlay] = useState<Overlay>("hidden");
+	const close = useCallback(() => setTarget(null), []);
 	const document = useDocument();
 	useEffect(
 		() =>
@@ -89,16 +91,17 @@ export function GradientProvider({
 			value={{
 				target,
 				overlay,
-				draw: (shape = "linear") =>
-					setTarget({ kind: "new", shape, operation: "add" }),
+				draw: (shape = "linear") => setTarget({ shape, operation: "add" }),
 				add: (parentId, operation, shape) =>
-					setTarget({ kind: "new", shape, parentId, operation }),
-				close: () => setTarget(null),
+					setTarget({ shape, parentId, operation }),
+				close,
 				create: (mask, target) => {
 					onCreate(mask, target);
 					setOverlay("new");
 				},
 				setOverlay,
+				toggleOverlay: () =>
+					setOverlay((overlay) => (overlay === "hidden" ? "shown" : "hidden")),
 			}}
 		>
 			{children}
