@@ -68,7 +68,7 @@ function Status({ state, onOpen }: { state: EmptyState } & OpenProps) {
   return (
     <>
       <p className="font-medium text-neutral-200">
-        Open a photo to start editing
+        Edit photos in your browser.
       </p>
       <p className="text-neutral-500">Drop an image here or choose a file</p>
       <OpenImage onOpen={onOpen} />
