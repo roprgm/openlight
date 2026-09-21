@@ -67,10 +67,12 @@ function Status({ state, onOpen }: { state: EmptyState } & OpenProps) {
   }
   return (
     <>
-      <p className="font-medium text-neutral-200">
-        Edit photos in your browser.
+      <img alt="" className="w-16" height="64" src="/logo.svg" width="64" />
+      <h1 className="text-2xl font-bold">OpenLight</h1>
+      <p className="text-neutral-400">Edit photos in your browser.</p>
+      <p className="mt-8 text-neutral-500">
+        Drop an image here or choose a file
       </p>
-      <p className="text-neutral-500">Drop an image here or choose a file</p>
       <OpenImage onOpen={onOpen} />
     </>
   );
@@ -105,7 +107,7 @@ export function EmptyEditor({
           <EditorHeader file={state.file} />
           <div className="flex min-h-0 flex-1 flex-col md:flex-row">
             <ModeTabList selected={modes[0]} />
-            <div className="relative isolate grid min-h-0 min-w-0 flex-1 place-content-center justify-items-center gap-1 overflow-hidden bg-[radial-gradient(circle,#292929,#131313_55%)] p-6">
+            <div className="relative isolate grid min-h-0 min-w-0 flex-1 place-content-center justify-items-center gap-3 overflow-hidden bg-[radial-gradient(circle,#292929,#131313_55%)] p-6">
               <Backdrop />
               <Status state={state} onOpen={onOpen} />
             </div>
