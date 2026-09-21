@@ -34,3 +34,13 @@ The [benchmark](tests/rendering-benchmark.ts) measures uninstrumented repeated r
 Fused shader operations share a pass duration; they are not individually timed. Compute dispatches and opaque package operations need supported instrumentation before claiming GPU timing coverage. Editing must work when profiling is unavailable.
 
 Reuse the existing [benchmark](tests/rendering.bench.ts) and timing helpers for the affected workload. An isolated benchmark explains cost; the complete workload establishes application impact. Summarize reproducible results and their interpretation in the PR; follow the [evidence rules](AGENTS.md#tests-and-completion) for detailed artifacts. An environment failure is a verification gap, not evidence of unchanged performance.
+
+## Running the benchmark
+
+After [browser setup](CONTRIBUTING.md#browser-setup), run `bun run test:browser --config playwright.bench.config.ts` separately from other GPU/browser work. Workloads cover neutral effects, color mixing, vignette, detail filters, and the combined pipeline. The fixture is a deterministic 2400×1600 linear Rec.2020 gradient containing neutrals, saturated colors, and HDR values; exposure is 0.25 and contrast is 10. Each workload uses 8 warmups and 40 measured samples. Settings live in [the benchmark](tests/rendering-benchmark.ts); select a workload with e.g. `--grep 'rendering vignette'`.
+
+Results and rendered PNGs are written under `test-results/benchmarks`; keep generated artifacts out of Git. JSON includes environment details, samples, median/p95, setup, first render, completed-render latency, intermediate texture storage, and per-node GPU timestamps when supported. Timestamp profiling runs separately from the latency comparison. Decoding, display, readback, and image encoding run outside the measured loop. Software-adapter results describe that backend only. A hardware measurement requires a browser configuration that does not force SwiftShader; record the adapter actually used.
+
+Compare `pipeline` with `pipeline-input` to measure the curve input histogram: the latter retains the image entering the base curve and computes its histogram. Completed latency includes histogram compute and its buffer copy; per-node timestamps cover only image processing.
+
+For revision comparisons, use identical fixtures, settings, sampling, and browser configuration in both checkouts. The benchmark is opt-in and excluded from the regular test suite; correctness remains covered by GPU pixel tests and the editing session.

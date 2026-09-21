@@ -2,7 +2,7 @@
 
 Build a professional photo editor with little, readable code. Vite, React, vgpu, Bun, and Biome.
 
-Write committed code, comments, documentation, and UI text in English. Use [CONTEXT.md](CONTEXT.md) for domain terms. [README.md](README.md#development) covers setup; [API.md](API.md) documents browser commands; [REVIEW.md](REVIEW.md) guides reviews.
+Write committed code, comments, documentation, and UI text in English. Use [CONTEXT.md](CONTEXT.md) for domain terms. [CONTRIBUTING.md](CONTRIBUTING.md#development) covers setup; [API.md](API.md) documents browser commands; [REVIEW.md](REVIEW.md) guides reviews.
 
 ## Simplicity
 
@@ -64,7 +64,7 @@ Check meaningful output using a few representative samples, expected relationshi
 
 Core algorithms also merit focused unit tests, especially rendering order, branch/merge connections, and resource reuse. Use Bun and real application modules with `vgpu/mock` for engine orchestration; the mock does not execute shaders. Use Playwright for rendered pixels, DOM interaction, and real format fixtures. Maintain the semantic [control API](API.md) for local, CI, and remote use. Wait for observable results; avoid production completion tracking added only for tests.
 
-For code changes, run `bun run check`, `bun run build`, `bun run test`, and `bun run test:browser` before a commit. Browser setup and focused commands are in [README.md](README.md#validation). For documentation-only changes, check the diff and affected references.
+For code changes, run `bun run check`, `bun run build`, `bun run test`, and `bun run test:browser` before a commit. Browser setup and focused commands are in [CONTRIBUTING.md](CONTRIBUTING.md#validation). For documentation-only changes, check the diff and affected references.
 
 Prepare evidence during implementation and include it in the initial PR description, using the [PR template](.github/pull_request_template.md). Lead with the problem and resulting behavior. Keep prose short and use compact comparison tables. Generated screenshots, logs, reports, and benchmark samples belong in ignored output directories and PR/CI attachments, not in Git. Commit test fixtures when maintained tests need them. Omit work logs and repeated explanations.
 

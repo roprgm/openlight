@@ -11,8 +11,8 @@ struct Params {
 }
 @group(0) @binding(0) var<uniform> params: Params;
 
-const dark = vec3f(0.075);
-const light = vec3f(0.17, 0.163, 0.156);
+const dark = vec3f(0.07);
+const light = vec3f(0.115, 0.112, 0.108);
 const mote = vec3f(1.0, 0.94, 0.82);
 
 // One drifting, twinkling mote per grid cell; each pixel checks its 3x3 neighborhood.
@@ -56,15 +56,15 @@ fn motes(p: vec2f, t: f32, density: f32, rise: f32) -> f32 {
   let wobble = simplex3d(vec3f(p * 1.2, t * 0.3)) * 0.15;
   let radius = (0.55 + 0.12 * drag) * length(frame * 0.5) + 0.04 * sin(t * 0.7);
   let beam = 1.0 - smoothstep(0.0, 1.0, r / radius + wobble);
-  let glow = beam + near * 0.4;
+  let glow = beam + near * 0.25;
 
   // Magnet: pixels near the pointer sample motes from farther out and rotated,
   // so they crowd and spiral in. Only a dragged file gets the spiral.
   let q = pointer + rotate2d(p - pointer, near * 1.6) * (1.0 + pull * falloff * 1.2);
 
   // Dust shows where the light is: inside the beam, and around a dragged file.
-  let dust = motes(q, t, 7.0, 0.15) + motes(q, t, 12.0, 0.125) * 0.5;
-  let lit = 0.15 + 0.6 * beam + near * 0.6;
+  let dust = motes(q, t, 5.0, 0.12) + motes(q, t, 9.0, 0.1) * 0.5;
+  let lit = 0.06 + 0.22 * beam + near * 0.45;
 
   // Static per-pixel dither hides banding in the few gray levels the glow spans.
   let dither = (hash2(pixel.xy).x - 0.5) / 255.0;

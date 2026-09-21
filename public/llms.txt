@@ -1,0 +1,32 @@
+# OpenLight
+
+> OpenLight is a free, open-source photo editor that runs entirely in the browser on WebGPU. Photos stay on the device. Every editing action is also exposed as a JavaScript API on `window.openlight`, so an AI agent with browser access can open, edit, and export images programmatically.
+
+Site: https://openlight.app
+Demo with a sample photo already loaded: https://openlight.app/demo
+Source (MIT): https://github.com/roprgm/openlight
+
+## Using the API from a browser agent
+
+Open https://openlight.app in a WebGPU-capable browser (recent Chrome, Edge, Safari, or Firefox). `window.openlight` is available once the page initializes. Load an image before editing or exporting. The UI and the API share the same document edits, so changes made by script appear in the interface and in undo history.
+
+```js
+const editor = window.openlight;
+await editor.loadImage(file);                 // a File; or loadUrl("/images/demo.jpg") for a same-origin URL
+editor.setAdjustments({ exposure: 0.5, contrast: 10, highlights: -30, shadows: 20, vibrance: 15 });
+editor.setToneCurve([{ x: 0, y: 0 }, { x: 0.25, y: 0.2 }, { x: 0.75, y: 0.8 }, { x: 1, y: 1 }]);
+editor.addLayer("mask");                      // linear gradient mask; also "details", "exposure", "color-mixer", "vignette"
+editor.setFrame({ ...editor.getState().frame, angle: 2 });
+const jpeg = await editor.exportImage({ format: "jpeg", quality: 90 });  // returns a File
+editor.getState();                            // scene, layers, history counts, selected layer
+editor.undo(); editor.redo();
+```
+
+Adjustments use UI units: exposure in stops, other sliders in -100..100. RAW files expose `setWhiteBalance({ temperature, tint })`. Camera Raw XMP files import through `importXmp(file)`.
+
+## Reference
+
+- [Control API](https://github.com/roprgm/openlight/blob/main/API.md): every command, its arguments, and the state shape.
+- [README](https://github.com/roprgm/openlight/blob/main/README.md): features and supported formats (JPEG, PNG, WebP, AVIF, GIF, BMP, SVG, HEIC, TIFF, camera RAW and DNG).
+- [Architecture](https://github.com/roprgm/openlight/blob/main/AGENTS.md): layers, ownership, and coding rules for contributors.
+- [Domain vocabulary](https://github.com/roprgm/openlight/blob/main/CONTEXT.md): document, scene, layer, mask, and frame terms.

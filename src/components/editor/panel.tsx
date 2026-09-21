@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import type { KeyboardEventHandler, ReactNode } from "react";
 import { CloseIcon } from "@/components/icons/close";
 import Button from "@/components/ui/button";
@@ -10,11 +11,14 @@ export function EditorPanel({
   header,
   children,
   footer,
+  inert,
   onKeyDown,
 }: {
   header?: ReactNode;
   children: ReactNode;
   footer?: ReactNode;
+  /** Contents shown but unresponsive, as when the document is a placeholder; the panel still scrolls. */
+  inert?: boolean;
   onKeyDown?: KeyboardEventHandler<HTMLElement>;
 }) {
   const { width, onWidthChange } = useEditorSession();
@@ -22,19 +26,23 @@ export function EditorPanel({
     <ResizablePanel
       width={width}
       onWidthChange={onWidthChange}
-      className="flex min-h-0 flex-col"
+      className={cn("flex min-h-0 flex-col", inert && "opacity-50")}
       onKeyDown={onKeyDown}
     >
-      {header}
+      <div inert={inert} className="contents">
+        {header}
+      </div>
       <ScrollArea
         fade
         className="flex-1"
         role="region"
         aria-label="Editor controls"
       >
-        {children}
+        <div inert={inert}>{children}</div>
       </ScrollArea>
-      {footer}
+      <div inert={inert} className="contents">
+        {footer}
+      </div>
     </ResizablePanel>
   );
 }

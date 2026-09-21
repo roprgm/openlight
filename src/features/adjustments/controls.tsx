@@ -75,7 +75,6 @@ export function AdjustmentControls({
   return (
     <section className="flex flex-col gap-2 p-3">
       <AdjustmentSliders id={id} adjustments={adjustments} controls={tone} />
-      <hr className="my-1 border-black/50" />
       {temperature}
       <AdjustmentSliders
         id={id}

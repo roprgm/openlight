@@ -44,7 +44,6 @@ function LayerCurve({ id, toneCurve }: { id: string; toneCurve: ToneCurve }) {
   const document = useDocument();
   return (
     <div className="px-3 pb-3">
-      <hr className="mb-3 border-black/50" />
       <ToneCurves
         points={toneCurve}
         onChange={(points) => setToneCurve(document, points, id)}

@@ -65,6 +65,7 @@ export function createControls(gpu: Gpu, workspace: Workspace) {
     openFiles: files.openFiles,
     openFile: (file: File) => files.openFiles([file]),
     loadImage: (file: File) => files.loadFile(image, file),
+    loadUrl: image.loadUrl,
     importXmp: (file: File) => files.loadFile(xmp, file),
     setDetails(change: Partial<Details>, id?: string) {
       const document = workspace.getDocument();
