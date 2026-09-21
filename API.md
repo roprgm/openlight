@@ -28,6 +28,7 @@ These methods accept browser `File` objects and return `Promise<void>`. Await th
 | `openFile(file)` | Opens one image or imports one Camera Raw XMP file. |
 | `openFiles(files)` | Opens the first recognized image, then imports recognized XMP files in order. Unsupported files are ignored. |
 | `loadImage(file)` | Loads a file as an image, replacing the current document and its history. |
+| `loadUrl(url)` | Fetches an image from a same-origin URL and loads it; `/demo` uses it for the bundled sample. |
 | `importXmp(file)` | Applies supported Camera Raw adjustments as one undoable edit. |
 
 Loading calls are queued. XMP import is skipped if no document is ready; an invalid XMP import can reject without blocking later loads. Image decoding failures appear in the workspace's error state and do not reject the loading promise. Check `getState().documentId` to confirm success. Loading completion does not guarantee the preview has rendered.
