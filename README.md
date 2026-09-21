@@ -1,6 +1,7 @@
 # OpenLight
 
-**An open-source photo editor for the browser.** Try it at [openlight.app](https://openlight.app), or start with a sample photo at [openlight.app/demo](https://openlight.app/demo).
+**An open-source photo editor for the browser, built with [vgpu.sh](https://vgpu.sh).** 
+Try it at [openlight.app](https://openlight.app).
 
 Image processing runs on your own GPU with WebGPU. Photos never leave your device.
 
