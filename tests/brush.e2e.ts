@@ -89,7 +89,7 @@ test("paint a brush mask, adjust it in the sidebar, erase, and undo", async ({
       )
       .toEqual({ lit: true, dark: true });
   });
-  await test.step("Enter leaves editing with the mask still selected; selecting it returns", async () => {
+  await test.step("Enter leaves one level at a time; selecting the mask returns", async () => {
     const selected = (await state()).selectedLayerId;
     await page.keyboard.press("Enter");
     await expect(
@@ -99,14 +99,11 @@ test("paint a brush mask, adjust it in the sidebar, erase, and undo", async ({
     expect((await state()).selectedLayerId).toBe(selected);
     await expect.poll(tinted).toBe(false);
     await expect(overlayButton).toHaveAttribute("aria-pressed", "false");
-    // Enter toggles: back into the mask's tool, and out again.
+    // The next Enter selects the image and its global controls.
     await page.keyboard.press("Enter");
-    await expect(
-      page.getByRole("tab", { name: "Brush", exact: true }),
-    ).toHaveAttribute("aria-selected", "true");
-    await expect(canvas).toBeVisible();
-    await page.keyboard.press("Enter");
-    await expect(canvas).toHaveCount(0);
+    const state2 = await state();
+    expect(state2.selectedLayerId).toBe(state2.scene?.layers[0].id);
+    await expect(overlayButton).toHaveCount(0);
     await page
       .getByRole("button", { name: "Select Brush", exact: true })
       .click();
@@ -219,5 +216,28 @@ test("paint a brush mask, adjust it in the sidebar, erase, and undo", async ({
       mask: { kind: "brush" },
     });
     expect((await samples(page))[1]).toEqual(original[1]);
+  });
+  await test.step("Escape climbs from the child mask to its parent and the image; Enter on a button is its click", async () => {
+    const initial = await state();
+    const gradient = initial.scene?.layers[1];
+    const child = gradient?.children[0];
+    expect(initial.selectedLayerId).toBe(child?.id);
+    await page.keyboard.press("Escape");
+    await expect(
+      page.getByRole("tab", { name: "Adjust", exact: true }),
+    ).toHaveAttribute("aria-selected", "true");
+    expect((await state()).selectedLayerId).toBe(child?.id);
+    await page.keyboard.press("Escape");
+    expect((await state()).selectedLayerId).toBe(gradient?.id);
+    await overlayButton.click();
+    await expect(overlayButton).toHaveAttribute("aria-pressed", "true");
+    await overlayButton.press("Enter");
+    await expect(overlayButton).toHaveAttribute("aria-pressed", "false");
+    expect((await state()).selectedLayerId).toBe(gradient?.id);
+    await page.keyboard.press("Escape");
+    expect((await state()).selectedLayerId).toBe(initial.scene?.layers[0].id);
+    await expect(overlayButton).toHaveCount(0);
+    await page.keyboard.press("Escape");
+    expect((await state()).selectedLayerId).toBe(initial.scene?.layers[0].id);
   });
 });

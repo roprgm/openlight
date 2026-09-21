@@ -4,14 +4,10 @@ import { RendererProvider } from "@/components/editor/pipeline";
 import { DocumentProvider, useDocument } from "@/components/editor/session";
 import Button from "@/components/ui/button";
 import type { Mask } from "@/core/document";
-import { findLayer } from "@/core/document";
+import { findLayer, locateLayer } from "@/core/document";
 import { BrushProvider } from "@/features/layers/brush-tool";
 import { addLayer } from "@/features/layers/edits";
-import {
-  MaskToolProvider,
-  type Nesting,
-  useMaskTool,
-} from "@/features/layers/mask-tool";
+import { MaskToolProvider, type Nesting } from "@/features/layers/mask-tool";
 import { useShortcuts } from "@/hooks/use-shortcuts";
 import { AdjustPanel } from "./adjust";
 import { EditorCanvas } from "./canvas";
@@ -29,22 +25,16 @@ import { exportTool, ToolProvider, tools, useTool } from "./tools";
 function ToolView() {
   const { tool, setTool } = useTool();
   const document = useDocument();
-  const mask = useMaskTool();
-  // Enter toggles editing: the shape tools leave on Enter, so Adjust enters the selected mask's tool.
+  // Enter and Escape leave one level: shape tools return to Adjust, where the selection climbs to the image.
+  function up() {
+    const layers = document.scene.getState().layers;
+    const parent =
+      locateLayer(layers, document.selection.getState().layerId)?.parent ??
+      layers[0];
+    document.selectLayer(parent.id);
+  }
   useShortcuts(
-    "Canvas" in tool || "View" in tool
-      ? {}
-      : {
-          enter: () => {
-            const layer = findLayer(
-              document.scene.getState().layers,
-              document.selection.getState().layerId,
-            );
-            if (layer?.kind === "mask") {
-              mask.edit(layer.mask.kind);
-            }
-          },
-        },
+    "Canvas" in tool || "View" in tool ? {} : { enter: up, escape: up },
   );
   function close() {
     setTool(tools[0]);
