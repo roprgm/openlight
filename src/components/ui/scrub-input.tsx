@@ -100,10 +100,7 @@ export function ScrubInput({
 
 	return (
 		<label
-			className={cn(
-				"flex items-center gap-2 text-neutral-400 text-sm",
-				className,
-			)}
+			className={cn("flex items-center gap-2 text-neutral-400", className)}
 		>
 			{label}
 			<Field className="w-16 max-w-full" variant={variant}>

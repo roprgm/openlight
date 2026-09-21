@@ -63,10 +63,10 @@ export function ComparisonDivider() {
 			}}
 		>
 			<div className="absolute inset-y-0 w-px bg-white/90 shadow-[0_0_3px_#000]" />
-			<span className="absolute top-4 right-6 rounded bg-black/50 px-2 py-1 text-[10px] text-white">
+			<span className="absolute top-4 right-6 rounded bg-black/50 px-1.5 py-0.5 text-white text-xs">
 				Before
 			</span>
-			<span className="absolute top-4 left-6 rounded bg-black/50 px-2 py-1 text-[10px] text-white">
+			<span className="absolute top-4 left-6 rounded bg-black/50 px-1.5 py-0.5 text-white text-xs">
 				After
 			</span>
 			<span className="relative flex size-7 items-center justify-center rounded-full border border-white/80 bg-neutral-900 text-white shadow-md group-focus-visible:ring-2 group-focus-visible:ring-white">

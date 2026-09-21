@@ -45,7 +45,7 @@ export function LayerMenu({
 				id={id}
 				ref={popover}
 				popover="auto"
-				className="fixed inset-auto z-50 m-0 [position-area:bottom_span-left] max-h-[calc(100dvh-1rem)] min-w-40 overflow-y-auto rounded-md [position-try-fallbacks:flip-block] border border-neutral-600 bg-neutral-800 p-1 text-xs text-neutral-200 shadow-xl [&_button]:block [&_button]:w-full [&_button]:rounded [&_button]:px-2 [&_button]:py-1.5 [&_button]:text-left [&_button:hover]:bg-neutral-700 [&_button:disabled]:text-neutral-600"
+				className="fixed inset-auto z-50 m-0 [position-area:bottom_span-left] max-h-[calc(100dvh-1rem)] min-w-40 overflow-y-auto rounded-md [position-try-fallbacks:flip-block] border border-neutral-600 bg-neutral-800 p-1 text-neutral-200 text-sm shadow-xl [&_button]:block [&_button]:w-full [&_button]:rounded [&_button]:px-2 [&_button]:py-1.5 [&_button]:text-left [&_button:hover]:bg-neutral-700 [&_button:disabled]:text-neutral-600"
 			>
 				<form
 					onSubmit={(event) => {

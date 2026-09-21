@@ -40,7 +40,7 @@ function ColorSlider({
 		>
 			<ScrubInput
 				aria-label={`${label} value`}
-				className="w-full leading-4 [&>span]:px-0 [&_input]:text-center [&_input]:text-[11px] [&_input]:tracking-tight"
+				className="w-full leading-4 [&>span]:px-0 [&_input]:text-center [&_input]:text-xs [&_input]:tracking-tight"
 				variant="text"
 				value={value}
 				onChange={change}

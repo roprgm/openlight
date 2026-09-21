@@ -105,7 +105,7 @@ export function TreeDrag({ children, canDrop, onDrop, label }: TreeDragProps) {
 			<Context value={{ active, drop }}>{children}</Context>
 			<DragOverlay dropAnimation={null}>
 				{active && (
-					<div className="max-w-64 rounded border border-neutral-500 bg-neutral-700 px-3 py-2 text-xs shadow-lg">
+					<div className="max-w-64 rounded border border-neutral-500 bg-neutral-700 px-3 py-2 shadow-lg">
 						{label(active)}
 					</div>
 				)}

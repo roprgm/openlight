@@ -101,7 +101,7 @@ export function CropEditor({ onClose }: { onClose: () => void }) {
 				}
 			>
 				<section aria-label="Crop tool" className="space-y-5 p-4">
-					<label className="flex items-center justify-between text-sm text-neutral-400">
+					<label className="flex items-center justify-between text-neutral-400">
 						Aspect ratio
 						<Field className="relative w-24">
 							<select
@@ -124,9 +124,7 @@ export function CropEditor({ onClose }: { onClose: () => void }) {
 						aria-label="Rotate and flip image"
 						className="grid grid-cols-4 items-center gap-2"
 					>
-						<h3 className="col-span-3 text-xs font-medium text-neutral-400">
-							Rotate & flip
-						</h3>
+						<h3 className="col-span-3 text-neutral-400">Rotate & flip</h3>
 						<Button
 							variant="ghost"
 							className="justify-self-end px-2 py-1"
@@ -148,7 +146,7 @@ export function CropEditor({ onClose }: { onClose: () => void }) {
 									onClick={() => applyAction(action)}
 								>
 									<Icon style={{ transform: action.transform }} />
-									{"turn" in action && <span className="text-xs">90°</span>}
+									{"turn" in action && <span>90°</span>}
 								</Button>
 							);
 						})}

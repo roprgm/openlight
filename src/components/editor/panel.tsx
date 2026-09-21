@@ -48,7 +48,7 @@ export function PanelHeader({
 }) {
 	return (
 		<div className="flex h-10 shrink-0 items-center gap-1 border-b border-black/50 pr-1.5 pl-3">
-			<h2 className="flex-1 text-xs font-medium text-neutral-200">{title}</h2>
+			<h2 className="flex-1 font-medium text-neutral-200">{title}</h2>
 			{children}
 			{onClose && (
 				<Button

@@ -29,7 +29,7 @@ function RendererError({ message }: { message: string }) {
 	return (
 		<p
 			role="alert"
-			className="fixed bottom-4 left-4 rounded bg-neutral-900 px-3 py-2 text-red-300 text-sm"
+			className="fixed bottom-4 left-4 rounded bg-neutral-900 px-3 py-2 text-red-300"
 		>
 			Renderer error: {message}
 		</p>

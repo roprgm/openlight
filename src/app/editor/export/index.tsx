@@ -70,7 +70,7 @@ function FormatSelect({
 }) {
 	return (
 		<div className="space-y-2">
-			<label className="flex items-center justify-between text-neutral-400 text-sm">
+			<label className="flex items-center justify-between text-neutral-400">
 				Format
 				<Field className="relative w-28">
 					<select
@@ -113,7 +113,7 @@ function SizeFields({
 	const scaleTo = (fraction: number) =>
 		onChange(Math.max(1, Math.round(maxEdge * fraction)));
 	return (
-		<div className="grid grid-cols-[auto_1fr_1.5rem] items-center gap-x-3 gap-y-2 text-neutral-400 text-sm">
+		<div className="grid grid-cols-[auto_1fr_1.5rem] items-center gap-x-3 gap-y-2 text-neutral-400">
 			<span>Width</span>
 			<div className="justify-self-end">
 				<ScrubInput
@@ -239,7 +239,7 @@ export function ExportMode({ onClose }: { onClose: () => void }) {
 						Save image
 					</Button>
 					{error && (
-						<p className="text-red-400 text-sm" role="alert">
+						<p className="text-red-400" role="alert">
 							{error}
 						</p>
 					)}

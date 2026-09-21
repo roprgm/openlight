@@ -22,7 +22,7 @@ type SliderProps = {
 const root = cva("items-center text-neutral-400", {
 	variants: {
 		variant: {
-			panel: "grid grid-cols-[1fr_auto] gap-y-0.5 text-sm",
+			panel: "grid grid-cols-[1fr_auto] gap-y-0.5",
 			toolbar: "flex gap-2 text-xs",
 		},
 	},

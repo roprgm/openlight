@@ -84,7 +84,7 @@ function LayerName({
 				aria-label="Layer name"
 				ref={(input) => input?.select()}
 				defaultValue={layer.name}
-				className="min-w-0 flex-1 rounded border border-neutral-500 bg-neutral-900 px-1 text-xs text-neutral-100 outline-none"
+				className="min-w-0 flex-1 rounded border border-neutral-500 bg-neutral-900 px-1 text-neutral-100 outline-none"
 				onKeyDown={(event) => {
 					if (event.key === "Enter") {
 						event.currentTarget.blur();
@@ -117,7 +117,7 @@ function LayerName({
 			title={layer.name}
 			onClick={onSelect}
 			onDoubleClick={rename}
-			className="min-w-0 flex-1 self-stretch truncate text-left text-xs touch-manipulation cursor-grab active:cursor-grabbing"
+			className="min-w-0 flex-1 self-stretch truncate text-left touch-manipulation cursor-grab active:cursor-grabbing"
 		>
 			{layer.name}
 		</button>
@@ -208,7 +208,7 @@ function LayerRow({
 				{isSubmask && (
 					<span
 						title={layer.operation}
-						className="grid size-6 shrink-0 place-items-center text-sm text-neutral-500"
+						className="grid size-6 shrink-0 place-items-center text-neutral-500"
 					>
 						{maskSign}
 					</span>
