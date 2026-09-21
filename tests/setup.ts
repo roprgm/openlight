@@ -5,11 +5,11 @@ import { plugin } from "bun";
 Object.assign(globalThis, { DOMParser });
 
 await plugin({
-	name: "wgsl",
-	setup(build) {
-		build.onLoad({ filter: /\.wgsl$/ }, async ({ path }) => ({
-			contents: (await transformWgsl(await Bun.file(path).text(), path)).code,
-			loader: "js",
-		}));
-	},
+  name: "wgsl",
+  setup(build) {
+    build.onLoad({ filter: /\.wgsl$/ }, async ({ path }) => ({
+      contents: (await transformWgsl(await Bun.file(path).text(), path)).code,
+      loader: "js",
+    }));
+  },
 });

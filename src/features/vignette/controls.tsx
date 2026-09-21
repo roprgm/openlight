@@ -5,31 +5,31 @@ import { setVignette } from "./edits";
 import { defaultVignette } from "./model";
 
 export function VignetteControls({
-	id,
-	vignette,
+  id,
+  vignette,
 }: {
-	id: string;
-	vignette: Vignette;
+  id: string;
+  vignette: Vignette;
 }) {
-	const document = useDocument();
-	return (
-		<section className="flex flex-col gap-2 p-3">
-			<Slider
-				label="Intensity"
-				value={vignette.intensity}
-				onChange={(intensity) => setVignette(document, { intensity }, id)}
-				min={0}
-				max={100}
-				defaultValue={defaultVignette.intensity}
-			/>
-			<Slider
-				label="Softness"
-				value={vignette.softness}
-				onChange={(softness) => setVignette(document, { softness }, id)}
-				min={0}
-				max={100}
-				defaultValue={defaultVignette.softness}
-			/>
-		</section>
-	);
+  const document = useDocument();
+  return (
+    <section className="flex flex-col gap-2 p-3">
+      <Slider
+        label="Intensity"
+        value={vignette.intensity}
+        onChange={(intensity) => setVignette(document, { intensity }, id)}
+        min={0}
+        max={100}
+        defaultValue={defaultVignette.intensity}
+      />
+      <Slider
+        label="Softness"
+        value={vignette.softness}
+        onChange={(softness) => setVignette(document, { softness }, id)}
+        min={0}
+        max={100}
+        defaultValue={defaultVignette.softness}
+      />
+    </section>
+  );
 }
