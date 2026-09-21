@@ -231,6 +231,7 @@ test("rendering follows grouped edits and undo, reuses pipelines, and releases o
     expect(document.history.status.getState()).toEqual({
       undoCount: 1,
       redoCount: 0,
+      editing: false,
     });
     draw();
     const calls = getMockGPUDeviceInstrumentation(gpu.gpu).calls;

@@ -1,15 +1,17 @@
 import type {
   EditorDocument,
   EffectLayer,
-  Gradient,
   ImageLayer,
   Layer,
+  Mask,
   MaskLayer,
+  ProcessingLayer,
 } from "@/core/document";
 import type { WhiteBalance } from "@/core/image";
 import { defaultAdjustments } from "@/features/adjustments/model";
-import { defaultMixer } from "@/features/color-mixer/model";
+import { defaultMixer, isNeutral } from "@/features/color-mixer/model";
 import { defaultDetails } from "@/features/details/model";
+import { defaultFill } from "@/features/fill/model";
 import { defaultCurve } from "@/features/tone-curves/curve";
 
 function baseLayer() {
@@ -52,24 +54,63 @@ export function createLayer(kind: EffectLayer["kind"]): EffectLayer {
       };
     case "color-mixer":
       return { ...base, kind, name: "Color Mixer", colorMixer: defaultMixer };
+    case "fill":
+      return { ...base, kind, name: "Color", fill: { ...defaultFill } };
     default:
       throw Error("Unknown layer kind.");
   }
 }
 
+const maskNames: Record<Mask["kind"], string> = {
+  linear: "Linear Gradient",
+  radial: "Radial Gradient",
+  brush: "Brush",
+};
+
 export function createMask(
-  mask: Gradient,
+  mask: Mask,
   operation: MaskLayer["operation"] = "add",
 ): MaskLayer {
   return {
     ...baseLayer(),
     kind: "mask",
-    name: mask.kind === "radial" ? "Radial Gradient" : "Linear Gradient",
+    name: maskNames[mask.kind],
     operation,
     adjustments: { ...defaultAdjustments },
     toneCurve: defaultCurve,
     mask,
   };
+}
+
+function effectNeutral(layer: ProcessingLayer): boolean {
+  if (!layer.visible || layer.opacity === 0) {
+    return true;
+  }
+  switch (layer.kind) {
+    case "details":
+      return layer.details.clarity === 0 && layer.details.sharpening === 0;
+    case "exposure":
+      return layer.exposure === 0;
+    case "vignette":
+      return layer.vignette.intensity === 0;
+    case "color-mixer":
+      return isNeutral(layer.colorMixer);
+    case "fill":
+      return false;
+    case "mask":
+      return true;
+  }
+}
+
+/** A mask that changes nothing yet: default adjustments and curve, and no active child effect. */
+export function maskNeutral(layer: MaskLayer) {
+  return (
+    Object.entries(defaultAdjustments).every(
+      ([key, value]) => Reflect.get(layer.adjustments, key) === value,
+    ) &&
+    layer.toneCurve.every((point) => point.x === point.y) &&
+    layer.children.every(effectNeutral)
+  );
 }
 
 /** The first root effect of a kind. */

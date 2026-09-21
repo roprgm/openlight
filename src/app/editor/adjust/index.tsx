@@ -9,6 +9,7 @@ import { adjustmentTarget, type Layer, type ToneCurve } from "@/core/document";
 import { AdjustmentControls } from "@/features/adjustments/controls";
 import { ColorMixerControls } from "@/features/color-mixer/controls";
 import { DetailsControls } from "@/features/details/controls";
+import { FillControls } from "@/features/fill/controls";
 import { Histogram } from "@/features/histogram";
 import { createHistogram } from "@/features/histogram/histogram";
 import { setExposure } from "@/features/layers/edits";
@@ -78,6 +79,8 @@ function SelectedControls({ layer }: { layer: Layer }) {
       return <ColorMixerControls id={layer.id} mixer={layer.colorMixer} />;
     case "vignette":
       return <VignetteControls id={layer.id} vignette={layer.vignette} />;
+    case "fill":
+      return <FillControls id={layer.id} fill={layer.fill} />;
     case "exposure":
       return (
         <section className="p-3">

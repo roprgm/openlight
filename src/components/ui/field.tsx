@@ -3,21 +3,22 @@ import { cn } from "cn";
 import type { ComponentProps } from "react";
 
 type FieldProps = ComponentProps<"span"> & {
-  /** "box" always shows the chrome; "text" reads as plain text until focused. */
-  variant?: "box" | "text";
+  /**
+   * "box" always shows the chrome; "text" reads as plain text until focused, then sinks a little;
+   * "pill" sinks the same way at the height and roundness of the bar over the canvas.
+   */
+  variant?: "box" | "text" | "pill";
 };
 
-const chrome = cva(
-  "rounded border px-1 py-0.5 focus-within:ring-1 focus-within:ring-neutral-400/30",
-  {
-    variants: {
-      variant: {
-        box: "border-black bg-neutral-900 shadow-groove",
-        text: "border-transparent focus-within:border-black focus-within:bg-neutral-900 focus-within:shadow-groove",
-      },
+const chrome = cva("focus-within:ring-1 focus-within:ring-white/10", {
+  variants: {
+    variant: {
+      box: "rounded border border-black bg-neutral-900 px-1 py-0.5 shadow-groove",
+      text: "rounded border border-transparent px-1 py-0.5 focus-within:bg-black/25 focus-within:shadow-groove",
+      pill: "h-7 rounded-full px-2.5 focus-within:bg-black/25 focus-within:shadow-groove pointer-coarse:h-9",
     },
   },
-);
+});
 
 /**
  * Sunken chrome around a bare form control (input, select, textarea).

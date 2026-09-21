@@ -29,7 +29,7 @@ Dependencies between layers point downward. Features do not import each other; `
 
 Keep ordinary feature changes in the feature, its tests, and explicit app composition. Change shared primitives when a concrete requirement needs a new capability. Features need neither identical file layouts nor a universal plugin interface. Keep the histogram in its feature.
 
-`src/` holds entrypoints, ambient types, and global styles. Use `@/` across folders and relative imports within a folder. `src/main.tsx` mounts the runtime and providers. `app/editor/modes.tsx` composes modes: a `Panel` uses the shared canvas; a `View` supplies its own viewport.
+`src/` holds entrypoints, ambient types, and global styles. Use `@/` across folders and relative imports within a folder. `src/main.tsx` mounts the runtime and providers. `app/editor/tools.tsx` composes the rail: a tool brings a `Canvas` overlay and optional `Options` for the bar over the image while the sidebar always shows the selected layer's controls; a `View` supplies its own viewport. The mask overlay has one writer, `app/editor/mask-overlay.tsx`, which derives it from the selection.
 
 ## Engine and React
 
@@ -53,6 +53,7 @@ Keep Tailwind classes inline. Reuse presentation through components or repeat cl
 - The working space is linear Rec.2020 in `rgba16float`. Decoders convert into it; display converts out. Processing outputs preserve the input format and primaries unless the operation explicitly converts them.
 - The adjustment shader's parameters use UI units. Its fitted constants are calibration data; preserve them when reorganizing code.
 - Layers process the source in stack order; the image layer's adjustments and tone curve run last, on the composite, so a local exposure sees the light a global exposure would compress.
+- Strokes are scene content; the renderer owns their rasterized coverage as a cache and stamps only appended dabs. Open history groups render a reduced proxy; every render image carries `scale`, its source pixels per texel, and shaders that take document coordinates or radii must apply it.
 - Preserve HDR headroom through exposure, curves, and vibrance. Exposure clips negatives and applies one luminance gain to all channels. `display()` in `core/image/color.wgsl` maps out-of-gamut colors toward their luminance.
 - TIFF and camera RAW use `raw-webgpu`. OpenLight adapts package resources to document ownership; codec implementation and coverage belong to the package.
 

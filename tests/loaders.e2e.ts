@@ -87,6 +87,10 @@ test("decode an image, apply XMP, recover from failure, and replace a document d
   await expect(page.getByRole("region", { name: "Crop tool" })).toBeHidden();
   expect(replaced.frame?.size).toEqual([32, 32]);
   expect(replaced.documentId).not.toBe(before.documentId);
-  expect(replaced.history).toEqual({ undoCount: 0, redoCount: 0 });
+  expect(replaced.history).toEqual({
+    undoCount: 0,
+    redoCount: 0,
+    editing: false,
+  });
   expect(replaced.adjustments.exposure).toBe(0);
 });

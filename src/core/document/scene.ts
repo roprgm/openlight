@@ -36,6 +36,20 @@ export type Vignette = {
   readonly softness: number;
 };
 
+export type Blend =
+  | "normal"
+  | "multiply"
+  | "screen"
+  | "overlay"
+  | "soft-light"
+  | "color"
+  | "luminosity";
+/** One color painted over the image, as `#rrggbb` sRGB, blended like Photoshop. */
+export type Fill = {
+  readonly color: string;
+  readonly blend: Blend;
+};
+
 export type ImageLayer = {
   readonly kind: "image";
   readonly id: string;
@@ -61,6 +75,24 @@ export type RadialGradient = {
   readonly feather: number;
 };
 export type Gradient = LinearGradient | RadialGradient;
+/** A source-pixel position with the pen pressure that scales flow, 1 for a mouse. */
+export type StrokePoint = readonly [number, number, number];
+/** One brush drag; paint accumulates coverage by flow and erase removes it. */
+export type BrushStroke = {
+  readonly mode: "paint" | "erase";
+  /** Diameter in source pixels. */
+  readonly size: number;
+  /** Soft edge as a fraction of the radius, 0 to 1. */
+  readonly feather: number;
+  readonly flow: number;
+  readonly points: readonly StrokePoint[];
+};
+/** Coverage painted with strokes; the renderer rasterizes them into a cached texture. */
+export type BrushMask = {
+  readonly kind: "brush";
+  readonly strokes: readonly BrushStroke[];
+};
+export type Mask = Gradient | BrushMask;
 export type ProcessingLayer = {
   readonly id: string;
   readonly name: string;
@@ -72,10 +104,11 @@ export type ProcessingLayer = {
   | { readonly kind: "exposure"; readonly exposure: number }
   | { readonly kind: "vignette"; readonly vignette: Vignette }
   | { readonly kind: "color-mixer"; readonly colorMixer: ColorMixer }
+  | { readonly kind: "fill"; readonly fill: Fill }
   | {
       readonly kind: "mask";
       readonly operation: "add" | "subtract";
-      readonly mask: Gradient;
+      readonly mask: Mask;
       readonly adjustments: Readonly<Adjustments>;
       readonly toneCurve: ToneCurve;
     }

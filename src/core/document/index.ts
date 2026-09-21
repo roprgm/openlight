@@ -2,24 +2,30 @@ import { createStore } from "zustand/vanilla";
 import { validateFrame } from "@/core/image/frame";
 import { createHistory } from "./history";
 import { createResources } from "./resources";
-import type { Gradient, MaskModifier, Scene } from "./scene";
+import type { Mask, MaskModifier, Scene } from "./scene";
 import { findLayer } from "./tree";
 
 export type {
   Adjustments,
+  Blend,
+  BrushMask,
+  BrushStroke,
   ColorMixer,
   CurvePoint,
   Details,
   EffectLayer,
+  Fill,
   Gradient,
   ImageLayer,
   Layer,
   LinearGradient,
+  Mask,
   MaskLayer,
   MaskModifier,
   ProcessingLayer,
   RadialGradient,
   Scene,
+  StrokePoint,
   ToneCurve,
   Vignette,
 } from "./scene";
@@ -39,10 +45,13 @@ export type Preview = {
   split: number;
   shadows: boolean;
   highlights: boolean;
-  /** The mask whose coverage the display tints red. */
+  /** The mask whose coverage the display tints red; a layer ID lets the display use its rasterized coverage. */
   maskOverlay?: {
-    readonly mask: Gradient;
+    readonly mask: Mask;
     readonly modifiers: readonly MaskModifier[];
+    readonly layerId?: string;
+    /** The layer's opacity, which scales the tint like it scales the effect. */
+    readonly opacity?: number;
   };
 };
 

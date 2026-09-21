@@ -2,8 +2,10 @@ import type { Gpu, Timer } from "vgpu";
 import { maskModifiers, type ProcessingLayer } from "@/core/document";
 import type { ImageSource } from "@/core/image";
 import {
+  type Composition,
   createRenderer,
   input,
+  maskInput,
   mixAdjustment,
   pipeline,
   type RenderImage,
@@ -13,10 +15,11 @@ import { exposure } from "@/features/adjustments/exposure";
 import { adjustments } from "@/features/adjustments/pass";
 import { colorMixer } from "@/features/color-mixer/pass";
 import { unsharpMask } from "@/features/details/unsharp-mask";
+import { fill } from "@/features/fill/pass";
 import { toneCurves } from "@/features/tone-curves/pass";
 import { vignette } from "@/features/vignette/pass";
 
-type Composition = {
+type Branch = {
   image: RenderImage;
   input?: RenderImage;
 };
@@ -24,12 +27,17 @@ type Composition = {
 function composeLayer(
   below: RenderImage,
   layer: ProcessingLayer,
-  inputId?: string,
-): Composition {
-  if (!layer.visible || layer.opacity === 0) {
+  composition: Composition,
+): Branch {
+  // A hidden or transparent layer still shows what its curve receives while it is inspected.
+  const bypassed = !layer.visible || layer.opacity === 0;
+  if (bypassed && layer.id !== composition.inputId) {
     return { image: below };
   }
   const name = `layer/${layer.id}`;
+  const masks = layer.kind === "mask" ? maskModifiers(layer) : [];
+  const coverage =
+    layer.kind === "mask" ? composition.coverage(layer) : undefined;
   let input: RenderImage | undefined;
   let edited = below;
   switch (layer.kind) {
@@ -45,8 +53,8 @@ function composeLayer(
       break;
     case "mask": {
       const adjusted = pipeline(below, [adjustments(layer.adjustments, name)]);
-      if (layer.id === inputId) {
-        input = adjusted;
+      if (layer.id === composition.inputId) {
+        input = maskInput(name, adjusted, layer.mask, masks, coverage);
       }
       edited = pipeline(adjusted, [
         toneCurves(layer.toneCurve, `${name}/curves`),
@@ -64,22 +72,25 @@ function composeLayer(
         colorMixer(layer.colorMixer, `${name}/color-mixer`),
       ]);
       break;
+    case "fill":
+      edited = pipeline(below, [fill(layer.fill, `${name}/fill`)]);
+      break;
   }
   // Child masks of a mask shape its coverage; every other child processes the image.
-  const masks = layer.kind === "mask" ? maskModifiers(layer) : [];
   const effects =
     layer.kind === "mask"
       ? layer.children.filter((child) => child.kind !== "mask")
       : layer.children;
-  const children = composeLayers(edited, effects, inputId);
+  const children = composeLayers(edited, effects, composition);
   return {
     image: mixAdjustment(
-      `${name}/mix`,
+      name,
       below,
       children.image,
-      layer.opacity,
+      bypassed ? 0 : layer.opacity,
       layer.kind === "mask" ? layer.mask : undefined,
       masks,
+      coverage,
     ),
     input: input ?? children.input,
   };
@@ -88,14 +99,14 @@ function composeLayer(
 function composeLayers(
   below: RenderImage,
   layers: readonly ProcessingLayer[],
-  inputId?: string,
-): Composition {
+  composition: Composition,
+): Branch {
   let image = below;
   let input: RenderImage | undefined;
   for (const layer of layers) {
-    const composition = composeLayer(image, layer, inputId);
-    image = composition.image;
-    input ??= composition.input;
+    const branch = composeLayer(image, layer, composition);
+    image = branch.image;
+    input ??= branch.input;
   }
   return { image, input };
 }
@@ -113,12 +124,12 @@ export function createEditorRenderer(
   return createRenderer(
     gpu,
     source,
-    (image, scene, inputId) => {
+    (image, scene, composition) => {
       const [sourceLayer, ...layers] = scene.layers;
       const name = `layer/${sourceLayer.id}`;
-      const children = composeLayers(image, sourceLayer.children, inputId);
-      const composition = composeLayers(children.image, layers, inputId);
-      const adjusted = pipeline(composition.image, [
+      const children = composeLayers(image, sourceLayer.children, composition);
+      const composite = composeLayers(children.image, layers, composition);
+      const adjusted = pipeline(composite.image, [
         adjustments(sourceLayer.adjustments, name),
       ]);
       const full = pipeline(adjusted, [
@@ -133,9 +144,9 @@ export function createEditorRenderer(
         full,
         output,
         input:
-          inputId === sourceLayer.id
+          composition.inputId === sourceLayer.id
             ? adjusted
-            : (children.input ?? composition.input),
+            : (children.input ?? composite.input),
       };
     },
     timer,

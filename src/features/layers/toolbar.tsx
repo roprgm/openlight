@@ -1,35 +1,68 @@
+import {
+  createContext,
+  type ReactNode,
+  useContext,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 import { useStore } from "zustand";
 import { useDocument, useScene } from "@/components/editor/session";
+import { Icon } from "@/components/icons/icon";
+import { Menu } from "@/components/ui/menu";
+import { Select } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
-import { findLayer, locateLayer, type MaskLayer } from "@/core/document";
+import {
+  findLayer,
+  locateLayer,
+  type MaskLayer,
+  type ProcessingLayer,
+} from "@/core/document";
 import { useEditGesture } from "@/hooks/use-edit-gesture";
+import { useShortcuts } from "@/hooks/use-shortcuts";
 import { setLayer, setLayerMask, setMaskOperation } from "./edits";
-import { useGradientTool } from "./gradient-tool";
-import { LayerMenu } from "./menu";
+import { useMaskTool } from "./mask-tool";
 
-const maskOperations = [
-  ["add", "Add", "Add to mask"],
-  ["subtract", "Subtract", "Subtract from mask"],
-] as const;
+/** How much room the bar has: sliders with bars, fields only, or a column inside the overflow menu. */
+export type BarDensity = "full" | "compact" | "menu";
+const Density = createContext<BarDensity>("full");
+export function useBarDensity() {
+  return useContext(Density);
+}
+export function barSlider(density: BarDensity) {
+  if (density === "menu") {
+    return "panel";
+  }
+  return density === "full" ? "toolbar" : "compact";
+}
 
 function MaskOptions({ layer }: { layer: MaskLayer }) {
   const document = useDocument();
-  const tool = useGradientTool();
+  const tool = useMaskTool();
+  const density = useBarDensity();
   const parent = useScene(
     (scene) => locateLayer(scene.layers, layer.id)?.parent,
   );
-  const isSubmask = parent?.kind === "mask";
+  // The button reports what the canvas shows, whether by choice or by default.
+  const shown = useStore(
+    document.preview,
+    (preview) => preview.maskOverlay !== undefined,
+  );
+  const toggleOverlay = () => tool.showOverlay(!shown);
+  useShortcuts({ o: toggleOverlay });
   return (
     <>
-      <hr
-        aria-orientation="vertical"
-        className="h-4 w-px border-0 bg-white/15"
-      />
+      {density !== "menu" && (
+        <hr
+          aria-orientation="vertical"
+          className="h-4 w-px border-0 bg-white/15"
+        />
+      )}
       <button
         type="button"
-        aria-pressed={tool.overlay !== "hidden"}
-        title="Show mask overlay (O)"
-        onClick={tool.toggleOverlay}
+        aria-pressed={shown}
+        title="Show the mask overlay (O)"
+        onClick={toggleOverlay}
         className="h-7 rounded-full px-2.5 text-neutral-400 hover:bg-white/10 hover:text-neutral-100 aria-pressed:bg-white/15 aria-pressed:text-neutral-100 pointer-coarse:h-9"
       >
         Overlay
@@ -42,7 +75,7 @@ function MaskOptions({ layer }: { layer: MaskLayer }) {
           max={100}
           defaultValue={50}
           unit="%"
-          variant="toolbar"
+          variant={barSlider(density)}
           onChange={(value) => {
             if (layer.mask.kind === "radial") {
               setLayerMask(document, layer.id, {
@@ -53,12 +86,12 @@ function MaskOptions({ layer }: { layer: MaskLayer }) {
           }}
         />
       )}
-      {isSubmask && (
-        <select
+      {parent?.kind === "mask" && (
+        <Select
+          variant="pill"
           aria-label="Mask operation"
           title="Combine with the parent mask"
           value={layer.operation}
-          className="h-7 rounded-full bg-white/10 px-2.5 text-neutral-200 hover:bg-white/15"
           onChange={(event) => {
             const operation = event.target.value;
             if (operation === "add" || operation === "subtract") {
@@ -68,50 +101,17 @@ function MaskOptions({ layer }: { layer: MaskLayer }) {
         >
           <option value="add">Add</option>
           <option value="subtract">Subtract</option>
-        </select>
+        </Select>
       )}
-      {!parent &&
-        maskOperations.map(([operation, text, label]) => (
-          <LayerMenu
-            variant="pill"
-            key={operation}
-            label={label}
-            icon={<span>{text}</span>}
-          >
-            <button
-              type="submit"
-              onClick={() => tool.add(layer.id, operation, "linear")}
-            >
-              Linear gradient
-            </button>
-            <button
-              type="submit"
-              onClick={() => tool.add(layer.id, operation, "radial")}
-            >
-              Radial gradient
-            </button>
-          </LayerMenu>
-        ))}
     </>
   );
 }
 
-export function LayerToolbar() {
+function LayerOptions({ layer }: { layer: ProcessingLayer }) {
   const document = useDocument();
-  const gesture = useEditGesture(document.history);
-  const selected = useStore(document.selection, (state) => state.layerId);
-  const layer = useScene(
-    (scene) => findLayer(scene.layers, selected) ?? scene.layers[0],
-  );
-  if (layer.kind === "image") {
-    return null;
-  }
+  const density = useBarDensity();
   return (
-    <fieldset
-      aria-label="Layer options"
-      {...gesture}
-      className="absolute top-3 left-3 flex max-w-[calc(100%-1.5rem)] flex-wrap items-center gap-x-3 gap-y-1 rounded-full bg-neutral-800/80 p-1 pl-2.5 backdrop-blur-sm"
-    >
+    <>
       <Slider
         label="Opacity"
         value={layer.opacity * 100}
@@ -119,12 +119,96 @@ export function LayerToolbar() {
         max={100}
         defaultValue={100}
         unit="%"
-        variant="toolbar"
+        variant={barSlider(density)}
         onChange={(value) =>
           setLayer(document, layer.id, { opacity: value / 100 })
         }
       />
       {layer.kind === "mask" && <MaskOptions layer={layer} />}
+    </>
+  );
+}
+
+/** Steps of compression: bars, fields only, layer options in the menu, everything in the menu. */
+const steps = 4;
+
+/**
+ * The bar over the canvas edits the active tool and the selected layer; creating layers happens in
+ * the stack. It never wraps: when the content overflows, it compresses one step at a time until it fits.
+ */
+export function CanvasToolbar({ children }: { children?: ReactNode }) {
+  const document = useDocument();
+  const gesture = useEditGesture(document.history);
+  const selected = useStore(document.selection, (state) => state.layerId);
+  const layer = useScene(
+    (scene) => findLayer(scene.layers, selected) ?? scene.layers[0],
+  );
+  const bar = useRef<HTMLFieldSetElement>(null);
+  const [step, setStep] = useState(0);
+  const hasLayer = layer.kind !== "image";
+  const shown = Boolean(children) || hasLayer;
+  const content = `${Boolean(children)}/${layer.kind}/${layer.kind === "mask" ? layer.mask.kind : ""}`;
+  // New content or a resized canvas starts again from the roomiest layout.
+  useLayoutEffect(() => setStep(0), [content]);
+  useLayoutEffect(() => {
+    const canvas = bar.current?.parentElement;
+    if (!shown || !canvas) {
+      return;
+    }
+    const observer = new ResizeObserver(() => setStep(0));
+    observer.observe(canvas);
+    return () => observer.disconnect();
+  }, [shown]);
+  useLayoutEffect(() => {
+    const element = bar.current;
+    if (
+      element &&
+      element.scrollWidth > element.clientWidth &&
+      step < steps - 1
+    ) {
+      setStep(step + 1);
+    }
+  });
+  if (!shown) {
+    return null;
+  }
+  const inlineTool = step < 3 ? children : null;
+  const inlineLayer = step < 2 && hasLayer;
+  const menuTool = step >= 3 ? children : null;
+  const menuLayer = step >= 2 && hasLayer;
+  return (
+    <fieldset
+      ref={bar}
+      aria-label="Layer options"
+      {...gesture}
+      className="absolute top-3 left-3 flex min-w-0 max-w-[calc(100%-1.5rem)] items-center gap-x-2.5 overflow-hidden rounded-full bg-neutral-800/80 p-1.5 backdrop-blur-sm"
+    >
+      <Density value={step === 0 ? "full" : "compact"}>
+        {inlineTool}
+        {inlineLayer && <LayerOptions layer={layer} />}
+      </Density>
+      {(menuTool || menuLayer) && (
+        <Menu
+          variant="pill"
+          label="More options"
+          icon={
+            <Icon className="size-4">
+              <path
+                d="M12 5h.01M12 12h.01M12 19h.01"
+                strokeWidth="3"
+                strokeLinecap="round"
+              />
+            </Icon>
+          }
+        >
+          <Density value="menu">
+            <div className="flex w-56 flex-col gap-3 p-2">
+              {menuTool}
+              {menuLayer && <LayerOptions layer={layer} />}
+            </div>
+          </Density>
+        </Menu>
+      )}
     </fieldset>
   );
 }

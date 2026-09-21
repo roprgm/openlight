@@ -1,16 +1,12 @@
-import { type PointerEvent, useEffect, useMemo, useRef, useState } from "react";
+import { type PointerEvent, useEffect, useRef, useState } from "react";
 import { useStore } from "zustand";
+import { useDocumentMapping } from "@/components/editor/mapping";
 import { useDocument, useScene } from "@/components/editor/session";
 import { useViewport } from "@/components/editor/viewport";
-import {
-  type EditorDocument,
-  findLayer,
-  type Gradient,
-  maskModifiers,
-} from "@/core/document";
-import { outputOffset, type Point, sourceOffset } from "@/core/image/frame";
+import { findLayer, type Gradient, locateLayer } from "@/core/document";
+import type { Point } from "@/core/image/frame";
 import { useShortcuts } from "@/hooks/use-shortcuts";
-import { deleteLayer, setLayerMask } from "./edits";
+import { setLayerMask } from "./edits";
 import {
   drawGradient,
   type GradientHandle,
@@ -18,7 +14,7 @@ import {
   moveGradient,
 } from "./gradient";
 import { GradientGuides } from "./gradient-guides";
-import { useGradientTool } from "./gradient-tool";
+import { type Nesting, useMaskTool } from "./mask-tool";
 
 type Drag = {
   pointer: number;
@@ -29,25 +25,23 @@ type Drag = {
   mask: Gradient;
   handle: GradientHandle | "new";
   id: string;
+  /** Alt while starting a drag subtracts the new gradient from the selected mask. */
+  nesting?: Nesting;
 };
 
-function hideOverlay(document: EditorDocument) {
-  if (document.preview.getState().maskOverlay) {
-    document.preview.setState({ maskOverlay: undefined });
-  }
-}
-
-export function GradientOverlay() {
+/** Draws masks of one shape and edits the selected gradient's guides; Enter or Escape leaves. */
+export function GradientOverlay({ shape }: { shape: Gradient["kind"] }) {
   const document = useDocument();
-  const tool = useGradientTool();
+  const tool = useMaskTool();
   const camera = useViewport();
-  const frame = useScene((scene) => scene.frame);
+  const mapping = useDocumentMapping();
   const selected = useStore(document.selection, (state) => state.layerId);
   const layer = useScene((scene) => {
     const item = findLayer(scene.layers, selected);
     return item?.kind === "mask" ? item : undefined;
   });
-  const mask = layer?.mask;
+  /** Only gradients have guides; a brush mask keeps the deletion shortcuts. */
+  const mask = layer?.mask.kind === "brush" ? undefined : layer?.mask;
   const [draft, setDraft] = useState<Gradient | null>(null);
   const dragging = useRef<Drag | null>(null);
   const [dragCursor, setDragCursor] = useState<string>();
@@ -58,65 +52,28 @@ export function GradientOverlay() {
     }
     dragging.current = null;
     setDraft(null);
+    tool.draft.setState(null);
     setDragCursor(undefined);
-    tool.close();
   }
   useEffect(
     () => () => {
       if (dragging.current && dragging.current.handle !== "new") {
         document.history.cancel();
       }
+      tool.draft.setState(null);
     },
-    [document],
+    [document, tool.draft],
   );
-  function remove() {
-    reset();
-    if (mask) {
-      deleteLayer(document, selected);
-    }
-  }
-  function dismiss() {
-    if (dragging.current || tool.target) {
-      reset();
-      return;
-    }
-    if (tool.overlay === "new" && mask) {
-      deleteLayer(document, selected);
-    }
-    tool.setOverlay("hidden");
-  }
   useShortcuts({
-    escape: dismiss,
-    ...(tool.overlay === "hidden"
-      ? {}
-      : { enter: () => tool.setOverlay("hidden") }),
-    ...(mask
-      ? { o: tool.toggleOverlay, delete: remove, backspace: remove }
-      : {}),
+    escape: () => (dragging.current ? reset() : tool.edit()),
+    enter: () => {
+      if (!dragging.current) {
+        tool.edit();
+      }
+    },
   });
   function documentPoint(event: PointerEvent, box: DOMRect | undefined): Point {
-    if (!box) {
-      return frame.center;
-    }
-    const offset = sourceOffset(
-      frame,
-      (event.clientX - box.left - box.width / 2 - camera.view.pan[0]) /
-        camera.scale,
-      (event.clientY - box.top - box.height / 2 - camera.view.pan[1]) /
-        camera.scale,
-    );
-    return [frame.center[0] + offset[0], frame.center[1] + offset[1]];
-  }
-  function screenPoint(point: Point): Point {
-    const [x, y] = outputOffset(
-      frame,
-      point[0] - frame.center[0],
-      point[1] - frame.center[1],
-    );
-    return [
-      camera.viewport[0] / 2 + camera.view.pan[0] + x * camera.scale,
-      camera.viewport[1] / 2 + camera.view.pan[1] + y * camera.scale,
-    ];
+    return mapping.toDocument(event.clientX, event.clientY, box);
   }
   function start(event: PointerEvent<HTMLDivElement>) {
     if (event.button !== 0 || !event.isPrimary || camera.panMode) {
@@ -129,20 +86,26 @@ export function GradientOverlay() {
             ?.getAttribute("data-gradient-handle")
         : null;
     const handle = gradientHandles.find((handle) => handle === target);
-    if (!tool.target && (!mask || !handle)) {
-      return;
-    }
+    // Guides win over drawing, unless a chosen nesting is waiting for this shape.
+    const drawing = !handle || !mask || tool.pending?.shape === shape;
     const box = camera.ref.current?.getBoundingClientRect();
     const from = documentPoint(event, box);
-    if (tool.target) {
+    if (drawing) {
+      const location = locateLayer(document.scene.getState().layers, selected);
+      const group =
+        location?.parent?.kind === "mask" ? location.parent : location?.layer;
       dragging.current = {
         pointer: event.pointerId,
         box,
         from,
         to: from,
-        mask: drawGradient(tool.target.shape, from, from),
+        mask: drawGradient(shape, from, from),
         handle: "new",
         id: selected,
+        nesting:
+          event.altKey && group?.kind === "mask"
+            ? { parentId: group.id, operation: "subtract" }
+            : undefined,
       };
       setDraft(dragging.current.mask);
     } else if (mask && handle) {
@@ -163,7 +126,7 @@ export function GradientOverlay() {
         ? getComputedStyle(event.target).cursor
         : "grab";
     const activeCursor = cursor === "grab" ? "grabbing" : cursor;
-    setDragCursor(tool.target ? "crosshair" : activeCursor);
+    setDragCursor(drawing ? "crosshair" : activeCursor);
     event.preventDefault();
     event.stopPropagation();
     event.currentTarget.setPointerCapture(event.pointerId);
@@ -188,6 +151,7 @@ export function GradientOverlay() {
       );
       drag.mask = next;
       setDraft(next);
+      tool.draft.setState(next);
     } else {
       setLayerMask(
         document,
@@ -207,8 +171,8 @@ export function GradientOverlay() {
       const distance =
         Math.hypot(point[0] - drag.from[0], point[1] - drag.from[1]) *
         camera.scale;
-      if (distance >= 3 && tool.target) {
-        tool.create(drag.mask, tool.target);
+      if (distance >= 3) {
+        tool.create(drag.mask, drag.nesting);
       }
     } else {
       document.history.commit();
@@ -217,31 +181,16 @@ export function GradientOverlay() {
     event.currentTarget.releasePointerCapture(event.pointerId);
   }
   const visible = draft ?? mask;
-  const preview =
-    !!draft || dragCursor !== undefined || tool.overlay !== "hidden";
-  const modifiers = useMemo(
-    () => (draft || !layer ? [] : maskModifiers(layer)),
-    [draft, layer],
-  );
-  const shown = visible && preview && !camera.panMode;
-  useEffect(() => {
-    if (shown) {
-      document.preview.setState({ maskOverlay: { mask: visible, modifiers } });
-      return;
-    }
-    hideOverlay(document);
-  }, [document, shown, visible, modifiers]);
-  useEffect(() => () => hideOverlay(document), [document]);
-  const cursor = dragCursor ?? (tool.target ? "crosshair" : undefined);
-  const pointerEvents =
-    (tool.target || dragCursor) && !camera.panMode ? "auto" : "none";
+  // The empty canvas draws, so it shows a crosshair; guides keep their own cursors until a drag starts.
+  const cursor = dragCursor ?? "crosshair";
   return (
     <div
       role="application"
       aria-label="Gradient mask canvas"
-      className="absolute inset-0 touch-none data-[cursor=true]:[&_*]:cursor-[inherit]!"
-      data-cursor={!!cursor}
-      style={{ pointerEvents, cursor }}
+      className="absolute inset-0 touch-none data-[cursor=true]:[&_*]:cursor-[inherit]! data-[pan=true]:pointer-events-none"
+      data-cursor={!!dragCursor}
+      data-pan={camera.panMode}
+      style={{ cursor }}
       onDoubleClick={(event) => event.stopPropagation()}
       onPointerDown={start}
       onPointerMove={move}
@@ -256,20 +205,14 @@ export function GradientOverlay() {
       {visible && !camera.panMode && (
         <GradientGuides
           mask={visible}
-          screen={screenPoint}
+          screen={mapping.toScreen}
           extent={Math.hypot(...camera.viewport)}
         />
       )}
-      {tool.overlay === "new" && !tool.target && (
-        <p className="pointer-events-none absolute bottom-3 left-3 rounded-full bg-neutral-800/80 px-3 py-1.5 text-white backdrop-blur-sm">
-          Adjust the mask · Enter to keep · Esc to remove · O toggles overlay
-        </p>
-      )}
-      {tool.target && (
-        <p className="pointer-events-none absolute bottom-3 left-3 rounded-full bg-neutral-800/80 px-3 py-1.5 text-white backdrop-blur-sm">
-          Drag to draw · Shift to constrain · Esc to cancel
-        </p>
-      )}
+      <p className="pointer-events-none absolute bottom-3 left-3 rounded-full bg-neutral-800/80 px-3 py-1.5 text-white backdrop-blur-sm">
+        Drag to draw · Shift constrains · Alt subtracts from the selected mask ·
+        Enter when done
+      </p>
     </div>
   );
 }

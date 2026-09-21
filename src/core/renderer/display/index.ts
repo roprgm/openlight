@@ -1,5 +1,6 @@
 import {
   type Buffer,
+  type Effect,
   effect,
   type Frame,
   frame,
@@ -7,25 +8,34 @@ import {
   sampler,
   surface,
   type Target,
+  target,
 } from "vgpu";
-import type { Gradient, MaskModifier } from "@/core/document";
+import type { Mask, MaskModifier } from "@/core/document";
 import {
   frameTransform,
   type ImageFrame,
   imageFrame,
   type Point,
 } from "@/core/image/frame";
-import { gradientParams, modifierData } from "@/core/renderer/blend";
+import {
+  gradientModifiers,
+  gradientParams,
+  modifierData,
+} from "@/core/renderer/blend";
+import coverageShader from "./coverage.wgsl";
 import shader from "./image.wgsl";
 
 export type View = { zoom: number; pan: readonly [number, number] };
 export type Clipping = { shadows: boolean; highlights: boolean };
-/** A mask to tint over the displayed image; its geometry lives in source pixels. */
+/** A mask to tint over the displayed image; its geometry lives in source pixels, or in a rasterized coverage texture. */
 export type MaskOverlay = {
-  mask: Gradient;
+  mask: Mask;
   modifiers: readonly MaskModifier[];
   frame: ImageFrame;
   sourceSize: readonly number[];
+  coverage?: Target;
+  /** The layer's opacity, which scales its coverage. */
+  opacity?: number;
 };
 type DisplayOptions = {
   view: View;
@@ -39,9 +49,12 @@ type DisplayOptions = {
 
 /** Display any transformed image with optional comparison, clipping indicators, and mask overlay. */
 export function createDisplay(gpu: Gpu) {
+  // Stands in for the coverage binding when no rasterized mask is shown.
+  const blank = target(gpu, { size: [1, 1], format: "r8unorm" });
   const draw = effect(gpu, shader, {
     set: {
       sourceSampler: sampler(gpu, { magFilter: "linear", minFilter: "linear" }),
+      coverage: blank.color,
     },
   });
   let modifiers: Buffer | undefined;
@@ -90,10 +103,15 @@ export function createDisplay(gpu: Gpu) {
           overlay?.frame ?? geometry,
           overlay?.sourceSize ?? image.size,
         ),
+        coverage: (overlay?.coverage ?? blank).color,
         overlay: {
           ...gradientParams(overlay?.mask),
-          modifierCount: overlay?.modifiers.length ?? 0,
+          ...(overlay?.coverage ? { kind: 3 } : {}),
+          modifierCount: overlay
+            ? gradientModifiers(overlay.modifiers).length
+            : 0,
           sourceSize: overlay?.sourceSize ?? image.size,
+          opacity: overlay?.opacity ?? 1,
         },
       }),
     );
@@ -102,11 +120,33 @@ export function createDisplay(gpu: Gpu) {
     dispose() {
       modifiers?.dispose();
       modifiers = undefined;
+      blank.color.dispose();
     },
   });
 }
 
 const displays = new WeakMap<Gpu, ReturnType<typeof createDisplay>>();
+const previews = new WeakMap<Gpu, Effect>();
+
+/** Draws a coverage raster as a gray preview of `size` and takes its pixels; no texture outlives the call. */
+export async function renderCoverage(gpu: Gpu, coverage: Target, size: Point) {
+  let preview = previews.get(gpu);
+  if (!preview) {
+    preview = effect(gpu, coverageShader);
+    previews.set(gpu, preview);
+  }
+  const canvas = new OffscreenCanvas(size[0], size[1]);
+  const output = surface(gpu, canvas, { size, dpr: 1 });
+  try {
+    frame(gpu, (frame) =>
+      frame.pass(output, preview.set({ coverage: coverage.color, size })),
+    );
+    await gpu.gpu.queue.onSubmittedWorkDone();
+    return canvas.transferToImageBitmap();
+  } finally {
+    output.dispose();
+  }
+}
 
 /** Draws an image into an off-screen canvas of `size` and takes its pixels; one display serves each GPU. */
 export async function renderBitmap(gpu: Gpu, image: Target, size: Point) {

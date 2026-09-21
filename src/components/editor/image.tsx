@@ -39,11 +39,21 @@ export function Image({
     const target = typeof image === "string" ? renderer[image]() : image;
     const source =
       preview.comparison === "original" && before ? before : target;
-    const size = geometry?.size ?? source.size;
+    // A proxy output is smaller than the frame it stands for; zoom follows the frame.
+    const size =
+      geometry?.size ??
+      (typeof image === "string" ? sceneFrame.size : source.size);
     const view = {
       ...camera.view,
       zoom: camera.scale / (fitScale(size, camera.viewport) || 1),
     };
+    if (typeof image === "string") {
+      // The main canvas tells the renderer how many device pixels a source pixel gets.
+      renderer.setDisplayScale(
+        (camera.scale * devicePixelRatio) / Math.abs(sceneFrame.scale[0]),
+      );
+    }
+    const overlay = preview.maskOverlay;
     display(frame, canvas, source, {
       view,
       viewport: camera.viewport,
@@ -51,10 +61,13 @@ export function Image({
       original: before,
       split: preview.comparison === "split" ? preview.split : -1,
       clipping: preview,
-      overlay: preview.maskOverlay && {
-        ...preview.maskOverlay,
+      overlay: overlay && {
+        ...overlay,
         frame: sceneFrame,
         sourceSize,
+        coverage: overlay.layerId
+          ? renderer.coverage(overlay.layerId)
+          : undefined,
       },
     });
   });

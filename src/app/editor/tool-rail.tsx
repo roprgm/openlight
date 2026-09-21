@@ -1,20 +1,20 @@
 import { GithubIcon } from "@/components/icons/github";
 import { Tab, TabList } from "@/components/ui/tabs";
 import { useShortcuts } from "@/hooks/use-shortcuts";
-import { type Mode, modes, useMode } from "./modes";
+import { type Tool, tools, useTool } from "./tools";
 
 /** Icon tabs in a column at the window's left edge on desktop, a bar above the canvas on mobile; titles carry the label and shortcut. Without a handler the tabs are inert. */
-export function ModeTabList({
+export function ToolTabList({
   selected,
   onSelect,
 }: {
-  selected: Mode;
-  onSelect?: (mode: Mode) => void;
+  selected: Tool;
+  onSelect?: (tool: Tool) => void;
 }) {
-  const editing = modes.filter((entry) => entry.group === "edit");
+  const editing = tools.filter((entry) => entry.group === "edit");
   return (
     <div className="flex shrink-0 gap-1 overflow-auto border-black border-b bg-panel p-1.5 md:w-11 md:flex-col md:border-r md:border-b-0">
-      <TabList aria-label="Editor mode" className="md:flex-col">
+      <TabList aria-label="Tools" className="md:flex-col">
         {editing.map((entry) => (
           <Tab
             key={entry.id}
@@ -44,12 +44,12 @@ export function ModeTabList({
   );
 }
 
-export function ModeRail() {
-  const { mode, setMode } = useMode();
+export function ToolRail() {
+  const { tool, setTool } = useTool();
   useShortcuts(
     Object.fromEntries(
-      modes.map((entry) => [entry.key, () => setMode(entry)] as const),
+      tools.map((entry) => [entry.key, () => setTool(entry)] as const),
     ),
   );
-  return <ModeTabList selected={mode} onSelect={setMode} />;
+  return <ToolTabList selected={tool} onSelect={setTool} />;
 }

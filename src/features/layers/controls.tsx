@@ -9,6 +9,7 @@ import { useStore } from "zustand";
 import { PanelHeader } from "@/components/editor/panel";
 import { useDocument, useScene } from "@/components/editor/session";
 import { Icon } from "@/components/icons/icon";
+import { Menu } from "@/components/ui/menu";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   TreeDrag,
@@ -21,10 +22,11 @@ import {
   type Layer,
   type ProcessingLayer,
 } from "@/core/document";
+import { useShortcuts } from "@/hooks/use-shortcuts";
 import { layerDrop } from "./drop";
-import { moveLayer, setLayer } from "./edits";
-import { useGradientTool } from "./gradient-tool";
-import { LayerActions, LayerMenu } from "./menu";
+import { deleteLayer, moveLayer, setLayer } from "./edits";
+import { useMaskTool } from "./mask-tool";
+import { LayerActions, MaskNesting } from "./menu";
 import { ImageThumbnail, MaskThumbnail } from "./thumbnails";
 
 function EffectSymbol({ kind }: { kind: ProcessingLayer["kind"] }) {
@@ -61,7 +63,17 @@ function LayerThumbnail({ layer }: { layer: Layer }) {
     return <ImageThumbnail />;
   }
   if (layer.kind === "mask") {
-    return <MaskThumbnail mask={layer.mask} />;
+    return <MaskThumbnail layer={layer} />;
+  }
+  if (layer.kind === "fill") {
+    return (
+      <span
+        role="img"
+        aria-label="Color thumbnail"
+        className="block size-8 shrink-0 rounded-sm border border-neutral-600"
+        style={{ background: layer.fill.color }}
+      />
+    );
   }
   return (
     <span className="grid size-8 shrink-0 place-items-center rounded border border-black/50 bg-neutral-950/40 text-neutral-400">
@@ -235,6 +247,7 @@ const LayerRow = memo(function LayerRow({
             </Icon>
           </span>
         )}
+        {layer.kind === "mask" && !parent && <MaskNesting layer={layer} />}
         {layer.kind !== "image" && (
           <LayerActions layer={layer} onSelect={onSelect} />
         )}
@@ -262,15 +275,24 @@ export function LayersControls({
 }) {
   const document = useDocument();
   const layers = useScene((scene) => scene.layers);
-  const tool = useGradientTool();
-  const { close } = tool;
+  const tool = useMaskTool();
+  // Choosing a mask edits it with the tool of its shape; anything else leaves editing.
   const select = useCallback(
     (id: string) => {
-      close();
       document.selectLayer(id);
+      const layer = findLayer(document.scene.getState().layers, id);
+      tool.edit(layer?.kind === "mask" ? layer.mask.kind : undefined);
     },
-    [close, document],
+    [document, tool.edit],
   );
+  // The stack owns deletion, so it works with any tool on the canvas.
+  function remove() {
+    const id = document.selection.getState().layerId;
+    if (findLayer(layers, id)?.kind !== "image") {
+      deleteLayer(document, id);
+    }
+  }
+  useShortcuts({ delete: remove, backspace: remove });
   function drop(target: TreeDrop) {
     const position = layerDrop(document.scene.getState(), target);
     if (position) {
@@ -285,31 +307,7 @@ export function LayersControls({
       className="grid max-h-1/2 min-h-36 shrink-0 grid-rows-[auto_minmax(0,1fr)] border-t border-black bg-panel"
     >
       <PanelHeader title="Layers">
-        <button
-          type="button"
-          aria-label="Add linear mask"
-          title="Draw a linear mask (L)"
-          onClick={() => tool.draw()}
-          className="grid size-7 place-items-center rounded-md text-neutral-400 hover:bg-neutral-700 hover:text-neutral-100 pointer-coarse:size-10"
-        >
-          <Icon className="size-4">
-            <rect x="4" y="4" width="16" height="16" rx="2" />
-            <circle cx="12" cy="12" r="4" fill="currentColor" stroke="none" />
-          </Icon>
-        </button>
-        <button
-          type="button"
-          aria-label="Add radial mask"
-          title="Draw a radial mask (R)"
-          onClick={() => tool.draw("radial")}
-          className="grid size-7 place-items-center rounded-md text-neutral-400 hover:bg-neutral-700 hover:text-neutral-100 pointer-coarse:size-10"
-        >
-          <Icon className="size-4">
-            <ellipse cx="12" cy="12" rx="9" ry="6" />
-            <circle cx="12" cy="12" r="2" fill="currentColor" stroke="none" />
-          </Icon>
-        </button>
-        <LayerMenu
+        <Menu
           label="Add effect"
           icon={
             <Icon className="size-4">
@@ -329,7 +327,10 @@ export function LayersControls({
           <button type="submit" onClick={() => onAdd("vignette")}>
             Vignette
           </button>
-        </LayerMenu>
+          <button type="submit" onClick={() => onAdd("fill")}>
+            Color
+          </button>
+        </Menu>
       </PanelHeader>
       <ScrollArea fade>
         <TreeDrag

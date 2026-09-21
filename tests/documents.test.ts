@@ -94,11 +94,13 @@ test("documents edit independently without React, retain bounded history, and re
   expect(first.history.status.getState()).toEqual({
     undoCount: 0,
     redoCount: 100,
+    editing: false,
   });
   setAdjustments(first, { contrast: 10 });
   expect(first.history.status.getState()).toEqual({
     undoCount: 1,
     redoCount: 0,
+    editing: false,
   });
   const workspace = createWorkspace();
   await workspace.open("first", async () => first);

@@ -7,12 +7,21 @@ export function createHistory<T extends object>(
   limit = 100,
   onChange?: (retained: readonly T[]) => void,
 ) {
-  const status = createStore(() => ({ undoCount: 0, redoCount: 0 }));
+  const status = createStore(() => ({
+    undoCount: 0,
+    redoCount: 0,
+    /** A gesture group is open, so the scene is mid-change. */
+    editing: false,
+  }));
   const past: T[] = [];
   const future: T[] = [];
   let group: T | undefined;
   function publish() {
-    status.setState({ undoCount: past.length, redoCount: future.length });
+    status.setState({
+      undoCount: past.length,
+      redoCount: future.length,
+      editing: group !== undefined,
+    });
     onChange?.([
       ...past,
       ...future,
@@ -77,6 +86,9 @@ export function createHistory<T extends object>(
     begin() {
       const opened = group === undefined;
       group ??= state.getState();
+      if (opened) {
+        status.setState({ editing: true });
+      }
       return opened;
     },
     commit,
