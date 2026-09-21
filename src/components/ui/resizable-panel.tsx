@@ -8,7 +8,7 @@ type ResizablePanelProps = ComponentProps<"aside"> & {
   max?: number;
 };
 
-/** Bottom half on mobile; right-side panel with a draggable left edge on desktop. */
+/** Bottom panel on mobile; right-side panel with a draggable left edge on desktop. */
 export default function ResizablePanel({
   width = 320,
   onWidthChange,
@@ -26,7 +26,7 @@ export default function ResizablePanel({
   return (
     <aside
       className={cn(
-        "relative h-1/2 shrink-0 bg-panel max-md:w-full! max-md:border-t max-md:border-black md:h-auto",
+        "relative h-[45%] shrink-0 bg-panel max-md:w-full! max-md:border-t max-md:border-black md:h-auto",
         className,
       )}
       style={{ width, ...style }}
