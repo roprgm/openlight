@@ -38,6 +38,8 @@ test("paint a brush mask, adjust it in the sidebar, erase, and undo", async ({
   await page.getByRole("tab", { name: "Brush", exact: true }).click();
   const canvas = page.getByLabel("Brush canvas", { exact: true });
   await expect(canvas).toBeVisible();
+  // Choosing the tool creates its mask at once, so the sidebar already edits it.
+  expect((await state()).scene?.layers).toHaveLength(2);
   // Tool options sit over the canvas; the sidebar keeps the selected layer's adjustments.
   const options = page.getByRole("group", { name: "Layer options" });
   const overlayButton = options.getByRole("button", {
@@ -56,7 +58,7 @@ test("paint a brush mask, adjust it in the sidebar, erase, and undo", async ({
   const from = [center[0] - 150 * scale, center[1]];
   const to = [center[0] + 150 * scale, center[1]];
   await setField("Size", "200");
-  await test.step("a drag creates a brush mask that shows its overlay", async () => {
+  await test.step("a drag paints the new brush mask, which shows its overlay", async () => {
     await drag(page, from, to, 16);
     const layers = (await state()).scene?.layers;
     expect(layers).toHaveLength(2);
@@ -144,14 +146,40 @@ test("paint a brush mask, adjust it in the sidebar, erase, and undo", async ({
     await page.keyboard.press("ControlOrMeta+z");
     expect((await state()).scene?.layers).toHaveLength(1);
   });
-  await test.step("Escape cancels a stroke", async () => {
+  await test.step("an untouched new brush mask leaves no trace; an adjusted one stays", async () => {
+    const before = (await state()).history.undoCount;
     await page.keyboard.press("b");
     await expect(canvas).toBeVisible();
+    expect((await state()).scene?.layers[1]).toMatchObject({
+      kind: "mask",
+      name: "Brush",
+      mask: { kind: "brush", strokes: [] },
+    });
+    // Escape cancels the stroke and keeps the empty mask; Escape again leaves the tool.
     await page.mouse.move(from[0], from[1]);
     await page.mouse.down();
     await page.mouse.move(to[0], to[1], { steps: 8 });
     await page.keyboard.press("Escape");
     await page.mouse.up();
+    expect((await state()).scene?.layers).toHaveLength(2);
+    await page.keyboard.press("Escape");
+    await expect(canvas).toHaveCount(0);
+    expect((await state()).scene?.layers).toHaveLength(1);
+    expect((await state()).history).toMatchObject({
+      undoCount: before,
+      redoCount: 0,
+    });
+    // An adjustment before the first stroke belongs to the new mask and keeps it.
+    await page.keyboard.press("b");
+    await setField("Exposure", "1");
+    expect(await samples(page)).toEqual(original);
+    await drag(page, from, to, 16);
+    expect((await samples(page))[0][0]).toBeGreaterThan(original[0][0] + 20);
+    await page.keyboard.press("Enter");
+    expect((await state()).scene?.layers).toHaveLength(2);
+    for (let i = 0; i < 3; i++) {
+      await page.keyboard.press("ControlOrMeta+z");
+    }
     expect((await state()).scene?.layers).toHaveLength(1);
   });
   await test.step("Subtract adds a brush inside the selected gradient", async () => {

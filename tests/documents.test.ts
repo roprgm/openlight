@@ -17,6 +17,25 @@ function document() {
   });
 }
 
+test("drop removes the latest entry without leaving redo and cancels an open group", () => {
+  const doc = document();
+  setAdjustments(doc, { exposure: 1 });
+  setAdjustments(doc, { exposure: 2 });
+  doc.history.undo();
+  doc.history.drop();
+  expect(doc.scene.getState().layers[0].adjustments.exposure).toBe(0);
+  expect(doc.history.status.getState()).toEqual({
+    undoCount: 0,
+    redoCount: 0,
+    editing: false,
+  });
+  doc.history.begin();
+  setAdjustments(doc, { exposure: 3 });
+  doc.history.drop();
+  expect(doc.scene.getState().layers[0].adjustments.exposure).toBe(0);
+  expect(doc.history.status.getState().undoCount).toBe(0);
+});
+
 test("documents edit independently without React, retain bounded history, and reject edits after replacement", async () => {
   const first = document();
   const second = document();

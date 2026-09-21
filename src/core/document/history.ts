@@ -95,6 +95,17 @@ export function createHistory<T extends object>(
     cancel,
     undo: () => travel(past, future),
     redo: () => travel(future, past),
+    /** Removes the latest entry as if it never happened: no redo, and an open group is cancelled. */
+    drop() {
+      cancel();
+      const previous = past.pop();
+      if (previous === undefined) {
+        return;
+      }
+      state.setState(previous, true);
+      future.length = 0;
+      publish();
+    },
     clear() {
       group = undefined;
       past.length = future.length = 0;

@@ -11,6 +11,6 @@ OpenLight edits documents containing image content and adjustments.
 | **Image source** | An image used as input to the document's composition. It is content within a document. |
 | **Edit** | One reversible content change. A continuous slider or curve drag is one edit, as is importing a set of adjustments. |
 | **Workspace** | The open-document session. It currently holds at most one document, replaced when another image is opened. |
-| **Tool** | What a drag on the canvas does: Brush paints, Linear and Radial gradient draw masks and edit the selected gradient's guides, Adjust leaves the canvas to pan and zoom. Crop and Export bring their own view. Switching tools never changes the document or the sidebar. A selected mask is *active*; it is *edited* only while a shape tool is on. |
+| **Tool** | What a drag on the canvas does: Brush paints, Linear and Radial gradient draw masks and edit the selected gradient's guides, Adjust leaves the canvas to pan and zoom. Crop and Export bring their own view. Switching tools never changes the sidebar; Brush creates its mask on entry and removes it again if it leaves untouched. A selected mask is *active*; it is *edited* only while a shape tool is on. |
 
 Use these names consistently in code, UI text, and documentation.

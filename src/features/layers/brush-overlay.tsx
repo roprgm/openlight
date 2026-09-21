@@ -1,9 +1,8 @@
 import { type PointerEvent, useEffect, useId, useRef, useState } from "react";
-import { useStore } from "zustand";
 import { useDocumentMapping } from "@/components/editor/mapping";
 import { useDocument } from "@/components/editor/session";
 import { useViewport } from "@/components/editor/viewport";
-import { type BrushStroke, findLayer, type StrokePoint } from "@/core/document";
+import { findLayer, type StrokePoint } from "@/core/document";
 import type { Point } from "@/core/image/frame";
 import { useShortcuts } from "@/hooks/use-shortcuts";
 import { useBrushTool } from "./brush-tool";
@@ -15,8 +14,6 @@ type Stroke = {
   /** The viewport bounds measured once; pointer capture keeps them valid for the drag. */
   box: DOMRect | undefined;
   id: string;
-  /** The stroke created its layer, so cancelling removes the layer too. */
-  created: boolean;
   pending: StrokePoint[];
   frame?: number;
 };
@@ -28,23 +25,35 @@ type PointerLike = {
   pointerType: string;
 };
 
-/** Paints into the selected brush mask; any other selection starts a new brush mask. */
+/**
+ * Paints into the selected brush mask, which the tool keeps selected: choosing the tool creates that
+ * mask at once, so adjustments before the first stroke belong to it, and leaving with it untouched
+ * removes it and its history entry. Once the selection is no longer a brush mask, the tool leaves.
+ */
 export function BrushOverlay() {
   const document = useDocument();
   const tool = useMaskTool();
   const brush = useBrushTool();
   const camera = useViewport();
   const mapping = useDocumentMapping();
-  const selected = useStore(document.selection, (state) => state.layerId);
   const stroke = useRef<Stroke | null>(null);
   const [pointer, setPointer] = useState<Point | null>(null);
   const { erase } = brush;
   const gradient = useId();
+  function selectedBrush() {
+    const layer = findLayer(
+      document.scene.getState().layers,
+      document.selection.getState().layerId,
+    );
+    return layer?.kind === "mask" && layer.mask.kind === "brush"
+      ? layer.id
+      : undefined;
+  }
   function point(event: PointerLike, box: DOMRect | undefined): StrokePoint {
     const [x, y] = mapping.toDocument(event.clientX, event.clientY, box);
     return [x, y, event.pointerType === "pen" ? event.pressure : 1];
   }
-  /** Ends the stroke; a cancelled stroke restores the scene and removes a layer it created. */
+  /** Ends the stroke; a cancelled stroke restores the scene. */
   function finish(commit: boolean) {
     const current = stroke.current;
     if (!current) {
@@ -60,9 +69,6 @@ export function BrushOverlay() {
       return;
     }
     document.history.cancel();
-    if (current.created) {
-      document.history.undo();
-    }
   }
   function flush(current: Stroke) {
     current.frame = undefined;
@@ -78,6 +84,34 @@ export function BrushOverlay() {
     }
   }
   useEffect(() => () => finish(false), []);
+  useEffect(() => {
+    // A chosen nesting starts a new brush even over a selected one.
+    const created =
+      tool.pending?.shape === "brush" || !selectedBrush()
+        ? document.history.status.getState().undoCount + 1
+        : undefined;
+    if (created) {
+      tool.create({ kind: "brush", strokes: [] });
+    }
+    const id = document.selection.getState().layerId;
+    const unsubscribe = document.selection.subscribe(() => {
+      if (!selectedBrush()) {
+        tool.edit();
+      }
+    });
+    return () => {
+      unsubscribe();
+      const layer = findLayer(document.scene.getState().layers, id);
+      const untouched =
+        layer?.kind === "mask" &&
+        layer.mask.kind === "brush" &&
+        layer.mask.strokes.length === 0 &&
+        document.history.status.getState().undoCount === created;
+      if (untouched) {
+        document.history.drop();
+      }
+    };
+  }, []);
   useShortcuts({
     escape: () => (stroke.current ? finish(false) : tool.edit()),
     enter: () => {
@@ -92,38 +126,20 @@ export function BrushOverlay() {
     if (event.button !== 0 || !event.isPrimary || camera.panMode) {
       return;
     }
+    const id = selectedBrush();
+    if (!id) {
+      return;
+    }
     const box = camera.ref.current?.getBoundingClientRect();
-    const layer = findLayer(document.scene.getState().layers, selected);
-    // A chosen nesting starts a new brush even over a selected one.
-    const existing =
-      layer?.kind === "mask" &&
-      layer.mask.kind === "brush" &&
-      tool.pending?.shape !== "brush"
-        ? layer.id
-        : undefined;
-    const first: BrushStroke = {
-      mode: existing && erase ? "erase" : "paint",
+    document.history.begin();
+    paintStroke(document, id, {
+      mode: erase ? "erase" : "paint",
       size: brush.settings.size,
       feather: brush.settings.feather,
       flow: brush.settings.flow,
       points: [point(event, box)],
-    };
-    let id = existing;
-    if (id) {
-      document.history.begin();
-      paintStroke(document, id, first);
-    } else {
-      tool.create({ kind: "brush", strokes: [first] });
-      id = document.selection.getState().layerId;
-      document.history.begin();
-    }
-    stroke.current = {
-      pointer: event.pointerId,
-      box,
-      id,
-      created: !existing,
-      pending: [],
-    };
+    });
+    stroke.current = { pointer: event.pointerId, box, id, pending: [] };
     // The viewport below would otherwise capture the pointer to pan.
     event.preventDefault();
     event.stopPropagation();
