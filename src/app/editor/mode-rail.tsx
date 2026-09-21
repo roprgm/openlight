@@ -7,17 +7,17 @@ function ModeTab({ entry }: { entry: Mode }) {
 	return (
 		<Tab
 			selected={entry === mode}
+			size="icon"
+			aria-label={entry.label}
 			title={`${entry.label} (${entry.key.toUpperCase()})`}
 			onClick={() => setMode(entry)}
-			className="flex min-w-16 flex-col items-center gap-0.5 rounded-md px-0 py-1.5 md:min-w-0 md:py-2"
 		>
 			<entry.Icon className="size-5" />
-			{entry.label}
 		</Tab>
 	);
 }
 
-/** A column at the window's left edge on desktop, a scrollable bar above the canvas on mobile. Letter shortcuts work anywhere. */
+/** Icon tabs in a column at the window's left edge on desktop, a bar above the canvas on mobile; titles carry the label and shortcut. */
 export function ModeRail() {
 	const { setMode } = useMode();
 	useShortcuts(
@@ -29,7 +29,7 @@ export function ModeRail() {
 	return (
 		<TabList
 			aria-label="Editor mode"
-			className="shrink-0 overflow-auto border-black border-b bg-panel p-2 md:w-17.5 md:flex-col md:border-r md:border-b-0"
+			className="shrink-0 overflow-auto border-black border-b bg-panel p-1.5 md:w-11 md:flex-col md:border-r md:border-b-0"
 		>
 			{editing.map((entry) => (
 				<ModeTab key={entry.id} entry={entry} />

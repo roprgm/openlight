@@ -461,7 +461,7 @@ test("edit a photo, inspect the preview and histograms, undo changes, and export
 	await test.step("mode bar switches panels by click, arrow keys, and letters", async () => {
 		const modes = page.getByRole("tablist", { name: "Editor mode" });
 		const selected = modes.getByRole("tab", { selected: true });
-		await expect(selected).toHaveText("Adjust");
+		await expect(selected).toHaveAccessibleName("Adjust");
 		const exportButton = page.getByRole("button", {
 			name: "Export",
 			exact: true,
@@ -475,19 +475,19 @@ test("edit a photo, inspect the preview and histograms, undo changes, and export
 			page.getByRole("region", { name: "Layers", exact: true }),
 		).toHaveCount(0);
 		await page.getByRole("button", { name: "Close", exact: true }).click();
-		await expect(selected).toHaveText("Adjust");
+		await expect(selected).toHaveAccessibleName("Adjust");
 		await expect(
 			page.getByRole("region", { name: "Layers", exact: true }),
 		).toBeVisible();
 		await modes.getByRole("tab", { name: "Crop" }).click();
-		await expect(selected).toHaveText("Crop");
+		await expect(selected).toHaveAccessibleName("Crop");
 		await page.keyboard.press("ArrowLeft");
-		await expect(selected).toHaveText("Adjust");
+		await expect(selected).toHaveAccessibleName("Adjust");
 		await expect(selected).toBeFocused();
 		await page.keyboard.press("e");
 		await expect(exportButton).toHaveAttribute("aria-pressed", "true");
 		await page.keyboard.press("a");
-		await expect(selected).toHaveText("Adjust");
+		await expect(selected).toHaveAccessibleName("Adjust");
 		await expect(page.getByRole("slider", { name: "Exposure" })).toBeVisible();
 	});
 
