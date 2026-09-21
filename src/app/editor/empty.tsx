@@ -4,7 +4,6 @@ import { useGpu } from "vgpu-react";
 import type { Workspace } from "@/app/workspace";
 import { RendererProvider } from "@/components/editor/pipeline";
 import { DocumentProvider } from "@/components/editor/session";
-import Button from "@/components/ui/button";
 import Spinner from "@/components/ui/spinner";
 import { createDocument, createResources } from "@/core/document";
 import { createImageSource } from "@/core/image";
@@ -22,13 +21,19 @@ import { EditorSidebar } from "./sidebar";
 
 type OpenProps = { onOpen: (files: File[]) => void };
 
+/** The drop hint doubles as the picker: "choose a file" opens the input. */
 function OpenImage({ onOpen }: OpenProps) {
   const input = useRef<HTMLInputElement>(null);
   return (
-    <>
-      <Button className="mt-3" onClick={() => input.current?.click()}>
-        Open image
-      </Button>
+    <p className="mt-8 rounded-full border border-neutral-700 border-dashed px-5 py-2.5 text-neutral-500">
+      Drop an image here or{" "}
+      <button
+        type="button"
+        onClick={() => input.current?.click()}
+        className="cursor-pointer text-neutral-200 underline decoration-neutral-600 underline-offset-4 transition-colors hover:decoration-neutral-200 focus-visible:outline-2 focus-visible:outline-offset-3 focus-visible:outline-neutral-400"
+      >
+        choose a file
+      </button>
       <input
         accept={accept}
         hidden
@@ -42,7 +47,7 @@ function OpenImage({ onOpen }: OpenProps) {
         ref={input}
         type="file"
       />
-    </>
+    </p>
   );
 }
 
@@ -70,9 +75,6 @@ function Status({ state, onOpen }: { state: EmptyState } & OpenProps) {
       <img alt="" className="w-16" height="64" src="/logo.svg" width="64" />
       <h1 className="text-2xl font-bold">OpenLight</h1>
       <p className="text-neutral-400">Edit photos in your browser.</p>
-      <p className="mt-8 text-neutral-500">
-        Drop an image here or choose a file
-      </p>
       <OpenImage onOpen={onOpen} />
     </>
   );
