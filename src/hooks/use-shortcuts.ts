@@ -13,13 +13,6 @@ export function useShortcuts(
 		}
 		const target = event.target;
 		if (
-			event.key === "Enter" &&
-			target instanceof Element &&
-			target.closest("button")
-		) {
-			return;
-		}
-		if (
 			!inputs &&
 			target instanceof HTMLElement &&
 			(target.isContentEditable ||

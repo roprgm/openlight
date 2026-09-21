@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import type { KeyboardEventHandler, ReactNode } from "react";
 import { CloseIcon } from "@/components/icons/close";
 import Button from "@/components/ui/button";
 import ResizablePanel from "@/components/ui/resizable-panel";
@@ -10,10 +10,12 @@ export function EditorPanel({
 	header,
 	children,
 	footer,
+	onKeyDown,
 }: {
 	header?: ReactNode;
 	children: ReactNode;
 	footer?: ReactNode;
+	onKeyDown?: KeyboardEventHandler<HTMLElement>;
 }) {
 	const { width, onWidthChange } = useEditorSession();
 	return (
@@ -21,6 +23,7 @@ export function EditorPanel({
 			width={width}
 			onWidthChange={onWidthChange}
 			className="flex min-h-0 flex-col"
+			onKeyDown={onKeyDown}
 		>
 			{header}
 			<ScrollArea

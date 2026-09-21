@@ -92,6 +92,16 @@ export function CropEditor({ onClose }: { onClose: () => void }) {
 			</EditorViewport>
 			<EditorPanel
 				header={<PanelHeader title="Crop" onClose={onClose} />}
+				onKeyDown={(event) => {
+					// Enter on a panel button is its click; the crop handles still apply.
+					if (
+						event.key === "Enter" &&
+						event.target instanceof Element &&
+						event.target.closest("button")
+					) {
+						event.stopPropagation();
+					}
+				}}
 				footer={
 					<div className="border-t border-black p-3">
 						<Button className="w-full py-2" onClick={apply}>
