@@ -1,109 +1,131 @@
+import type { ReactNode } from "react";
 import type { Workspace } from "@/app/workspace";
 import { RendererProvider } from "@/components/editor/pipeline";
 import { DocumentProvider, useDocument } from "@/components/editor/session";
 import Button from "@/components/ui/button";
-import type { Gradient } from "@/core/document";
-import { findLayer } from "@/core/document";
+import type { Mask } from "@/core/document";
+import { findLayer, locateLayer } from "@/core/document";
+import { BrushProvider } from "@/features/layers/brush-tool";
 import { addLayer } from "@/features/layers/edits";
-import {
-  GradientProvider,
-  useGradientTool,
-} from "@/features/layers/gradient-tool";
+import { MaskToolProvider, type Nesting } from "@/features/layers/mask-tool";
 import { useShortcuts } from "@/hooks/use-shortcuts";
+import { AdjustPanel } from "./adjust";
 import { EditorCanvas } from "./canvas";
 import { ComparisonControl } from "./comparison-control";
 import { EmptyEditor } from "./empty";
 import { EditorHeader } from "./header";
 import { HistoryControls } from "./history";
 import { createMask } from "./layers";
-import { ModeRail } from "./mode-rail";
-import { type Mode, ModeProvider, modes, useMode } from "./modes";
 import { createEditorRenderer } from "./renderer";
 import { EditorSidebar } from "./sidebar";
+import { ToolRail } from "./tool-rail";
+import { exportTool, ToolProvider, tools, useTool } from "./tools";
 
-/** A View replaces the canvas and sidebar; a Panel fills the sidebar beside the canvas. */
-function ModeView() {
-  const { mode, setMode } = useMode();
-  const tool = useGradientTool();
-  useShortcuts({
-    l: () => {
-      setMode(modes[0]);
-      tool.draw();
-    },
-    r: () => {
-      setMode(modes[0]);
-      tool.draw("radial");
-    },
-  });
+/** A View replaces the canvas and sidebar; otherwise the tool's Canvas and Options join the shared canvas. */
+function ToolView() {
+  const { tool, setTool } = useTool();
+  const document = useDocument();
+  // Enter and Escape leave one level: shape tools return to Adjust, where the selection climbs to the image.
+  function up() {
+    const layers = document.scene.getState().layers;
+    const parent =
+      locateLayer(layers, document.selection.getState().layerId)?.parent ??
+      layers[0];
+    document.selectLayer(parent.id);
+  }
+  useShortcuts(
+    "Canvas" in tool || "View" in tool ? {} : { enter: up, escape: up },
+  );
   function close() {
-    setMode(modes[0]);
+    setTool(tools[0]);
     if (window.document.activeElement instanceof HTMLElement) {
       window.document.activeElement.blur();
     }
   }
-  if ("View" in mode) {
-    return <mode.View onClose={close} />;
+  if ("View" in tool) {
+    return <tool.View onClose={close} />;
   }
   return (
     <>
-      <EditorCanvas />
+      <EditorCanvas
+        tools={"Canvas" in tool ? <tool.Canvas key={tool.id} /> : undefined}
+        options={"Options" in tool ? <tool.Options /> : undefined}
+      />
       <EditorSidebar>
-        <mode.Panel />
+        <AdjustPanel />
       </EditorSidebar>
     </>
   );
 }
 
 function ExportButton() {
-  const { mode, setMode } = useMode();
-  const target: Mode = mode.id === "export" ? modes[0] : modes[2];
+  const { tool, setTool } = useTool();
+  const exporting = tool === exportTool;
   return (
     <Button
-      aria-pressed={mode.id === "export"}
+      aria-pressed={exporting}
       title="Export (E)"
       className="ml-1 aria-pressed:bg-neutral-600"
-      onClick={() => setMode(target)}
+      onClick={() => setTool(exporting ? tools[0] : exportTool)}
     >
       Export
     </Button>
   );
 }
 
-function DocumentEditor({ file }: { file: string }) {
+/** Mask creation and the tool that draws a shape are wired here, where features meet the rail. */
+function MaskTools({ children }: { children: ReactNode }) {
   const document = useDocument();
-  function addMask(
-    mask: Gradient,
-    target: { parentId?: string; operation: "add" | "subtract" },
-  ) {
+  const { setTool } = useTool();
+  function addMask(mask: Mask, nesting: Nesting) {
     const scene = document.scene.getState();
     const selected = document.selection.getState().layerId;
     // A new top-level mask goes above the selection's root ancestor.
     const root =
       scene.layers.find((item) => findLayer([item], selected)) ??
       scene.layers[0];
-    const placement = target.parentId
-      ? { inside: target.parentId }
+    const placement = nesting.parentId
+      ? { inside: nesting.parentId }
       : { above: root.id };
-    addLayer(document, createMask(mask, target.operation), placement);
+    addLayer(document, createMask(mask, nesting.operation), placement);
   }
   return (
-    <GradientProvider onCreate={addMask}>
-      <ModeProvider>
-        <EditorHeader file={file}>
-          <HistoryControls />
-          <hr
-            aria-orientation="vertical"
-            className="mx-1 h-4 w-px border-0 bg-neutral-600"
-          />
-          <ComparisonControl />
-          <ExportButton />
-        </EditorHeader>
-        <div className="flex min-h-0 flex-1 flex-col md:flex-row">
-          <ModeRail />
-          <ModeView />
-        </div>
-      </ModeProvider>
-    </GradientProvider>
+    <MaskToolProvider
+      onCreate={addMask}
+      onTool={(shape) => {
+        const tool = tools.find((entry) => entry.id === shape);
+        if (tool) {
+          setTool(tool);
+        }
+      }}
+      onDone={() => setTool(tools[0])}
+    >
+      {children}
+    </MaskToolProvider>
+  );
+}
+
+function DocumentEditor({ file }: { file: string }) {
+  return (
+    <ToolProvider>
+      <MaskTools>
+        <BrushProvider>
+          <EditorHeader file={file}>
+            <HistoryControls />
+            <hr
+              aria-orientation="vertical"
+              className="mx-1 h-4 w-px border-0 bg-neutral-600"
+            />
+            <ComparisonControl />
+            <ExportButton />
+          </EditorHeader>
+          <div className="flex min-h-0 flex-1 flex-col md:flex-row">
+            <ToolRail />
+            <ToolView />
+          </div>
+        </BrushProvider>
+      </MaskTools>
+    </ToolProvider>
   );
 }
 

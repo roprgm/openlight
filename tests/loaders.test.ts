@@ -93,6 +93,7 @@ test("file batches preserve ordering, group imports, recover from failures, and 
       expect(document.history.status.getState()).toEqual({
         undoCount: 5,
         redoCount: 0,
+        editing: false,
       });
       expect(document.scene.getState().layers[0].adjustments).toMatchObject({
         highlights: 0,

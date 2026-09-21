@@ -6,7 +6,7 @@ import { EditorViewport } from "@/components/editor/viewport";
 import { FlipIcon } from "@/components/icons/flip";
 import { RotateIcon } from "@/components/icons/rotate";
 import Button from "@/components/ui/button";
-import { Field } from "@/components/ui/field";
+import { Select } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
 import { imageFrame, type Point } from "@/core/image/frame";
 import { useShortcuts } from "@/hooks/use-shortcuts";
@@ -111,25 +111,23 @@ export function CropEditor({ onClose }: { onClose: () => void }) {
         }
       >
         <section aria-label="Crop tool" className="space-y-5 p-4">
-          <label className="flex items-center justify-between text-neutral-400">
+          <div className="flex items-center justify-between text-neutral-400">
             Aspect ratio
-            <Field className="relative w-24">
-              <select
-                aria-label="Aspect ratio"
-                value={ratio ?? "free"}
-                className="w-full cursor-pointer bg-transparent px-1 text-neutral-100 outline-none [color-scheme:dark]"
-                onChange={(event) => changeRatio(event.currentTarget.value)}
-              >
-                <option value="free">Free</option>
-                {custom && <option value={ratio}>Current</option>}
-                {Object.entries(ratios).map(([label, value]) => (
-                  <option key={label} value={value}>
-                    {label}
-                  </option>
-                ))}
-              </select>
-            </Field>
-          </label>
+            <Select
+              aria-label="Aspect ratio"
+              value={ratio ?? "free"}
+              className="w-24"
+              onChange={(event) => changeRatio(event.currentTarget.value)}
+            >
+              <option value="free">Free</option>
+              {custom && <option value={ratio}>Current</option>}
+              {Object.entries(ratios).map(([label, value]) => (
+                <option key={label} value={value}>
+                  {label}
+                </option>
+              ))}
+            </Select>
+          </div>
           <section
             aria-label="Rotate and flip image"
             className="grid grid-cols-4 items-center gap-2"

@@ -3,7 +3,7 @@ import { cn } from "cn";
 import type { ComponentProps } from "react";
 
 const button = cva(
-  "cursor-pointer rounded-md transition-colors focus-visible:outline-2 focus-visible:outline-offset-3 focus-visible:outline-neutral-400",
+  "cursor-pointer rounded-md transition-colors focus-visible:outline-1 focus-visible:outline-offset-1 focus-visible:outline-neutral-400/80",
   {
     variants: {
       variant: {

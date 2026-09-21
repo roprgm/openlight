@@ -13,7 +13,10 @@ for (const workload of [
   "pipeline-input",
   "masked-exposure",
   "radial-exposure",
+  "brush-exposure",
   "layer-stack",
+  "fill",
+  "pipeline-proxy",
 ] as const) {
   test(`rendering ${workload}`, async ({ page, browser }, info) => {
     await page.goto("/tests/gpu.html");
@@ -65,6 +68,7 @@ for (const workload of [
         completedMs: report.rendering.completedMs.median,
         gpuMs: report.profile?.gpuMs?.median ?? null,
         intermediateBytes: report.intermediateBytes,
+        rasterBytes: report.rasterBytes,
       }),
     );
   });

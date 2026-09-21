@@ -1,8 +1,14 @@
-import { effect, frame, init, target, timer } from "vgpu";
+import { effect, frame, init, type Timer, target, timer } from "vgpu";
 import { encodeImage } from "@/app/editor/export/export-image";
 import { createImageLayer } from "@/app/editor/layers";
 import { createEditorRenderer } from "@/app/editor/renderer";
-import type { Gradient, ProcessingLayer, Scene } from "@/core/document";
+import type {
+  BrushStroke,
+  Mask,
+  ProcessingLayer,
+  Scene,
+  StrokePoint,
+} from "@/core/document";
 import { createImageSource } from "@/core/image";
 import { imageFrame } from "@/core/image/frame";
 import { defaultAdjustments } from "@/features/adjustments/model";
@@ -18,7 +24,10 @@ export type Workload =
   | "pipeline-input"
   | "masked-exposure"
   | "radial-exposure"
-  | "layer-stack";
+  | "brush-exposure"
+  | "layer-stack"
+  | "fill"
+  | "pipeline-proxy";
 
 function summarize(values: number[]) {
   const sorted = values.toSorted((a, b) => a - b);
@@ -29,6 +38,40 @@ function summarize(values: number[]) {
         sorted[Math.ceil((sorted.length - 1) / 2)]) /
       2,
     p95: sorted[Math.ceil(sorted.length * 0.95) - 1],
+  };
+}
+
+/** Wavy strokes across the image, three painted and one erased, dabbed every quarter diameter. */
+function brushStrokes(size: [number, number]): BrushStroke[] {
+  return [0.25, 0.45, 0.65, 0.45].map((row, index) => ({
+    mode: index === 3 ? "erase" : "paint",
+    size: index === 3 ? 120 : 240,
+    feather: 0.5,
+    flow: 0.6,
+    points: Array.from({ length: 61 }, (_, n): StrokePoint => {
+      const x = (size[0] * n) / 60;
+      return [x, size[1] * row + 120 * Math.sin(x / 200), 1];
+    }),
+  }));
+}
+
+function benchmarkMask(workload: Workload, size: [number, number]): Mask {
+  if (workload === "radial-exposure") {
+    return {
+      kind: "radial",
+      center: [size[0] / 2, size[1] / 2],
+      radius: [size[0] * 0.3, size[1] * 0.35],
+      angle: 20,
+      feather: 0.5,
+    };
+  }
+  if (workload === "brush-exposure") {
+    return { kind: "brush", strokes: brushStrokes(size) };
+  }
+  return {
+    kind: "linear",
+    start: [0, size[1] * 0.2],
+    end: [0, size[1] * 0.8],
   };
 }
 
@@ -60,7 +103,11 @@ export async function benchmarkRendering(
   });
   const inputId = workload === "pipeline-input" ? "benchmark-image" : undefined;
   const histogram = inputId ? createHistogram(gpu) : undefined;
-  const combined = workload === "pipeline" || workload === "pipeline-input";
+  const combined =
+    workload === "pipeline" ||
+    workload === "pipeline-input" ||
+    workload === "pipeline-proxy";
+  const proxy = workload === "pipeline-proxy";
   const detail = combined || workload === "detail";
   const effects: ProcessingLayer[] = [];
   const common = { visible: true, opacity: 1, children: [] };
@@ -89,22 +136,9 @@ export async function benchmarkRendering(
   if (
     workload === "masked-exposure" ||
     workload === "radial-exposure" ||
+    workload === "brush-exposure" ||
     workload === "layer-stack"
   ) {
-    const mask: Gradient =
-      workload === "radial-exposure"
-        ? {
-            kind: "radial",
-            center: [size[0] / 2, size[1] / 2],
-            radius: [size[0] * 0.3, size[1] * 0.35],
-            angle: 20,
-            feather: 0.5,
-          }
-        : {
-            kind: "linear",
-            start: [0, size[1] * 0.2],
-            end: [0, size[1] * 0.8],
-          };
     effects.push({
       ...common,
       id: "benchmark-gradient",
@@ -114,7 +148,7 @@ export async function benchmarkRendering(
       adjustments: defaultAdjustments,
       toneCurve: defaultCurve,
       opacity: 0.75,
-      mask,
+      mask: benchmarkMask(workload, size),
       children: [
         {
           ...common,
@@ -134,6 +168,16 @@ export async function benchmarkRendering(
       kind: "vignette",
       opacity: workload === "layer-stack" ? 0.6 : 1,
       vignette: { intensity: 80, softness: 60 },
+    });
+  }
+  if (workload === "fill") {
+    effects.push({
+      ...common,
+      id: "benchmark-fill",
+      name: "Color",
+      kind: "fill",
+      opacity: 0.6,
+      fill: { color: "#f0763c", blend: "soft-light" },
     });
   }
   const scene: Scene = {
@@ -158,8 +202,14 @@ export async function benchmarkRendering(
       ...effects,
     ],
   };
+  function create(clock?: Timer) {
+    const renderer = createEditorRenderer(gpu, source, clock);
+    // Half a device pixel per source pixel, as a fitted view of a large photo, renders at a factor of 2.
+    renderer.setDisplayScale(proxy ? 0.5 : 1);
+    return renderer;
+  }
   const setupStart = performance.now();
-  let renderer = createEditorRenderer(gpu, source);
+  let renderer = create();
   const rendererSetupMs = performance.now() - setupStart;
   async function measure() {
     const encoding: number[] = [];
@@ -168,7 +218,8 @@ export async function benchmarkRendering(
     const nodes: Record<string, number[]> = {};
     for (let i = 0; i < warmup + samples; i++) {
       const start = performance.now();
-      await renderer.update(scene, inputId);
+      // A new scene object forces the render; the renderer skips a request equal to its last.
+      await renderer.update({ ...scene }, inputId, proxy);
       const inspected = inputId && renderer.inputImage(inputId);
       if (inputId && !inspected) {
         throw Error("Missing benchmark curve input.");
@@ -221,7 +272,7 @@ export async function benchmarkRendering(
     frame(gpu, (f) => f.pass(input, fill));
     await gpu.gpu.queue.onSubmittedWorkDone();
     const start = performance.now();
-    await renderer.update(scene, inputId);
+    await renderer.update({ ...scene }, inputId, proxy);
     await gpu.gpu.queue.onSubmittedWorkDone();
     await gpu.settled();
     const firstRenderMs = performance.now() - start;
@@ -239,7 +290,7 @@ export async function benchmarkRendering(
     });
     // Profile separately so timestamp queries/readback do not affect the latency comparison.
     renderer.dispose();
-    renderer = createEditorRenderer(gpu, source, clock);
+    renderer = create(clock);
     const profile = clock ? await measure() : null;
     return {
       workload,
@@ -264,6 +315,11 @@ export async function benchmarkRendering(
       // All graph targets in these workloads are rgba16float. Source and driver memory excluded.
       intermediateBytes: storage.textures.reduce(
         (sum, { size }) => sum + size[0] * size[1] * 8,
+        0,
+      ),
+      // Brush rasters are r8unorm at source resolution, outside the graph.
+      rasterBytes: storage.rasters.reduce(
+        (sum, { size }) => sum + size[0] * size[1],
         0,
       ),
       image: [...new Uint8Array(await blob.arrayBuffer())],

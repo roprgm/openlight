@@ -9,7 +9,8 @@ import { createLoaderRegistry } from "@/app/loaders/registry";
 import type {
   Adjustments,
   Details,
-  Gradient,
+  Fill,
+  Mask,
   Preview,
   ProcessingLayer,
   ToneCurve,
@@ -27,6 +28,7 @@ import {
 } from "@/features/color-mixer/model";
 import { setDetails } from "@/features/details/edits";
 import { defaultDetails } from "@/features/details/model";
+import { setFill } from "@/features/fill/edits";
 import {
   addLayer,
   deleteLayer,
@@ -99,6 +101,10 @@ export function createControls(gpu: Gpu, workspace: Workspace) {
         setVignette(document, change, id),
       );
     },
+    setFill(change: Partial<Fill>, id?: string) {
+      const document = workspace.getDocument();
+      editEffect(document, "fill", id, (id) => setFill(document, change, id));
+    },
     addLayer(kind: ProcessingLayer["kind"], placement?: LayerPlacement) {
       const document = workspace.getDocument();
       if (kind !== "mask") {
@@ -114,7 +120,7 @@ export function createControls(gpu: Gpu, workspace: Workspace) {
       setLayer(workspace.getDocument(), id, change),
     setExposure: (id: string, exposure: number) =>
       setExposure(workspace.getDocument(), id, exposure),
-    setLayerMask: (id: string, mask: Gradient) =>
+    setLayerMask: (id: string, mask: Mask) =>
       setLayerMask(workspace.getDocument(), id, mask),
     setMaskOperation: (id: string, operation: "add" | "subtract") =>
       setMaskOperation(workspace.getDocument(), id, operation),

@@ -62,6 +62,7 @@ export function RendererProvider({
     let active = true;
     let requestedScene: ReturnType<typeof document.scene.getState> | undefined;
     let requestedInput: string | undefined;
+    let requestedInteractive = false;
     const render = () => {
       const scene = document.scene.getState();
       const target = adjustmentTarget(
@@ -69,14 +70,21 @@ export function RendererProvider({
         document.selection.getState().layerId,
       );
       const input = target && "toneCurve" in target ? target.id : undefined;
+      // An open gesture renders a proxy; its end renders the same scene in full.
+      const interactive = document.history.status.getState().editing;
       // A dropped input can stay live; only a new one needs a render.
-      if (scene === requestedScene && (input === requestedInput || !input)) {
+      if (
+        scene === requestedScene &&
+        (input === requestedInput || !input) &&
+        interactive === requestedInteractive
+      ) {
         return;
       }
       requestedScene = scene;
       requestedInput = input;
+      requestedInteractive = interactive;
       setError(undefined);
-      renderer.update(scene, input).catch((error) => {
+      renderer.update(scene, input, interactive).catch((error) => {
         if (active) {
           setError(String(error));
         }
@@ -84,11 +92,13 @@ export function RendererProvider({
     };
     const unsubscribeScene = document.scene.subscribe(render);
     const unsubscribeSelection = document.selection.subscribe(render);
+    const unsubscribeHistory = document.history.status.subscribe(render);
     render();
     return () => {
       active = false;
       unsubscribeScene();
       unsubscribeSelection();
+      unsubscribeHistory();
       renderer.dispose();
     };
   }, [renderer, document]);

@@ -53,6 +53,7 @@ test("nested layers compose in order, move atomically, and duplicate with indepe
     expect(document.history.status.getState()).toEqual({
       undoCount: 0,
       redoCount: 0,
+      editing: false,
     });
     expect(document.selection.getState().layerId).toBe("base");
     controls.setVignette({ softness: 75 });

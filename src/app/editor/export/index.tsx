@@ -6,8 +6,8 @@ import { EditorPanel, PanelHeader } from "@/components/editor/panel";
 import { useDocument, useScene } from "@/components/editor/session";
 import { EditorViewport } from "@/components/editor/viewport";
 import Button from "@/components/ui/button";
-import { Field } from "@/components/ui/field";
 import { ScrubInput } from "@/components/ui/scrub-input";
+import { Select } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
 import Spinner from "@/components/ui/spinner";
 import type { Point } from "@/core/image/frame";
@@ -70,25 +70,23 @@ function FormatSelect({
 }) {
   return (
     <div className="space-y-2">
-      <label className="flex items-center justify-between text-neutral-400">
+      <div className="flex items-center justify-between text-neutral-400">
         Format
-        <Field className="relative w-28">
-          <select
-            aria-label="Format"
-            value={value.id}
-            className="w-full cursor-pointer bg-transparent px-1 text-neutral-100 outline-none [color-scheme:dark]"
-            onChange={(event) =>
-              onChange(formats[event.currentTarget.selectedIndex])
-            }
-          >
-            {formats.map((format) => (
-              <option key={format.id} value={format.id}>
-                {format.label}
-              </option>
-            ))}
-          </select>
-        </Field>
-      </label>
+        <Select
+          aria-label="Format"
+          value={value.id}
+          className="w-28"
+          onChange={(event) =>
+            onChange(formats[event.currentTarget.selectedIndex])
+          }
+        >
+          {formats.map((format) => (
+            <option key={format.id} value={format.id}>
+              {format.label}
+            </option>
+          ))}
+        </Select>
+      </div>
       <p className="text-neutral-500">{value.description}</p>
     </div>
   );

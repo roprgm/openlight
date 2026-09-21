@@ -9,15 +9,15 @@ import { createDocument, createResources } from "@/core/document";
 import { createImageSource } from "@/core/image";
 import { accept } from "@/core/image/decode";
 import { imageFrame } from "@/core/image/frame";
-import { GradientProvider } from "@/features/layers/gradient-tool";
+import { MaskToolProvider } from "@/features/layers/mask-tool";
 import { AdjustPanel } from "./adjust";
 import Backdrop from "./backdrop";
 import { EditorHeader } from "./header";
 import { createImageLayer } from "./layers";
-import { ModeTabList } from "./mode-rail";
-import { modes } from "./modes";
 import { createEditorRenderer } from "./renderer";
 import { EditorSidebar } from "./sidebar";
+import { ToolTabList } from "./tool-rail";
+import { tools } from "./tools";
 
 type OpenProps = { onOpen: (files: File[]) => void };
 
@@ -30,7 +30,7 @@ function OpenImage({ onOpen }: OpenProps) {
       <button
         type="button"
         onClick={() => input.current?.click()}
-        className="cursor-pointer text-neutral-200 underline decoration-neutral-600 underline-offset-4 transition-colors hover:decoration-neutral-200 focus-visible:outline-2 focus-visible:outline-offset-3 focus-visible:outline-neutral-400"
+        className="cursor-pointer text-neutral-200 underline decoration-neutral-600 underline-offset-4 transition-colors hover:decoration-neutral-200 focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-neutral-400/80"
       >
         choose a file
       </button>
@@ -105,10 +105,10 @@ export function EmptyEditor({
   return (
     <DocumentProvider value={document}>
       <RendererProvider createRenderer={createEditorRenderer}>
-        <GradientProvider onCreate={() => {}}>
+        <MaskToolProvider onCreate={() => {}}>
           <EditorHeader file={state.file} />
           <div className="flex min-h-0 flex-1 flex-col md:flex-row">
-            <ModeTabList selected={modes[0]} />
+            <ToolTabList selected={tools[0]} />
             <div className="relative isolate grid min-h-0 min-w-0 flex-1 place-content-center justify-items-center gap-3 overflow-hidden bg-[radial-gradient(circle,#292929,#131313_55%)] p-6">
               <Backdrop />
               <Status state={state} onOpen={onOpen} />
@@ -117,7 +117,7 @@ export function EmptyEditor({
               <AdjustPanel />
             </EditorSidebar>
           </div>
-        </GradientProvider>
+        </MaskToolProvider>
       </RendererProvider>
     </DocumentProvider>
   );

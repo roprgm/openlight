@@ -19,17 +19,23 @@ type ScrubInputProps = Omit<
   min: number;
   max: number;
   step?: number;
-  /** "box" always shows the field chrome; "text" reads as plain text until edited. */
-  variant?: "box" | "text";
+  /** Follows the number after a hair of space, in a quieter color. */
+  unit?: string;
+  /**
+   * "box" always shows the field chrome; "text" reads as plain text until edited and hugs its digits;
+   * "pill" is "text" shaped like the other controls in the bar over the canvas.
+   */
+  variant?: "box" | "text" | "pill";
 };
 
 const input = cva(
-  "w-full cursor-ew-resize bg-transparent text-neutral-100 tabular-nums outline-none focus:cursor-text",
+  "cursor-ew-resize bg-transparent text-neutral-100 tabular-nums outline-none selection:bg-white/20 focus:cursor-text",
   {
     variants: {
       variant: {
-        box: "text-center",
-        text: "text-right focus:text-center",
+        box: "w-full text-center",
+        text: "text-right",
+        pill: "text-right",
       },
     },
   },
@@ -45,6 +51,7 @@ export function ScrubInput({
   min,
   max,
   step = 1,
+  unit,
   variant = "box",
   className,
   ...props
@@ -52,6 +59,11 @@ export function ScrubInput({
   const decimals = `${step}`.split(".")[1]?.length ?? 0;
   const [draft, setDraft] = useState<string>();
   const drag = useRef<Drag | undefined>(undefined);
+  // Room for the longest value in range, so the field neither clips nor floats in empty space.
+  const chars = Math.max(
+    2,
+    ...[min, max].map((bound) => bound.toFixed(decimals).length),
+  );
 
   const clamp = (next: number) =>
     Math.min(max, Math.max(min, Number(next.toFixed(decimals))));
@@ -100,13 +112,20 @@ export function ScrubInput({
 
   return (
     <label
-      className={cn("flex items-center gap-2 text-neutral-400", className)}
+      className={cn("flex items-center gap-1.5 text-neutral-400", className)}
     >
       {label}
-      <Field className="w-16 max-w-full" variant={variant}>
+      <Field
+        className={cn(
+          "inline-flex items-center gap-0.5",
+          variant === "box" && "w-16 max-w-full",
+        )}
+        variant={variant}
+      >
         <input
           {...props}
           className={input({ variant })}
+          style={variant === "box" ? undefined : { width: `${chars}ch` }}
           inputMode="decimal"
           onBlur={commit}
           onChange={(event) => setDraft(event.currentTarget.value)}
@@ -119,6 +138,7 @@ export function ScrubInput({
           type="text"
           value={draft ?? value.toFixed(decimals)}
         />
+        {unit && <span className="text-neutral-500">{unit}</span>}
       </Field>
     </label>
   );

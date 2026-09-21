@@ -1,17 +1,19 @@
+import type { ReactNode } from "react";
 import { Image } from "@/components/editor/image";
 import { useScene } from "@/components/editor/session";
 import { EditorViewport } from "@/components/editor/viewport";
-import { GradientOverlay } from "@/features/layers/gradient-overlay";
-import { useGradientTool } from "@/features/layers/gradient-tool";
-import { LayerToolbar } from "@/features/layers/toolbar";
+import { CanvasToolbar } from "@/features/layers/toolbar";
 import { ComparisonDivider } from "./comparison-divider";
+import { MaskOverlaySync } from "./mask-overlay";
 
-export function EditorCanvas() {
-  const tool = useGradientTool();
-  let gradientKey = "selection";
-  if (tool.target) {
-    gradientKey = `new/${tool.target.shape}/${tool.target.parentId ?? "root"}/${tool.target.operation}`;
-  }
+/** The shared canvas; the active tool supplies the overlay on it and the options in the bar above it. */
+export function EditorCanvas({
+  tools,
+  options,
+}: {
+  tools: ReactNode;
+  options?: ReactNode;
+}) {
   const size = useScene((scene) => scene.frame.size);
   return (
     <EditorViewport
@@ -19,10 +21,11 @@ export function EditorCanvas() {
       overlay={
         <>
           <ComparisonDivider />
-          <LayerToolbar />
+          <CanvasToolbar>{options}</CanvasToolbar>
+          <MaskOverlaySync />
         </>
       }
-      tools={<GradientOverlay key={gradientKey} />}
+      tools={tools}
     >
       <Image original="originalImage" />
     </EditorViewport>

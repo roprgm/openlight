@@ -119,16 +119,14 @@ test("draw a mask, edit its child effects, reorder layers and undo", async ({
   });
   await page.screenshot({ path: info.outputPath("layers-before-ui.png") });
   await saveExport("layers-before-export.png");
-  await page
-    .getByRole("button", { name: "Add linear mask", exact: true })
-    .click();
+  await page.getByRole("tab", { name: "Linear gradient", exact: true }).click();
   const overlay = page.getByLabel("Gradient mask canvas", { exact: true });
   const bounds = await box(overlay);
   const scale = Math.min(bounds.width / 1200, bounds.height / 800, 2);
   const center = [bounds.x + bounds.width / 2, bounds.y + bounds.height / 2];
   const from = [center[0], center[1] - 200 * scale];
   const to = [center[0], center[1] + 200 * scale];
-  await test.step("cancellation is empty; drawing creates a mask with its own adjustments", async () => {
+  await test.step("cancellation is empty; a new mask shows its overlay until it changes the image", async () => {
     await page.mouse.move(from[0], from[1]);
     await page.mouse.down();
     await page.mouse.move(to[0], to[1]);
@@ -143,18 +141,13 @@ test("draw a mask, edit its child effects, reorder layers and undo", async ({
         tinted: center[0] > center[1] + 30,
       };
     }
-    await page.keyboard.press("l");
     await drag(page, from, to);
     await expect.poll(maskPreview).toEqual({ shown: true, tinted: true });
-    await page.keyboard.press("Escape");
+    await page.keyboard.press("ControlOrMeta+z");
     expect((await state()).scene?.layers).toHaveLength(1);
     await expect.poll(maskPreview).toEqual({ shown: false, tinted: false });
     await page.keyboard.press("l");
     await drag(page, from, to);
-    await expect.poll(maskPreview).toEqual({ shown: true, tinted: true });
-    await page.keyboard.press("Enter");
-    await expect.poll(maskPreview).toEqual({ shown: false, tinted: false });
-    await page.keyboard.press("o");
     await expect.poll(maskPreview).toEqual({ shown: true, tinted: true });
     const layers = (await state()).scene?.layers;
     expect(layers).toHaveLength(2);
@@ -163,6 +156,10 @@ test("draw a mask, edit its child effects, reorder layers and undo", async ({
       children: [],
     });
     await setField("Exposure", "1");
+    await expect.poll(maskPreview).toEqual({ shown: false, tinted: false });
+    await page.keyboard.press("o");
+    await expect.poll(maskPreview).toEqual({ shown: true, tinted: true });
+    await page.keyboard.press("o");
     await expect.poll(maskPreview).toEqual({ shown: false, tinted: false });
     const [top, bottom] = await samples(page);
     expect(top[0]).toBeGreaterThan(170);
@@ -215,8 +212,24 @@ test("draw a mask, edit its child effects, reorder layers and undo", async ({
       .dblclick();
     await setField("Layer name", "Sky");
     const masked = await samples(page);
+    // The overlay tint scales with opacity, like the mask's coverage does.
+    const tint = async () => {
+      const { center } = await readPreview(page, [0, -100 * scale]);
+      return center[0] - center[1];
+    };
+    await page.keyboard.press("o");
+    await expect.poll(tint).toBeGreaterThan(30);
+    const full = await tint();
+    await setField("Opacity", "50");
+    await expect.poll(tint).toBeLessThan(full - 10);
+    await page.keyboard.press("o");
+    await page.getByRole("button", { name: "Undo", exact: true }).click();
     await setField("Opacity", "0");
     expect(await samples(page)).toEqual(original);
+    // The curve still shows what it would affect.
+    await expect(
+      page.getByLabel("curve input histogram").locator("polyline"),
+    ).toHaveAttribute("points", /,\d{1,2}\./);
     await page.getByRole("button", { name: "Undo", exact: true }).click();
     expect(await samples(page)).toEqual(masked);
     await page.getByRole("button", { name: "Show Sky", exact: true }).click();
@@ -227,7 +240,7 @@ test("draw a mask, edit its child effects, reorder layers and undo", async ({
   await test.step("a subtracting child changes coverage and Add restores the masked region", async () => {
     const masked = await samples(page);
     await page
-      .getByRole("button", { name: "Subtract from mask", exact: true })
+      .getByRole("button", { name: "Subtract from Sky", exact: true })
       .click();
     await page
       .locator("[popover]:popover-open")
@@ -289,10 +302,12 @@ test("draw a mask, edit its child effects, reorder layers and undo", async ({
   await test.step("radial masks edit locally, resize, feather, rotate, subtract and undo", async () => {
     const before = await readImage(page);
     const beforeSamples = await samples(page);
+    // Guides win over drawing, so the drag starts below Sky's rotation guide.
+    const origin = [center[0], center[1] + 60 * scale];
     await page.keyboard.press("r");
-    await drag(page, center, [
-      center[0] + 220 * scale,
-      center[1] + 120 * scale,
+    await drag(page, origin, [
+      origin[0] + 220 * scale,
+      origin[1] + 120 * scale,
     ]);
     await setField("Exposure", "1");
     expect((await readImage(page)).center[0]).toBeGreaterThan(
@@ -302,13 +317,13 @@ test("draw a mask, edit its child effects, reorder layers and undo", async ({
     await page.screenshot({ path: info.outputPath("radial-ui.png") });
     await saveExport("radial-export.png");
     const edited = await state();
-    await page.mouse.move(center[0] + 40, center[1] + 30);
+    await page.mouse.move(origin[0] + 40, origin[1] + 30);
     await expect(
       page.getByLabel("Move radial gradient", { exact: true }),
     ).toHaveCSS("cursor", "grab");
     await page.mouse.down();
     await expect(overlay).toHaveCSS("cursor", "grabbing");
-    await page.mouse.move(center[0] + 40 + 300 * scale, center[1] + 30, {
+    await page.mouse.move(origin[0] + 40 + 300 * scale, origin[1] + 30, {
       steps: 8,
     });
     const preview = (await state()).scene;
@@ -364,7 +379,7 @@ test("draw a mask, edit its child effects, reorder layers and undo", async ({
     await drag(
       page,
       [rotation.x + rotation.width / 2, rotation.y + rotation.height / 2],
-      [center[0] + 150 * scale, center[1]],
+      [origin[0] + 150 * scale, origin[1]],
     );
     const rotated = (await state()).scene?.layers.at(-1);
     expect(
@@ -374,15 +389,18 @@ test("draw a mask, edit its child effects, reorder layers and undo", async ({
     ).toBe(true);
     await page.keyboard.press("ControlOrMeta+z");
     await page
-      .getByRole("button", { name: "Subtract from mask", exact: true })
+      .getByRole("button", {
+        name: "Subtract from Radial Gradient",
+        exact: true,
+      })
       .click();
     await page
       .locator("[popover]:popover-open")
       .getByRole("button", { name: "Radial gradient", exact: true })
       .click();
-    await drag(page, center, [
-      center[0] + 220 * scale,
-      center[1] + 120 * scale,
+    await drag(page, origin, [
+      origin[0] + 220 * scale,
+      origin[1] + 120 * scale,
     ]);
     expect((await readImage(page)).center).toEqual(before.center);
     await page.keyboard.press("Delete");

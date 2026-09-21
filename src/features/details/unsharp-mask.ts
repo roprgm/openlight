@@ -1,7 +1,7 @@
 import { merge, node, type RenderImage, split } from "@/core/renderer";
 import shader from "./unsharp-mask.wgsl";
 
-/** Builds a separable luminance blur and combines it with the unchanged input. */
+/** Builds a separable luminance blur and combines it with the unchanged input; the radius is in source pixels. */
 export function unsharpMask(
   name: string,
   amount: number,
@@ -19,7 +19,11 @@ export function unsharpMask(
     const samplers = {
       linearSampler: { minFilter: "linear", magFilter: "linear" },
     } as const;
-    const params = { reduction, amount, sigma: radius / reduction };
+    const params = {
+      reduction,
+      amount,
+      sigma: radius / (reduction * image.scale[0]),
+    };
     function blur(label: string, mode: number) {
       const pass = node(`${name}/${label}`, shader, {
         size,

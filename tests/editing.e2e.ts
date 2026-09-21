@@ -436,22 +436,30 @@ test("edit a photo, inspect the preview and histograms, undo changes, and export
   });
 
   await page.getByRole("button", { name: "photo.svg", exact: true }).click();
-  await test.step("a mask's curve input clears while the mask is hidden and returns on undo", async () => {
+  await test.step("a mask's curve input weighs its coverage and stays while the mask is hidden", async () => {
+    const plot = page
+      .getByLabel("curve input histogram", { exact: true })
+      .locator("polyline");
+    await expect(plot).toHaveAttribute("points", /,\d{1,2}\./);
+    const whole = await plot.getAttribute("points");
     await page.evaluate(() => {
       const api = window.openlight;
       const mask = api.addLayer("mask");
       api.setLayer(mask, { name: "Curve input mask" });
-      api.setAdjustments({ exposure: 1 }, mask);
     });
-    const plot = page
-      .getByLabel("curve input histogram", { exact: true })
-      .locator("polyline");
+    // A neutral mask receives the same pixels, counted only where it covers them.
+    await expect(plot).toHaveAttribute("points", /,\d{1,2}\./);
+    await expect(plot).not.toHaveAttribute("points", whole ?? "");
+    await page.evaluate(() => {
+      const api = window.openlight;
+      api.setAdjustments({ exposure: 1 }, api.getState().selectedLayerId);
+    });
     await expect(plot).toHaveAttribute("points", /,\d{1,2}\./);
     const points = await plot.getAttribute("points");
     await page
       .getByRole("button", { name: "Show Curve input mask", exact: true })
       .click();
-    await expect(plot).toHaveAttribute("points", "");
+    await expect(plot).toHaveAttribute("points", points ?? "");
     await page.getByRole("button", { name: "Undo", exact: true }).click();
     await expect(plot).toHaveAttribute("points", points ?? "");
     await page.evaluate(() => {
@@ -463,7 +471,7 @@ test("edit a photo, inspect the preview and histograms, undo changes, and export
   });
   await page.getByRole("button", { name: "photo.svg", exact: true }).click();
   await test.step("mode bar switches panels by click, arrow keys, and letters", async () => {
-    const modes = page.getByRole("tablist", { name: "Editor mode" });
+    const modes = page.getByRole("tablist", { name: "Tools" });
     const selected = modes.getByRole("tab", { selected: true });
     await expect(selected).toHaveAccessibleName("Adjust");
     const exportButton = page.getByRole("button", {
@@ -485,6 +493,13 @@ test("edit a photo, inspect the preview and histograms, undo changes, and export
     ).toBeVisible();
     await modes.getByRole("tab", { name: "Crop" }).click();
     await expect(selected).toHaveAccessibleName("Crop");
+    await page.keyboard.press("ArrowLeft");
+    await expect(selected).toHaveAccessibleName("Radial gradient");
+    await expect(
+      page.getByRole("heading", { name: "Adjustments", exact: true }),
+    ).toBeVisible();
+    await page.keyboard.press("ArrowLeft");
+    await page.keyboard.press("ArrowLeft");
     await page.keyboard.press("ArrowLeft");
     await expect(selected).toHaveAccessibleName("Adjust");
     await expect(selected).toBeFocused();

@@ -17,6 +17,34 @@ function document() {
   });
 }
 
+test("drop removes the latest entry only after its snapshot, leaving no redo, and cancels an open group", () => {
+  const doc = document();
+  const start = doc.scene.getState();
+  setAdjustments(doc, { exposure: 1 });
+  const adjusted = doc.scene.getState();
+  setAdjustments(doc, { exposure: 2 });
+  doc.history.undo();
+  doc.history.drop(adjusted);
+  expect(doc.scene.getState()).toBe(adjusted);
+  expect(doc.history.status.getState()).toEqual({
+    undoCount: 1,
+    redoCount: 1,
+    editing: false,
+  });
+  doc.history.drop(start);
+  expect(doc.scene.getState()).toBe(start);
+  expect(doc.history.status.getState()).toEqual({
+    undoCount: 0,
+    redoCount: 0,
+    editing: false,
+  });
+  doc.history.begin();
+  setAdjustments(doc, { exposure: 3 });
+  doc.history.drop(start);
+  expect(doc.scene.getState()).toBe(start);
+  expect(doc.history.status.getState().undoCount).toBe(0);
+});
+
 test("documents edit independently without React, retain bounded history, and reject edits after replacement", async () => {
   const first = document();
   const second = document();
@@ -94,11 +122,13 @@ test("documents edit independently without React, retain bounded history, and re
   expect(first.history.status.getState()).toEqual({
     undoCount: 0,
     redoCount: 100,
+    editing: false,
   });
   setAdjustments(first, { contrast: 10 });
   expect(first.history.status.getState()).toEqual({
     undoCount: 1,
     redoCount: 0,
+    editing: false,
   });
   const workspace = createWorkspace();
   await workspace.open("first", async () => first);

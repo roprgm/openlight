@@ -1,17 +1,60 @@
 import {
+  type BrushStroke,
   type EditorDocument,
   editLayer,
   findLayer,
-  type Gradient,
   type Layer,
   locateLayer,
+  type Mask,
   type ProcessingLayer,
   type Scene,
+  type StrokePoint,
   updateLayer,
   walkLayers,
 } from "@/core/document";
 
-function validateMask(mask: Gradient) {
+function validPoints(points: readonly StrokePoint[]) {
+  return (
+    Array.isArray(points) &&
+    points.length > 0 &&
+    points.every(
+      (point) =>
+        Array.isArray(point) &&
+        point.length === 3 &&
+        point.every(Number.isFinite) &&
+        point[2] >= 0 &&
+        point[2] <= 1,
+    )
+  );
+}
+
+function validateStroke(stroke: BrushStroke) {
+  if (
+    (stroke.mode !== "paint" && stroke.mode !== "erase") ||
+    !Number.isFinite(stroke.size) ||
+    stroke.size <= 0 ||
+    !Number.isFinite(stroke.feather) ||
+    stroke.feather < 0 ||
+    stroke.feather > 1 ||
+    !Number.isFinite(stroke.flow) ||
+    stroke.flow < 0 ||
+    stroke.flow > 1 ||
+    !validPoints(stroke.points)
+  ) {
+    throw Error(
+      "A stroke needs a paint or erase mode, a positive size, feather and flow from 0 to 1, and finite points with pressure from 0 to 1.",
+    );
+  }
+}
+
+function validateMask(mask: Mask) {
+  if (mask.kind === "brush") {
+    if (!Array.isArray(mask.strokes)) {
+      throw Error("A brush mask needs a list of strokes.");
+    }
+    mask.strokes.forEach(validateStroke);
+    return;
+  }
   if (mask.kind === "radial") {
     if (
       mask.center.length !== 2 ||
@@ -167,17 +210,61 @@ export function setExposure(
   });
 }
 
-export function setLayerMask(
-  document: EditorDocument,
-  id: string,
-  mask: Gradient,
-) {
+export function setLayerMask(document: EditorDocument, id: string, mask: Mask) {
   validateMask(mask);
   editLayer(document, id, (layer) => {
     if (layer.kind !== "mask") {
       throw Error("Select a mask layer.");
     }
     return { ...layer, mask: structuredClone(mask) };
+  });
+}
+
+function brushLayer(layer: Layer) {
+  if (layer.kind !== "mask" || layer.mask.kind !== "brush") {
+    throw Error("Select a brush mask.");
+  }
+  return { layer, strokes: layer.mask.strokes };
+}
+
+/** Starts a stroke on a brush mask; group it with the points that follow. */
+export function paintStroke(
+  document: EditorDocument,
+  id: string,
+  stroke: BrushStroke,
+) {
+  validateStroke(stroke);
+  editLayer(document, id, (item) => {
+    const { layer, strokes } = brushLayer(item);
+    return {
+      ...layer,
+      mask: { kind: "brush", strokes: [...strokes, structuredClone(stroke)] },
+    };
+  });
+}
+
+/** Appends points to the mask's last stroke, keeping earlier points so rendering only stamps the new ones. */
+export function extendStroke(
+  document: EditorDocument,
+  id: string,
+  points: readonly StrokePoint[],
+) {
+  if (!validPoints(points)) {
+    throw Error(
+      "Stroke points need finite coordinates and pressure from 0 to 1.",
+    );
+  }
+  editLayer(document, id, (item) => {
+    const { layer, strokes } = brushLayer(item);
+    const last = strokes.at(-1);
+    if (!last) {
+      throw Error("Start a stroke before extending it.");
+    }
+    const stroke = { ...last, points: [...last.points, ...points] };
+    return {
+      ...layer,
+      mask: { kind: "brush", strokes: [...strokes.slice(0, -1), stroke] },
+    };
   });
 }
 

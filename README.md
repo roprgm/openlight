@@ -19,9 +19,16 @@ Image processing runs on your own GPU with WebGPU. Photos never leave your devic
 
 **Layers and masks**
 
-- Draggable effect layers: Details, Exposure, Color Mixer, and Vignette.
+- Draggable effect layers: Details, Exposure, Color Mixer, Vignette, and Color, which paints one color with Photoshop blend modes.
 - Linear and radial masks with their own adjustments and child effects.
 - Add and Subtract submasks to shape a mask's coverage.
+
+**Tools**
+
+- Brush, linear, and radial gradient tools on the rail draw masks; their options sit in the bar over the image.
+- Brush masks with size, feather, flow, pen pressure, and Alt to erase.
+- The mask overlay shows until a mask changes the image, then the image shows the mask; the Overlay button shows or hides it.
+- Edits preview at a reduced resolution while you drag, then render in full.
 
 **Compose**
 

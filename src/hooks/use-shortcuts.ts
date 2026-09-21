@@ -15,13 +15,14 @@ export function useShortcuts(
     if (window.document.querySelector(":popover-open")) {
       return;
     }
+    const typing =
+      'input:not([type="range"]), textarea, select, dialog, [role="dialog"]';
+    // Enter on a focused button or link is its activation, not a shortcut.
+    const owned = event.key === "Enter" ? `${typing}, button, a` : typing;
     if (
       !inputs &&
       target instanceof HTMLElement &&
-      (target.isContentEditable ||
-        target.closest(
-          'input:not([type="range"]), textarea, select, dialog, [role="dialog"]',
-        ))
+      (target.isContentEditable || target.closest(owned))
     ) {
       return;
     }
