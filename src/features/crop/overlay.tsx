@@ -1,6 +1,6 @@
 import { type PointerEvent, useRef } from "react";
 import { useViewport } from "@/components/editor/viewport";
-import rotateCursor from "@/components/icons/rotate-cursor.svg?raw";
+import { rotateCursor } from "@/components/icons/rotate-cursor";
 import type { ImageFrame, Point } from "@/core/image/frame";
 import { clamp } from "@/lib/math";
 import { move, resize, rotate } from "./geometry";
@@ -112,11 +112,9 @@ export function CropOverlay({
 					box.y + box.height / 2 - event.clientY,
 					box.x + box.width / 2 - event.clientX,
 				);
-				const svg = rotateCursor.replace(
-					'transform="',
-					`transform="rotate(${Math.round((angle * 180) / Math.PI)} 12 12) `,
+				event.currentTarget.style.cursor = rotateCursor(
+					Math.round((angle * 180) / Math.PI),
 				);
-				event.currentTarget.style.cursor = `url("data:image/svg+xml,${encodeURIComponent(svg)}") 12 12, crosshair`;
 			}}
 		>
 			<div

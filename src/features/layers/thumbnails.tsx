@@ -1,10 +1,8 @@
-import { useEffect, useId, useMemo, useRef, useState } from "react";
-import { frame, surface } from "vgpu";
+import { useEffect, useId, useRef, useState } from "react";
 import { useGpu } from "vgpu-react";
 import { useDocument, useScene } from "@/components/editor/session";
 import type { Gradient } from "@/core/document";
-import type { Point } from "@/core/image/frame";
-import { createDisplay } from "@/core/renderer";
+import { renderBitmap } from "@/core/renderer";
 import { MaskFill } from "./mask-fill";
 
 /** A small original-image snapshot, rendered once when the source changes. */
@@ -13,38 +11,25 @@ export function ImageThumbnail() {
 	const document = useDocument();
 	const sourceId = useScene((scene) => scene.layers[0].source);
 	const source = document.resources.get(sourceId);
-	const display = useMemo(() => createDisplay(gpu), [gpu]);
-	useEffect(() => () => display.dispose(), [display]);
 	const canvas = useRef<HTMLCanvasElement>(null);
 	const [error, setError] = useState<string>();
 	useEffect(() => {
-		const image = new OffscreenCanvas(64, 64);
-		const output = surface(gpu, image, { size: [64, 64], dpr: 1 });
 		const release = source.retain();
 		let active = true;
 		async function draw() {
 			try {
-				frame(gpu, (frame) =>
-					display(frame, output, source.image, {
-						view: { zoom: 1, pan: [0, 0] },
-					}),
-				);
-				await gpu.gpu.queue.onSubmittedWorkDone();
-				if (active) {
-					const context = canvas.current?.getContext("2d");
-					if (!context) {
-						throw Error("Cannot draw image thumbnail.");
-					}
-					const bitmap = image.transferToImageBitmap();
-					context.drawImage(bitmap, 0, 0);
-					bitmap.close();
+				const bitmap = await renderBitmap(gpu, source.image, [64, 64]);
+				const context = canvas.current?.getContext("2d");
+				if (active && !context) {
+					throw Error("Cannot draw image thumbnail.");
 				}
+				context?.drawImage(bitmap, 0, 0);
+				bitmap.close();
 			} catch (error) {
 				if (active) {
 					setError(String(error));
 				}
 			} finally {
-				output.dispose();
 				release();
 			}
 		}
@@ -52,7 +37,7 @@ export function ImageThumbnail() {
 		return () => {
 			active = false;
 		};
-	}, [gpu, source, display]);
+	}, [gpu, source]);
 	return (
 		<canvas
 			ref={canvas}
@@ -65,8 +50,11 @@ export function ImageThumbnail() {
 	);
 }
 
-export function MaskThumbnail({ mask, size }: { mask: Gradient; size: Point }) {
+export function MaskThumbnail({ mask }: { mask: Gradient }) {
 	const id = useId();
+	const document = useDocument();
+	const sourceId = useScene((scene) => scene.layers[0].source);
+	const size = document.resources.get(sourceId).image.size;
 	return (
 		<svg
 			aria-label="Gradient mask thumbnail"

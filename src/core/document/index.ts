@@ -28,15 +28,11 @@ export {
 	editLayer,
 	findLayer,
 	locateLayer,
+	maskModifiers,
 	updateLayer,
 	walkLayers,
 } from "./tree";
 export { createResources };
-
-export type MaskPreview = {
-	readonly mask: Gradient;
-	readonly modifiers: readonly MaskModifier[];
-};
 
 export type Preview = {
 	comparison: "edited" | "original" | "split";
@@ -44,7 +40,10 @@ export type Preview = {
 	shadows: boolean;
 	highlights: boolean;
 	/** The mask whose coverage the display tints red. */
-	maskOverlay?: MaskPreview;
+	maskOverlay?: {
+		readonly mask: Gradient;
+		readonly modifiers: readonly MaskModifier[];
+	};
 };
 
 /** Scenes contain only plain values; unchanged branches keep their identity. */

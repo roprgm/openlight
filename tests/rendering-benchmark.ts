@@ -1,5 +1,6 @@
 import { effect, frame, init, target, timer } from "vgpu";
 import { encodeImage } from "@/app/editor/export/export-image";
+import { createImageLayer } from "@/app/editor/layers";
 import { createEditorRenderer } from "@/app/editor/renderer";
 import type { Gradient, ProcessingLayer, Scene } from "@/core/document";
 import { createImageSource } from "@/core/image";
@@ -139,11 +140,8 @@ export async function benchmarkRendering(
 		frame: imageFrame(size),
 		layers: [
 			{
-				kind: "image",
+				...createImageLayer("benchmark", "Benchmark"),
 				id: "benchmark-image",
-				name: "Benchmark",
-				source: "benchmark",
-				children: [],
 				adjustments: {
 					...defaultAdjustments,
 					exposure: 0.25,

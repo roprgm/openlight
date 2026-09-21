@@ -69,7 +69,8 @@ export function RendererProvider({
 				document.selection.getState().layerId,
 			);
 			const input = target && "toneCurve" in target ? target.id : undefined;
-			if (scene === requestedScene && input === requestedInput) {
+			// A dropped input can stay live; only a new one needs a render.
+			if (scene === requestedScene && (input === requestedInput || !input)) {
 				return;
 			}
 			requestedScene = scene;

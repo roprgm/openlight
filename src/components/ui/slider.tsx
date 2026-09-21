@@ -1,5 +1,4 @@
 import { cva } from "class-variance-authority";
-import { cn } from "cn";
 import { ScrubInput } from "./scrub-input";
 
 type SliderProps = {
@@ -16,7 +15,6 @@ type SliderProps = {
 	unit?: string;
 	/** "panel" stacks the bar under its label; "toolbar" keeps one row and drops the bar in a narrow container. */
 	variant?: "panel" | "toolbar";
-	className?: string;
 };
 
 const root = cva("items-center text-neutral-400", {
@@ -55,7 +53,6 @@ export function Slider({
 	stops,
 	unit,
 	variant = "panel",
-	className,
 }: SliderProps) {
 	const gradient = stops && {
 		background: `linear-gradient(to right, ${stops.join()})`,
@@ -63,7 +60,7 @@ export function Slider({
 	const reset = () => defaultValue !== undefined && onChange(defaultValue);
 
 	return (
-		<div className={cn(root({ variant }), className)}>
+		<div className={root({ variant })}>
 			<span>{label}</span>
 			<div className={field({ variant })}>
 				<ScrubInput

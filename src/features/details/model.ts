@@ -13,11 +13,9 @@ export const detailLimits = {
 
 export function validateDetails(change: Partial<Details>) {
 	for (const [name, value] of Object.entries(change)) {
-		const limits = Object.entries(detailLimits).find(
-			([key]) => key === name,
-		)?.[1];
+		const limits = Reflect.get(detailLimits, name);
 		if (
-			!limits ||
+			!Array.isArray(limits) ||
 			typeof value !== "number" ||
 			!Number.isFinite(value) ||
 			value < limits[0] ||

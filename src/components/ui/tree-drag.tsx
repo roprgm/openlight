@@ -11,7 +11,14 @@ import {
 	useSensor,
 	useSensors,
 } from "@dnd-kit/core";
-import { createContext, type ReactNode, useContext, useState } from "react";
+import {
+	createContext,
+	type ReactNode,
+	useCallback,
+	useContext,
+	useMemo,
+	useState,
+} from "react";
 
 export type TreeDrop = {
 	id: string;
@@ -73,10 +80,21 @@ export function TreeDrag({ children, canDrop, onDrop, label }: TreeDragProps) {
 		const next = { id: event.active.id, target: event.over.id, position };
 		return canDrop(next) ? next : null;
 	}
+	function move(event: DragMoveEvent) {
+		const next = locate(event);
+		setDrop((current) =>
+			current?.id === next?.id &&
+			current?.target === next?.target &&
+			current?.position === next?.position
+				? current
+				: next,
+		);
+	}
 	function clear() {
 		setActive(null);
 		setDrop(null);
 	}
+	const context = useMemo(() => ({ active, drop }), [active, drop]);
 	return (
 		<DndContext
 			sensors={sensors}
@@ -86,8 +104,7 @@ export function TreeDrag({ children, canDrop, onDrop, label }: TreeDragProps) {
 					setActive(active.id);
 				}
 			}}
-			onDragMove={(event) => setDrop(locate(event))}
-			onDragOver={(event) => setDrop(locate(event))}
+			onDragMove={move}
 			onDragCancel={clear}
 			onDragEnd={() => {
 				if (drop) {
@@ -102,7 +119,7 @@ export function TreeDrag({ children, canDrop, onDrop, label }: TreeDragProps) {
 				},
 			}}
 		>
-			<Context value={{ active, drop }}>{children}</Context>
+			<Context value={context}>{children}</Context>
 			<DragOverlay dropAnimation={null}>
 				{active && (
 					<div className="max-w-64 rounded border border-neutral-500 bg-neutral-700 px-3 py-2 shadow-lg">
@@ -121,11 +138,17 @@ export function useTreeDragItem(
 	const { active, drop } = useContext(Context);
 	const draggable = useDraggable({ id, disabled });
 	const droppable = useDroppable({ id, data: { expanded } });
-	return {
-		ref: (element: HTMLDivElement | null) => {
-			draggable.setNodeRef(element);
-			droppable.setNodeRef(element);
+	const { setNodeRef: setDraggable } = draggable;
+	const { setNodeRef: setDroppable } = droppable;
+	const ref = useCallback(
+		(element: HTMLDivElement | null) => {
+			setDraggable(element);
+			setDroppable(element);
 		},
+		[setDraggable, setDroppable],
+	);
+	return {
+		ref,
 		handle: { ...draggable.attributes, ...draggable.listeners },
 		dragging: active === id,
 		drop: drop?.target === id ? drop.position : undefined,

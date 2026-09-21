@@ -1,5 +1,5 @@
 import type { EditorDocument } from "./index";
-import type { Layer, ProcessingLayer, Scene } from "./scene";
+import type { Layer, MaskLayer, ProcessingLayer, Scene } from "./scene";
 
 export function walkLayers(layers: readonly Layer[]): Layer[] {
 	return layers.flatMap((layer) => [layer, ...walkLayers(layer.children)]);
@@ -42,24 +42,21 @@ export function adjustmentTarget(layers: readonly Layer[], id: string) {
 	return layer.kind === "mask" && parent?.kind === "mask" ? parent : layer;
 }
 
-function updateChildren(
-	layers: readonly ProcessingLayer[],
-	id: string,
-	update: (layer: Layer) => Layer,
-): readonly ProcessingLayer[] {
-	return layers.map((layer) => {
-		if (layer.id === id) {
-			const next = update(layer);
-			if (next.kind === "image") {
-				throw Error("An image cannot replace a processing layer.");
-			}
-			return next;
-		}
-		const children = updateChildren(layer.children, id, update);
-		return children.every((child, index) => child === layer.children[index])
-			? layer
-			: { ...layer, children };
-	});
+/** The child masks that currently add to or subtract from a mask's coverage. */
+export function maskModifiers(layer: MaskLayer) {
+	return layer.children.filter(
+		(child): child is MaskLayer =>
+			child.kind === "mask" && child.visible && child.opacity > 0,
+	);
+}
+
+function withChildren<L extends Layer>(
+	layer: L,
+	children: readonly ProcessingLayer[],
+): L {
+	return children.every((child, index) => child === layer.children[index])
+		? layer
+		: { ...layer, children };
 }
 
 export function updateLayer(
@@ -67,24 +64,36 @@ export function updateLayer(
 	id: string,
 	update: (layer: Layer) => Layer,
 ): Scene {
-	if (!findLayer(scene.layers, id)) {
-		throw Error("Layer is unavailable.");
-	}
 	const [image, ...layers] = scene.layers;
-	const children = updateChildren(image.children, id, update);
+	let matched = image.id === id;
+	function updateChildren(
+		items: readonly ProcessingLayer[],
+	): readonly ProcessingLayer[] {
+		return items.map((layer) => {
+			if (layer.id !== id) {
+				return withChildren(layer, updateChildren(layer.children));
+			}
+			matched = true;
+			const next = update(layer);
+			if (next.kind === "image") {
+				throw Error("An image cannot replace a processing layer.");
+			}
+			return next;
+		});
+	}
+	const children = updateChildren(image.children);
 	const base = image.id === id ? update(image) : image;
 	if (base.kind !== "image") {
 		throw Error("The image layer is pinned.");
 	}
-	return {
-		...scene,
-		layers: [
-			children.every((child, index) => child === image.children[index])
-				? base
-				: { ...base, children },
-			...updateChildren(layers, id, update),
-		],
-	};
+	const next: Scene["layers"] = [
+		withChildren(base, children),
+		...updateChildren(layers),
+	];
+	if (!matched) {
+		throw Error("Layer is unavailable.");
+	}
+	return { ...scene, layers: next };
 }
 
 export function editLayer(

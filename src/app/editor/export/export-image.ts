@@ -1,8 +1,8 @@
-import { frame, type Gpu, surface, type Target } from "vgpu";
+import type { Gpu, Target } from "vgpu";
 import { createEditorRenderer } from "@/app/editor/renderer";
 import type { EditorDocument } from "@/core/document";
 import type { Point } from "@/core/image/frame";
-import { createDisplay } from "@/core/renderer";
+import { renderBitmap } from "@/core/renderer";
 
 const encodings = {
 	png: { type: "image/png", extension: "png" },
@@ -32,33 +32,6 @@ export function exportSize(
 	];
 }
 
-const displays = new WeakMap<Gpu, ReturnType<typeof createDisplay>>();
-
-/** One display pipeline per GPU, shared by exports and size estimates. */
-function displayFor(gpu: Gpu) {
-	let display = displays.get(gpu);
-	if (!display) {
-		display = createDisplay(gpu);
-		displays.set(gpu, display);
-	}
-	return display;
-}
-
-/** Takes the rendered pixels as a bitmap; drawing the GPU canvas itself would wait for a frame that never comes off-screen. */
-function resample(source: OffscreenCanvas, [width, height]: Point) {
-	const bitmap = source.transferToImageBitmap();
-	const canvas = new OffscreenCanvas(width, height);
-	const context = canvas.getContext("2d");
-	if (!context) {
-		bitmap.close();
-		throw new Error("Couldn't resize the image.");
-	}
-	context.imageSmoothingQuality = "high";
-	context.drawImage(bitmap, 0, 0, width, height);
-	bitmap.close();
-	return canvas;
-}
-
 /** Encodes a rendered image, downsampled to `longEdge` with high-quality smoothing. */
 export async function encodeImage(
 	gpu: Gpu,
@@ -79,29 +52,26 @@ export async function encodeImage(
 	) {
 		throw new Error(`Long edge must be between 1 and ${maxEdge} pixels.`);
 	}
-	const canvas = new OffscreenCanvas(size[0], size[1]);
-	const output = surface(gpu, canvas, { size, dpr: 1 });
-	try {
-		const draw = displayFor(gpu);
-		frame(gpu, (frame) =>
-			draw(frame, output, image, { view: { zoom: 1, pan: [0, 0] } }),
-		);
-		const target = exportSize(size, longEdge);
-		const resized = target[0] !== size[0] || target[1] !== size[1];
-		const encoding = encodings[format];
-		// Finish the draw before the 2D canvas reads it; otherwise Chrome waits a full second for the sync.
-		await gpu.gpu.queue.onSubmittedWorkDone();
-		const blob = await (resized
-			? resample(canvas, target)
-			: canvas
-		).convertToBlob({ type: encoding.type, quality: quality / 100 });
-		if (blob.type !== encoding.type) {
-			throw new Error(`This browser can't encode ${format.toUpperCase()}.`);
-		}
-		return blob;
-	} finally {
-		output.dispose();
+	const [width, height] = exportSize(size, longEdge);
+	const bitmap = await renderBitmap(gpu, image, size);
+	const canvas = new OffscreenCanvas(width, height);
+	const context = canvas.getContext("2d");
+	if (!context) {
+		bitmap.close();
+		throw new Error("Couldn't resize the image.");
 	}
+	context.imageSmoothingQuality = "high";
+	context.drawImage(bitmap, 0, 0, width, height);
+	bitmap.close();
+	const encoding = encodings[format];
+	const blob = await canvas.convertToBlob({
+		type: encoding.type,
+		quality: quality / 100,
+	});
+	if (blob.type !== encoding.type) {
+		throw new Error(`This browser can't encode ${format.toUpperCase()}.`);
+	}
+	return blob;
 }
 
 /** Renders a snapshot of the current edits, named after the source file. */

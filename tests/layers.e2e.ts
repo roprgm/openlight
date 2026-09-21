@@ -5,17 +5,11 @@ import { readImage, readPreview } from "./images";
 import { box, drag } from "./pointer";
 
 async function samples(page: Page) {
-	return page.evaluate(async () => {
-		const image = await createImageBitmap(await window.openlight.exportImage());
-		const canvas = new OffscreenCanvas(image.width, image.height);
-		const context = canvas.getContext("2d");
-		if (!context) {
-			throw new Error("Cannot read layer output.");
-		}
-		context.drawImage(image, 0, 0);
-		image.close();
-		return [100, 700].map((y) => [...context.getImageData(600, y, 1, 1).data]);
-	});
+	const { samples } = await readImage(page, undefined, [
+		[600, 100],
+		[600, 700],
+	]);
+	return samples ?? [];
 }
 
 test("draw a mask, edit its child effects, reorder layers and undo", async ({
@@ -90,20 +84,13 @@ test("draw a mask, edit its child effects, reorder layers and undo", async ({
 	const original = await samples(page);
 	await test.step("a local exposure recovers light the global exposure pushed past white", async () => {
 		// Export pixels at the gray field and the light band, both inside the radial mask below.
-		const tones = () =>
-			page.evaluate(async () => {
-				const image = await createImageBitmap(
-					await window.openlight.exportImage(),
-				);
-				const canvas = new OffscreenCanvas(image.width, image.height);
-				const context = canvas.getContext("2d");
-				if (!context) throw new Error("Cannot read layer output.");
-				context.drawImage(image, 0, 0);
-				image.close();
-				return [600, 1100].map(
-					(x) => context.getImageData(x, 700, 1, 1).data[0],
-				);
-			});
+		const tones = async () => {
+			const { samples } = await readImage(page, undefined, [
+				[600, 700],
+				[1100, 700],
+			]);
+			return samples?.map((pixel) => pixel[0]) ?? [];
+		};
 		const [gray, band] = await tones();
 		expect([gray, band]).toEqual([128, 224]);
 		await page.evaluate(() => window.openlight.setAdjustments({ exposure: 2 }));

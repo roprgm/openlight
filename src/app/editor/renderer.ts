@@ -1,5 +1,5 @@
 import type { Gpu, Timer } from "vgpu";
-import type { MaskLayer, ProcessingLayer } from "@/core/document";
+import { maskModifiers, type ProcessingLayer } from "@/core/document";
 import type { ImageSource } from "@/core/image";
 import {
 	createRenderer,
@@ -10,25 +10,11 @@ import {
 	transformImages,
 } from "@/core/renderer";
 import { exposure } from "@/features/adjustments/exposure";
-import { defaultAdjustments } from "@/features/adjustments/model";
 import { adjustments } from "@/features/adjustments/pass";
 import { colorMixer } from "@/features/color-mixer/pass";
 import { unsharpMask } from "@/features/details/unsharp-mask";
 import { toneCurves } from "@/features/tone-curves/pass";
 import { vignette } from "@/features/vignette/pass";
-
-function maskAdjustments(layer: MaskLayer) {
-	const name = `layer/${layer.id}`;
-	const values = layer.adjustments;
-	const hasOtherAdjustments = Object.entries(values).some(
-		([key, value]) =>
-			key !== "exposure" && value !== Reflect.get(defaultAdjustments, key),
-	);
-	if (hasOtherAdjustments) {
-		return adjustments(values, `${name}/adjustments`);
-	}
-	return exposure(`${name}/exposure`, values.exposure);
-}
 
 type Composition = {
 	image: RenderImage;
@@ -58,7 +44,7 @@ function composeLayer(
 			]);
 			break;
 		case "mask": {
-			const adjusted = pipeline(below, [maskAdjustments(layer)]);
+			const adjusted = pipeline(below, [adjustments(layer.adjustments, name)]);
 			if (layer.id === inputId) {
 				input = adjusted;
 			}
@@ -79,29 +65,23 @@ function composeLayer(
 			]);
 			break;
 	}
-	const masks: MaskLayer[] = [];
-	for (const child of layer.children) {
-		if (layer.kind === "mask" && child.kind === "mask") {
-			if (child.visible && child.opacity > 0) {
-				masks.push(child);
-			}
-		} else {
-			const childComposition = composeLayer(edited, child, inputId);
-			edited = childComposition.image;
-			input ??= childComposition.input;
-		}
-	}
-
+	// Child masks of a mask shape its coverage; every other child processes the image.
+	const masks = layer.kind === "mask" ? maskModifiers(layer) : [];
+	const effects =
+		layer.kind === "mask"
+			? layer.children.filter((child) => child.kind !== "mask")
+			: layer.children;
+	const children = composeLayers(edited, effects, inputId);
 	return {
 		image: mixAdjustment(
 			`${name}/mix`,
 			below,
-			edited,
+			children.image,
 			layer.opacity,
 			layer.kind === "mask" ? layer.mask : undefined,
 			masks,
 		),
-		input,
+		input: input ?? children.input,
 	};
 }
 
@@ -139,7 +119,7 @@ export function createEditorRenderer(
 			const children = composeLayers(image, sourceLayer.children, inputId);
 			const composition = composeLayers(children.image, layers, inputId);
 			const adjusted = pipeline(composition.image, [
-				adjustments(sourceLayer.adjustments, `${name}/adjustments`),
+				adjustments(sourceLayer.adjustments, name),
 			]);
 			const full = pipeline(adjusted, [
 				toneCurves(sourceLayer.toneCurve, `${name}/curves`),

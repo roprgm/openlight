@@ -4,7 +4,9 @@ import Button from "@/components/ui/button";
 
 export function ClippingControls() {
 	const { preview } = useDocument();
-	const state = useStore(preview);
+	const shadows = useStore(preview, (state) => state.shadows);
+	const highlights = useStore(preview, (state) => state.highlights);
+	const state = { shadows, highlights };
 	return (
 		<div className="pointer-events-none absolute inset-x-1 top-1 z-10 flex justify-between">
 			{(["shadows", "highlights"] as const).map((range) => (

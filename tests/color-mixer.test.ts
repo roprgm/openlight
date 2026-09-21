@@ -1,13 +1,12 @@
 import { expect, test } from "bun:test";
 import { getMockGPUDeviceInstrumentation, init, target } from "vgpu/mock";
+import { createImageLayer, createLayer } from "@/app/editor/layers";
 import { createEditorRenderer } from "@/app/editor/renderer";
 import { createDocument } from "@/core/document";
 import { createImageSource } from "@/core/image";
 import { imageFrame } from "@/core/image/frame";
-import { defaultAdjustments } from "@/features/adjustments/model";
 import { resetColorMixer, setColorMixer } from "@/features/color-mixer/edits";
 import { defaultMixer } from "@/features/color-mixer/model";
-import { defaultCurve } from "@/features/tone-curves/curve";
 
 test("color edits validate, group, cancel and reset while renderers reuse and release their outputs", async () => {
 	const gpu = await init();
@@ -17,23 +16,9 @@ test("color edits validate, group, cancel and reset while renderers reuse and re
 		frame: imageFrame(image.size),
 		layers: [
 			{
-				kind: "image",
-				name: "Photo",
-				children: [
-					{
-						id: "mixer",
-						kind: "color-mixer",
-						name: "Color Mixer",
-						opacity: 1,
-						visible: true,
-						children: [],
-						colorMixer: defaultMixer,
-					},
-				],
+				...createImageLayer("photo", "Photo"),
 				id: "base",
-				source: "photo",
-				adjustments: defaultAdjustments,
-				toneCurve: defaultCurve,
+				children: [{ ...createLayer("color-mixer"), id: "mixer" }],
 			},
 		],
 	});
@@ -55,10 +40,7 @@ test("color edits validate, group, cancel and reset while renderers reuse and re
 			mixer?.kind === "color-mixer" && mixer.colorMixer.saturation[5],
 		).toBe(-20);
 		await renderer.update(scene);
-		expect(renderer.inspect().passes).toEqual([
-			"layer/mixer/color-mixer",
-			"layer/base/adjustments",
-		]);
+		expect(renderer.inspect().passes).toEqual(["layer/mixer/color-mixer"]);
 		const edited = renderer.outputImage();
 		expect(edited.format).toBe("rgba16float");
 		const calls = getMockGPUDeviceInstrumentation(gpu.gpu).calls;
@@ -71,13 +53,10 @@ test("color edits validate, group, cancel and reset while renderers reuse and re
 		expect(document.scene.getState()).toEqual(scene);
 		document.history.undo();
 		await renderer.update(document.scene.getState());
-		expect(renderer.inspect().passes).toEqual(["layer/base/adjustments"]);
+		expect(renderer.inspect().passes).toEqual([]);
 		document.history.redo();
 		await renderer.update(document.scene.getState());
-		expect(renderer.inspect().passes).toEqual([
-			"layer/mixer/color-mixer",
-			"layer/base/adjustments",
-		]);
+		expect(renderer.inspect().passes).toEqual(["layer/mixer/color-mixer"]);
 		expect(calls.createRenderPipeline).toBe(pipelines);
 		for (const value of [NaN, Infinity, -101, 101]) {
 			expect(() =>

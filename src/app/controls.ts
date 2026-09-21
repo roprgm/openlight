@@ -19,18 +19,14 @@ import type { WhiteBalance } from "@/core/image";
 import type { ImageFrame } from "@/core/image/frame";
 import { setAdjustments } from "@/features/adjustments/edits";
 import { defaultAdjustments } from "@/features/adjustments/model";
-import {
-	changeColorMixer,
-	resetColorMixer,
-	setColorMixer,
-} from "@/features/color-mixer/edits";
+import { resetColorMixer, setColorMixer } from "@/features/color-mixer/edits";
 import {
 	defaultMixer,
 	type MixerChange,
 	type MixerColor,
 } from "@/features/color-mixer/model";
 import { setDetails } from "@/features/details/edits";
-import { defaultDetails, validateDetails } from "@/features/details/model";
+import { defaultDetails } from "@/features/details/model";
 import {
 	addLayer,
 	deleteLayer,
@@ -45,10 +41,15 @@ import {
 import { defaultGradient } from "@/features/layers/gradient";
 import { defaultCurve } from "@/features/tone-curves/curve";
 import { setToneCurve } from "@/features/tone-curves/edits";
-import { setVignette, validateVignette } from "@/features/vignette/edits";
+import { setVignette } from "@/features/vignette/edits";
 import { defaultVignette } from "@/features/vignette/model";
 import { setWhiteBalance } from "@/features/white-balance/edits";
-import { createLayer, createMask, editEffect } from "./editor/layers";
+import {
+	createLayer,
+	createMask,
+	editEffect,
+	findEffect,
+} from "./editor/layers";
 import type { Workspace } from "./workspace";
 
 /** Imperative commands bound to an explicit workspace, usable without React. */
@@ -66,17 +67,9 @@ export function createControls(gpu: Gpu, workspace: Workspace) {
 		loadImage: (file: File) => files.loadFile(image, file),
 		importXmp: (file: File) => files.loadFile(xmp, file),
 		setDetails(change: Partial<Details>, id?: string) {
-			validateDetails(change);
 			const document = workspace.getDocument();
-			editEffect(
-				document,
-				"details",
-				id,
-				(id) => setDetails(document, change, id),
-				() => ({
-					...createLayer("details"),
-					details: { ...defaultDetails, ...change },
-				}),
+			editEffect(document, "details", id, (id) =>
+				setDetails(document, change, id),
 			);
 		},
 		setAdjustments: (change: Partial<Adjustments>, id?: string) =>
@@ -87,42 +80,22 @@ export function createControls(gpu: Gpu, workspace: Workspace) {
 			setToneCurve(workspace.getDocument(), curve, id),
 		setColorMixer(color: MixerColor, change: MixerChange, id?: string) {
 			const document = workspace.getDocument();
-			editEffect(
-				document,
-				"color-mixer",
-				id,
-				(id) => setColorMixer(document, color, change, id),
-				() => ({
-					...createLayer("color-mixer"),
-					colorMixer: changeColorMixer(defaultMixer, color, change),
-				}),
+			editEffect(document, "color-mixer", id, (id) =>
+				setColorMixer(document, color, change, id),
 			);
 		},
 		resetColorMixer(id?: string) {
 			const document = workspace.getDocument();
 			const existing =
-				id ??
-				document.scene
-					.getState()
-					.layers.find((layer) => layer.kind === "color-mixer")?.id;
+				id ?? findEffect(document.scene.getState().layers, "color-mixer")?.id;
 			if (existing) {
 				resetColorMixer(document, existing);
 			}
 		},
 		setVignette(change: Partial<Vignette>, id?: string) {
 			const document = workspace.getDocument();
-			editEffect(
-				document,
-				"vignette",
-				id,
-				(id) => setVignette(document, change, id),
-				() => {
-					validateVignette(change);
-					return {
-						...createLayer("vignette"),
-						vignette: { ...defaultVignette, ...change },
-					};
-				},
+			editEffect(document, "vignette", id, (id) =>
+				setVignette(document, change, id),
 			);
 		},
 		addLayer(kind: ProcessingLayer["kind"], placement?: LayerPlacement) {
@@ -168,6 +141,7 @@ export function createControls(gpu: Gpu, workspace: Workspace) {
 		getState() {
 			const { file, document } = workspace.state.getState();
 			const scene = document?.scene.getState();
+			const layers = scene?.layers ?? [];
 			return structuredClone({
 				file,
 				preview: document?.preview.getState(),
@@ -178,16 +152,11 @@ export function createControls(gpu: Gpu, workspace: Workspace) {
 				frame: scene?.frame,
 				adjustments: scene?.layers[0].adjustments ?? defaultAdjustments,
 				whiteBalance: scene?.layers[0].whiteBalance,
-				details:
-					scene?.layers.find((layer) => layer.kind === "details")?.details ??
-					defaultDetails,
+				details: findEffect(layers, "details")?.details ?? defaultDetails,
 				toneCurve: scene?.layers[0].toneCurve ?? defaultCurve,
 				colorMixer:
-					scene?.layers.find((layer) => layer.kind === "color-mixer")
-						?.colorMixer ?? defaultMixer,
-				vignette:
-					scene?.layers.find((layer) => layer.kind === "vignette")?.vignette ??
-					defaultVignette,
+					findEffect(layers, "color-mixer")?.colorMixer ?? defaultMixer,
+				vignette: findEffect(layers, "vignette")?.vignette ?? defaultVignette,
 				history: document?.history.status.getState() ?? {
 					undoCount: 0,
 					redoCount: 0,

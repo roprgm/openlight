@@ -1,4 +1,10 @@
-import { type ComponentProps, useEffect, useState } from "react";
+import {
+	type ComponentProps,
+	memo,
+	useCallback,
+	useEffect,
+	useState,
+} from "react";
 import { useStore } from "zustand";
 import { PanelHeader } from "@/components/editor/panel";
 import { useDocument, useScene } from "@/components/editor/session";
@@ -15,7 +21,6 @@ import {
 	type Layer,
 	type ProcessingLayer,
 } from "@/core/document";
-import type { Point } from "@/core/image/frame";
 import { layerDrop } from "./drop";
 import { moveLayer, setLayer } from "./edits";
 import { useGradientTool } from "./gradient-tool";
@@ -51,12 +56,12 @@ function EffectSymbol({ kind }: { kind: ProcessingLayer["kind"] }) {
 	}
 }
 
-function LayerThumbnail({ layer, size }: { layer: Layer; size: Point }) {
+function LayerThumbnail({ layer }: { layer: Layer }) {
 	if (layer.kind === "image") {
 		return <ImageThumbnail />;
 	}
 	if (layer.kind === "mask") {
-		return <MaskThumbnail mask={layer.mask} size={size} />;
+		return <MaskThumbnail mask={layer.mask} />;
 	}
 	return (
 		<span className="grid size-8 shrink-0 place-items-center rounded border border-black/50 bg-neutral-950/40 text-neutral-400">
@@ -124,24 +129,20 @@ function LayerName({
 	);
 }
 
-function LayerRow({
+/** Rows subscribe to selection themselves, so unchanged branches skip when a sibling edits. */
+const LayerRow = memo(function LayerRow({
 	layer,
-	siblings,
 	parent,
 	depth,
-	selected,
-	size,
 	onSelect,
 }: {
 	layer: Layer;
-	siblings: readonly Layer[];
 	parent?: Layer;
 	depth: number;
-	selected: string;
-	size: Point;
 	onSelect: (id: string) => void;
 }) {
 	const document = useDocument();
+	const selected = useStore(document.selection, (state) => state.layerId);
 	const [collapsed, setCollapsed] = useState(false);
 	const isImage = layer.kind === "image";
 	const visible = isImage || layer.visible;
@@ -160,10 +161,7 @@ function LayerRow({
 	const isSubmask = layer.kind === "mask" && parent?.kind === "mask";
 	const maskSign =
 		layer.kind === "mask" && layer.operation === "subtract" ? "−" : "+";
-	let expandLabel = `Expand ${layer.name}`;
-	if (expanded) {
-		expandLabel = `Collapse ${layer.name}`;
-	}
+	const expandLabel = `${expanded ? "Collapse" : "Expand"} ${layer.name}`;
 	return (
 		<>
 			<div
@@ -198,7 +196,7 @@ function LayerRow({
 					onClick={() => onSelect(layer.id)}
 					className="mr-2 shrink-0"
 				>
-					<LayerThumbnail layer={layer} size={size} />
+					<LayerThumbnail layer={layer} />
 				</button>
 				<LayerName
 					layer={layer}
@@ -238,12 +236,7 @@ function LayerRow({
 					</span>
 				)}
 				{layer.kind !== "image" && (
-					<LayerActions
-						layer={layer}
-						siblings={siblings}
-						parent={parent}
-						onSelect={onSelect}
-					/>
+					<LayerActions layer={layer} onSelect={onSelect} />
 				)}
 			</div>
 			{expanded &&
@@ -253,17 +246,14 @@ function LayerRow({
 						<LayerRow
 							key={child.id}
 							layer={child}
-							siblings={layer.children}
 							parent={layer}
 							depth={depth + 1}
-							selected={selected}
-							size={size}
 							onSelect={onSelect}
 						/>
 					))}
 		</>
 	);
-}
+});
 
 export function LayersControls({
 	onAdd,
@@ -271,14 +261,16 @@ export function LayersControls({
 	onAdd: (kind: EffectLayer["kind"]) => void;
 }) {
 	const document = useDocument();
-	const scene = useScene((scene) => scene);
-	const selected = useStore(document.selection, (state) => state.layerId);
-	const size = document.resources.get(scene.layers[0].source).image.size;
+	const layers = useScene((scene) => scene.layers);
 	const tool = useGradientTool();
-	function select(id: string) {
-		tool.close();
-		document.selectLayer(id);
-	}
+	const { close } = tool;
+	const select = useCallback(
+		(id: string) => {
+			close();
+			document.selectLayer(id);
+		},
+		[close, document],
+	);
 	function drop(target: TreeDrop) {
 		const position = layerDrop(document.scene.getState(), target);
 		if (position) {
@@ -291,16 +283,6 @@ export function LayersControls({
 		<section
 			aria-label="Layers"
 			className="grid max-h-1/2 min-h-30 shrink-0 grid-rows-[auto_minmax(0,1fr)] border-t border-black bg-panel"
-			onKeyDown={(event) => {
-				// Escape closes an open menu before the mask shortcuts see it.
-				const menu = event.currentTarget.querySelector<HTMLElement>(
-					"[popover]:popover-open",
-				);
-				if (event.key === "Escape" && menu) {
-					menu.hidePopover();
-					event.stopPropagation();
-				}
-			}}
 		>
 			<PanelHeader title="Layers">
 				<button
@@ -351,18 +333,17 @@ export function LayersControls({
 			</PanelHeader>
 			<ScrollArea fade>
 				<TreeDrag
-					canDrop={(target) => Boolean(layerDrop(scene, target))}
+					canDrop={(target) =>
+						Boolean(layerDrop(document.scene.getState(), target))
+					}
 					onDrop={drop}
-					label={(id) => findLayer(scene.layers, id)?.name ?? id}
+					label={(id) => findLayer(layers, id)?.name ?? id}
 				>
-					{scene.layers.toReversed().map((layer) => (
+					{layers.toReversed().map((layer) => (
 						<LayerRow
 							key={layer.id}
 							layer={layer}
-							siblings={scene.layers}
 							depth={0}
-							selected={selected}
-							size={[size[0], size[1]]}
 							onSelect={select}
 						/>
 					))}

@@ -9,6 +9,7 @@ export {
 	type Clipping,
 	createDisplay,
 	type MaskOverlay,
+	renderBitmap,
 	type View,
 } from "./display";
 export {

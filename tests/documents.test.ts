@@ -1,11 +1,11 @@
 import { expect, test } from "bun:test";
 import { init, target } from "vgpu/mock";
+import { createImageLayer } from "@/app/editor/layers";
 import { createWorkspace } from "@/app/workspace";
 import { createDocument, createResources } from "@/core/document";
 import { createImageSource } from "@/core/image";
 import { imageFrame } from "@/core/image/frame";
 import { setAdjustments } from "@/features/adjustments/edits";
-import { defaultAdjustments } from "@/features/adjustments/model";
 import { validateDetails } from "@/features/details/model";
 import { defaultCurve } from "@/features/tone-curves/curve";
 import { setToneCurve } from "@/features/tone-curves/edits";
@@ -13,17 +13,7 @@ import { setToneCurve } from "@/features/tone-curves/edits";
 function document() {
 	return createDocument({
 		frame: imageFrame([32, 32]),
-		layers: [
-			{
-				kind: "image",
-				name: "Photo",
-				children: [],
-				id: "base",
-				source: "image-1",
-				adjustments: { ...defaultAdjustments },
-				toneCurve: defaultCurve,
-			},
-		],
+		layers: [{ ...createImageLayer("image-1", "Photo"), id: "base" }],
 	});
 }
 

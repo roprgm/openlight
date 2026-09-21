@@ -22,6 +22,7 @@ export function Histogram({
 		(svg: SVGSVGElement | null) => {
 			if (svg) {
 				const plot = histogram.attach(svg, image, colors, working);
+				plot.update();
 				const unsubscribe = subscribe(plot.update);
 				return () => {
 					unsubscribe();

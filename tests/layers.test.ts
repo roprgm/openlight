@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
 import { getMockGPUDeviceInstrumentation, init, target } from "vgpu/mock";
 import { createControls } from "@/app/controls";
-import { createLayer, createMask } from "@/app/editor/layers";
+import { createImageLayer, createLayer, createMask } from "@/app/editor/layers";
 import { createEditorRenderer } from "@/app/editor/renderer";
 import { createWorkspace } from "@/app/workspace";
 import {
@@ -12,7 +12,6 @@ import {
 } from "@/core/document";
 import { createImageSource } from "@/core/image";
 import { imageFrame } from "@/core/image/frame";
-import { defaultAdjustments } from "@/features/adjustments/model";
 import { layerDrop } from "@/features/layers/drop";
 import {
 	addLayer,
@@ -24,7 +23,6 @@ import {
 	setLayerMask,
 } from "@/features/layers/edits";
 import { defaultGradient } from "@/features/layers/gradient";
-import { defaultCurve } from "@/features/tone-curves/curve";
 
 test("nested layers compose in order, move atomically, and duplicate with independent IDs", async () => {
 	const gpu = await init();
@@ -36,17 +34,7 @@ test("nested layers compose in order, move atomically, and duplicate with indepe
 	const document = createDocument(
 		{
 			frame: imageFrame(source.image.size),
-			layers: [
-				{
-					kind: "image",
-					id: "base",
-					name: "Photo",
-					source: sourceId,
-					adjustments: defaultAdjustments,
-					toneCurve: defaultCurve,
-					children: [],
-				},
-			],
+			layers: [{ ...createImageLayer(sourceId, "Photo"), id: "base" }],
 		},
 		resources,
 	);
@@ -69,7 +57,7 @@ test("nested layers compose in order, move atomically, and duplicate with indepe
 		expect(document.selection.getState().layerId).toBe("base");
 		controls.setVignette({ softness: 75 });
 		expect(document.scene.getState().layers[1]).toMatchObject({
-			vignette: { intensity: 0, softness: 75 },
+			vignette: { intensity: 50, softness: 75 },
 		});
 		controls.undo();
 		for (const field of ["center", "size", "scale"]) {
@@ -120,13 +108,12 @@ test("nested layers compose in order, move atomically, and duplicate with indepe
 			`layer/${exposure}/exposure`,
 			`layer/${vignette}/vignette`,
 			`layer/${mask}/mix`,
-			"layer/base/adjustments",
 		]);
 		const calls = getMockGPUDeviceInstrumentation(gpu.gpu).calls;
 		const compiled = calls.createRenderPipeline;
 		setLayer(document, mask, { visible: false });
 		await renderer.update(document.scene.getState());
-		expect(renderer.inspect().passes).toEqual(["layer/base/adjustments"]);
+		expect(renderer.inspect().passes).toEqual([]);
 		setLayer(document, mask, { visible: true, opacity: 0.5 });
 		await renderer.update(document.scene.getState());
 		expect(calls.createRenderPipeline).toBe(compiled);
