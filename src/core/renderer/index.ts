@@ -112,15 +112,10 @@ export function createRenderer(
     }
     instances = active;
     const developed = raw?.render() ?? source;
-    const rasters = new Set<string>();
-    // A mask inside a mask only shapes its parent's coverage, so it has no raster of its own.
+    // A mask updates its rasters with those of the masks inside it, which only shape its coverage.
     function prepare(layer: Layer, parent?: Layer) {
-      if (
-        layer.kind === "mask" &&
-        parent?.kind !== "mask" &&
-        raster.update(layer, developed.size)
-      ) {
-        rasters.add(layer.id);
+      if (layer.kind === "mask" && parent?.kind !== "mask") {
+        raster.update(layer, developed.size);
       }
       for (const child of layer.children) {
         prepare(child, layer);
@@ -129,7 +124,7 @@ export function createRenderer(
     for (const layer of scene.layers) {
       prepare(layer);
     }
-    raster.retain(rasters);
+    raster.sweep();
     const image =
       factor > 1 ? proxy.render(developed, factor, version) : input(developed);
     const images = compose(image, scene, {

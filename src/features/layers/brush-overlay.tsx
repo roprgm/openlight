@@ -86,14 +86,13 @@ export function BrushOverlay() {
   useEffect(() => () => finish(false), []);
   useEffect(() => {
     // A chosen nesting starts a new brush even over a selected one.
-    const created =
+    const before =
       tool.pending?.shape === "brush" || !selectedBrush()
-        ? document.history.status.getState().undoCount + 1
+        ? document.scene.getState()
         : undefined;
-    if (created) {
+    if (before) {
       tool.create({ kind: "brush", strokes: [] });
     }
-    const id = document.selection.getState().layerId;
     const unsubscribe = document.selection.subscribe(() => {
       if (!selectedBrush()) {
         tool.edit();
@@ -101,14 +100,9 @@ export function BrushOverlay() {
     });
     return () => {
       unsubscribe();
-      const layer = findLayer(document.scene.getState().layers, id);
-      const untouched =
-        layer?.kind === "mask" &&
-        layer.mask.kind === "brush" &&
-        layer.mask.strokes.length === 0 &&
-        document.history.status.getState().undoCount === created;
-      if (untouched) {
-        document.history.drop();
+      // The new mask leaves with the tool unless anything happened after its creation.
+      if (before) {
+        document.history.drop(before);
       }
     };
   }, []);

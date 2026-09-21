@@ -4,7 +4,7 @@ import type { BrushStroke } from "@/core/document";
 export type Dab = readonly [number, number, number, number];
 
 /** Dabs every quarter diameter along the stroke, starting at its first point; a fixed walk keeps replays identical. */
-export function strokeDabs(stroke: BrushStroke, opacity = 1): Dab[] {
+export function strokeDabs(stroke: BrushStroke): Dab[] {
   const radius = stroke.size / 2;
   const spacing = Math.max(1, stroke.size / 4);
   const dabs: Dab[] = [];
@@ -16,7 +16,7 @@ export function strokeDabs(stroke: BrushStroke, opacity = 1): Dab[] {
     x,
     y,
     radius,
-    stroke.flow * pressure * opacity,
+    stroke.flow * pressure,
   ];
   dabs.push(dab(first[0], first[1], first[2]));
   let travelled = 0;

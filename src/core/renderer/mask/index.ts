@@ -15,6 +15,7 @@ import {
 } from "@/core/document";
 import { gradientParams } from "@/core/renderer/blend";
 import { input, type RenderInput } from "@/core/renderer/node";
+import brushShader from "./brush.wgsl";
 import { type Dab, strokeDabs } from "./dabs";
 import gradientShader from "./gradient.wgsl";
 import strokeShader from "./strokes.wgsl";
@@ -22,33 +23,31 @@ import strokeShader from "./strokes.wgsl";
 /** Dabs per pass: every fragment in the chunk's bounds loops over them. */
 const chunk = 64;
 
-type Entry = {
+type Size = readonly [number, number];
+/** One brush's own coverage, stamped as its strokes grow. */
+type Brush = {
+  target: Target;
+  strokes: readonly BrushStroke[];
+  /** Dabs already stamped from the last stroke. */
+  dabs: number;
+};
+/** A mask's own coverage combined with the children that shape it. */
+type Group = {
   target: Target;
   ops: readonly MaskModifier[];
-  /** Dabs already stamped from the last op's last stroke. */
-  dabs: number;
 };
 
 /** A mask's own coverage followed by the children that shape it, in stored order. */
 export function maskOps(layer: MaskLayer): readonly MaskModifier[] {
   return [
-    { mask: layer.mask, operation: "add", opacity: 1 },
+    { id: layer.id, mask: layer.mask, operation: "add", opacity: 1 },
     ...maskModifiers(layer),
   ];
 }
 
-/** Nothing is painted and nothing adds to it, so the mask covers no pixel. */
-function empty(ops: readonly MaskModifier[]) {
-  const [base, ...modifiers] = ops;
-  return (
-    base.mask.kind === "brush" &&
-    base.mask.strokes.length === 0 &&
-    !modifiers.some(
-      (op) =>
-        op.operation === "add" &&
-        (op.mask.kind !== "brush" || op.mask.strokes.length > 0),
-    )
-  );
+/** Whether an op can cover pixels: a gradient always does, a brush once it has strokes. */
+function covers(op: MaskModifier) {
+  return op.mask.kind !== "brush" || op.mask.strokes.length > 0;
 }
 
 function sameStroke(a: BrushStroke, b: BrushStroke) {
@@ -70,18 +69,11 @@ function extendsStroke(previous: BrushStroke, next: BrushStroke) {
   );
 }
 
-/** Whether `next` only appends strokes or points to `previous`. */
-function extendsOp(previous: MaskModifier, next: MaskModifier) {
-  if (
-    previous.mask.kind !== "brush" ||
-    next.mask.kind !== "brush" ||
-    previous.operation !== next.operation ||
-    previous.opacity !== next.opacity
-  ) {
-    return false;
-  }
-  const before = previous.mask.strokes;
-  const after = next.mask.strokes;
+/** Whether `after` only appends strokes or points to `before`. */
+function extendsStrokes(
+  before: readonly BrushStroke[],
+  after: readonly BrushStroke[],
+) {
   return (
     after.length >= before.length &&
     before.every((stroke, i) =>
@@ -92,9 +84,15 @@ function extendsOp(previous: MaskModifier, next: MaskModifier) {
   );
 }
 
-function sameOp(a: MaskModifier, b: MaskModifier) {
+function sameOps(a: readonly MaskModifier[], b: readonly MaskModifier[]) {
   return (
-    a.mask === b.mask && a.operation === b.operation && a.opacity === b.opacity
+    a.length === b.length &&
+    a.every(
+      (op, i) =>
+        op.mask === b[i].mask &&
+        op.operation === b[i].operation &&
+        op.opacity === b[i].opacity,
+    )
   );
 }
 
@@ -106,12 +104,15 @@ const subtract: BlendOptions = {
 };
 
 /**
- * Rasterizes mask coverage into one r8unorm texture per layer at source resolution.
- * Strokes are the document's truth; textures are caches stamped incrementally as strokes grow
- * and rebuilt when earlier content changes, so undo and reload replay the same passes.
+ * Rasterizes brush coverage into r8unorm textures at source resolution. Each brush owns the
+ * coverage of its strokes, stamped incrementally as they grow and replayed when earlier content
+ * changes; a mask shaped by children combines its own coverage with theirs in a second texture,
+ * rebuilt whenever any of them changes. Strokes stay the document's truth; textures are caches.
  */
 export function createMaskRaster(gpu: Gpu) {
-  const entries = new Map<string, Entry>();
+  const brushes = new Map<string, Brush>();
+  const groups = new Map<string, Group>();
+  const used = new Set<Brush | Group>();
   const dabs: Buffer = gpu.device.createBuffer({
     size: chunk * 16,
     usage: ["storage", "copy_dst"],
@@ -120,15 +121,21 @@ export function createMaskRaster(gpu: Gpu) {
   const erase = effect(gpu, strokeShader, { blend: out, set: { dabs } });
   const gradientAdd = effect(gpu, gradientShader, { blend: add });
   const gradientSubtract = effect(gpu, gradientShader, { blend: subtract });
+  const brushAdd = effect(gpu, brushShader, { blend: add });
+  const brushSubtract = effect(gpu, brushShader, { blend: subtract });
   let stamped = 0;
 
+  function clear(target: Target) {
+    frame(gpu, (frame) => frame.pass({ target, clear: true }, () => {}));
+  }
+
   function stampDabs(
-    entry: Entry,
+    target: Target,
     dabList: readonly Dab[],
     feather: number,
     mode: BrushStroke["mode"],
   ) {
-    const [width, height] = entry.target.size;
+    const [width, height] = target.size;
     for (let start = 0; start < dabList.length; start += chunk) {
       const batch = dabList.slice(start, start + chunk);
       let left = width;
@@ -155,165 +162,195 @@ export function createMaskRaster(gpu: Gpu) {
       pass.set({ params: { count: batch.length, feather } });
       // One frame per chunk: buffer and uniform writes land in queue order, before the pass that reads them.
       frame(gpu, (frame) =>
-        frame.pass(
-          { target: entry.target, clear: false, scissor: [x, y, w, h] },
-          pass,
-        ),
+        frame.pass({ target, clear: false, scissor: [x, y, w, h] }, pass),
       );
       stamped += batch.length;
     }
   }
 
-  /**
-   * Applies an op's strokes from `fromStroke`, skipping `skipDabs` of that first stroke, and
-   * returns the dab count of its last stroke. A subtracting child erases with its paint strokes;
-   * its erase strokes have nothing of their own to remove, so they are skipped.
-   */
+  /** Stamps strokes from `fromStroke` on, skipping `skipDabs` of that first one; returns the last stroke's dab count. */
   function stampStrokes(
-    entry: Entry,
-    op: MaskModifier,
+    target: Target,
+    strokes: readonly BrushStroke[],
     fromStroke = 0,
     skipDabs = 0,
   ) {
-    if (op.mask.kind !== "brush") {
-      return 0;
-    }
     let count = 0;
-    op.mask.strokes.forEach((stroke, i) => {
+    strokes.forEach((stroke, i) => {
       if (i < fromStroke) {
         return;
       }
-      const all = strokeDabs(stroke, op.opacity);
+      const all = strokeDabs(stroke);
       count = all.length;
-      if (op.operation === "subtract" && stroke.mode === "erase") {
-        return;
-      }
-      const mode = op.operation === "subtract" ? "erase" : stroke.mode;
       stampDabs(
-        entry,
+        target,
         i === fromStroke ? all.slice(skipDabs) : all,
         stroke.feather,
-        mode,
+        stroke.mode,
       );
     });
     return count;
   }
 
-  function applyOp(entry: Entry, op: MaskModifier) {
-    if (op.mask.kind === "brush") {
-      return stampStrokes(entry, op);
-    }
-    const pass = op.operation === "add" ? gradientAdd : gradientSubtract;
-    pass.set({ params: { ...gradientParams(op.mask), opacity: op.opacity } });
-    frame(gpu, (frame) =>
-      frame.pass({ target: entry.target, clear: false }, pass),
-    );
-    return 0;
-  }
-
-  function rebuild(entry: Entry, ops: readonly MaskModifier[]) {
-    frame(gpu, (frame) =>
-      frame.pass({ target: entry.target, clear: true }, () => {}),
-    );
-    let count = 0;
-    for (const op of ops) {
-      count = applyOp(entry, op);
-    }
-    return count;
-  }
-
-  function release(id: string) {
-    const entry = entries.get(id);
-    if (entry) {
+  /** The entry for `id` at `size`, created or resized as needed, and marked as in use. */
+  function reserve<E extends Brush | Group>(
+    map: Map<string, E>,
+    id: string,
+    size: Size,
+    create: (target: Target) => E,
+  ) {
+    let entry = map.get(id);
+    if (
+      entry &&
+      (entry.target.size[0] !== size[0] || entry.target.size[1] !== size[1])
+    ) {
       entry.target.color.dispose();
-      entries.delete(id);
+      entry = undefined;
+    }
+    if (!entry) {
+      entry = create(target(gpu, { size: [...size], format: "r8unorm" }));
+      map.set(id, entry);
+    }
+    used.add(entry);
+    return entry;
+  }
+
+  /** Brings one brush's coverage up to date: appended points stamp, any other change replays every stroke. */
+  function updateBrush(
+    id: string,
+    strokes: readonly BrushStroke[],
+    size: Size,
+  ) {
+    const brush = reserve(brushes, id, size, (target) => ({
+      target,
+      strokes: [],
+      dabs: 0,
+    }));
+    const applied = brush.strokes;
+    if (applied === strokes) {
+      return;
+    }
+    if (applied.length && extendsStrokes(applied, strokes)) {
+      brush.dabs = stampStrokes(
+        brush.target,
+        strokes,
+        applied.length - 1,
+        brush.dabs,
+      );
+    } else {
+      clear(brush.target);
+      brush.dabs = stampStrokes(brush.target, strokes);
+    }
+    brush.strokes = strokes;
+  }
+
+  /** The pass that adds or subtracts one op's coverage, or nothing for a brush without strokes. */
+  function opPass(op: MaskModifier) {
+    if (op.mask.kind !== "brush") {
+      const pass = op.operation === "add" ? gradientAdd : gradientSubtract;
+      return pass.set({
+        params: { ...gradientParams(op.mask), opacity: op.opacity },
+      });
+    }
+    const brush = covers(op) ? brushes.get(op.id) : undefined;
+    if (!brush) {
+      return undefined;
+    }
+    const pass = op.operation === "add" ? brushAdd : brushSubtract;
+    return pass.set({
+      coverage: brush.target.color,
+      params: { opacity: op.opacity },
+    });
+  }
+
+  /** Combines a mask's own coverage with its children's in stored order, once any of them changed. */
+  function updateGroup(id: string, ops: readonly MaskModifier[], size: Size) {
+    const group = reserve(groups, id, size, (target) => ({ target, ops: [] }));
+    if (sameOps(group.ops, ops)) {
+      return group;
+    }
+    clear(group.target);
+    for (const op of ops) {
+      const pass = opPass(op);
+      if (pass) {
+        // One frame per pass: uniform writes land in queue order, before the pass that reads them.
+        frame(gpu, (frame) =>
+          frame.pass({ target: group.target, clear: false }, pass),
+        );
+      }
+    }
+    group.ops = ops;
+    return group;
+  }
+
+  function release<E extends Brush | Group>(map: Map<string, E>) {
+    for (const [id, entry] of map) {
+      if (!used.has(entry)) {
+        entry.target.color.dispose();
+        map.delete(id);
+      }
     }
   }
 
   return {
-    /** Brings the layer's raster up to date and returns it as a render input. */
-    update(
-      layer: MaskLayer,
-      size: readonly [number, number],
-    ): RenderInput | undefined {
-      const ops = maskOps(layer);
-      if (!ops.some((op) => op.mask.kind === "brush") || empty(ops)) {
-        release(layer.id);
+    /** Brings the layer's rasters up to date and returns the coverage its composition samples, if any. */
+    update(layer: MaskLayer, size: Size): RenderInput | undefined {
+      const [own, ...children] = maskOps(layer);
+      const active = children.filter(covers);
+      const ops = [own, ...active];
+      for (const op of ops) {
+        if (op.mask.kind === "brush" && covers(op)) {
+          updateBrush(op.id, op.mask.strokes, size);
+        }
+      }
+      if (own.mask.kind !== "brush") {
+        // Gradient children combine in the mix pass; a painted brush child needs a raster.
+        return active.some((op) => op.mask.kind === "brush")
+          ? input(updateGroup(layer.id, ops, size).target)
+          : undefined;
+      }
+      if (active.length === 0) {
+        // Nothing shapes the brush, so its own coverage is the mask's; without strokes the layer is bypassed.
+        const brush = covers(own) ? brushes.get(own.id) : undefined;
+        return brush && input(brush.target);
+      }
+      if (!covers(own) && !active.some((op) => op.operation === "add")) {
         return undefined;
       }
-      let entry = entries.get(layer.id);
-      if (
-        entry &&
-        (entry.target.size[0] !== size[0] || entry.target.size[1] !== size[1])
-      ) {
-        release(layer.id);
-        entry = undefined;
-      }
-      if (!entry) {
-        entry = {
-          target: target(gpu, { size: [...size], format: "r8unorm" }),
-          ops: [],
-          dabs: 0,
-        };
-        entries.set(layer.id, entry);
-      }
-      const applied = entry.ops;
-      let common = 0;
-      while (common < applied.length && sameOp(applied[common], ops[common])) {
-        common++;
-      }
-      if (common === applied.length) {
-        for (const op of ops.slice(common)) {
-          entry.dabs = applyOp(entry, op);
-        }
-      } else if (
-        common === applied.length - 1 &&
-        extendsOp(applied[common], ops[common])
-      ) {
-        const previous = applied[common].mask;
-        const strokes = previous.kind === "brush" ? previous.strokes.length : 0;
-        entry.dabs = stampStrokes(
-          entry,
-          ops[common],
-          Math.max(0, strokes - 1),
-          entry.dabs,
-        );
-        for (const op of ops.slice(common + 1)) {
-          entry.dabs = applyOp(entry, op);
-        }
-      } else {
-        entry.dabs = rebuild(entry, ops);
-      }
-      entry.ops = ops;
-      return input(entry.target);
+      return input(updateGroup(layer.id, ops, size).target);
     },
+    /** A mask's combined coverage, or a brush's own. */
     get(id: string): RenderInput | undefined {
-      const entry = entries.get(id);
-      return entry && input(entry.target);
+      const raster = groups.get(id) ?? brushes.get(id);
+      return raster && input(raster.target);
     },
-    /** Keeps only the listed layers' rasters. */
-    retain(ids: ReadonlySet<string>) {
-      for (const id of [...entries.keys()]) {
-        if (!ids.has(id)) {
-          release(id);
-        }
-      }
+    /** Releases the rasters that no update used since the previous sweep. */
+    sweep() {
+      release(brushes);
+      release(groups);
+      used.clear();
     },
-    release,
     inspect() {
       return {
         stamped,
-        rasters: [...entries].map(([id, entry]) => ({
-          id,
-          size: [...entry.target.size],
-        })),
+        rasters: [
+          ...[...brushes].map(([id, { target }]) => ({
+            id,
+            size: [...target.size],
+          })),
+          ...[...groups].map(([id, { target }]) => ({
+            id: `${id}/group`,
+            size: [...target.size],
+          })),
+        ],
       };
     },
     dispose() {
-      for (const entry of entries.values()) {
-        entry.target.color.dispose();
+      for (const { target } of [...brushes.values(), ...groups.values()]) {
+        target.color.dispose();
       }
-      entries.clear();
+      brushes.clear();
+      groups.clear();
       dabs.dispose();
     },
   };

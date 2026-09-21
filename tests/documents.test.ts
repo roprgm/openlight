@@ -17,13 +17,22 @@ function document() {
   });
 }
 
-test("drop removes the latest entry without leaving redo and cancels an open group", () => {
+test("drop removes the latest entry only after its snapshot, leaving no redo, and cancels an open group", () => {
   const doc = document();
+  const start = doc.scene.getState();
   setAdjustments(doc, { exposure: 1 });
+  const adjusted = doc.scene.getState();
   setAdjustments(doc, { exposure: 2 });
   doc.history.undo();
-  doc.history.drop();
-  expect(doc.scene.getState().layers[0].adjustments.exposure).toBe(0);
+  doc.history.drop(adjusted);
+  expect(doc.scene.getState()).toBe(adjusted);
+  expect(doc.history.status.getState()).toEqual({
+    undoCount: 1,
+    redoCount: 1,
+    editing: false,
+  });
+  doc.history.drop(start);
+  expect(doc.scene.getState()).toBe(start);
   expect(doc.history.status.getState()).toEqual({
     undoCount: 0,
     redoCount: 0,
@@ -31,8 +40,8 @@ test("drop removes the latest entry without leaving redo and cancels an open gro
   });
   doc.history.begin();
   setAdjustments(doc, { exposure: 3 });
-  doc.history.drop();
-  expect(doc.scene.getState().layers[0].adjustments.exposure).toBe(0);
+  doc.history.drop(start);
+  expect(doc.scene.getState()).toBe(start);
   expect(doc.history.status.getState().undoCount).toBe(0);
 });
 

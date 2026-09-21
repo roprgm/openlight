@@ -216,6 +216,28 @@ test("paint a brush mask, adjust it in the sidebar, erase, and undo", async ({
       mask: { kind: "brush" },
     });
     expect((await samples(page))[1]).toEqual(original[1]);
+    // The child row previews its own coverage, and erasing in it restores the gradient's.
+    const thumbnails = page
+      .getByRole("region", { name: "Layers", exact: true })
+      .getByLabel("Mask thumbnail", { exact: true });
+    await expect(thumbnails).toHaveCount(2);
+    await expect
+      .poll(() =>
+        thumbnails.nth(1).evaluate((element) => {
+          const context = (element as HTMLCanvasElement).getContext("2d");
+          return context?.getImageData(32, 8, 1, 1).data[0] ?? 0;
+        }),
+      )
+      .toBeGreaterThan(200);
+    await page.keyboard.down("Alt");
+    await drag(
+      page,
+      [center[0], center[1] - 300 * scale],
+      [center[0], center[1] - 300 * scale + 1],
+      2,
+    );
+    await page.keyboard.up("Alt");
+    expect((await samples(page))[1]).toEqual(lit[1]);
   });
   await test.step("Escape climbs from the child mask to its parent and the image; Enter on a button is its click", async () => {
     const initial = await state();

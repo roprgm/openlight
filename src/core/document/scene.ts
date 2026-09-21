@@ -115,7 +115,10 @@ export type ProcessingLayer = {
 );
 export type MaskLayer = Extract<ProcessingLayer, { kind: "mask" }>;
 /** A child mask that adds to or subtracts from its parent's coverage. */
-export type MaskModifier = Pick<MaskLayer, "mask" | "operation" | "opacity">;
+export type MaskModifier = Pick<
+  MaskLayer,
+  "id" | "mask" | "operation" | "opacity"
+>;
 export type EffectLayer = Exclude<ProcessingLayer, MaskLayer>;
 export type Layer = ImageLayer | ProcessingLayer;
 

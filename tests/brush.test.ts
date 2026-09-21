@@ -28,20 +28,17 @@ const stroke: BrushStroke = {
 
 test("dabs follow the stroke at a quarter diameter with interpolated pressure", () => {
   expect(strokeDabs(stroke)).toEqual([[10, 10, 4, 0.5]]);
-  const line = strokeDabs(
-    {
-      ...stroke,
-      points: [
-        [10, 10, 1],
-        [20, 10, 0.5],
-        [30, 10, 0],
-      ],
-    },
-    0.5,
-  );
+  const line = strokeDabs({
+    ...stroke,
+    points: [
+      [10, 10, 1],
+      [20, 10, 0.5],
+      [30, 10, 0],
+    ],
+  });
   expect(line).toHaveLength(11);
-  expect(line[0]).toEqual([10, 10, 4, 0.25]);
-  expect(line[5]).toEqual([20, 10, 4, 0.125]);
+  expect(line[0]).toEqual([10, 10, 4, 0.5]);
+  expect(line[5]).toEqual([20, 10, 4, 0.25]);
   expect(line[10][0]).toBeCloseTo(30);
   expect(line[10][3]).toBeCloseTo(0);
   expect(strokeDabs({ ...stroke, points: [] })).toEqual([]);
@@ -148,10 +145,18 @@ test("brush strokes stamp incrementally, replay after undo, and render a proxy d
     expect(renderer.inspect().passes).toContain(
       `layer/${gradient}/raster-input`,
     );
+    // The child keeps its own coverage for its preview; the gradient combines it into a second texture.
     expect(renderer.inspect().rasters.map((raster) => raster.id)).toEqual([
       mask,
-      gradient,
+      child,
+      `${gradient}/group`,
     ]);
+    expect(renderer.coverage(child)?.size).toEqual([64, 32]);
+    // Erasing inside the child stamps its own raster only, and the group recombines.
+    const stampedBefore = renderer.inspect().stamped;
+    paintStroke(document, child, { ...stroke, mode: "erase" });
+    await render();
+    expect(renderer.inspect().stamped).toBe(stampedBefore + 1);
     deleteLayer(document, child);
     deleteLayer(document, mask);
     await render();
