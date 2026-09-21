@@ -1,8 +1,10 @@
 # OpenLight
 
-**An open-source photo editor for the browser, built with [vgpu.sh](https://vgpu.sh).**
+**An open-source photo editor for the browser, built with [vgpu.sh](https://vgpu.sh).** Try it at [openlight.app](https://openlight.app).
 
 Image processing runs locally with WebGPU. Built with TypeScript and React; requires a WebGPU-capable browser.
+
+![The OpenLight editor before a photo is opened](public/og.png)
 
 ## Features
 

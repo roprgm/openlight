@@ -1,6 +1,8 @@
 {
   "name": "openlight",
   "private": true,
+  "homepage": "https://openlight.app",
+  "repository": "github:roprgm/openlight",
   "type": "module",
   "scripts": {
     "dev": "vite",
