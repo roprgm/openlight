@@ -99,7 +99,7 @@ export function CropOverlay({
   }
   return (
     <div
-      className="absolute -inset-6 touch-none"
+      className="absolute inset-0 touch-none"
       onPointerDown={start}
       onPointerMove={(event) => {
         const target = hit(event);

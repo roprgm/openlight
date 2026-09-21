@@ -19,7 +19,7 @@ OpenLight uses a small set of shared UI primitives so the editor reads as one ap
 
 - Use shared components for repeated interaction and surface behavior. Keep feature-specific composition in the feature.
 - Use Tailwind tokens already present in the shared primitive for color, borders, shadows, focus, and pointer-coarse sizing. A caller chooses a documented variant instead of recreating the surface.
-- Anchor viewport-corner controls and messages 12 px from both edges. Tool overlays live inside the viewport's 24 px canvas padding, so their corner surfaces compensate that padding with a negative 12 px inset; this aligns them with viewport-owned controls such as Zoom.
+- Anchor viewport-corner controls and messages 12 px from both edges. Tool overlays cover the full viewport; the camera preserves a 24 px margin around fitted content without shrinking that coordinate space.
 - Use `ScrubInput` for numbers that primarily read as inline text and secondarily accept typing. Inline variants hug the current digits and unit, keep their label close, and show only a subtly rounded background while text editing is active. Reserve the persistent bordered `box` variant for form fields that need explicit input chrome.
 - Give toolbar slider values an explicit minimum character width when their expected range changes digit count. Set it at the call site from the useful range: percentages reserve three tabular characters, while brush size uses the actual maximum's digit count. Do not guess a global maximum.
 - Text uses the global body size. Express hierarchy with weight and color.

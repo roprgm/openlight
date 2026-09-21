@@ -86,13 +86,17 @@ export function heal(
   patches: readonly HealPatch[],
   name: string,
   brush: Composition["brush"],
+  inputId?: string,
   resolve?: (id: string) => Target,
 ) {
-  return patches.reduce((image, patch) => {
+  let image = source;
+  let inspected: RenderImage | undefined;
+  for (const patch of patches) {
+    if (patch.id === inputId) inspected = image;
     const id = `${name}/${patch.id}`;
     const coverage = brush(id, [patch.stroke]);
     if (patch.algorithm === "ai") {
-      if (!patch.result) return image;
+      if (!patch.result) continue;
       if (!resolve) throw Error("AI image resource is unavailable.");
       const dimensions = sourceSize(image);
       const bounds = patchBounds(
@@ -100,7 +104,7 @@ export function heal(
         dimensions,
         (patch.stroke.size * patch.feather) / 2,
       );
-      return merge(
+      image = merge(
         {
           source: image,
           coverage,
@@ -123,7 +127,9 @@ export function heal(
           },
         }),
       );
+      continue;
     }
-    return healPatch(image, coverage, patch, id);
-  }, source);
+    image = healPatch(image, coverage, patch, id);
+  }
+  return { image, input: inspected };
 }

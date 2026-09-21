@@ -1,7 +1,8 @@
-import { memo, type PointerEvent, useId } from "react";
+import { memo, type PointerEvent, useId, useState } from "react";
 import type { useDocumentMapping } from "@/components/editor/mapping";
 import type { BrushStroke, HealPatch } from "@/core/document";
 import type { Point } from "@/core/image/frame";
+import { HealDestinationHandle } from "./destination-handle";
 import { HealSourceHandle } from "./source-handle";
 
 type Geometry = {
@@ -21,15 +22,9 @@ function geometry(
   const points = stroke.points.map(([x, y]) =>
     mapping.toScreen([x + offset[0], y + offset[1]]),
   );
-  const xs = points.map(([x]) => x);
-  const ys = points.map(([, y]) => y);
-  const center: Point = [
-    (Math.min(...xs) + Math.max(...xs)) / 2,
-    (Math.min(...ys) + Math.max(...ys)) / 2,
-  ];
   const width = stroke.size / mapping.pixelsPerViewportPixel;
   return {
-    center,
+    center: points[0],
     d: points.map(([x, y], index) => `${index ? "L" : "M"}${x} ${y}`).join(""),
     first: points[0],
     last: points.at(-1) ?? points[0],
@@ -104,19 +99,28 @@ function Outline({
   );
 }
 
-/** Draws a solid destination and a quieter Smart clone source with their centers. */
+/** Draws a solid destination and a quieter Smart clone source with first-point anchors. */
 export function HealPatchOutline({
   layer,
   patch,
   showSource,
   mapping,
+  onMoveDestination,
+  interactive,
 }: {
   layer: string;
   patch: HealPatch;
   showSource: boolean;
   mapping: Mapping;
+  onMoveDestination?: (id: string, signal: AbortSignal) => Promise<void>;
+  interactive: boolean;
 }) {
-  const destination = geometry(patch.stroke, [0, 0], mapping);
+  const [preview, setPreview] = useState<Point>();
+  const first = patch.stroke.points[0];
+  const previewOffset: Point = preview
+    ? [preview[0] - first[0], preview[1] - first[1]]
+    : [0, 0];
+  const destination = geometry(patch.stroke, previewOffset, mapping);
   const source =
     patch.algorithm === "healing"
       ? geometry(patch.stroke, patch.offset, mapping)
@@ -124,18 +128,44 @@ export function HealPatchOutline({
   return (
     <>
       <Outline shape={destination} kind="destination" />
-      <circle
-        data-heal-destination-handle="true"
-        cx={destination.center[0]}
-        cy={destination.center[1]}
-        r="7"
-        fill="#3b82f6"
-        stroke="white"
-        strokeWidth="2"
-      />
+      {interactive ? (
+        <HealDestinationHandle
+          layer={layer}
+          patch={patch}
+          anchor={destination.center}
+          onPreview={setPreview}
+          onRelease={
+            patch.algorithm === "ai"
+              ? (signal) =>
+                  onMoveDestination?.(patch.id, signal) ?? Promise.resolve()
+              : undefined
+          }
+        />
+      ) : (
+        <circle
+          data-heal-destination-anchor="true"
+          cx={destination.center[0]}
+          cy={destination.center[1]}
+          r="7"
+          fill="#3b82f6"
+          stroke="white"
+          strokeWidth="2"
+        />
+      )}
       {showSource && source && <Outline shape={source} kind="source" />}
-      {showSource && source && patch.algorithm === "healing" && (
+      {showSource && source && patch.algorithm === "healing" && interactive && (
         <HealSourceHandle layer={layer} patch={patch} center={source.center} />
+      )}
+      {showSource && source && !interactive && (
+        <circle
+          data-heal-source-anchor="true"
+          cx={source.center[0]}
+          cy={source.center[1]}
+          r="7"
+          fill="#3b82f6"
+          stroke="white"
+          strokeWidth="2"
+        />
       )}
     </>
   );

@@ -39,7 +39,11 @@ function composeLayer(
   }
   // A hidden or transparent layer still shows what its curve receives while it is inspected.
   const bypassed = !layer.visible || layer.opacity === 0;
-  if (bypassed && layer.id !== composition.inputId) {
+  const inspected =
+    layer.id === composition.inputId ||
+    (layer.kind === "heal" &&
+      layer.patches.some((patch) => patch.id === composition.inputId));
+  if (bypassed && !inspected) {
     return { image: below };
   }
   const masks = layer.kind === "mask" ? maskModifiers(layer) : [];
@@ -82,9 +86,19 @@ function composeLayer(
     case "fill":
       edited = pipeline(below, [fill(layer.fill, `${name}/fill`)]);
       break;
-    case "heal":
-      edited = heal(below, layer.patches, name, composition.brush, resolve);
+    case "heal": {
+      const result = heal(
+        below,
+        layer.patches,
+        name,
+        composition.brush,
+        composition.inputId,
+        resolve,
+      );
+      edited = result.image;
+      input = result.input;
       break;
+    }
   }
   // Child masks of a mask shape its coverage; every other child processes the image.
   const effects =

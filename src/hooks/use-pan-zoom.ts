@@ -65,6 +65,13 @@ function clamp(view: View, content: Size, viewport: Size): View {
   };
 }
 
+function inset(size: Size, padding: number): Point {
+  return [
+    Math.max(0, size[0] - padding * 2),
+    Math.max(0, size[1] - padding * 2),
+  ];
+}
+
 /**
  * Pan and zoom over `content` inside the element given `ref`.
  * Zoom 1 is the initial fit: contain, but capped at 200%. `pan` is in CSS px from the viewport center.
@@ -73,7 +80,7 @@ function clamp(view: View, content: Size, viewport: Size): View {
 export function usePanZoom(
   state: Camera,
   content: Size,
-  { constrain = true } = {},
+  { constrain = true, padding = 0 } = {},
 ) {
   const ref = useRef<HTMLDivElement>(null);
   const pointers = useRef(new Map<number, Point>());
@@ -130,11 +137,13 @@ export function usePanZoom(
         const viewport: Size = [element.clientWidth, element.clientHeight];
         state.setState((view) => {
           const result = next(view);
-          return bounded ? clamp(result, content, viewport) : result;
+          return bounded
+            ? clamp(result, content, inset(viewport, padding))
+            : result;
         }, true);
       }
     },
-    [state, content, constrain],
+    [state, content, constrain, padding],
   );
 
   useLayoutEffect(() => update((view) => view), [update, viewport]);
@@ -254,6 +263,6 @@ export function usePanZoom(
     resetView,
     zoomBy,
     panMode,
-    scale: fitScale(content, viewport) * view.zoom,
+    scale: fitScale(content, inset(viewport, padding)) * view.zoom,
   };
 }

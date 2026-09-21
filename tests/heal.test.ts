@@ -15,6 +15,7 @@ import {
   duplicateHealPatch,
   extendHealPatch,
   setAiResult,
+  setHealDestination,
   setHealPatch,
   setHealSource,
 } from "@/features/heal/edits";
@@ -146,6 +147,12 @@ test("one Healing layer composes Smart clone and AI patches through render nodes
     );
     expect(renderer.inputImage(layer)).toBeDefined();
     expect(renderer.inputImage(layer)).not.toBe(source.image);
+    const layerInput = renderer.inputImage(layer);
+    await renderer.update(document.scene.getState(), patch);
+    expect(renderer.inputImage(patch)).toBeDefined();
+    expect(renderer.inputImage(patch)).not.toBe(layerInput);
+    setHealDestination(document, layer, smart, [80, 60]);
+    setHealDestination(document, layer, patch, [70, 55]);
     setHealPatch(document, layer, smart, {
       feather: 0.2,
       opacity: 0.6,
@@ -156,6 +163,14 @@ test("one Healing layer composes Smart clone and AI patches through render nodes
       .layers.find((item) => item.id === layer);
     expect(healing?.kind).toBe("heal");
     if (healing?.kind !== "heal") throw Error("Healing layer missing.");
+    expect(healing.patches.find((item) => item.id === smart)).toMatchObject({
+      stroke: { points: [[80, 60, 1]] },
+      offset: [14, -12],
+    });
+    expect(healing.patches.find((item) => item.id === patch)).toMatchObject({
+      stroke: { points: [[70, 55, 1]] },
+      result: { origin: [16, 0], extent: [96, 96] },
+    });
     expect(healing.patches.find((item) => item.id === smart)).toMatchObject({
       feather: 0.2,
       opacity: 0.6,

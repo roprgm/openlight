@@ -63,6 +63,56 @@ export function HealOverlay({
     }
     return layer;
   }
+  async function generateAi(
+    layerId: string,
+    patchId: string,
+    signal: AbortSignal,
+  ) {
+    const scene = document.scene.getState();
+    const layer = findLayer(scene.layers, layerId);
+    const patch =
+      layer?.kind === "heal"
+        ? layer.patches.find((patch) => patch.id === patchId)
+        : undefined;
+    if (patch?.algorithm !== "ai") return;
+    await renderer.update(scene, patchId, false);
+    signal.throwIfAborted();
+    const image = renderer.inputImage(patchId);
+    if (!image) throw Error("Heal input is unavailable.");
+    const dimensions = document.resources.get(scene.layers[0].source).image
+      .size;
+    const generated = await generateMigan(gpu, image, dimensions, patch.stroke);
+    signal.throwIfAborted();
+    if (document.scene.getState() !== scene) return;
+    const resource = createPixelSource(gpu, generated.result);
+    const result = document.resources.add(
+      new File([], "AI Remove result"),
+      resource,
+    );
+    setAiResult(
+      document,
+      layerId,
+      patchId,
+      result,
+      generated.origin,
+      generated.extent,
+    );
+  }
+  async function regenerateFrom(
+    layerId: string,
+    patchId: string,
+    signal: AbortSignal,
+  ) {
+    const layer = findLayer(document.scene.getState().layers, layerId);
+    if (layer?.kind !== "heal") return;
+    const index = layer.patches.findIndex((patch) => patch.id === patchId);
+    if (index < 0) return;
+    const affected = layer.patches
+      .slice(index)
+      .filter((patch) => patch.algorithm === "ai")
+      .map((patch) => patch.id);
+    for (const id of affected) await generateAi(layerId, id, signal);
+  }
   useEffect(() => {
     const layer = findLayer(
       document.scene.getState().layers,
@@ -103,40 +153,21 @@ export function HealOverlay({
       if (!patch) {
         return;
       }
-      await renderer.update(scene, current.layer, current.algorithm !== "ai");
+      if (current.algorithm === "ai") {
+        await generateAi(current.layer, current.patch, signal);
+        return;
+      }
+      await renderer.update(scene, current.patch, true);
       if (signal.aborted) {
         return;
       }
-      const image = renderer.inputImage(current.layer);
+      const image = renderer.inputImage(current.patch);
       if (!image) {
         throw Error("Heal input is unavailable.");
       }
+      if (!current.automatic) return;
       const dimensions = document.resources.get(scene.layers[0].source).image
         .size;
-      if (current.algorithm === "ai") {
-        const generated = await generateMigan(
-          gpu,
-          image,
-          dimensions,
-          patch.stroke,
-        );
-        if (document.scene.getState() !== scene || signal.aborted) return;
-        const resource = createPixelSource(gpu, generated.result);
-        const result = document.resources.add(
-          new File([], "AI Remove result"),
-          resource,
-        );
-        setAiResult(
-          document,
-          current.layer,
-          current.patch,
-          result,
-          generated.origin,
-          generated.extent,
-        );
-        return;
-      }
-      if (!current.automatic) return;
       const offset = await search.find(image, dimensions, patch.stroke);
       // Undo, selection, or document replacement during readback must not resurrect a patch.
       if (
@@ -212,18 +243,26 @@ export function HealOverlay({
                     patch.id !== drawingPatch &&
                     patch.id !== resolvingSource
                   }
+                  onMoveDestination={(patch, signal) =>
+                    regenerateFrom(healLayer.id, patch, signal)
+                  }
+                  interactive={
+                    patch.id === selectedPatch && patch.id !== drawingPatch
+                  }
                 />
               </g>
             ) : null;
           })}
-          {patches.map((patch) => (
-            <HealPatchHitTarget
-              key={`hit-${patch.id}`}
-              patch={patch}
-              mapping={mapping}
-              onSelect={selectPatch}
-            />
-          ))}
+          {patches.map((patch) =>
+            patch.id !== selectedPatch ? (
+              <HealPatchHitTarget
+                key={`hit-${patch.id}`}
+                patch={patch}
+                mapping={mapping}
+                onSelect={selectPatch}
+              />
+            ) : null,
+          )}
         </svg>
       )}
       {algorithm !== "ai" && marker && (

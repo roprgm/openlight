@@ -43,6 +43,9 @@ test("Healing loads AI on demand, paints Smart clone, and undoes patches", async
   await page.keyboard.press("h");
   const canvas = page.getByLabel("Healing canvas", { exact: true });
   await expect(canvas).toBeVisible();
+  expect(await box(canvas)).toEqual(
+    await box(page.getByRole("region", { name: "Image canvas" })),
+  );
   await expect(page.getByText("Paint to repair", { exact: false })).toHaveCount(
     0,
   );
@@ -170,10 +173,22 @@ test("Healing loads AI on demand, paints Smart clone, and undoes patches", async
     bounds.y + bounds.height / 2 + 160 * scale,
   );
   await page.keyboard.up("Alt");
-  await page.mouse.click(
-    bounds.x + bounds.width / 2 - 250 * scale,
-    bounds.y + bounds.height / 2 - 200 * scale,
-  );
+  const targetX = bounds.x + bounds.width / 2 - 250 * scale;
+  const targetY = bounds.y + bounds.height / 2 - 200 * scale;
+  await page.mouse.move(targetX, targetY);
+  await page.mouse.down();
+  await page.mouse.move(targetX, targetY + 60);
+  const drawingAnchor = canvas.locator('[data-heal-destination-anchor="true"]');
+  await expect(drawingAnchor).toHaveCount(1);
+  const drawingAnchorBounds = await drawingAnchor.boundingBox();
+  if (!drawingAnchorBounds) throw Error("Healing anchor is unavailable");
+  expect(
+    Math.abs(drawingAnchorBounds.x + drawingAnchorBounds.width / 2 - targetX),
+  ).toBeLessThan(2);
+  expect(
+    Math.abs(drawingAnchorBounds.y + drawingAnchorBounds.height / 2 - targetY),
+  ).toBeLessThan(2);
+  await page.mouse.up();
   const manual = await page.evaluate(() => {
     const layer = window.openlight
       .getState()
@@ -244,6 +259,45 @@ test("Healing loads AI on demand, paints Smart clone, and undoes patches", async
   await expect
     .poll(async () => Number(await sourceX.inputValue()))
     .not.toBe(beforeDrag);
+  const fixedSource = Number(await sourceX.inputValue());
+  const beforeDestination = await page.evaluate((patchId) => {
+    const healing = window.openlight
+      .getState()
+      .scene?.layers.find((item) => item.kind === "heal");
+    const patch =
+      healing?.kind === "heal"
+        ? healing.patches.find((item) => item.id === patchId)
+        : undefined;
+    return patch?.stroke.points[0][0];
+  }, manual.id);
+  const destination = canvas.locator('[data-heal-destination-handle="true"]');
+  const destinationBounds = await destination.boundingBox();
+  if (!destinationBounds) throw Error("Healing destination is unavailable");
+  await page.mouse.move(
+    destinationBounds.x + destinationBounds.width / 2,
+    destinationBounds.y + destinationBounds.height / 2,
+  );
+  await page.mouse.down();
+  await page.mouse.move(
+    destinationBounds.x + destinationBounds.width / 2 + 30,
+    destinationBounds.y + destinationBounds.height / 2 + 20,
+  );
+  await page.mouse.up();
+  await expect
+    .poll(async () =>
+      page.evaluate((patchId) => {
+        const healing = window.openlight
+          .getState()
+          .scene?.layers.find((item) => item.kind === "heal");
+        const patch =
+          healing?.kind === "heal"
+            ? healing.patches.find((item) => item.id === patchId)
+            : undefined;
+        return patch?.stroke.points[0][0];
+      }, manual.id),
+    )
+    .not.toBe(beforeDestination);
+  await expect(sourceX).toHaveValue(`${fixedSource}`);
   await page.keyboard.press("Enter");
   await expect(canvas).not.toBeVisible();
 });
