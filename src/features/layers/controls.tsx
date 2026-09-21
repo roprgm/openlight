@@ -291,16 +291,6 @@ export function LayersControls({
 		<section
 			aria-label="Layers"
 			className="grid max-h-1/2 min-h-30 shrink-0 grid-rows-[auto_minmax(0,1fr)] border-t border-black bg-panel"
-			onKeyDown={(event) => {
-				// Escape closes an open menu before the mask shortcuts see it.
-				const menu = event.currentTarget.querySelector<HTMLElement>(
-					"[popover]:popover-open",
-				);
-				if (event.key === "Escape" && menu) {
-					menu.hidePopover();
-					event.stopPropagation();
-				}
-			}}
 		>
 			<PanelHeader title="Layers">
 				<button

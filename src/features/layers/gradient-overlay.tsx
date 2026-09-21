@@ -152,6 +152,10 @@ export function GradientOverlay() {
 		event.preventDefault();
 		event.stopPropagation();
 		event.currentTarget.setPointerCapture(event.pointerId);
+		// Keys after a drag belong to the mask, not to the button that started the tool.
+		if (window.document.activeElement instanceof HTMLElement) {
+			window.document.activeElement.blur();
+		}
 	}
 	function move(event: PointerEvent<HTMLDivElement>) {
 		const drag = dragging.current;

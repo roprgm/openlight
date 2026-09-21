@@ -52,6 +52,13 @@ export function LayerMenu({
 						event.preventDefault();
 						popover.current?.hidePopover();
 					}}
+					onKeyDown={(event) => {
+						// Escape closes the menu without reaching the mask shortcuts.
+						if (event.key === "Escape") {
+							popover.current?.hidePopover();
+							event.stopPropagation();
+						}
+					}}
 				>
 					{children}
 				</form>
