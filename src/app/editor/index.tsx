@@ -1,14 +1,9 @@
-import type { ReactNode } from "react";
 import type { Workspace } from "@/app/workspace";
-import { EditorPanel } from "@/components/editor/panel";
 import { RendererProvider } from "@/components/editor/pipeline";
 import { DocumentProvider, useDocument } from "@/components/editor/session";
 import Button from "@/components/ui/button";
-import ResizablePanel from "@/components/ui/resizable-panel";
-import Spinner from "@/components/ui/spinner";
-import type { EffectLayer, Gradient } from "@/core/document";
+import type { Gradient } from "@/core/document";
 import { findLayer } from "@/core/document";
-import { LayersControls } from "@/features/layers/controls";
 import { addLayer } from "@/features/layers/edits";
 import {
   GradientProvider,
@@ -17,35 +12,14 @@ import {
 import { useShortcuts } from "@/hooks/use-shortcuts";
 import { EditorCanvas } from "./canvas";
 import { ComparisonControl } from "./comparison-control";
+import { EmptyEditor } from "./empty";
 import { EditorHeader } from "./header";
-import { ImageHistogram } from "./histogram";
 import { HistoryControls } from "./history";
-import { createLayer, createMask } from "./layers";
+import { createMask } from "./layers";
 import { ModeRail } from "./mode-rail";
 import { type Mode, ModeProvider, modes, useMode } from "./modes";
 import { createEditorRenderer } from "./renderer";
-
-function EditorSidebar({ children }: { children: ReactNode }) {
-  const document = useDocument();
-  function add(kind: EffectLayer["kind"]) {
-    const scene = document.scene.getState();
-    const selected = document.selection.getState().layerId;
-    const layer = findLayer(scene.layers, selected);
-    const placement =
-      layer?.kind === "mask" && scene.layers.includes(layer)
-        ? { inside: selected }
-        : { above: selected };
-    addLayer(document, createLayer(kind), placement);
-  }
-  return (
-    <EditorPanel
-      header={<ImageHistogram />}
-      footer={<LayersControls onAdd={add} />}
-    >
-      {children}
-    </EditorPanel>
-  );
-}
+import { EditorSidebar } from "./sidebar";
 
 /** A View replaces the canvas and sidebar; a Panel fills the sidebar beside the canvas. */
 function ModeView() {
@@ -133,43 +107,26 @@ function DocumentEditor({ file }: { file: string }) {
   );
 }
 
-type EditorProps = { state: ReturnType<Workspace["state"]["getState"]> };
-function LoadingStatus({ state }: EditorProps) {
-  if (state.status !== "error") {
-    return <Spinner />;
+type EditorProps = {
+  state: ReturnType<Workspace["state"]["getState"]>;
+  onOpen: (files: File[]) => void;
+};
+function EditorContent({ state, onOpen }: EditorProps) {
+  if (state.status !== "ready") {
+    return <EmptyEditor state={state} onOpen={onOpen} />;
   }
   return (
-    <p className="max-w-md text-center text-neutral-400">
-      Couldn't open {state.file}: {state.error}
-    </p>
+    <DocumentProvider key={state.document.id} value={state.document}>
+      <RendererProvider createRenderer={createEditorRenderer}>
+        <DocumentEditor file={state.file} />
+      </RendererProvider>
+    </DocumentProvider>
   );
 }
-function EditorContent({ state }: EditorProps) {
-  if (state.status === "ready") {
-    return (
-      <DocumentProvider key={state.document.id} value={state.document}>
-        <RendererProvider createRenderer={createEditorRenderer}>
-          <DocumentEditor file={state.file} />
-        </RendererProvider>
-      </DocumentProvider>
-    );
-  }
-  return (
-    <>
-      <EditorHeader file={state.file} />
-      <div className="flex min-h-0 flex-1 flex-col md:flex-row">
-        <div className="grid flex-1 place-items-center">
-          <LoadingStatus state={state} />
-        </div>
-        <ResizablePanel />
-      </div>
-    </>
-  );
-}
-export default function Editor({ state }: EditorProps) {
+export default function Editor(props: EditorProps) {
   return (
     <main className="flex h-dvh flex-col">
-      <EditorContent state={state} />
+      <EditorContent {...props} />
     </main>
   );
 }

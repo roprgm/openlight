@@ -35,6 +35,8 @@ test("edit a photo, inspect the preview and histograms, undo changes, and export
   const state = () => page.evaluate(() => window.openlight.getState());
   await page.goto("/");
   await expect(page.getByRole("button", { name: "Open image" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Layers" })).toBeVisible();
+  await expect(page.getByRole("tab", { name: "Adjust" })).toBeDisabled();
   await page
     .locator('input[type="file"]')
     .setInputFiles("tests/fixtures/photo.svg");
