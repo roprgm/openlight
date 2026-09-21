@@ -282,7 +282,7 @@ export function LayersControls({
   return (
     <section
       aria-label="Layers"
-      className="grid max-h-1/2 min-h-30 shrink-0 grid-rows-[auto_minmax(0,1fr)] border-t border-black bg-panel"
+      className="grid max-h-1/2 min-h-36 shrink-0 grid-rows-[auto_minmax(0,1fr)] border-t border-black bg-panel"
     >
       <PanelHeader title="Layers">
         <button
