@@ -9,13 +9,13 @@ import "./index.css";
 const root = document.getElementById("root");
 
 if (root) {
-	createRoot(root).render(
-		<>
-			<GpuProvider>
-				<App />
-			</GpuProvider>
-			<Analytics />
-			<SpeedInsights />
-		</>,
-	);
+  createRoot(root).render(
+    <>
+      <GpuProvider>
+        <App />
+      </GpuProvider>
+      <Analytics />
+      <SpeedInsights />
+    </>,
+  );
 }

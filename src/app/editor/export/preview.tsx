@@ -16,51 +16,51 @@ type Encoded = { key: string; bytes: number; image: Target };
  * The last result stays available while the current settings are still pending.
  */
 export function useEncodedPreview({
-	format,
-	quality,
-	longEdge,
+  format,
+  quality,
+  longEdge,
 }: ExportOptions) {
-	const gpu = useGpu();
-	const renderer = useRenderer();
-	const [revision, setRevision] = useState(0);
-	useEffect(
-		() => renderer.subscribe(() => setRevision((count) => count + 1)),
-		[renderer],
-	);
-	const key = `${format} ${quality} ${longEdge} ${revision}`;
-	const [encoded, setEncoded] = useState<Encoded>();
-	const queue = useRef(Promise.resolve());
-	useEffect(() => {
-		let active = true;
-		const timer = setTimeout(() => {
-			queue.current = queue.current.then(async () => {
-				if (!active) {
-					return;
-				}
-				try {
-					const blob = await encodeImage(gpu, renderer.outputImage(), {
-						format,
-						quality,
-						longEdge,
-					});
-					const bitmap = await createImageBitmap(blob);
-					if (!active) {
-						bitmap.close();
-						return;
-					}
-					setEncoded({ key, bytes: blob.size, image: linearize(gpu, bitmap) });
-				} catch {
-					if (active) {
-						setEncoded(undefined);
-					}
-				}
-			});
-		}, settleDelay);
-		return () => {
-			active = false;
-			clearTimeout(timer);
-		};
-	}, [gpu, renderer, key, format, quality, longEdge]);
-	useEffect(() => () => encoded?.image.color.dispose(), [encoded]);
-	return { encoded, pending: encoded?.key !== key };
+  const gpu = useGpu();
+  const renderer = useRenderer();
+  const [revision, setRevision] = useState(0);
+  useEffect(
+    () => renderer.subscribe(() => setRevision((count) => count + 1)),
+    [renderer],
+  );
+  const key = `${format} ${quality} ${longEdge} ${revision}`;
+  const [encoded, setEncoded] = useState<Encoded>();
+  const queue = useRef(Promise.resolve());
+  useEffect(() => {
+    let active = true;
+    const timer = setTimeout(() => {
+      queue.current = queue.current.then(async () => {
+        if (!active) {
+          return;
+        }
+        try {
+          const blob = await encodeImage(gpu, renderer.outputImage(), {
+            format,
+            quality,
+            longEdge,
+          });
+          const bitmap = await createImageBitmap(blob);
+          if (!active) {
+            bitmap.close();
+            return;
+          }
+          setEncoded({ key, bytes: blob.size, image: linearize(gpu, bitmap) });
+        } catch {
+          if (active) {
+            setEncoded(undefined);
+          }
+        }
+      });
+    }, settleDelay);
+    return () => {
+      active = false;
+      clearTimeout(timer);
+    };
+  }, [gpu, renderer, key, format, quality, longEdge]);
+  useEffect(() => () => encoded?.image.color.dispose(), [encoded]);
+  return { encoded, pending: encoded?.key !== key };
 }
