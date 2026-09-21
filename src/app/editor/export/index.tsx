@@ -89,7 +89,7 @@ function FormatSelect({
 					</select>
 				</Field>
 			</label>
-			<p className="text-neutral-500 text-xs">{value.description}</p>
+			<p className="text-neutral-500">{value.description}</p>
 		</div>
 	);
 }
@@ -124,7 +124,7 @@ function SizeFields({
 					onChange={(value) => scaleTo(value / fullWidth)}
 				/>
 			</div>
-			<span className="text-neutral-500 text-xs">px</span>
+			<span className="text-neutral-500">px</span>
 			<span>Height</span>
 			<div className="justify-self-end">
 				<ScrubInput
@@ -135,7 +135,7 @@ function SizeFields({
 					onChange={(value) => scaleTo(value / fullHeight)}
 				/>
 			</div>
-			<span className="text-neutral-500 text-xs">px</span>
+			<span className="text-neutral-500">px</span>
 			<span>Scale</span>
 			<div className="justify-self-end">
 				<ScrubInput
@@ -146,7 +146,7 @@ function SizeFields({
 					onChange={(value) => scaleTo(value / 100)}
 				/>
 			</div>
-			<span className="text-neutral-500 text-xs">%</span>
+			<span className="text-neutral-500">%</span>
 			{children}
 		</div>
 	);

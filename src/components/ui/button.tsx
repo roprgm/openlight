@@ -6,12 +6,11 @@ const button = cva(
 	"cursor-pointer rounded-md transition-colors focus-visible:outline-2 focus-visible:outline-offset-3 focus-visible:outline-neutral-400",
 	{
 		variants: {
-			/** Filled buttons read at body size on a 16 px line, so both variants match icon height. */
 			variant: {
 				default:
-					"bg-neutral-700 text-neutral-100 text-sm/4 shadow-ridge hover:bg-neutral-600 active:bg-neutral-700 active:shadow-groove",
+					"bg-neutral-700 text-neutral-100 shadow-ridge hover:bg-neutral-600 active:bg-neutral-700 active:shadow-groove",
 				ghost:
-					"text-neutral-400 text-xs hover:bg-neutral-700/50 hover:text-neutral-100 active:bg-neutral-700",
+					"text-neutral-400 hover:bg-neutral-700/50 hover:text-neutral-100 active:bg-neutral-700",
 			},
 			/** Both sizes pad 6 px vertically, so text and 16 px icons produce the same height. */
 			size: {

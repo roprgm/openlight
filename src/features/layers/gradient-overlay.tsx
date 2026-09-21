@@ -253,12 +253,12 @@ export function GradientOverlay() {
 				/>
 			)}
 			{tool.overlay === "new" && !tool.target && (
-				<p className="pointer-events-none absolute bottom-3 left-3 rounded-full bg-neutral-800/80 px-3 py-1.5 text-white text-xs backdrop-blur-sm">
+				<p className="pointer-events-none absolute bottom-3 left-3 rounded-full bg-neutral-800/80 px-3 py-1.5 text-white backdrop-blur-sm">
 					Adjust the mask · Enter to keep · Esc to remove · O toggles overlay
 				</p>
 			)}
 			{tool.target && (
-				<p className="pointer-events-none absolute bottom-3 left-3 rounded-full bg-neutral-800/80 px-3 py-1.5 text-white text-xs backdrop-blur-sm">
+				<p className="pointer-events-none absolute bottom-3 left-3 rounded-full bg-neutral-800/80 px-3 py-1.5 text-white backdrop-blur-sm">
 					Drag to draw · Shift to constrain · Esc to cancel
 				</p>
 			)}

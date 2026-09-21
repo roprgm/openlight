@@ -16,7 +16,7 @@ export function WhiteBalanceControls() {
 		<>
 			<button
 				type="button"
-				className="cursor-pointer self-end text-neutral-400 text-xs hover:text-neutral-100"
+				className="cursor-pointer self-end text-neutral-400 hover:text-neutral-100"
 				onClick={() => setWhiteBalance(document)}
 			>
 				As Shot

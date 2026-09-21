@@ -112,7 +112,7 @@ export function LayerToolbar() {
 		<fieldset
 			aria-label="Layer options"
 			{...gesture}
-			className="absolute top-3 left-3 flex max-w-[calc(100%-1.5rem)] flex-wrap items-center gap-x-3 gap-y-1 rounded-full bg-neutral-800/80 p-1 pl-2.5 text-xs backdrop-blur-sm"
+			className="absolute top-3 left-3 flex max-w-[calc(100%-1.5rem)] flex-wrap items-center gap-x-3 gap-y-1 rounded-full bg-neutral-800/80 p-1 pl-2.5 backdrop-blur-sm"
 		>
 			<Slider
 				label="Opacity"

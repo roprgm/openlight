@@ -170,11 +170,11 @@ export function CropEditor({ onClose }: { onClose: () => void }) {
 						defaultValue={0}
 						onChange={(angle) => setFrame(rotate(frame, angle, source))}
 					/>
-					<p className="text-xs text-neutral-500">
+					<p className="text-neutral-500">
 						Drag edges or corners to crop, inside to move, outside to rotate.
 						Space + drag to pan; Ctrl/⌘ + scroll to zoom.
 					</p>
-					<p className="text-xs tabular-nums text-neutral-400">
+					<p className="tabular-nums text-neutral-400">
 						{frame.size.map(Math.round).join(" × ")} px
 					</p>
 				</section>
