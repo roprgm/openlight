@@ -4,7 +4,7 @@
 
 Image processing runs on your own GPU with WebGPU. Photos never leave your device.
 
-![The OpenLight editor with a dusk landscape open and a gradient mask layer](public/og.png)
+![The OpenLight editor with a mountain trail photo open and a gradient mask layer](public/og.png)
 
 ## Features
 
