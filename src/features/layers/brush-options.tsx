@@ -1,6 +1,6 @@
+import { useBrushTool } from "@/components/editor/brush-tool";
+import { barSlider, useBarDensity } from "@/components/editor/toolbar-density";
 import { Slider } from "@/components/ui/slider";
-import { useBrushTool } from "./brush-tool";
-import { barSlider, useBarDensity } from "./toolbar";
 
 const modes = [
   ["paint", "Paint", "Add coverage"],
@@ -36,6 +36,7 @@ export function BrushOptions() {
         min={1}
         max={maxSize}
         unit="px"
+        valueWidth={`${maxSize}`.length}
         variant={variant}
         onChange={(size) => update({ size: Math.round(size) })}
       />
@@ -46,6 +47,7 @@ export function BrushOptions() {
         max={100}
         defaultValue={50}
         unit="%"
+        valueWidth={3}
         variant={variant}
         onChange={(value) => update({ feather: value / 100 })}
       />
@@ -56,6 +58,7 @@ export function BrushOptions() {
         max={100}
         defaultValue={100}
         unit="%"
+        valueWidth={3}
         variant={variant}
         onChange={(value) => update({ flow: value / 100 })}
       />

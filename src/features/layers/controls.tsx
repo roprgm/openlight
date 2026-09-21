@@ -8,8 +8,10 @@ import {
 import { useStore } from "zustand";
 import { PanelHeader } from "@/components/editor/panel";
 import { useDocument, useScene } from "@/components/editor/session";
+import { HealIcon } from "@/components/icons/heal";
 import { Icon } from "@/components/icons/icon";
 import { Menu } from "@/components/ui/menu";
+import { PanelListItem } from "@/components/ui/panel-list";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   TreeDrag,
@@ -73,6 +75,13 @@ function LayerThumbnail({ layer }: { layer: Layer }) {
         className="block size-8 shrink-0 rounded-sm border border-neutral-600"
         style={{ background: layer.fill.color }}
       />
+    );
+  }
+  if (layer.kind === "heal") {
+    return (
+      <span className="grid size-8 shrink-0 place-items-center rounded border border-black/50 bg-neutral-950/40 text-neutral-400">
+        <HealIcon className="size-4" />
+      </span>
     );
   }
   return (
@@ -176,14 +185,15 @@ const LayerRow = memo(function LayerRow({
   const expandLabel = `${expanded ? "Collapse" : "Expand"} ${layer.name}`;
   return (
     <>
-      <div
+      <PanelListItem
         ref={drag.ref}
         data-drop={drag.drop}
         data-dragging={drag.dragging}
-        data-selected={selected === layer.id}
         data-hidden={!visible}
+        selected={selected === layer.id}
+        muted={!visible}
         style={{ paddingLeft: depth * 12 }}
-        className="group relative flex h-10 items-center border-b border-black/50 pr-1 text-neutral-300 pointer-coarse:h-12 data-[selected=false]:hover:bg-white/5 data-[selected=true]:bg-neutral-700 data-[hidden=true]:text-neutral-500 data-[dragging=true]:opacity-40 data-[drop=inside]:ring-1 data-[drop=inside]:ring-blue-400 data-[drop=inside]:ring-inset data-[drop=before]:before:absolute data-[drop=before]:before:inset-x-0 data-[drop=before]:before:-top-px data-[drop=before]:before:border-t-2 data-[drop=before]:before:border-blue-400 data-[drop=after]:after:absolute data-[drop=after]:after:inset-x-0 data-[drop=after]:after:-bottom-px data-[drop=after]:after:border-b-2 data-[drop=after]:after:border-blue-400"
+        className="pr-1 data-[dragging=true]:opacity-40 data-[drop=inside]:ring-1 data-[drop=inside]:ring-blue-400 data-[drop=inside]:ring-inset data-[drop=before]:before:absolute data-[drop=before]:before:inset-x-0 data-[drop=before]:before:-top-px data-[drop=before]:before:border-t-2 data-[drop=before]:before:border-blue-400 data-[drop=after]:after:absolute data-[drop=after]:after:inset-x-0 data-[drop=after]:after:-bottom-px data-[drop=after]:after:border-b-2 data-[drop=after]:after:border-blue-400"
       >
         <button
           type="button"
@@ -251,7 +261,7 @@ const LayerRow = memo(function LayerRow({
         {layer.kind !== "image" && (
           <LayerActions layer={layer} onSelect={onSelect} />
         )}
-      </div>
+      </PanelListItem>
       {expanded &&
         layer.children
           .toReversed()

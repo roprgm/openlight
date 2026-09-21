@@ -10,6 +10,7 @@ import { AdjustmentControls } from "@/features/adjustments/controls";
 import { ColorMixerControls } from "@/features/color-mixer/controls";
 import { DetailsControls } from "@/features/details/controls";
 import { FillControls } from "@/features/fill/controls";
+import { HealControls } from "@/features/heal/controls";
 import { Histogram } from "@/features/histogram";
 import { createHistogram } from "@/features/histogram/histogram";
 import { setExposure } from "@/features/layers/edits";
@@ -81,6 +82,8 @@ function SelectedControls({ layer }: { layer: Layer }) {
       return <VignetteControls id={layer.id} vignette={layer.vignette} />;
     case "fill":
       return <FillControls id={layer.id} fill={layer.fill} />;
+    case "heal":
+      return <HealControls id={layer.id} patches={layer.patches} />;
     case "exposure":
       return (
         <section className="p-3">
@@ -114,7 +117,7 @@ export function AdjustPanel() {
   );
   return (
     <div {...gesture}>
-      <PanelHeader title="Adjustments" />
+      <PanelHeader title={target.kind === "heal" ? "Healing" : "Adjustments"} />
       <SelectedControls layer={target} />
     </div>
   );

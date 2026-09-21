@@ -19,3 +19,9 @@ export async function drag(
   await page.mouse.move(to[0], to[1], { steps });
   await page.mouse.up();
 }
+
+/** Chooses from OpenLight's custom select surface through the visible UI. */
+export async function choose(page: Page, select: Locator, option: string) {
+  await select.click();
+  await page.getByRole("option", { name: option, exact: true }).click();
+}

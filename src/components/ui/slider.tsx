@@ -13,12 +13,14 @@ type SliderProps = {
   /** CSS color stops painting the bar left to right, e.g. ["#46f", "#fc3"]. */
   stops?: string[];
   unit?: string;
+  /** Minimum width of the numeric value in tabular characters. */
+  valueWidth?: number;
   /** "panel" stacks the bar under its label; "toolbar" keeps one row; "compact" is that row without the bar. */
   variant?: "panel" | "toolbar" | "compact";
 };
 
 // In the bar, the label is inset like the text of the pills around it.
-const root = cva("items-center text-neutral-400", {
+const root = cva("items-center whitespace-nowrap text-neutral-400", {
   variants: {
     variant: {
       panel: "grid grid-cols-[1fr_auto] gap-y-0.5",
@@ -56,6 +58,7 @@ export function Slider({
   defaultValue,
   stops,
   unit,
+  valueWidth,
   variant = "panel",
 }: SliderProps) {
   const gradient = stops && {
@@ -73,6 +76,7 @@ export function Slider({
           min={min}
           onChange={onChange}
           step={step}
+          minChars={valueWidth}
           unit={unit}
           value={value}
           variant={variant === "panel" ? "text" : "pill"}

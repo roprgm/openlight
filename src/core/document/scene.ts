@@ -92,6 +92,29 @@ export type BrushMask = {
   readonly kind: "brush";
   readonly strokes: readonly BrushStroke[];
 };
+type HealPatchBase = {
+  readonly id: string;
+  /** Feather applied after the stroke's dabs have accumulated into one patch shape. */
+  readonly feather: number;
+  readonly stroke: BrushStroke;
+  readonly opacity: number;
+};
+export type SmartHealPatch = HealPatchBase & {
+  readonly algorithm: "healing";
+  readonly offset: Point;
+};
+/** One non-destructive repair. AI results are image resources positioned in source pixels. */
+export type HealPatch =
+  | SmartHealPatch
+  | (HealPatchBase & {
+      readonly algorithm: "ai";
+      readonly result?: {
+        readonly source: string;
+        readonly origin: Point;
+        readonly extent: Point;
+      };
+    });
+export type HealAlgorithm = HealPatch["algorithm"];
 export type Mask = Gradient | BrushMask;
 export type ProcessingLayer = {
   readonly id: string;
@@ -105,6 +128,7 @@ export type ProcessingLayer = {
   | { readonly kind: "vignette"; readonly vignette: Vignette }
   | { readonly kind: "color-mixer"; readonly colorMixer: ColorMixer }
   | { readonly kind: "fill"; readonly fill: Fill }
+  | { readonly kind: "heal"; readonly patches: readonly HealPatch[] }
   | {
       readonly kind: "mask";
       readonly operation: "add" | "subtract";

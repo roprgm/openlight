@@ -27,6 +27,9 @@ export type Workload =
   | "brush-exposure"
   | "layer-stack"
   | "fill"
+  | "heal"
+  | "heal-empty"
+  | "heal-proxy"
   | "pipeline-proxy";
 
 function summarize(values: number[]) {
@@ -107,7 +110,7 @@ export async function benchmarkRendering(
     workload === "pipeline" ||
     workload === "pipeline-input" ||
     workload === "pipeline-proxy";
-  const proxy = workload === "pipeline-proxy";
+  const proxy = workload === "pipeline-proxy" || workload === "heal-proxy";
   const detail = combined || workload === "detail";
   const effects: ProcessingLayer[] = [];
   const common = { visible: true, opacity: 1, children: [] };
@@ -178,6 +181,37 @@ export async function benchmarkRendering(
       kind: "fill",
       opacity: 0.6,
       fill: { color: "#f0763c", blend: "soft-light" },
+    });
+  }
+  if (
+    workload === "heal" ||
+    workload === "heal-empty" ||
+    workload === "heal-proxy"
+  ) {
+    effects.push({
+      ...common,
+      id: "benchmark-heal",
+      name: "Heal",
+      kind: "heal",
+      patches:
+        workload === "heal-empty"
+          ? []
+          : [
+              {
+                id: "spot",
+                algorithm: "healing",
+                feather: 0.4,
+                opacity: 1,
+                stroke: {
+                  mode: "paint",
+                  size: 240,
+                  feather: 0,
+                  flow: 1,
+                  points: [[size[0] / 2, size[1] / 2, 1]],
+                },
+                offset: [320, 0],
+              },
+            ],
     });
   }
   const scene: Scene = {
@@ -312,9 +346,10 @@ export async function benchmarkRendering(
       pixelHash: [...pixelHash]
         .map((value) => value.toString(16).padStart(2, "0"))
         .join(""),
-      // All graph targets in these workloads are rgba16float. Source and driver memory excluded.
+      // Image targets use rgba16float. Source and driver memory are excluded.
       intermediateBytes: storage.textures.reduce(
-        (sum, { size }) => sum + size[0] * size[1] * 8,
+        (sum, { size, format }) =>
+          sum + size[0] * size[1] * (format === "rgba32float" ? 16 : 8),
         0,
       ),
       // Brush rasters are r8unorm at source resolution, outside the graph.

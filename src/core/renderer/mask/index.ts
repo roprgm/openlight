@@ -228,7 +228,7 @@ export function createMaskRaster(gpu: Gpu) {
     }));
     const applied = brush.strokes;
     if (applied === strokes) {
-      return;
+      return brush;
     }
     if (applied.length && extendsStrokes(applied, strokes)) {
       brush.dabs = stampStrokes(
@@ -242,6 +242,7 @@ export function createMaskRaster(gpu: Gpu) {
       brush.dabs = stampStrokes(brush.target, strokes);
     }
     brush.strokes = strokes;
+    return brush;
   }
 
   /** The pass that adds or subtracts one op's coverage, or nothing for a brush without strokes. */
@@ -293,6 +294,10 @@ export function createMaskRaster(gpu: Gpu) {
   }
 
   return {
+    /** Shares the incremental brush cache with effects that own individual strokes. */
+    brush(id: string, strokes: readonly BrushStroke[], size: Size) {
+      return input(updateBrush(id, strokes, size).target);
+    },
     /** Brings the layer's rasters up to date and returns the coverage its composition samples, if any. */
     update(layer: MaskLayer, size: Size): RenderInput | undefined {
       const [own, ...children] = maskOps(layer);

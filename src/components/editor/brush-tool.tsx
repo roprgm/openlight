@@ -5,8 +5,8 @@ import {
   useEffect,
   useState,
 } from "react";
-import { useDocument, useScene } from "@/components/editor/session";
 import { clamp } from "@/lib/math";
+import { useDocument, useScene } from "./session";
 
 export type BrushSettings = {
   /** Diameter in source pixels. */

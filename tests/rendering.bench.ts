@@ -16,6 +16,9 @@ for (const workload of [
   "brush-exposure",
   "layer-stack",
   "fill",
+  "heal",
+  "heal-empty",
+  "heal-proxy",
   "pipeline-proxy",
 ] as const) {
   test(`rendering ${workload}`, async ({ page, browser }, info) => {

@@ -41,22 +41,10 @@ export function FillControls({ id, fill }: { id: string; fill: Fill }) {
         <Select
           aria-label="Blend"
           value={fill.blend}
+          options={blends.map(([value, label]) => ({ value, label }))}
           className="w-28"
-          onChange={(event) => {
-            const blend = blends.find(
-              ([blend]) => blend === event.currentTarget.value,
-            );
-            if (blend) {
-              setFill(document, { blend: blend[0] }, id);
-            }
-          }}
-        >
-          {blends.map(([blend, label]) => (
-            <option key={blend} value={blend}>
-              {label}
-            </option>
-          ))}
-        </Select>
+          onChange={(blend) => setFill(document, { blend }, id)}
+        />
       </div>
     </section>
   );

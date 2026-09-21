@@ -8,7 +8,7 @@ import {
 } from "react";
 import type { Gpu } from "vgpu";
 import { useGpu } from "vgpu-react";
-import { adjustmentTarget } from "@/core/document";
+import { adjustmentTarget, type EditorDocument } from "@/core/document";
 import type { ImageSource } from "@/core/image";
 import type { createRenderer } from "@/core/renderer";
 import { useDocument, useScene } from "./session";
@@ -41,6 +41,7 @@ type RendererProviderProps = {
   createRenderer: (
     gpu: Gpu,
     source: ImageSource,
+    document: EditorDocument,
   ) => ReturnType<typeof createRenderer>;
 };
 
@@ -53,8 +54,8 @@ export function RendererProvider({
   const sourceId = useScene((scene) => scene.layers[0].source);
   const source = document.resources.get(sourceId);
   const renderer = useMemo(
-    () => createRenderer(gpu, source),
-    [gpu, source, createRenderer],
+    () => createRenderer(gpu, source, document),
+    [gpu, source, document, createRenderer],
   );
   const [error, setError] = useState<string>();
 
@@ -69,7 +70,10 @@ export function RendererProvider({
         scene.layers,
         document.selection.getState().layerId,
       );
-      const input = target && "toneCurve" in target ? target.id : undefined;
+      const input =
+        target && ("toneCurve" in target || target.kind === "heal")
+          ? target.id
+          : undefined;
       // An open gesture renders a proxy; its end renders the same scene in full.
       const interactive = document.history.status.getState().editing;
       // A dropped input can stay live; only a new one needs a render.

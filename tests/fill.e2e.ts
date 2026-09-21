@@ -1,6 +1,6 @@
 import { expect, test } from "./fixtures";
 import { readImage } from "./images";
-import { box, drag } from "./pointer";
+import { box, choose, drag } from "./pointer";
 
 test("a color layer paints the image or a brush stroke with Photoshop blends", async ({
   page,
@@ -24,16 +24,13 @@ test("a color layer paints the image or a brush stroke with Photoshop blends", a
   expect((await readImage(page)).center).toEqual([128, 128, 128, 255]);
   await test.step("Normal paints the color; Multiply darkens by it", async () => {
     await addColor();
-    await expect(page.getByRole("combobox", { name: "Blend" })).toHaveValue(
-      "normal",
-    );
+    const blend = page.getByRole("combobox", { name: "Blend" });
+    await expect(blend).toContainText("Normal");
     const painted = (await readImage(page)).center;
     for (const [channel, expected] of [240, 118, 60].entries()) {
       expect(Math.abs(painted[channel] - expected)).toBeLessThanOrEqual(2);
     }
-    await page
-      .getByRole("combobox", { name: "Blend" })
-      .selectOption("multiply");
+    await choose(page, blend, "Multiply");
     const multiplied = (await readImage(page)).center;
     expect(multiplied[0]).toBeLessThan(128);
     expect(multiplied[0]).toBeGreaterThan(multiplied[2] + 40);

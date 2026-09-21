@@ -8,8 +8,10 @@ import { createImageLoader } from "@/app/loaders/image";
 import { createLoaderRegistry } from "@/app/loaders/registry";
 import type {
   Adjustments,
+  BrushStroke,
   Details,
   Fill,
+  HealAlgorithm,
   Mask,
   Preview,
   ProcessingLayer,
@@ -17,7 +19,7 @@ import type {
   Vignette,
 } from "@/core/document";
 import type { WhiteBalance } from "@/core/image";
-import type { ImageFrame } from "@/core/image/frame";
+import type { ImageFrame, Point } from "@/core/image/frame";
 import { setAdjustments } from "@/features/adjustments/edits";
 import { defaultAdjustments } from "@/features/adjustments/model";
 import { resetColorMixer, setColorMixer } from "@/features/color-mixer/edits";
@@ -29,6 +31,7 @@ import {
 import { setDetails } from "@/features/details/edits";
 import { defaultDetails } from "@/features/details/model";
 import { setFill } from "@/features/fill/edits";
+import { addHealPatch, setHealSource } from "@/features/heal/edits";
 import {
   addLayer,
   deleteLayer,
@@ -105,6 +108,14 @@ export function createControls(gpu: Gpu, workspace: Workspace) {
       const document = workspace.getDocument();
       editEffect(document, "fill", id, (id) => setFill(document, change, id));
     },
+    addHealPatch: (
+      id: string,
+      stroke: BrushStroke,
+      offset: Point,
+      algorithm?: HealAlgorithm,
+    ) => addHealPatch(workspace.getDocument(), id, stroke, offset, algorithm),
+    setHealSource: (id: string, patchId: string, offset: Point) =>
+      setHealSource(workspace.getDocument(), id, patchId, offset),
     addLayer(kind: ProcessingLayer["kind"], placement?: LayerPlacement) {
       const document = workspace.getDocument();
       if (kind !== "mask") {

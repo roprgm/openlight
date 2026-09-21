@@ -1,0 +1,177 @@
+import { expect, test } from "bun:test";
+import { init, target } from "vgpu/mock";
+import { createImageLayer, createLayer } from "@/app/editor/layers";
+import { createEditorRenderer } from "@/app/editor/renderer";
+import {
+  type BrushStroke,
+  createDocument,
+  createResources,
+} from "@/core/document";
+import { createImageSource } from "@/core/image";
+import { imageFrame } from "@/core/image/frame";
+import {
+  addHealPatch,
+  deleteHealPatch,
+  duplicateHealPatch,
+  extendHealPatch,
+  setAiResult,
+  setHealPatch,
+  setHealSource,
+} from "@/features/heal/edits";
+import { addLayer, deleteLayer } from "@/features/layers/edits";
+
+test("heal patches reuse brush rasters, scale with the proxy, undo, and release with the layer", async () => {
+  const gpu = await init();
+  const source = createImageSource(
+    target(gpu, { size: [256, 192], format: "rgba16float" }),
+  );
+  const resources = createResources();
+  const sourceId = resources.add(new File([], "photo.png"), source);
+  const document = createDocument(
+    {
+      frame: imageFrame(source.image.size),
+      layers: [createImageLayer(sourceId, "Photo")],
+    },
+    resources,
+  );
+  const renderer = createEditorRenderer(gpu, source);
+  try {
+    const id = addLayer(document, createLayer("heal"));
+    const stroke: BrushStroke = {
+      mode: "paint",
+      size: 30,
+      feather: 0.4,
+      flow: 1,
+      points: [[100, 80, 1]],
+    };
+    document.history.begin();
+    const patch = addHealPatch(document, id, stroke, [60, 0]);
+    const created = document.scene
+      .getState()
+      .layers.find((item) => item.id === id);
+    expect(
+      created?.kind === "heal" &&
+        created.patches.find((item) => item.id === patch),
+    ).toMatchObject({ feather: 0.4, stroke: { size: 30, feather: 0 } });
+    renderer.setDisplayScale(0.25);
+    await renderer.update(document.scene.getState(), id, true);
+    expect(renderer.fullImage().size).toEqual([64, 48]);
+    expect(renderer.inspect().rasters).toEqual([
+      { id: `layer/${id}/${patch}`, size: [256, 192] },
+    ]);
+    const stamped = renderer.inspect().stamped;
+    extendHealPatch(document, id, [[120, 80, 1]]);
+    await renderer.update(document.scene.getState(), id, true);
+    expect(renderer.inspect().stamped).toBeGreaterThan(stamped);
+    const extended = renderer.inspect().stamped;
+    document.history.commit();
+    await renderer.update(document.scene.getState());
+    expect(renderer.fullImage().size).toEqual([256, 192]);
+    expect(renderer.inspect().stamped).toBe(extended);
+    expect(renderer.inspect().passes.at(-1)).toBe(`layer/${id}/${patch}/blend`);
+    const textures = renderer.inspect().textures;
+    setHealSource(document, id, patch, [70, 0]);
+    await renderer.update(document.scene.getState());
+    expect(renderer.inspect().textures).toEqual(textures);
+    expect(renderer.inspect().stamped).toBe(extended);
+    document.history.undo();
+    document.history.undo();
+    await renderer.update(document.scene.getState());
+    expect(renderer.inspect().rasters).toEqual([]);
+    expect(renderer.inspect().passes).toEqual([]);
+    document.history.redo();
+    await renderer.update(document.scene.getState());
+    expect(renderer.inspect().rasters).toHaveLength(1);
+    expect(() =>
+      addHealPatch(document, id, { ...stroke, mode: "erase" }, [1, 2]),
+    ).toThrow("painted");
+    expect(() => setHealSource(document, id, patch, [NaN, 0])).toThrow(
+      "finite",
+    );
+    expect(() => setHealPatch(document, id, patch, { feather: NaN })).toThrow(
+      "feather",
+    );
+    deleteLayer(document, id);
+    await renderer.update(document.scene.getState());
+    expect(renderer.inspect().rasters).toEqual([]);
+  } finally {
+    renderer.dispose();
+    document.dispose();
+    gpu.dispose();
+  }
+});
+
+test("one Healing layer composes Smart clone and AI patches through render nodes", async () => {
+  const gpu = await init();
+  const resources = createResources();
+  const source = createImageSource(
+    target(gpu, { size: [128, 96], format: "rgba16float" }),
+  );
+  const sourceId = resources.add(new File([], "photo.png"), source);
+  const document = createDocument(
+    {
+      frame: imageFrame(source.image.size),
+      layers: [createImageLayer(sourceId, "Photo")],
+    },
+    resources,
+  );
+  const renderer = createEditorRenderer(
+    gpu,
+    source,
+    undefined,
+    (id) => resources.get(id).image,
+  );
+  try {
+    const layer = addLayer(document, createLayer("heal"));
+    const stroke: BrushStroke = {
+      mode: "paint",
+      size: 24,
+      feather: 0.4,
+      flow: 1,
+      points: [[64, 48, 1]],
+    };
+    const smart = addHealPatch(document, layer, stroke, [30, 0], "healing");
+    const patch = addHealPatch(document, layer, stroke, [0, 0], "ai");
+    const generated = createImageSource(
+      target(gpu, { size: [512, 512], format: "rgba16float" }),
+    );
+    const result = resources.add(new File([], "result"), generated);
+    setAiResult(document, layer, patch, result, [16, 0], [96, 96]);
+    await renderer.update(document.scene.getState(), layer);
+    expect(renderer.inspect().passes).toContain(
+      `layer/${layer}/${patch}/migan`,
+    );
+    expect(renderer.inspect().passes).toContain(
+      `layer/${layer}/${smart}/blend`,
+    );
+    expect(renderer.inputImage(layer)).toBeDefined();
+    expect(renderer.inputImage(layer)).not.toBe(source.image);
+    setHealPatch(document, layer, smart, {
+      feather: 0.2,
+      opacity: 0.6,
+    });
+    const copy = duplicateHealPatch(document, layer, smart);
+    let healing = document.scene
+      .getState()
+      .layers.find((item) => item.id === layer);
+    expect(healing?.kind).toBe("heal");
+    if (healing?.kind !== "heal") throw Error("Healing layer missing.");
+    expect(healing.patches.find((item) => item.id === smart)).toMatchObject({
+      feather: 0.2,
+      opacity: 0.6,
+      stroke: { size: 24, feather: 0 },
+    });
+    expect(healing.patches.find((item) => item.id === copy)?.algorithm).toBe(
+      "healing",
+    );
+    deleteHealPatch(document, layer, copy);
+    healing = document.scene
+      .getState()
+      .layers.find((item) => item.id === layer);
+    expect(healing?.kind === "heal" && healing.patches).toHaveLength(2);
+  } finally {
+    renderer.dispose();
+    document.dispose();
+    gpu.dispose();
+  }
+});

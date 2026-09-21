@@ -1,13 +1,11 @@
-import {
-  createContext,
-  type ReactNode,
-  useContext,
-  useLayoutEffect,
-  useRef,
-  useState,
-} from "react";
+import { type ReactNode, useLayoutEffect, useRef, useState } from "react";
 import { useStore } from "zustand";
 import { useDocument, useScene } from "@/components/editor/session";
+import {
+  barSlider,
+  Density,
+  useBarDensity,
+} from "@/components/editor/toolbar-density";
 import { Icon } from "@/components/icons/icon";
 import { Menu } from "@/components/ui/menu";
 import { Select } from "@/components/ui/select";
@@ -22,19 +20,6 @@ import { useEditGesture } from "@/hooks/use-edit-gesture";
 import { useShortcuts } from "@/hooks/use-shortcuts";
 import { setLayer, setLayerMask, setMaskOperation } from "./edits";
 import { useMaskTool } from "./mask-tool";
-
-/** How much room the bar has: sliders with bars, fields only, or a column inside the overflow menu. */
-export type BarDensity = "full" | "compact" | "menu";
-const Density = createContext<BarDensity>("full");
-export function useBarDensity() {
-  return useContext(Density);
-}
-export function barSlider(density: BarDensity) {
-  if (density === "menu") {
-    return "panel";
-  }
-  return density === "full" ? "toolbar" : "compact";
-}
 
 function MaskOptions({ layer }: { layer: MaskLayer }) {
   const document = useDocument();
@@ -75,6 +60,7 @@ function MaskOptions({ layer }: { layer: MaskLayer }) {
           max={100}
           defaultValue={50}
           unit="%"
+          valueWidth={3}
           variant={barSlider(density)}
           onChange={(value) => {
             if (layer.mask.kind === "radial") {
@@ -92,16 +78,14 @@ function MaskOptions({ layer }: { layer: MaskLayer }) {
           aria-label="Mask operation"
           title="Combine with the parent mask"
           value={layer.operation}
-          onChange={(event) => {
-            const operation = event.target.value;
-            if (operation === "add" || operation === "subtract") {
-              setMaskOperation(document, layer.id, operation);
-            }
-          }}
-        >
-          <option value="add">Add</option>
-          <option value="subtract">Subtract</option>
-        </Select>
+          options={[
+            { value: "add", label: "Add" },
+            { value: "subtract", label: "Subtract" },
+          ]}
+          onChange={(operation) =>
+            setMaskOperation(document, layer.id, operation)
+          }
+        />
       )}
     </>
   );
@@ -119,6 +103,7 @@ function LayerOptions({ layer }: { layer: ProcessingLayer }) {
         max={100}
         defaultValue={100}
         unit="%"
+        valueWidth={3}
         variant={barSlider(density)}
         onChange={(value) =>
           setLayer(document, layer.id, { opacity: value / 100 })
@@ -145,8 +130,8 @@ export function CanvasToolbar({ children }: { children?: ReactNode }) {
   );
   const bar = useRef<HTMLFieldSetElement>(null);
   const [step, setStep] = useState(0);
-  const hasLayer = layer.kind !== "image";
-  const shown = Boolean(children) || hasLayer;
+  const hasLayerOptions = layer.kind !== "image" && layer.kind !== "heal";
+  const shown = Boolean(children) || hasLayerOptions;
   const content = `${Boolean(children)}/${layer.kind}/${layer.kind === "mask" ? layer.mask.kind : ""}`;
   // New content or a resized canvas starts again from the roomiest layout.
   useLayoutEffect(() => setStep(0), [content]);
@@ -173,15 +158,15 @@ export function CanvasToolbar({ children }: { children?: ReactNode }) {
     return null;
   }
   const inlineTool = step < 3 ? children : null;
-  const inlineLayer = step < 2 && hasLayer;
+  const inlineLayer = step < 2 && hasLayerOptions;
   const menuTool = step >= 3 ? children : null;
-  const menuLayer = step >= 2 && hasLayer;
+  const menuLayer = step >= 2 && hasLayerOptions;
   return (
     <fieldset
       ref={bar}
       aria-label="Layer options"
       {...gesture}
-      className="absolute top-3 left-3 flex min-w-0 max-w-[calc(100%-1.5rem)] items-center gap-x-2.5 overflow-hidden rounded-full bg-neutral-800/80 p-1.5 backdrop-blur-sm"
+      className="absolute top-3 left-3 flex min-w-0 max-w-[calc(100%-1.5rem)] items-center gap-x-2.5 overflow-hidden rounded-full bg-neutral-800/80 p-1 pr-2 backdrop-blur-sm"
     >
       <Density value={step === 0 ? "full" : "compact"}>
         {inlineTool}

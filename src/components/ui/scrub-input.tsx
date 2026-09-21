@@ -19,6 +19,8 @@ type ScrubInputProps = Omit<
   min: number;
   max: number;
   step?: number;
+  /** Minimum width of the numeric part in tabular characters. */
+  minChars?: number;
   /** Follows the number after a hair of space, in a quieter color. */
   unit?: string;
   /**
@@ -51,6 +53,7 @@ export function ScrubInput({
   min,
   max,
   step = 1,
+  minChars = 1,
   unit,
   variant = "box",
   className,
@@ -59,11 +62,8 @@ export function ScrubInput({
   const decimals = `${step}`.split(".")[1]?.length ?? 0;
   const [draft, setDraft] = useState<string>();
   const drag = useRef<Drag | undefined>(undefined);
-  // Room for the longest value in range, so the field neither clips nor floats in empty space.
-  const chars = Math.max(
-    2,
-    ...[min, max].map((bound) => bound.toFixed(decimals).length),
-  );
+  const shown = draft ?? value.toFixed(decimals);
+  const chars = Math.max(1, shown.length);
 
   const clamp = (next: number) =>
     Math.min(max, Math.max(min, Number(next.toFixed(decimals))));
@@ -112,7 +112,7 @@ export function ScrubInput({
 
   return (
     <label
-      className={cn("flex items-center gap-1.5 text-neutral-400", className)}
+      className={cn("flex items-center gap-1 text-neutral-400", className)}
     >
       {label}
       <Field
@@ -125,7 +125,11 @@ export function ScrubInput({
         <input
           {...props}
           className={input({ variant })}
-          style={variant === "box" ? undefined : { width: `${chars}ch` }}
+          style={
+            variant === "box"
+              ? undefined
+              : { width: `${Math.max(chars, minChars)}ch` }
+          }
           inputMode="decimal"
           onBlur={commit}
           onChange={(event) => setDraft(event.currentTarget.value)}
@@ -136,7 +140,7 @@ export function ScrubInput({
           onPointerMove={scrub}
           onPointerUp={endScrub}
           type="text"
-          value={draft ?? value.toFixed(decimals)}
+          value={shown}
         />
         {unit && <span className="text-neutral-500">{unit}</span>}
       </Field>

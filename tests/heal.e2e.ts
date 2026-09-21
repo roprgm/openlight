@@ -1,0 +1,249 @@
+import { expect, test } from "./fixtures";
+import { readImage } from "./images";
+import { box } from "./pointer";
+
+test("healing preserves an edge, alpha, and HDR texture at full and proxy resolution", async ({
+  page,
+}) => {
+  await page.goto("/tests/gpu.html");
+  const result = await page.evaluate(async () => {
+    const path = "/tests/heal-gpu.ts";
+    const { renderHealReference } = (await import(
+      path
+    )) as typeof import("./heal-gpu");
+    return renderHealReference();
+  });
+  expect(result.errors).toEqual([]);
+  for (const { samples } of result.results) {
+    for (const { actual, expected } of samples) {
+      for (let channel = 0; channel < 4; channel++) {
+        expect(Math.abs(actual[channel] - expected[channel])).toBeLessThan(
+          0.015,
+        );
+      }
+    }
+  }
+});
+
+test("Healing loads AI on demand, paints Smart clone, and undoes patches", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await page.goto("/");
+  await page
+    .locator('input[type="file"]')
+    .setInputFiles("tests/fixtures/photo.svg");
+  await expect(
+    page.getByRole("textbox", { name: "Exposure", exact: true }),
+  ).toHaveValue("0.00");
+  const before = await readImage(page, undefined, [
+    [350, 200],
+    [600, 400],
+  ]);
+  await page.keyboard.press("h");
+  const canvas = page.getByLabel("Healing canvas", { exact: true });
+  await expect(canvas).toBeVisible();
+  await expect(page.getByText("Paint to repair", { exact: false })).toHaveCount(
+    0,
+  );
+  await expect(
+    page.getByRole("heading", { name: "Healing", exact: true }),
+  ).toBeVisible();
+  const algorithm = page.getByRole("combobox", {
+    name: "Healing algorithm",
+  });
+  await algorithm.click();
+  const smart = page.getByRole("option", { name: "Smart clone" });
+  const ai = page.getByRole("option", { name: "AI Remove" });
+  await expect(smart).toBeFocused();
+  await smart.press("ArrowDown");
+  await expect(ai).toBeFocused();
+  await ai.press("Enter");
+  const loading = page.getByRole("dialog", { name: "Preparing AI Remove" });
+  await expect(loading).toContainText("28 MB");
+  await loading.getByRole("button", { name: "Cancel" }).click();
+  await expect(loading).toHaveCount(0);
+  await expect(algorithm).toContainText("Smart clone");
+  const toolbar = page.getByRole("group", { name: "Layer options" });
+  const initialToolbarWidth = await toolbar.evaluate(
+    (element) => element.getBoundingClientRect().width,
+  );
+  const size = page.getByRole("textbox", { name: "Size", exact: true });
+  await size.fill("300");
+  await size.press("Enter");
+  const feather = page.getByRole("textbox", { name: "Feather", exact: true });
+  await expect(feather).toHaveValue("10");
+  await feather.fill("0");
+  await feather.press("Enter");
+  expect(
+    await toolbar.evaluate((element) => element.getBoundingClientRect().width),
+  ).toBe(initialToolbarWidth);
+  const bounds = await box(canvas);
+  const scale = Math.min(bounds.width / 1200, bounds.height / 800, 2);
+  await page.mouse.click(
+    bounds.x + bounds.width / 2 - 250 * scale,
+    bounds.y + bounds.height / 2 - 200 * scale,
+  );
+  await expect
+    .poll(async () =>
+      page.evaluate(() => {
+        const { history } = window.openlight.getState();
+        return "editing" in history && history.editing;
+      }),
+    )
+    .toBe(false);
+  const state = await page.evaluate(() => window.openlight.getState());
+  const layer = state.scene?.layers.find((layer) => layer.kind === "heal");
+  expect(layer?.kind).toBe("heal");
+  if (layer?.kind !== "heal") {
+    throw Error("Heal layer missing");
+  }
+  expect(layer.patches).toHaveLength(1);
+  expect(layer.patches[0].algorithm).toBe("healing");
+  await expect(page.getByText("Patch 1", { exact: true })).toBeVisible();
+  const patchList = page.getByRole("list", { name: "Healing patches" });
+  await expect(
+    patchList.getByRole("button", { name: "Select patch 1" }),
+  ).toHaveAttribute("aria-pressed", "true");
+  await expect(canvas.locator('[data-heal-outline="destination"]')).toHaveCount(
+    1,
+  );
+  await expect(canvas.locator('[data-heal-outline="source"]')).toHaveCount(1);
+  await expect(canvas.locator('[data-heal-source-handle="true"]')).toHaveCount(
+    1,
+  );
+  await expect(
+    canvas.locator('[data-heal-destination-handle="true"]'),
+  ).toHaveCount(1);
+  await expect(canvas.locator("[data-heal-connector]")).toHaveCount(0);
+  await expect(
+    canvas.getByRole("button", { name: "Select patch 1" }),
+  ).toHaveCount(0);
+  await expect(
+    page.getByRole("textbox", { name: "Opacity", exact: true }),
+  ).toHaveValue("100");
+  await expect(
+    page.getByRole("textbox", { name: "Opacity", exact: true }),
+  ).toHaveCount(1);
+  await size.fill("120");
+  await size.press("Enter");
+  expect(
+    await page.evaluate(() => {
+      const healing = window.openlight
+        .getState()
+        .scene?.layers.find((item) => item.kind === "heal");
+      return healing?.kind === "heal" ? healing.patches[0].stroke.size : 0;
+    }),
+  ).toBe(300);
+  await size.fill("300");
+  await size.press("Enter");
+  if (layer.patches[0].algorithm !== "healing") {
+    throw Error("Smart clone patch missing");
+  }
+  expect(layer.patches[0].offset).not.toEqual([0, 0]);
+  const after = await readImage(page, undefined, [
+    [350, 200],
+    [600, 400],
+    [510, 200],
+  ]);
+  for (const channel of after.samples?.[0].slice(0, 3) ?? []) {
+    expect(Math.abs(channel - 128)).toBeLessThanOrEqual(5);
+  }
+  expect(after.samples?.[1]).toEqual(before.samples?.[1]);
+  expect(after.samples?.[2]).toEqual([128, 128, 128, 255]);
+  await page.evaluate(
+    ({ id, patch }) => window.openlight.setHealSource(id, patch, [0, 360]),
+    { id: layer.id, patch: layer.patches[0].id },
+  );
+  expect(
+    (await readImage(page, undefined, [[350, 200]])).samples?.[0][0],
+  ).toBeGreaterThan(120);
+  await page.keyboard.press("ControlOrMeta+z");
+  await page.keyboard.press("ControlOrMeta+z");
+  expect((await readImage(page, undefined, [[350, 200]])).samples?.[0]).toEqual(
+    before.samples?.[0],
+  );
+  // Alt-click explicitly chooses the next donor using the same document mapping.
+  await page.keyboard.down("Alt");
+  await page.mouse.click(
+    bounds.x + bounds.width / 2 - 250 * scale,
+    bounds.y + bounds.height / 2 + 160 * scale,
+  );
+  await page.keyboard.up("Alt");
+  await page.mouse.click(
+    bounds.x + bounds.width / 2 - 250 * scale,
+    bounds.y + bounds.height / 2 - 200 * scale,
+  );
+  const manual = await page.evaluate(() => {
+    const layer = window.openlight
+      .getState()
+      .scene?.layers.find((layer) => layer.kind === "heal");
+    if (layer?.kind !== "heal") throw Error("Healing layer missing");
+    const patch = layer.patches.at(-1);
+    if (patch?.algorithm !== "healing") {
+      throw Error("Smart clone patch missing");
+    }
+    return {
+      id: patch.id,
+      y: Math.round(patch.stroke.points[0][1] + patch.offset[1]),
+    };
+  });
+  await expect(
+    page.getByRole("textbox", { name: "Source Y", exact: true }),
+  ).toHaveValue(`${manual.y}`);
+  expect((await readImage(page, undefined, [[350, 200]])).samples?.[0]).toEqual(
+    [128, 128, 128, 255],
+  );
+  await page.mouse.click(
+    bounds.x + bounds.width / 2 + 250 * scale,
+    bounds.y + bounds.height / 2 + 200 * scale,
+  );
+  await expect
+    .poll(async () => {
+      const state = await page.evaluate(() => window.openlight.getState());
+      const healing = state.scene?.layers.find((item) => item.kind === "heal");
+      const editing = "editing" in state.history && state.history.editing;
+      return healing?.kind === "heal" && !editing ? healing.patches.length : 0;
+    })
+    .toBe(2);
+  const firstPatch = patchList.getByRole("button", { name: "Select patch 1" });
+  await firstPatch.hover();
+  await expect(canvas.locator(`[data-heal-patch="${manual.id}"]`)).toHaveCount(
+    1,
+  );
+  await page.mouse.click(
+    bounds.x + bounds.width / 2 - 250 * scale,
+    bounds.y + bounds.height / 2 - 200 * scale,
+  );
+  await expect(firstPatch).toHaveAttribute("aria-pressed", "true");
+  expect(
+    await page.evaluate(() => {
+      const healing = window.openlight
+        .getState()
+        .scene?.layers.find((item) => item.kind === "heal");
+      return healing?.kind === "heal" ? healing.patches.length : 0;
+    }),
+  ).toBe(2);
+  const sourceX = firstPatch
+    .locator("..")
+    .getByRole("textbox", { name: "Source X", exact: true });
+  const beforeDrag = Number(await sourceX.inputValue());
+  const handle = canvas.locator('[data-heal-source-handle="true"]');
+  const handleBounds = await handle.boundingBox();
+  if (!handleBounds) throw Error("Healing source handle is unavailable");
+  await page.mouse.move(
+    handleBounds.x + handleBounds.width / 2,
+    handleBounds.y + handleBounds.height / 2,
+  );
+  await page.mouse.down();
+  await page.mouse.move(
+    handleBounds.x + handleBounds.width / 2 + 30,
+    handleBounds.y + handleBounds.height / 2,
+  );
+  await page.mouse.up();
+  await expect
+    .poll(async () => Number(await sourceX.inputValue()))
+    .not.toBe(beforeDrag);
+  await page.keyboard.press("Enter");
+  await expect(canvas).not.toBeVisible();
+});

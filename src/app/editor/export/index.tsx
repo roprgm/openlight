@@ -75,17 +75,16 @@ function FormatSelect({
         <Select
           aria-label="Format"
           value={value.id}
+          options={formats.map((format) => ({
+            value: format.id,
+            label: format.label,
+          }))}
           className="w-28"
-          onChange={(event) =>
-            onChange(formats[event.currentTarget.selectedIndex])
-          }
-        >
-          {formats.map((format) => (
-            <option key={format.id} value={format.id}>
-              {format.label}
-            </option>
-          ))}
-        </Select>
+          onChange={(id) => {
+            const format = formats.find((format) => format.id === id);
+            if (format) onChange(format);
+          }}
+        />
       </div>
       <p className="text-neutral-500">{value.description}</p>
     </div>

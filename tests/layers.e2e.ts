@@ -2,7 +2,7 @@ import { writeFile } from "node:fs/promises";
 import type { Page } from "@playwright/test";
 import { expect, test } from "./fixtures";
 import { readImage, readPreview } from "./images";
-import { box, drag } from "./pointer";
+import { box, choose, drag } from "./pointer";
 
 async function samples(page: Page) {
   const { samples } = await readImage(page, undefined, [
@@ -252,7 +252,7 @@ test("draw a mask, edit its child effects, reorder layers and undo", async ({
       name: "Mask operation",
       exact: true,
     });
-    await operation.selectOption("add");
+    await choose(page, operation, "Add");
     expect((await samples(page))[0]).toEqual(masked[0]);
     await page.getByRole("button", { name: "Undo", exact: true }).click();
     expect((await samples(page))[0]).toEqual(original[0]);

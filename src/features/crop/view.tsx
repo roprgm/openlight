@@ -62,6 +62,16 @@ export function CropEditor({ onClose }: { onClose: () => void }) {
     "5:4": 5 / 4,
   };
   const custom = ratio !== null && !Object.values(ratios).includes(ratio);
+  const ratioOptions = [
+    { value: "free", label: "Free" },
+    ...(custom && ratio !== null
+      ? [{ value: `${ratio}`, label: "Current" }]
+      : []),
+    ...Object.entries(ratios).map(([label, value]) => ({
+      value: `${value}`,
+      label,
+    })),
+  ];
   function changeRatio(value: string) {
     const ratio = Number(value) || null;
     setRatio(ratio);
@@ -115,18 +125,11 @@ export function CropEditor({ onClose }: { onClose: () => void }) {
             Aspect ratio
             <Select
               aria-label="Aspect ratio"
-              value={ratio ?? "free"}
+              value={ratio === null ? "free" : `${ratio}`}
+              options={ratioOptions}
               className="w-24"
-              onChange={(event) => changeRatio(event.currentTarget.value)}
-            >
-              <option value="free">Free</option>
-              {custom && <option value={ratio}>Current</option>}
-              {Object.entries(ratios).map(([label, value]) => (
-                <option key={label} value={value}>
-                  {label}
-                </option>
-              ))}
-            </Select>
+              onChange={changeRatio}
+            />
           </div>
           <section
             aria-label="Rotate and flip image"

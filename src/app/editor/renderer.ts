@@ -1,4 +1,4 @@
-import type { Gpu, Timer } from "vgpu";
+import type { Gpu, Target, Timer } from "vgpu";
 import { maskModifiers, type ProcessingLayer } from "@/core/document";
 import type { ImageSource } from "@/core/image";
 import {
@@ -16,6 +16,7 @@ import { adjustments } from "@/features/adjustments/pass";
 import { colorMixer } from "@/features/color-mixer/pass";
 import { unsharpMask } from "@/features/details/unsharp-mask";
 import { fill } from "@/features/fill/pass";
+import { heal } from "@/features/heal/pass";
 import { toneCurves } from "@/features/tone-curves/pass";
 import { vignette } from "@/features/vignette/pass";
 
@@ -28,13 +29,19 @@ function composeLayer(
   below: RenderImage,
   layer: ProcessingLayer,
   composition: Composition,
+  resolve?: (id: string) => Target,
 ): Branch {
+  const name = `layer/${layer.id}`;
+  composition.retain(name);
+  if (layer.kind === "heal") {
+    for (const patch of layer.patches)
+      composition.retain(`${name}/${patch.id}`);
+  }
   // A hidden or transparent layer still shows what its curve receives while it is inspected.
   const bypassed = !layer.visible || layer.opacity === 0;
   if (bypassed && layer.id !== composition.inputId) {
     return { image: below };
   }
-  const name = `layer/${layer.id}`;
   const masks = layer.kind === "mask" ? maskModifiers(layer) : [];
   const coverage =
     layer.kind === "mask" ? composition.coverage(layer) : undefined;
@@ -75,24 +82,31 @@ function composeLayer(
     case "fill":
       edited = pipeline(below, [fill(layer.fill, `${name}/fill`)]);
       break;
+    case "heal":
+      edited = heal(below, layer.patches, name, composition.brush, resolve);
+      break;
   }
   // Child masks of a mask shape its coverage; every other child processes the image.
   const effects =
     layer.kind === "mask"
       ? layer.children.filter((child) => child.kind !== "mask")
       : layer.children;
-  const children = composeLayers(edited, effects, composition);
+  const children = composeLayers(edited, effects, composition, resolve);
+  const image = mixAdjustment(
+    name,
+    below,
+    children.image,
+    bypassed ? 0 : layer.opacity,
+    layer.kind === "mask" ? layer.mask : undefined,
+    masks,
+    coverage,
+  );
   return {
-    image: mixAdjustment(
-      name,
-      below,
-      children.image,
-      bypassed ? 0 : layer.opacity,
-      layer.kind === "mask" ? layer.mask : undefined,
-      masks,
-      coverage,
-    ),
-    input: input ?? children.input,
+    image,
+    input:
+      layer.kind === "heal" && layer.id === composition.inputId
+        ? image
+        : (input ?? children.input),
   };
 }
 
@@ -100,11 +114,12 @@ function composeLayers(
   below: RenderImage,
   layers: readonly ProcessingLayer[],
   composition: Composition,
+  resolve?: (id: string) => Target,
 ): Branch {
   let image = below;
   let input: RenderImage | undefined;
   for (const layer of layers) {
-    const branch = composeLayer(image, layer, composition);
+    const branch = composeLayer(image, layer, composition, resolve);
     image = branch.image;
     input ??= branch.input;
   }
@@ -120,6 +135,7 @@ export function createEditorRenderer(
   gpu: Gpu,
   source: ImageSource,
   timer?: Timer,
+  resolve?: (id: string) => Target,
 ) {
   return createRenderer(
     gpu,
@@ -127,8 +143,19 @@ export function createEditorRenderer(
     (image, scene, composition) => {
       const [sourceLayer, ...layers] = scene.layers;
       const name = `layer/${sourceLayer.id}`;
-      const children = composeLayers(image, sourceLayer.children, composition);
-      const composite = composeLayers(children.image, layers, composition);
+      composition.retain(name);
+      const children = composeLayers(
+        image,
+        sourceLayer.children,
+        composition,
+        resolve,
+      );
+      const composite = composeLayers(
+        children.image,
+        layers,
+        composition,
+        resolve,
+      );
       const adjusted = pipeline(composite.image, [
         adjustments(sourceLayer.adjustments, name),
       ]);
