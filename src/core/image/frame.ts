@@ -30,7 +30,16 @@ export function frameValues(frame: ImageFrame) {
 
 export function validateFrame(frame: ImageFrame) {
 	if (
-		!frameValues(frame).every(Number.isFinite) ||
+		!frame ||
+		![frame.center, frame.size, frame.scale].every(
+			(point) =>
+				Array.isArray(point) &&
+				point.length === 2 &&
+				Number.isFinite(point[0]) &&
+				Number.isFinite(point[1]),
+		) ||
+		!Number.isFinite(frame.rotation) ||
+		!Number.isFinite(frame.angle) ||
 		frame.size.some((value) => value < 1) ||
 		frame.scale.some((value) => value === 0)
 	) {
@@ -45,6 +54,15 @@ export function sourceOffset(frame: ImageFrame, x: number, y: number): Point {
 	return [
 		Math.cos(angle) * dx - Math.sin(angle) * dy,
 		Math.sin(angle) * dx + Math.cos(angle) * dy,
+	];
+}
+
+/** Output offset of a source-pixel offset: the inverse of sourceOffset. */
+export function outputOffset(frame: ImageFrame, dx: number, dy: number): Point {
+	const angle = ((frame.rotation + frame.angle) * Math.PI) / 180;
+	return [
+		(Math.cos(angle) * dx - Math.sin(angle) * dy) / frame.scale[0],
+		(Math.sin(angle) * dx + Math.cos(angle) * dy) / frame.scale[1],
 	];
 }
 

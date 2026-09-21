@@ -26,11 +26,14 @@ export async function readImage(page: Page, bytes?: Uint8Array) {
 	);
 }
 
-/** Sample the displayed canvas, including preview-only overlays. */
-export async function readPreview(page: Page) {
-	const bytes = await page.locator("canvas").screenshot();
+/** Sample the displayed canvas, including preview-only overlays; `offset` moves the sampled pixel from the center. */
+export async function readPreview(page: Page, offset = [0, 0]) {
+	const bytes = await page
+		.getByRole("region", { name: "Image canvas" })
+		.locator("canvas")
+		.screenshot();
 	return page.evaluate(
-		async (bytes) => {
+		async ([bytes, offset]) => {
 			const image = await createImageBitmap(new Blob([new Uint8Array(bytes)]));
 			const canvas = new OffscreenCanvas(image.width, image.height);
 			const context = canvas.getContext("2d");
@@ -50,14 +53,18 @@ export async function readPreview(page: Page) {
 			}
 			return {
 				center: [
-					...context.getImageData(canvas.width / 2, canvas.height / 2, 1, 1)
-						.data,
+					...context.getImageData(
+						canvas.width / 2 + offset[0],
+						canvas.height / 2 + offset[1],
+						1,
+						1,
+					).data,
 				],
 				red,
 				blue,
 			};
 		},
-		[...bytes],
+		[[...bytes], offset] as const,
 	);
 }
 

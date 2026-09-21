@@ -8,6 +8,7 @@ import {
 } from "react";
 import type { Gpu } from "vgpu";
 import { useGpu } from "vgpu-react";
+import { adjustmentTarget } from "@/core/document";
 import type { ImageSource } from "@/core/image";
 import type { createRenderer } from "@/core/renderer";
 import { useDocument, useScene } from "./session";
@@ -28,7 +29,7 @@ function RendererError({ message }: { message: string }) {
 	return (
 		<p
 			role="alert"
-			className="fixed bottom-4 left-4 rounded bg-neutral-900 px-3 py-2 text-red-300 text-sm"
+			className="fixed bottom-4 left-4 rounded bg-neutral-900 px-3 py-2 text-red-300"
 		>
 			Renderer error: {message}
 		</p>
@@ -49,7 +50,7 @@ export function RendererProvider({
 }: RendererProviderProps) {
 	const gpu = useGpu();
 	const document = useDocument();
-	const sourceId = useScene((scene) => scene.source);
+	const sourceId = useScene((scene) => scene.layers[0].source);
 	const source = document.resources.get(sourceId);
 	const renderer = useMemo(
 		() => createRenderer(gpu, source),
@@ -59,19 +60,34 @@ export function RendererProvider({
 
 	useEffect(() => {
 		let active = true;
+		let requestedScene: ReturnType<typeof document.scene.getState> | undefined;
+		let requestedInput: string | undefined;
 		const render = () => {
+			const scene = document.scene.getState();
+			const target = adjustmentTarget(
+				scene.layers,
+				document.selection.getState().layerId,
+			);
+			const input = target && "toneCurve" in target ? target.id : undefined;
+			if (scene === requestedScene && input === requestedInput) {
+				return;
+			}
+			requestedScene = scene;
+			requestedInput = input;
 			setError(undefined);
-			renderer.update(document.scene.getState()).catch((error) => {
+			renderer.update(scene, input).catch((error) => {
 				if (active) {
 					setError(String(error));
 				}
 			});
 		};
-		const unsubscribe = document.scene.subscribe(render);
+		const unsubscribeScene = document.scene.subscribe(render);
+		const unsubscribeSelection = document.selection.subscribe(render);
 		render();
 		return () => {
 			active = false;
-			unsubscribe();
+			unsubscribeScene();
+			unsubscribeSelection();
 			renderer.dispose();
 		};
 	}, [renderer, document]);

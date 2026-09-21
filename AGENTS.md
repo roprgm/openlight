@@ -43,7 +43,7 @@ React composes controls and mounts engine outputs. The engine owns GPU resources
 
 ## Styling
 
-Keep Tailwind classes inline. Reuse presentation through components or repeat classes, whichever is simpler; do not share class-string constants across files. Use `cva` for variants and `src/index.css` for app-global tokens such as shadows and typography.
+Keep Tailwind classes inline. Reuse presentation through components or repeat classes, whichever is simpler; do not share class-string constants across files. Use `cva` for variants and `src/index.css` for app-global tokens such as shadows and typography. Text has one size, set on `body` in `src/index.css`; express hierarchy with color and weight, not size.
 
 ## GPU invariants
 
@@ -52,6 +52,7 @@ Keep Tailwind classes inline. Reuse presentation through components or repeat cl
 - Keep `.wgsl` beside its owner. The Vite loader and ambient types are configured.
 - The working space is linear Rec.2020 in `rgba16float`. Decoders convert into it; display converts out. Processing outputs preserve the input format and primaries unless the operation explicitly converts them.
 - The adjustment shader's parameters use UI units. Its fitted constants are calibration data; preserve them when reorganizing code.
+- Layers process the source in stack order; the image layer's adjustments and tone curve run last, on the composite, so a local exposure sees the light a global exposure would compress.
 - Preserve HDR headroom through exposure, curves, and vibrance. Exposure clips negatives and applies one luminance gain to all channels. `display()` in `core/image/color.wgsl` maps out-of-gamut colors toward their luminance.
 - TIFF and camera RAW use `raw-webgpu`. OpenLight adapts package resources to document ownership; codec implementation and coverage belong to the package.
 

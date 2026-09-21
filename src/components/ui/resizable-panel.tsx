@@ -10,7 +10,7 @@ type ResizablePanelProps = ComponentProps<"aside"> & {
 
 /** Bottom half on mobile; right-side panel with a draggable left edge on desktop. */
 export default function ResizablePanel({
-	width = 288,
+	width = 320,
 	onWidthChange,
 	min = 240,
 	max = 400,
@@ -26,14 +26,14 @@ export default function ResizablePanel({
 	return (
 		<aside
 			className={cn(
-				"relative h-1/2 shrink-0 bg-panel shadow-ridge max-md:w-full! max-md:border-t max-md:border-neutral-600 md:h-auto",
+				"relative h-1/2 shrink-0 bg-panel max-md:w-full! max-md:border-t max-md:border-black md:h-auto",
 				className,
 			)}
 			style={{ width, ...style }}
 			{...props}
 		>
 			<div
-				className="absolute inset-y-0 -left-1 hidden w-2 cursor-col-resize touch-none after:absolute after:inset-y-0 after:left-1 after:w-px after:bg-black hover:after:bg-neutral-600 after:transition-colors after:duration-200 md:block"
+				className="absolute inset-y-0 -left-1 z-20 hidden w-2 cursor-col-resize touch-none after:absolute after:inset-y-0 after:left-1 after:w-px after:bg-black hover:after:bg-neutral-600 after:transition-colors after:duration-200 md:block"
 				onPointerDown={(event) =>
 					event.currentTarget.setPointerCapture(event.pointerId)
 				}

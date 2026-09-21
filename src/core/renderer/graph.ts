@@ -116,6 +116,17 @@ export function createRenderGraph(gpu: Gpu, timer?: Timer) {
 		return image;
 	}
 	return {
+		/** Retire removed composition instances; bypassed instances remain reusable. */
+		release(prefix: string) {
+			for (const [name, pass] of effects) {
+				if (name.startsWith(prefix)) {
+					for (const buffer of pass.buffers.values()) {
+						buffer.dispose();
+					}
+					effects.delete(name);
+				}
+			}
+		},
 		render(outputs: readonly RenderImage[]) {
 			if (disposed) {
 				throw Error("Render graph is closed.");

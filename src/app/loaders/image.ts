@@ -22,10 +22,18 @@ export function createImageLoader(gpu: Gpu, workspace: Workspace): FileLoader {
 				return createDocument(
 					{
 						frame: imageFrame(decoded.image.size),
-						whiteBalance: decoded.raw?.asShot,
-						source,
-						adjustments: { ...defaultAdjustments },
-						toneCurve: defaultCurve,
+						layers: [
+							{
+								kind: "image",
+								name: file.name,
+								children: [],
+								id: crypto.randomUUID(),
+								whiteBalance: decoded.raw?.asShot,
+								source,
+								adjustments: { ...defaultAdjustments },
+								toneCurve: defaultCurve,
+							},
+						],
 					},
 					resources,
 				);

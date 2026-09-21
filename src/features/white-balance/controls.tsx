@@ -4,8 +4,8 @@ import { setWhiteBalance, whiteBalanceLimits } from "./edits";
 
 export function WhiteBalanceControls() {
 	const document = useDocument();
-	const source = useScene((scene) => scene.source);
-	const selected = useScene((scene) => scene.whiteBalance);
+	const source = useScene((scene) => scene.layers[0].source);
+	const selected = useScene((scene) => scene.layers[0].whiteBalance);
 	const asShot = document.resources.get(source).raw?.asShot;
 	if (!asShot) {
 		return null;
@@ -16,7 +16,7 @@ export function WhiteBalanceControls() {
 		<>
 			<button
 				type="button"
-				className="cursor-pointer self-end text-neutral-400 text-xs hover:text-neutral-100"
+				className="cursor-pointer self-end text-neutral-400 hover:text-neutral-100"
 				onClick={() => setWhiteBalance(document)}
 			>
 				As Shot

@@ -1,10 +1,6 @@
-import type { EditorDocument, Vignette } from "@/core/document";
-import { defaultVignette } from "./model";
+import { type EditorDocument, editLayer, type Vignette } from "@/core/document";
 
-export function setVignette(
-	document: EditorDocument,
-	change: Partial<Vignette>,
-) {
+export function validateVignette(change: Partial<Vignette>) {
 	for (const [name, value] of Object.entries(change)) {
 		if (
 			(name !== "intensity" && name !== "softness") ||
@@ -16,14 +12,18 @@ export function setVignette(
 			throw new Error(`Invalid vignette adjustment: ${name}.`);
 		}
 	}
-	const scene = document.scene.getState();
-	const current = scene.vignette ?? defaultVignette;
-	const next = { ...current, ...change };
-	if (
-		next.intensity === current.intensity &&
-		next.softness === current.softness
-	) {
-		return;
-	}
-	document.edit({ ...scene, vignette: next });
+}
+
+export function setVignette(
+	document: EditorDocument,
+	change: Partial<Vignette>,
+	id: string,
+) {
+	validateVignette(change);
+	editLayer(document, id, (layer) => {
+		if (layer.kind !== "vignette") {
+			throw Error("Select a vignette layer.");
+		}
+		return { ...layer, vignette: { ...layer.vignette, ...change } };
+	});
 }

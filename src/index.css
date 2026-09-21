@@ -24,7 +24,9 @@
 
 	body {
 		overflow: hidden;
-		font: 15px var(--font-sans);
+		font-family: var(--font-sans);
+		font-size: var(--text-xs);
+		line-height: var(--text-xs--line-height);
 		color: var(--color-neutral-100);
 		background: var(--color-neutral-900);
 		text-shadow: 0 1px 1px rgb(0 0 0 / 0.25);

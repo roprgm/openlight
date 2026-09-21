@@ -1,100 +1,119 @@
-import { useEffect, useMemo } from "react";
+import { useCallback, useEffect, useMemo } from "react";
 import { useGpu } from "vgpu-react";
-import { EditorActions } from "@/app/editor/actions";
+import { useStore } from "zustand";
+import { PanelHeader } from "@/components/editor/panel";
 import { useRenderer } from "@/components/editor/pipeline";
-import {
-	PanelContent,
-	useDocument,
-	useScene,
-} from "@/components/editor/session";
-import {
-	AdjustmentControls,
-	TemperatureControls,
-} from "@/features/adjustments/controls";
+import { useDocument, useScene } from "@/components/editor/session";
+import { Slider } from "@/components/ui/slider";
+import { adjustmentTarget, type Layer, type ToneCurve } from "@/core/document";
+import { AdjustmentControls } from "@/features/adjustments/controls";
 import { ColorMixerControls } from "@/features/color-mixer/controls";
+import { DetailsControls } from "@/features/details/controls";
 import { Histogram } from "@/features/histogram";
 import { createHistogram } from "@/features/histogram/histogram";
+import { setExposure } from "@/features/layers/edits";
 import { setToneCurve } from "@/features/tone-curves/edits";
 import { ToneCurves } from "@/features/tone-curves/tone-curves";
 import { VignetteControls } from "@/features/vignette/controls";
 import { WhiteBalanceControls } from "@/features/white-balance/controls";
 import { useEditGesture } from "@/hooks/use-edit-gesture";
-import { ClippingControls } from "./clipping-controls";
 
-const histogramColors = ["#f25445", "#6bd175", "#5c8ffa"] as const;
 const curveHistogramColors = ["#a3a3a3"] as const;
 
-function ColorTemperatureControls() {
-	const document = useDocument();
-	const source = useScene((scene) => scene.source);
-	if (document.resources.get(source).raw) {
-		return <WhiteBalanceControls />;
-	}
-	return <TemperatureControls />;
-}
-
-function ToneCurvesPanel({
-	histogram,
-}: {
-	histogram: ReturnType<typeof createHistogram>;
-}) {
+function CurveInputHistogram({ id }: { id: string }) {
+	const gpu = useGpu();
 	const renderer = useRenderer();
-	const toneCurve = useScene((scene) => scene.toneCurve);
-	const document = useDocument();
+	const histogram = useMemo(() => createHistogram(gpu), [gpu]);
+	const image = useCallback(() => renderer.inputImage(id), [renderer, id]);
+	useEffect(() => () => histogram.dispose(), [histogram]);
 	return (
-		<ToneCurves
-			points={toneCurve}
-			onChange={(points) => setToneCurve(document, points)}
-		>
-			<Histogram
-				histogram={histogram}
-				image={renderer.inputImage}
-				subscribe={renderer.subscribe}
-				colors={curveHistogramColors}
-				working
-				fillOpacity={0.65}
-				aria-label="input histogram"
-				className="pointer-events-none absolute inset-0 h-full w-full opacity-25"
-			/>
-		</ToneCurves>
+		<Histogram
+			histogram={histogram}
+			image={image}
+			subscribe={renderer.subscribe}
+			colors={curveHistogramColors}
+			working
+			fillOpacity={0.65}
+			aria-label="curve input histogram"
+			className="pointer-events-none absolute inset-0 h-full w-full opacity-25"
+		/>
 	);
 }
 
+function LayerCurve({ id, toneCurve }: { id: string; toneCurve: ToneCurve }) {
+	const document = useDocument();
+	return (
+		<div className="px-3 pb-3">
+			<hr className="mb-3 border-black/50" />
+			<ToneCurves
+				points={toneCurve}
+				onChange={(points) => setToneCurve(document, points, id)}
+			>
+				<CurveInputHistogram id={id} />
+			</ToneCurves>
+		</div>
+	);
+}
+
+function SelectedControls({ layer }: { layer: Layer }) {
+	const document = useDocument();
+	switch (layer.kind) {
+		case "details":
+			return <DetailsControls id={layer.id} details={layer.details} />;
+		case "image":
+			return (
+				<>
+					<AdjustmentControls
+						id={layer.id}
+						adjustments={layer.adjustments}
+						temperature={
+							document.resources.get(layer.source).raw && (
+								<WhiteBalanceControls />
+							)
+						}
+					/>
+					<LayerCurve id={layer.id} toneCurve={layer.toneCurve} />
+				</>
+			);
+		case "color-mixer":
+			return <ColorMixerControls id={layer.id} mixer={layer.colorMixer} />;
+		case "vignette":
+			return <VignetteControls id={layer.id} vignette={layer.vignette} />;
+		case "exposure":
+			return (
+				<section className="p-3">
+					<Slider
+						label="Exposure"
+						value={layer.exposure}
+						min={-5}
+						max={5}
+						step={0.01}
+						defaultValue={0}
+						onChange={(value) => setExposure(document, layer.id, value)}
+					/>
+				</section>
+			);
+		case "mask":
+			return (
+				<>
+					<AdjustmentControls id={layer.id} adjustments={layer.adjustments} />
+					<LayerCurve id={layer.id} toneCurve={layer.toneCurve} />
+				</>
+			);
+	}
+}
+
 export function AdjustPanel() {
-	const gpu = useGpu();
 	const document = useDocument();
 	const gesture = useEditGesture(document.history);
-	const renderer = useRenderer();
-	const histogram = useMemo(() => createHistogram(gpu), [gpu]);
-	useEffect(() => () => histogram.dispose(), [histogram]);
+	const selected = useStore(document.selection, (state) => state.layerId);
+	const target = useScene(
+		(scene) => adjustmentTarget(scene.layers, selected) ?? scene.layers[0],
+	);
 	return (
-		<PanelContent>
-			<div className="flex min-h-0 flex-1 flex-col divide-y divide-black">
-				<div
-					{...gesture}
-					className="min-h-0 flex-1 divide-y divide-black overflow-y-auto"
-				>
-					<section className="relative bg-neutral-900 p-0.5 pb-0">
-						<ClippingControls />
-						<Histogram
-							histogram={histogram}
-							image={renderer.outputImage}
-							subscribe={renderer.subscribe}
-							colors={histogramColors}
-							fillOpacity={0.2}
-							className="h-30 w-full"
-							aria-label="output histogram"
-						/>
-					</section>
-					<AdjustmentControls
-						curves={<ToneCurvesPanel histogram={histogram} />}
-						colorMixer={<ColorMixerControls />}
-						temperature={<ColorTemperatureControls />}
-					/>
-					<VignetteControls />
-				</div>
-				<EditorActions />
-			</div>
-		</PanelContent>
+		<div {...gesture}>
+			<PanelHeader title="Adjustments" />
+			<SelectedControls layer={target} />
+		</div>
 	);
 }

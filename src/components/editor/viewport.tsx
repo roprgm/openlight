@@ -21,7 +21,7 @@ function ZoomControl() {
 	const percent = Math.round(scale * devicePixelRatio * 100);
 	return (
 		<div className="absolute right-3 bottom-3">
-			<div className="flex items-center rounded-full bg-neutral-900/65 p-0.5 shadow-md backdrop-blur-sm">
+			<div className="flex items-center rounded-full bg-neutral-800/80 p-0.5 backdrop-blur-sm">
 				<Button
 					variant="ghost"
 					aria-label="Zoom out"
@@ -60,17 +60,19 @@ export function EditorViewport({
 	constrain = true,
 	children,
 	overlay,
+	tools,
 }: {
 	size: Point;
 	constrain?: boolean;
 	children: ReactNode;
 	overlay?: ReactNode;
+	tools?: ReactNode;
 }) {
 	const { camera } = useEditorSession();
 	const viewport = usePanZoom(camera, size, { constrain });
 	return (
 		<section
-			className="relative min-h-0 min-w-0 flex-1 overflow-hidden p-6"
+			className="@container relative min-h-0 min-w-0 flex-1 overflow-hidden p-6"
 			aria-label="Image canvas"
 		>
 			<Viewport value={viewport}>
@@ -83,6 +85,7 @@ export function EditorViewport({
 					<Canvas className="absolute -inset-6 size-[calc(100%+3rem)]">
 						{children}
 					</Canvas>
+					{tools}
 				</div>
 				{overlay}
 				<ZoomControl />

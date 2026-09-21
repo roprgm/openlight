@@ -7,17 +7,17 @@ function ModeTab({ entry }: { entry: Mode }) {
 	return (
 		<Tab
 			selected={entry === mode}
+			size="icon"
+			aria-label={entry.label}
 			title={`${entry.label} (${entry.key.toUpperCase()})`}
 			onClick={() => setMode(entry)}
-			className="flex min-w-16 flex-1 flex-col items-center gap-0.5 rounded-md px-0 py-1.5 md:min-w-0 md:flex-none md:py-2"
 		>
 			<entry.Icon className="size-5" />
-			{entry.label}
 		</Tab>
 	);
 }
 
-/** A column at the window's right edge on desktop, a scrollable bar below the panel on mobile. Letter shortcuts work anywhere. */
+/** Icon tabs in a column at the window's left edge on desktop, a bar above the canvas on mobile; titles carry the label and shortcut. */
 export function ModeRail() {
 	const { setMode } = useMode();
 	useShortcuts(
@@ -26,17 +26,12 @@ export function ModeRail() {
 		),
 	);
 	const editing = modes.filter((entry) => entry.group === "edit");
-	const output = modes.filter((entry) => entry.group === "output");
 	return (
 		<TabList
 			aria-label="Editor mode"
-			className="shrink-0 overflow-auto border-black border-t bg-panel p-2 shadow-ridge md:w-17.5 md:flex-col md:border-t-0 md:border-l"
+			className="shrink-0 overflow-auto border-black border-b bg-panel p-1.5 md:w-11 md:flex-col md:border-r md:border-b-0"
 		>
 			{editing.map((entry) => (
-				<ModeTab key={entry.id} entry={entry} />
-			))}
-			<div className="my-1 w-px shrink-0 bg-black md:my-0 md:w-auto md:flex-1 md:bg-transparent" />
-			{output.map((entry) => (
 				<ModeTab key={entry.id} entry={entry} />
 			))}
 		</TabList>

@@ -1,53 +1,97 @@
 import { createStore } from "zustand/vanilla";
-import { shallow } from "zustand/vanilla/shallow";
-import { frameValues, validateFrame } from "@/core/image/frame";
+import { validateFrame } from "@/core/image/frame";
 import { createHistory } from "./history";
 import { createResources } from "./resources";
-import type { Scene } from "./scene";
+import type { Gradient, MaskModifier, Scene } from "./scene";
+import { findLayer } from "./tree";
 
 export type {
 	Adjustments,
 	ColorMixer,
 	CurvePoint,
+	Details,
+	EffectLayer,
+	Gradient,
+	ImageLayer,
+	Layer,
+	LinearGradient,
+	MaskLayer,
+	MaskModifier,
+	ProcessingLayer,
+	RadialGradient,
 	Scene,
 	ToneCurve,
 	Vignette,
 } from "./scene";
+export {
+	adjustmentTarget,
+	editLayer,
+	findLayer,
+	locateLayer,
+	updateLayer,
+	walkLayers,
+} from "./tree";
 export { createResources };
+
+export type MaskPreview = {
+	readonly mask: Gradient;
+	readonly modifiers: readonly MaskModifier[];
+};
 
 export type Preview = {
 	comparison: "edited" | "original" | "split";
 	split: number;
 	shadows: boolean;
 	highlights: boolean;
+	/** The mask whose coverage the display tints red. */
+	maskOverlay?: MaskPreview;
 };
 
-function equal(a: Scene, b: Scene) {
+/** Scenes contain only plain values; unchanged branches keep their identity. */
+function equal(a: unknown, b: unknown): boolean {
+	if (a === b) {
+		return true;
+	}
+	if (
+		!a ||
+		!b ||
+		typeof a !== "object" ||
+		typeof b !== "object" ||
+		Array.isArray(a) !== Array.isArray(b)
+	) {
+		return false;
+	}
+	const keys = Object.keys(a);
 	return (
-		a.source === b.source &&
-		shallow(frameValues(a.frame), frameValues(b.frame)) &&
-		shallow(a.adjustments, b.adjustments) &&
-		shallow(a.whiteBalance, b.whiteBalance) &&
-		shallow(a.vignette, b.vignette) &&
-		shallow(a.colorMixer?.hue, b.colorMixer?.hue) &&
-		shallow(a.colorMixer?.saturation, b.colorMixer?.saturation) &&
-		shallow(a.colorMixer?.luminance, b.colorMixer?.luminance) &&
-		a.toneCurve.length === b.toneCurve.length &&
-		a.toneCurve.every((point, i) => shallow(point, b.toneCurve[i]))
+		keys.length === Object.keys(b).length &&
+		keys.every(
+			(key) =>
+				Object.hasOwn(b, key) &&
+				equal(Reflect.get(a, key), Reflect.get(b, key)),
+		)
 	);
 }
 
 /** One independent editing session. No React, decoders, or file workflows. */
 export function createDocument(initial: Scene, resources = createResources()) {
 	const scene = createStore(() => initial);
+	const selection = createStore(() => ({ layerId: initial.layers[0].id }));
 	const { update, ...history } = createHistory(
 		scene,
 		equal,
 		100,
 		(retained) => {
-			resources.retain(new Set(retained.map((state) => state.source)));
+			resources.retain(
+				new Set(retained.map((state) => state.layers[0].source)),
+			);
 		},
 	);
+	const unsubscribe = scene.subscribe((state) => {
+		const id = selection.getState().layerId;
+		if (!findLayer(state.layers, id)) {
+			selection.setState({ layerId: state.layers[0].id });
+		}
+	});
 	let closed = false;
 	return {
 		id: crypto.randomUUID(),
@@ -55,6 +99,17 @@ export function createDocument(initial: Scene, resources = createResources()) {
 			getState: scene.getState,
 			getInitialState: scene.getInitialState,
 			subscribe: scene.subscribe,
+		},
+		selection,
+		selectLayer(layerId: string) {
+			const state = scene.getState();
+			if (!findLayer(state.layers, layerId)) {
+				throw Error("Layer is unavailable.");
+			}
+			if (selection.getState().layerId !== layerId) {
+				history.commit();
+				selection.setState({ layerId });
+			}
 		},
 		preview: createStore<Preview>(() => ({
 			comparison: "edited",
@@ -76,6 +131,7 @@ export function createDocument(initial: Scene, resources = createResources()) {
 				return;
 			}
 			closed = true;
+			unsubscribe();
 			history.clear();
 			resources.dispose();
 		},

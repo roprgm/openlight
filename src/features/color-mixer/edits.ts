@@ -1,15 +1,18 @@
-import type { EditorDocument } from "@/core/document";
+import {
+	type ColorMixer,
+	type EditorDocument,
+	editLayer,
+} from "@/core/document";
 import {
 	channels,
 	colors,
 	defaultMixer,
-	isNeutral,
 	type MixerChange,
 	type MixerColor,
 } from "./model";
 
-export function setColorMixer(
-	document: EditorDocument,
+export function changeColorMixer(
+	current: ColorMixer,
 	color: MixerColor,
 	change: MixerChange,
 ) {
@@ -27,8 +30,6 @@ export function setColorMixer(
 			throw new Error(`Invalid color mixer adjustment: ${name}.`);
 		}
 	}
-	const scene = document.scene.getState();
-	const current = scene.colorMixer ?? defaultMixer;
 	const next = { ...current };
 	for (const { id } of channels) {
 		const value = change[id];
@@ -36,15 +37,31 @@ export function setColorMixer(
 			next[id] = current[id].with(index, value);
 		}
 	}
-	if (channels.every(({ id }) => current[id] === next[id])) {
-		return;
-	}
-	document.edit({ ...scene, colorMixer: isNeutral(next) ? undefined : next });
+	return next;
 }
 
-export function resetColorMixer(document: EditorDocument) {
-	const scene = document.scene.getState();
-	if (scene.colorMixer) {
-		document.edit({ ...scene, colorMixer: undefined });
-	}
+export function setColorMixer(
+	document: EditorDocument,
+	color: MixerColor,
+	change: MixerChange,
+	id: string,
+) {
+	editLayer(document, id, (layer) => {
+		if (layer.kind !== "color-mixer") {
+			throw Error("Select a color mixer layer.");
+		}
+		return {
+			...layer,
+			colorMixer: changeColorMixer(layer.colorMixer, color, change),
+		};
+	});
+}
+
+export function resetColorMixer(document: EditorDocument, id: string) {
+	editLayer(document, id, (layer) => {
+		if (layer.kind !== "color-mixer") {
+			throw Error("Select a color mixer layer.");
+		}
+		return { ...layer, colorMixer: defaultMixer };
+	});
 }

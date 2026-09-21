@@ -4,7 +4,7 @@ import type { createHistogram } from "./histogram";
 
 type Props = ComponentProps<"svg"> & {
 	histogram: ReturnType<typeof createHistogram>;
-	image: () => Target;
+	image: () => Target | undefined;
 	subscribe: (listener: () => void) => () => void;
 	colors: readonly [string] | readonly [string, string, string];
 	working?: boolean;

@@ -9,6 +9,15 @@ test("loads a HEIC image with the expected dimensions and pixels", async ({
 	);
 	await page.goto("/");
 	await page.waitForFunction(() => window.openlight);
+	const supported = await page.evaluate(async () => {
+		if (!("VideoDecoder" in window)) {
+			return false;
+		}
+		// Main Still Picture profile used by patches.heic.
+		return (await VideoDecoder.isConfigSupported({ codec: "hvc1.3.e.L30" }))
+			.supported;
+	});
+	test.skip(!supported, "This browser has no HEVC Main Still Picture decoder.");
 	const result = await page.evaluate(
 		async (bytes) => {
 			await window.openlight.loadImage(

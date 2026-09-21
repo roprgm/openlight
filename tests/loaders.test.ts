@@ -1,4 +1,5 @@
 import { expect, test } from "bun:test";
+import { createLayer, createMask } from "@/app/editor/layers";
 import { createCameraRawXmpLoader } from "@/app/loaders/camera-raw-xmp";
 import { createLoaderRegistry, type FileLoader } from "@/app/loaders/registry";
 import { createWorkspace } from "@/app/workspace";
@@ -7,6 +8,8 @@ import { canDecode } from "@/core/image/decode";
 import { imageFrame } from "@/core/image/frame";
 import { setAdjustments } from "@/features/adjustments/edits";
 import { defaultAdjustments } from "@/features/adjustments/model";
+import { addLayer } from "@/features/layers/edits";
+import { defaultGradient } from "@/features/layers/gradient";
 import { defaultCurve } from "@/features/tone-curves/curve";
 
 function settings(attributes: string, name = "photo.xmp") {
@@ -32,9 +35,17 @@ test("file batches preserve ordering, group imports, recover from failures, and 
 				if (file.name === "broken.png") throw new Error("Decode failed");
 				return createDocument({
 					frame: imageFrame([32, 32]),
-					source: file.name,
-					adjustments: { ...defaultAdjustments },
-					toneCurve: defaultCurve,
+					layers: [
+						{
+							kind: "image",
+							name: "Photo",
+							children: [],
+							id: "base",
+							source: file.name,
+							adjustments: { ...defaultAdjustments },
+							toneCurve: defaultCurve,
+						},
+					],
 				});
 			}),
 	};
@@ -70,17 +81,17 @@ test("file batches preserve ordering, group imports, recover from failures, and 
 				vibrance: 30,
 				saturation: -10,
 			};
-			expect(document.scene.getState().adjustments).toEqual(imported);
+			expect(document.scene.getState().layers[0].adjustments).toEqual(imported);
 			await registry.openFiles([
 				settings('crs:Exposure2012="3"'),
 				settings('crs:Exposure2012="-1"'),
 			]);
-			expect(document.scene.getState().adjustments).toEqual({
+			expect(document.scene.getState().layers[0].adjustments).toEqual({
 				...imported,
 				exposure: -1,
 			});
 			document.history.undo();
-			expect(document.scene.getState().adjustments.exposure).toBe(3);
+			expect(document.scene.getState().layers[0].adjustments.exposure).toBe(3);
 			document.history.redo();
 			document.history.begin();
 			setAdjustments(document, { contrast: 20 });
@@ -94,21 +105,43 @@ test("file batches preserve ordering, group imports, recover from failures, and 
 				undoCount: 5,
 				redoCount: 0,
 			});
-			expect(document.scene.getState().adjustments).toMatchObject({
+			expect(document.scene.getState().layers[0].adjustments).toMatchObject({
 				highlights: 0,
 				shadows: 0,
 				whites: 0,
 				blacks: 0,
 			});
 			document.history.undo();
-			expect(document.scene.getState().adjustments).toEqual({
+			expect(document.scene.getState().layers[0].adjustments).toEqual({
 				...imported,
 				exposure: -1,
 				contrast: 30,
 			});
 			document.history.undo();
-			expect(document.scene.getState().adjustments.contrast).toBe(-20);
+			expect(document.scene.getState().layers[0].adjustments.contrast).toBe(
+				-20,
+			);
 		}
+		const document = workspace.getDocument();
+		const maskId = addLayer(document, createMask(defaultGradient([32, 32])));
+		addLayer(document, createLayer("details"), { inside: maskId });
+		const beforeDetails = document.scene.getState();
+		await xmp.load(settings('crs:Exposure2012="0.5" crs:Clarity2012="35"'));
+		expect(document.scene.getState().layers[2]).toMatchObject({
+			kind: "details",
+			details: { clarity: 35 },
+		});
+		expect(document.scene.getState().layers[0].adjustments.exposure).toBe(0.5);
+		expect(document.scene.getState().layers[1]).toBe(beforeDetails.layers[1]);
+		document.history.undo();
+		expect(document.scene.getState()).toEqual(beforeDetails);
+		document.history.redo();
+		await xmp.load(settings('crs:Clarity2012="0"'));
+		expect(document.scene.getState().layers).toHaveLength(3);
+		expect(document.scene.getState().layers[2]).toMatchObject({
+			details: { clarity: 0 },
+		});
+		expect(document.scene.getState().layers[1]).toBe(beforeDetails.layers[1]);
 		await Promise.all([
 			registry.openFiles([exposure, new File([], "first.png")]),
 			registry.openFiles([
@@ -117,7 +150,9 @@ test("file batches preserve ordering, group imports, recover from failures, and 
 			]),
 		]);
 		expect(workspace.state.getState().file).toBe("second.png");
-		expect(workspace.getDocument().scene.getState().adjustments).toEqual({
+		expect(
+			workspace.getDocument().scene.getState().layers[0].adjustments,
+		).toEqual({
 			...defaultAdjustments,
 			contrast: 20,
 		});
@@ -129,14 +164,16 @@ test("file batches preserve ordering, group imports, recover from failures, and 
 		});
 		await registry.openFiles([exposure, photo]);
 		const recovered = workspace.getDocument();
-		expect(recovered.scene.getState().adjustments.exposure).toBe(1.25);
+		expect(recovered.scene.getState().layers[0].adjustments.exposure).toBe(
+			1.25,
+		);
 		await expect(
 			registry.openFiles([settings('crs:Exposure2012="99"')]),
 		).rejects.toThrow("Invalid adjustment");
 		await registry.openFiles([
 			settings('crs:Contrast2012="10" crs:Exposure2012="NaN"'),
 		]);
-		expect(recovered.scene.getState().adjustments).toEqual({
+		expect(recovered.scene.getState().layers[0].adjustments).toEqual({
 			...defaultAdjustments,
 			exposure: 1.25,
 			contrast: 10,
@@ -151,9 +188,9 @@ test("file batches preserve ordering, group imports, recover from failures, and 
 		text.resolve(await exposure.text());
 		await pending;
 		expect(workspace.getDocument()).not.toBe(recovered);
-		expect(workspace.getDocument().scene.getState().adjustments).toEqual(
-			defaultAdjustments,
-		);
+		expect(
+			workspace.getDocument().scene.getState().layers[0].adjustments,
+		).toEqual(defaultAdjustments);
 	} finally {
 		workspace.dispose();
 	}

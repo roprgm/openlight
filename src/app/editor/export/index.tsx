@@ -2,11 +2,8 @@ import { cn } from "cn";
 import { type ReactNode, useMemo, useRef, useState } from "react";
 import { useGpu } from "vgpu-react";
 import { Image } from "@/components/editor/image";
-import {
-	PanelContent,
-	useDocument,
-	useScene,
-} from "@/components/editor/session";
+import { EditorPanel, PanelHeader } from "@/components/editor/panel";
+import { useDocument, useScene } from "@/components/editor/session";
 import { EditorViewport } from "@/components/editor/viewport";
 import Button from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
@@ -14,6 +11,7 @@ import { ScrubInput } from "@/components/ui/scrub-input";
 import { Slider } from "@/components/ui/slider";
 import Spinner from "@/components/ui/spinner";
 import type { Point } from "@/core/image/frame";
+import { useShortcuts } from "@/hooks/use-shortcuts";
 import { type ExportFormat, exportImage, exportSize } from "./export-image";
 import { useEncodedPreview } from "./preview";
 
@@ -72,7 +70,7 @@ function FormatSelect({
 }) {
 	return (
 		<div className="space-y-2">
-			<label className="flex items-center justify-between text-neutral-400 text-sm">
+			<label className="flex items-center justify-between text-neutral-400">
 				Format
 				<Field className="relative w-28">
 					<select
@@ -91,7 +89,7 @@ function FormatSelect({
 					</select>
 				</Field>
 			</label>
-			<p className="text-neutral-500 text-xs">{value.description}</p>
+			<p className="text-neutral-500">{value.description}</p>
 		</div>
 	);
 }
@@ -115,7 +113,7 @@ function SizeFields({
 	const scaleTo = (fraction: number) =>
 		onChange(Math.max(1, Math.round(maxEdge * fraction)));
 	return (
-		<div className="grid grid-cols-[auto_1fr_1.5rem] items-center gap-x-3 gap-y-2 text-neutral-400 text-sm">
+		<div className="grid grid-cols-[auto_1fr_1.5rem] items-center gap-x-3 gap-y-2 text-neutral-400">
 			<span>Width</span>
 			<div className="justify-self-end">
 				<ScrubInput
@@ -126,7 +124,7 @@ function SizeFields({
 					onChange={(value) => scaleTo(value / fullWidth)}
 				/>
 			</div>
-			<span className="text-neutral-500 text-xs">px</span>
+			<span className="text-neutral-500">px</span>
 			<span>Height</span>
 			<div className="justify-self-end">
 				<ScrubInput
@@ -137,7 +135,7 @@ function SizeFields({
 					onChange={(value) => scaleTo(value / fullHeight)}
 				/>
 			</div>
-			<span className="text-neutral-500 text-xs">px</span>
+			<span className="text-neutral-500">px</span>
 			<span>Scale</span>
 			<div className="justify-self-end">
 				<ScrubInput
@@ -148,7 +146,7 @@ function SizeFields({
 					onChange={(value) => scaleTo(value / 100)}
 				/>
 			</div>
-			<span className="text-neutral-500 text-xs">%</span>
+			<span className="text-neutral-500">%</span>
 			{children}
 		</div>
 	);
@@ -163,7 +161,7 @@ function LoadingOverlay() {
 }
 
 /** Shows the encoded file on the canvas; a spinner marks results from earlier settings as loading. */
-export function ExportMode() {
+export function ExportMode({ onClose }: { onClose: () => void }) {
 	const gpu = useGpu();
 	const editorDocument = useDocument();
 	const size = useScene((scene) => scene.frame.size);
@@ -178,6 +176,7 @@ export function ExportMode() {
 	const options = { format: format.id, quality, longEdge: edge };
 	const output = useMemo(() => exportSize(size, edge), [size, edge]);
 	const { encoded, pending } = useEncodedPreview(options);
+	useShortcuts({ escape: onClose });
 	const save = async () => {
 		if (exporting.current) {
 			return;
@@ -208,10 +207,10 @@ export function ExportMode() {
 			>
 				{encoded && <Image image={encoded.image} />}
 			</EditorViewport>
-			<PanelContent>
+			<EditorPanel header={<PanelHeader title="Export" onClose={onClose} />}>
 				<section
 					aria-label="Export settings"
-					className="flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto p-4"
+					className="flex flex-col gap-5 p-4"
 				>
 					<FormatSelect value={format} onChange={setFormat} />
 					{format.lossy && (
@@ -240,12 +239,12 @@ export function ExportMode() {
 						Save image
 					</Button>
 					{error && (
-						<p className="text-red-400 text-sm" role="alert">
+						<p className="text-red-400" role="alert">
 							{error}
 						</p>
 					)}
 				</section>
-			</PanelContent>
+			</EditorPanel>
 		</>
 	);
 }
