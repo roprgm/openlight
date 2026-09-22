@@ -10,6 +10,7 @@ import { Select } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
 import { imageFrame, type Point } from "@/core/image/frame";
 import { useShortcuts } from "@/hooks/use-shortcuts";
+import { applyCrop } from "./edits";
 import { fitRatio, flip, rotate, turn } from "./geometry";
 import { CropOverlay } from "./overlay";
 
@@ -41,8 +42,7 @@ export function CropEditor({ onClose }: { onClose: () => void }) {
     fitView();
   }
   function apply() {
-    document.history.commit();
-    document.edit({ ...document.scene.getState(), frame });
+    applyCrop(document, frame);
     fitView();
     onClose();
   }

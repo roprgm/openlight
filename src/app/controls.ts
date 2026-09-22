@@ -26,7 +26,7 @@ import type {
 import type { WhiteBalance } from "@/core/image";
 import decode from "@/core/image/decode";
 import type { ImageFrame, Point } from "@/core/image/frame";
-import { setAdjustments } from "@/features/adjustments/edits";
+import { setAdjustments, setExposure } from "@/features/adjustments/edits";
 import { defaultAdjustments } from "@/features/adjustments/model";
 import { resetColorMixer, setColorMixer } from "@/features/color-mixer/edits";
 import {
@@ -34,6 +34,7 @@ import {
   type MixerChange,
   type MixerColor,
 } from "@/features/color-mixer/model";
+import { applyCrop } from "@/features/crop/edits";
 import { setDetails } from "@/features/details/edits";
 import { defaultDetails } from "@/features/details/model";
 import { setFill } from "@/features/fill/edits";
@@ -44,7 +45,6 @@ import {
   duplicateLayer,
   type LayerPlacement,
   moveLayer,
-  setExposure,
   setLayer,
   setLayerMask,
   setMaskOperation,
@@ -159,13 +159,7 @@ export function createControls(
     moveLayer: (id: string, index: number, parentId?: string) =>
       moveLayer(workspace.getDocument(), id, index, parentId),
     selectLayer: (id: string) => workspace.getDocument().selectLayer(id),
-    setFrame(frame: ImageFrame) {
-      const document = workspace.getDocument();
-      document.edit({
-        ...document.scene.getState(),
-        frame: structuredClone(frame),
-      });
-    },
+    setFrame: (frame: ImageFrame) => applyCrop(workspace.getDocument(), frame),
     setPreview: (change: Partial<Preview>) =>
       workspace.getDocument().preview.setState(change),
     beginEdit: () => workspace.getDocument().history.begin(),

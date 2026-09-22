@@ -55,8 +55,8 @@ test("a draft survives storage's structured clone, reopens under its source ID, 
 
   const { record, files } = stored;
   const malformed: [unknown, string][] = [
-    [undefined, "Invalid draft."],
-    [{ ...record, version: "1" }, "Invalid draft."],
+    [undefined, "Invalid draft"],
+    [{ ...record, version: "1" }, "Invalid draft version"],
     [{ ...record, version: 2 }, "This draft needs a newer version"],
     [{ ...record, scene: undefined }, "doesn't contain an OpenLight scene"],
     [

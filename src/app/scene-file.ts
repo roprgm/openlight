@@ -1,31 +1,32 @@
+import { z } from "zod";
 import {
   createDocument,
   createResources,
   type EditorDocument,
   type ProcessingLayer,
   type Scene,
+  walkLayers,
 } from "@/core/document";
-import type { ImageSource, WhiteBalance } from "@/core/image";
-import { validateFrame } from "@/core/image/frame";
+import type { ImageSource } from "@/core/image";
+import { frameSchema } from "@/core/image/frame";
 import {
+  adjustmentsSchema,
   defaultAdjustments,
-  validateAdjustments,
+  exposureSchema,
 } from "@/features/adjustments/model";
-import { defaultMixer, validateMixer } from "@/features/color-mixer/model";
-import { defaultDetails, validateDetails } from "@/features/details/model";
-import { defaultFill, validateFill } from "@/features/fill/model";
-import { validateHealPatch } from "@/features/heal/model";
+import { defaultMixer, mixerSchema } from "@/features/color-mixer/model";
+import { defaultDetails, detailsSchema } from "@/features/details/model";
+import { defaultFill, fillSchema } from "@/features/fill/model";
+import { healPatchSchema } from "@/features/heal/model";
 import {
-  validateDepth,
-  validateExposure,
-  validateLayerSettings,
-  validateMask,
-  validateMaskOperation,
-} from "@/features/layers/edits";
-import { validateCurve } from "@/features/tone-curves/curve";
-import { validateVignette } from "@/features/vignette/edits";
-import { defaultVignette } from "@/features/vignette/model";
-import { validateWhiteBalance } from "@/features/white-balance/edits";
+  layerSettings,
+  maskOperation,
+  maskSchema,
+} from "@/features/layers/model";
+import { curveSchema } from "@/features/tone-curves/curve";
+import { defaultVignette, vignetteSchema } from "@/features/vignette/model";
+import { whiteBalanceSchema } from "@/features/white-balance/edits";
+import { parse, withDefaults } from "@/lib/parse";
 
 /** Raised only when older files can no longer load as written; a parameter added later takes its default. */
 const version = 1;
@@ -52,184 +53,154 @@ export function snapshotScene(document: EditorDocument) {
   return { json, files: new Map([[source, file]]) };
 }
 
-function readId(id: string, ids: Set<string>) {
-  if (typeof id !== "string" || !id || ids.has(id)) {
-    throw Error("Layer and patch IDs must be unique strings.");
-  }
-  ids.add(id);
+const id = z.string().min(1);
+const adjustments = withDefaults(defaultAdjustments, adjustmentsSchema);
+
+/** Layers nest two levels, so a child's own children must be empty. */
+function processingLayer(children: z.ZodType<readonly ProcessingLayer[]>) {
+  const base = { id, ...layerSettings.shape, children };
+  return z.discriminatedUnion(
+    "kind",
+    [
+      z.object({
+        ...base,
+        kind: z.literal("exposure"),
+        exposure: exposureSchema,
+      }),
+      z.object({
+        ...base,
+        kind: z.literal("details"),
+        details: withDefaults(defaultDetails, detailsSchema),
+      }),
+      z.object({
+        ...base,
+        kind: z.literal("vignette"),
+        vignette: withDefaults(defaultVignette, vignetteSchema),
+      }),
+      z.object({
+        ...base,
+        kind: z.literal("color-mixer"),
+        colorMixer: withDefaults(defaultMixer, mixerSchema),
+      }),
+      z.object({
+        ...base,
+        kind: z.literal("fill"),
+        fill: withDefaults(defaultFill, fillSchema),
+      }),
+      z.object({
+        ...base,
+        kind: z.literal("heal"),
+        patches: z.array(healPatchSchema),
+      }),
+      z.object({
+        ...base,
+        kind: z.literal("mask"),
+        operation: maskOperation,
+        mask: maskSchema,
+        adjustments,
+        toneCurve: curveSchema,
+      }),
+    ],
+    {
+      error: (issue) =>
+        issue.code === "invalid_union"
+          ? `Unknown layer kind: ${Reflect.get(Object(issue.input), "kind")}`
+          : undefined,
+    },
+  );
 }
 
-/** Parameters missing from a group take their defaults, so older files load after the group gains one. */
-function complete<T extends object>(
-  defaults: T,
-  value: Partial<T> | undefined,
-  validate: (value: T) => void,
-) {
-  const merged = { ...defaults, ...value };
-  validate(merged);
-  return merged;
+function empty(message: string) {
+  return z
+    .array(z.unknown())
+    .max(0, message)
+    .transform((): ProcessingLayer[] => []);
 }
 
-/** Absolute white balance applies only to RAW images, which fall back to their as-shot balance. */
-function readWhiteBalance(
-  balance: WhiteBalance | undefined,
-  asShot: WhiteBalance | undefined,
-) {
-  if (!asShot || !balance) {
-    return asShot;
-  }
-  const whiteBalance = { temperature: balance.temperature, tint: balance.tint };
-  validateWhiteBalance(whiteBalance, asShot);
-  return whiteBalance;
-}
+const child = processingLayer(
+  empty("Layers support two levels: a parent and its children"),
+);
 
-function readLayer(layer: ProcessingLayer, ids: Set<string>): ProcessingLayer {
-  const { id, name, visible, opacity, children } = layer;
-  readId(id, ids);
-  validateLayerSettings({ name, visible, opacity });
-  if (!Array.isArray(children)) {
-    throw Error("Layer children must be a list.");
-  }
-  const base = {
-    id,
-    name,
-    visible,
-    opacity,
-    children: children.map((child) => readLayer(child, ids)),
-  };
-  switch (layer.kind) {
-    case "exposure":
-      validateExposure(layer.exposure);
-      return { ...base, kind: layer.kind, exposure: layer.exposure };
-    case "details":
-      return {
-        ...base,
-        kind: layer.kind,
-        details: complete(defaultDetails, layer.details, validateDetails),
-      };
-    case "vignette":
-      return {
-        ...base,
-        kind: layer.kind,
-        vignette: complete(defaultVignette, layer.vignette, validateVignette),
-      };
-    case "color-mixer":
-      return {
-        ...base,
-        kind: layer.kind,
-        colorMixer: complete(defaultMixer, layer.colorMixer, validateMixer),
-      };
-    case "fill":
-      return {
-        ...base,
-        kind: layer.kind,
-        fill: complete(defaultFill, layer.fill, validateFill),
-      };
-    case "heal":
-      if (!Array.isArray(layer.patches)) {
-        throw Error("A Healing layer needs a list of patches.");
-      }
-      for (const patch of layer.patches) {
-        readId(patch.id, ids);
-        validateHealPatch(patch);
-      }
-      return { ...base, kind: layer.kind, patches: layer.patches };
-    case "mask":
-      validateMaskOperation(layer.operation);
-      validateMask(layer.mask);
-      validateCurve(layer.toneCurve);
-      return {
-        ...base,
-        kind: layer.kind,
-        operation: layer.operation,
-        mask: layer.mask,
-        adjustments: complete(
-          defaultAdjustments,
-          layer.adjustments,
-          validateAdjustments,
-        ),
-        toneCurve: layer.toneCurve,
-      };
-    default: {
-      const unknown: never = layer;
-      throw Error(`Unknown layer kind: ${Reflect.get(unknown, "kind")}.`);
-    }
-  }
-}
+const imageLayer = z.object({
+  kind: z.literal("image"),
+  id,
+  name: layerSettings.shape.name,
+  source: id,
+  whiteBalance: z
+    .object({ temperature: z.number(), tint: z.number() })
+    .optional(),
+  adjustments,
+  toneCurve: curveSchema,
+  children: empty("The image layer cannot contain layers"),
+});
+
+const sceneSchema = z
+  .object({
+    frame: frameSchema,
+    layers: z.tuple([imageLayer], processingLayer(z.array(child))),
+  })
+  .refine((scene) => {
+    const ids = Array.from(walkLayers(scene.layers), ({ layer }) => [
+      layer.id,
+      ...(layer.kind === "heal" ? layer.patches.map((patch) => patch.id) : []),
+    ]).flat();
+    return new Set(ids).size === ids.length;
+  }, "Layer and patch IDs must be unique");
+
+const notScene = "This file doesn't contain an OpenLight scene";
+const header = z.object(
+  {
+    format: z.literal("openlight", notScene),
+    version: z.int().min(1),
+  },
+  notScene,
+);
+const savedSchema = header.extend({
+  sources: z.record(
+    z.string(),
+    z.object({ name: z.string(), type: z.string() }),
+  ),
+  scene: sceneSchema,
+});
 
 /**
  * Opens a saved scene as a new document, validating every value as the edit that made it.
  * Scene files and drafts both open through here; `files` holds each source's bytes by ID.
  */
 export async function openScene(
-  saved: SceneJson,
+  saved: unknown,
   files: ReadonlyMap<string, Blob>,
   decode: (file: File) => Promise<ImageSource>,
 ) {
-  if (saved?.format !== "openlight") {
-    throw Error("This file doesn't contain an OpenLight scene.");
-  }
-  if (!Number.isInteger(saved.version) || saved.version < 1) {
-    throw Error("Invalid scene version.");
-  }
-  if (saved.version > version) {
+  if (parse(header, saved, "Invalid scene").version > version) {
     throw Error("This scene needs a newer version of OpenLight.");
   }
-  const { frame, layers } = saved.scene ?? {};
-  validateFrame(frame);
-  if (!Array.isArray(layers) || layers[0]?.kind !== "image") {
-    throw Error("A scene must start with its image layer.");
-  }
-  const [image, ...rest] = layers;
-  const ids = new Set<string>();
-  readId(image.id, ids);
-  validateLayerSettings({ name: image.name });
-  if (image.children?.length) {
-    throw Error("The image layer cannot contain layers.");
-  }
-  validateCurve(image.toneCurve);
-  const adjustments = complete(
-    defaultAdjustments,
-    image.adjustments,
-    validateAdjustments,
-  );
-  const children = rest.map((layer) => readLayer(layer, ids));
-  validateDepth(children);
-  const source = saved.sources?.[image.source];
+  const { sources, scene } = parse(savedSchema, saved, "Invalid scene");
+  const [image, ...layers] = scene.layers;
+  const source = sources[image.source];
   const data = files.get(image.source);
-  if (typeof source?.name !== "string" || !data) {
+  if (!source || !data) {
     throw Error("The scene's image is missing.");
   }
   const sourceFile = new File([data], source.name, { type: source.type });
   const decoded = await decode(sourceFile);
+  const asShot = decoded.raw?.asShot;
+  // Absolute white balance applies only to RAW images, which fall back to their as-shot balance.
+  const whiteBalance =
+    asShot && image.whiteBalance
+      ? parse(
+          whiteBalanceSchema(asShot),
+          image.whiteBalance,
+          "Invalid RAW white balance",
+        )
+      : asShot;
   const resources = createResources();
   try {
-    const id = resources.add(sourceFile, decoded, image.source);
+    resources.add(sourceFile, decoded, image.source);
     return createDocument(
       {
-        frame: {
-          center: frame.center,
-          size: frame.size,
-          rotation: frame.rotation,
-          angle: frame.angle,
-          scale: frame.scale,
-        },
-        layers: [
-          {
-            kind: "image",
-            id: image.id,
-            name: image.name,
-            source: id,
-            whiteBalance: readWhiteBalance(
-              image.whiteBalance,
-              decoded.raw?.asShot,
-            ),
-            adjustments,
-            toneCurve: image.toneCurve,
-            children: [],
-          },
-          ...children,
-        ],
+        frame: scene.frame,
+        layers: [{ ...image, whiteBalance }, ...layers],
       },
       resources,
     );

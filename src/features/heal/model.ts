@@ -1,11 +1,13 @@
+import { z } from "zod";
 import {
   type BrushStroke,
   findLayer,
   type HealPatch,
   type Scene,
 } from "@/core/document";
-import { validateStroke } from "@/core/document/brush";
+import { strokeSchema } from "@/core/document/brush";
 import type { Point } from "@/core/image/frame";
+import { point, unit } from "@/lib/parse";
 
 export function findHealPatch(scene: Scene, layerId: string, patchId: string) {
   const layer = findLayer(scene.layers, layerId);
@@ -71,32 +73,20 @@ export function patchThumbnailRegion(
   };
 }
 
-export function validateOffset(offset: Point) {
-  if (offset.length !== 2 || !offset.every(Number.isFinite)) {
-    throw Error("A heal source needs two finite source-pixel offsets.");
-  }
-}
+export const patchStroke = strokeSchema.refine(
+  (stroke) => stroke.mode === "paint",
+  "Heal patches use painted strokes",
+);
 
-export function validatePatchStroke(stroke: BrushStroke) {
-  validateStroke(stroke);
-  if (stroke.mode !== "paint") {
-    throw Error("Heal patches use painted strokes.");
-  }
-}
+export const patchBlend = z.strictObject({
+  feather: unit.optional(),
+  opacity: unit.optional(),
+});
 
-export function validatePatchBlend(change: {
-  feather?: number;
-  opacity?: number;
-}) {
-  for (const [name, value] of Object.entries(change)) {
-    if (typeof value !== "number" || !(value >= 0 && value <= 1)) {
-      throw Error(`Heal patch ${name} must be between 0 and 1.`);
-    }
-  }
-}
-
-export function validateHealPatch(patch: HealPatch) {
-  validatePatchStroke(patch.stroke);
-  validateOffset(patch.offset);
-  validatePatchBlend({ feather: patch.feather, opacity: patch.opacity });
-}
+export const healPatchSchema = z.object({
+  id: z.string().min(1),
+  feather: unit,
+  stroke: patchStroke,
+  opacity: unit,
+  offset: point,
+}) satisfies z.ZodType<HealPatch>;

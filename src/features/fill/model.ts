@@ -1,3 +1,4 @@
+import { z } from "zod";
 import type { Blend, Fill } from "@/core/document";
 
 export const blends: readonly (readonly [Blend, string])[] = [
@@ -15,17 +16,13 @@ export const defaultFill: Readonly<Fill> = {
   blend: "normal",
 };
 
-export function validateFill(change: Partial<Fill>) {
-  for (const [name, value] of Object.entries(change)) {
-    const valid =
-      name === "color"
-        ? typeof value === "string" && /^#[0-9a-f]{6}$/i.test(value)
-        : name === "blend" && blends.some(([blend]) => blend === value);
-    if (!valid) {
-      throw new Error(`Invalid fill setting: ${name}.`);
-    }
-  }
-}
+export const fillSchema = z.object({
+  color: z
+    .string()
+    .regex(/^#[0-9a-f]{6}$/i)
+    .toLowerCase(),
+  blend: z.enum(blends.map(([blend]) => blend)),
+}) satisfies z.ZodType<Fill>;
 
 /** The sRGB channels of a `#rrggbb` color, 0 to 1. */
 export function parseColor(color: string): [number, number, number] {

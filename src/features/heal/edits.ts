@@ -6,13 +6,10 @@ import {
   type Layer,
   type StrokePoint,
 } from "@/core/document";
-import { validPoints } from "@/core/document/brush";
+import { strokePoints } from "@/core/document/brush";
 import type { Point } from "@/core/image/frame";
-import {
-  validateOffset,
-  validatePatchBlend,
-  validatePatchStroke,
-} from "./model";
+import { parse, point } from "@/lib/parse";
+import { patchBlend, patchStroke } from "./model";
 
 export function addHealPatch(
   document: EditorDocument,
@@ -20,14 +17,13 @@ export function addHealPatch(
   stroke: BrushStroke,
   offset: Point,
 ) {
-  validatePatchStroke(stroke);
-  validateOffset(offset);
+  const painted = parse(patchStroke, stroke, "Invalid heal stroke");
   const patch: HealPatch = {
     id: crypto.randomUUID(),
-    feather: stroke.feather,
-    stroke: { ...structuredClone(stroke), feather: 0 },
+    feather: painted.feather,
+    stroke: { ...painted, feather: 0 },
     opacity: 1,
-    offset: [offset[0], offset[1]],
+    offset: parse(point, offset, "Invalid heal source"),
   };
   editLayer(document, id, (layer) => ({
     ...layer,
@@ -63,12 +59,12 @@ export function setHealPatch(
   patchId: string,
   change: { feather?: number; opacity?: number },
 ) {
-  validatePatchBlend(change);
+  const blend = parse(patchBlend, change, "Invalid heal patch");
   editPatches(document, id, patchId, (patches, index) =>
     patches.with(index, {
       ...patches[index],
-      feather: change.feather ?? patches[index].feather,
-      opacity: change.opacity ?? patches[index].opacity,
+      feather: blend.feather ?? patches[index].feather,
+      opacity: blend.opacity ?? patches[index].opacity,
     }),
   );
 }
@@ -103,11 +99,7 @@ export function extendHealPatch(
   id: string,
   points: readonly StrokePoint[],
 ) {
-  if (!validPoints(points)) {
-    throw Error(
-      "Stroke points need finite coordinates and pressure from 0 to 1.",
-    );
-  }
+  const added = parse(strokePoints, points, "Invalid stroke points");
   editLayer(document, id, (layer) => {
     if (layer.kind !== "heal" || !layer.patches.length) {
       throw Error("Start a heal patch before extending it.");
@@ -120,7 +112,7 @@ export function extendHealPatch(
               ...patch,
               stroke: {
                 ...patch.stroke,
-                points: [...patch.stroke.points, ...points],
+                points: [...patch.stroke.points, ...added],
               },
             }
           : patch,
@@ -135,9 +127,9 @@ export function setHealSource(
   patchId: string,
   offset: Point,
 ) {
-  validateOffset(offset);
+  const source = parse(point, offset, "Invalid heal source");
   editPatches(document, id, patchId, (patches, index) =>
-    patches.with(index, { ...patches[index], offset: [offset[0], offset[1]] }),
+    patches.with(index, { ...patches[index], offset: source }),
   );
 }
 
@@ -148,11 +140,11 @@ export function setHealDestination(
   patchId: string,
   destination: Point,
 ) {
-  validateOffset(destination);
+  const [targetX, targetY] = parse(point, destination, "Invalid heal target");
   editPatches(document, id, patchId, (patches, index) => {
     const patch = patches[index];
     const [x, y] = patch.stroke.points[0];
-    const delta: Point = [destination[0] - x, destination[1] - y];
+    const delta: Point = [targetX - x, targetY - y];
     return patches.with(index, {
       ...patch,
       stroke: {

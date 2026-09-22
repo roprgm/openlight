@@ -1,3 +1,4 @@
+import { z } from "zod";
 import type { Adjustments } from "@/core/document";
 
 export const defaultAdjustments: Adjustments = {
@@ -26,17 +27,20 @@ export const adjustmentLimits: Adjustments = {
   saturation: 100,
 };
 
-export function validateAdjustments(change: Partial<Adjustments>) {
-  for (const [name, value] of Object.entries(change)) {
-    const limit = Reflect.get(adjustmentLimits, name);
-    if (
-      typeof limit !== "number" ||
-      typeof value !== "number" ||
-      !Number.isFinite(value) ||
-      value > limit ||
-      value < -limit
-    ) {
-      throw new Error(`Invalid adjustment: ${name}.`);
-    }
-  }
-}
+const range = (limit: number) => z.number().min(-limit).max(limit);
+
+export const adjustmentsSchema = z.object({
+  exposure: range(adjustmentLimits.exposure),
+  incrementalTemperature: range(adjustmentLimits.incrementalTemperature),
+  incrementalTint: range(adjustmentLimits.incrementalTint),
+  contrast: range(adjustmentLimits.contrast),
+  highlights: range(adjustmentLimits.highlights),
+  shadows: range(adjustmentLimits.shadows),
+  whites: range(adjustmentLimits.whites),
+  blacks: range(adjustmentLimits.blacks),
+  vibrance: range(adjustmentLimits.vibrance),
+  saturation: range(adjustmentLimits.saturation),
+}) satisfies z.ZodType<Adjustments>;
+
+/** An Exposure layer's value, in EV like the adjustment. */
+export const exposureSchema = range(adjustmentLimits.exposure);

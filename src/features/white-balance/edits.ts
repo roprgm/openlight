@@ -1,5 +1,7 @@
+import { z } from "zod";
 import { type EditorDocument, editLayer } from "@/core/document";
 import type { WhiteBalance } from "@/core/image";
+import { parse } from "@/lib/parse";
 
 export function whiteBalanceLimits(asShot: WhiteBalance) {
   return {
@@ -14,18 +16,13 @@ export function whiteBalanceLimits(asShot: WhiteBalance) {
   };
 }
 
-export function validateWhiteBalance(
-  balance: WhiteBalance,
-  asShot: WhiteBalance,
-) {
-  const limits = whiteBalanceLimits(asShot);
-  for (const channel of ["temperature", "tint"] as const) {
-    const value = balance[channel];
-    const { min, max } = limits[channel];
-    if (!Number.isFinite(value) || value < min || value > max) {
-      throw Error("Invalid RAW white balance.");
-    }
-  }
+/** Absolute white balance within the ranges that include the file's as-shot value. */
+export function whiteBalanceSchema(asShot: WhiteBalance) {
+  const { temperature, tint } = whiteBalanceLimits(asShot);
+  return z.object({
+    temperature: z.number().min(temperature.min).max(temperature.max),
+    tint: z.number().min(tint.min).max(tint.max),
+  }) satisfies z.ZodType<WhiteBalance>;
 }
 
 /** Without a change, resets to the camera's as-shot balance. */
@@ -38,11 +35,13 @@ export function setWhiteBalance(
   if (!asShot) {
     throw Error("This image does not support RAW white balance.");
   }
-  let whiteBalance = asShot;
-  if (change) {
-    whiteBalance = { ...(scene.layers[0].whiteBalance ?? asShot), ...change };
-    validateWhiteBalance(whiteBalance, asShot);
-  }
+  const whiteBalance = change
+    ? parse(
+        whiteBalanceSchema(asShot),
+        { ...(scene.layers[0].whiteBalance ?? asShot), ...change },
+        "Invalid RAW white balance",
+      )
+    : asShot;
   editLayer(document, scene.layers[0].id, (layer) => {
     if (layer.kind !== "image") {
       throw Error("Select the image layer.");

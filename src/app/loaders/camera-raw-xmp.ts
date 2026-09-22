@@ -7,8 +7,8 @@ import {
   isCameraRawXmp,
   readCameraRawXmp,
 } from "@/features/camera-raw-xmp/xmp";
-import { setDetails } from "@/features/details/edits";
-import { validateDetails } from "@/features/details/model";
+import { detailsChange, setDetails } from "@/features/details/edits";
+import { parse } from "@/lib/parse";
 import type { FileLoader } from "./registry";
 
 function toAdjustments(xmp: CameraRawXmp): Partial<Adjustments> {
@@ -28,7 +28,7 @@ function toAdjustments(xmp: CameraRawXmp): Partial<Adjustments> {
 }
 
 function applyClarity(document: EditorDocument, clarity: number) {
-  validateDetails({ clarity });
+  parse(detailsChange, { clarity }, "Invalid detail adjustment");
   const scene = document.scene.getState();
   if (
     clarity === 0 &&

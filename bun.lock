@@ -19,6 +19,7 @@
         "tailwindcss": "^4.3.3",
         "vgpu": "^0.3.1",
         "vgpu-react": "^0.3.0",
+        "zod": "^4.4.3",
         "zustand": "^5.0.15",
       },
       "devDependencies": {
