@@ -57,13 +57,15 @@ export function validateOffset(offset: Point) {
   }
 }
 
-/** Square neural context around the painted object, clamped to the document. */
+/** Square context around the patch when it fits in the image and covers every dab. A longer stroke uses the patch itself so the ends are not cropped away. */
 export function miganBounds(stroke: BrushStroke, size: readonly number[]) {
   const bounds = patchBounds(stroke, size);
   const side = Math.min(
-    Math.min(...size),
+    size[0],
+    size[1],
     Math.ceil(Math.max(512, bounds.extent[0] * 2, bounds.extent[1] * 2)),
   );
+  if (side < bounds.extent[0] || side < bounds.extent[1]) return bounds;
   return {
     origin: [
       Math.round(

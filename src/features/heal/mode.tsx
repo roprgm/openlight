@@ -46,9 +46,11 @@ export function HealingProvider({
     if (algorithm !== "ai" || isMiganReady()) return;
     const controller = new AbortController();
     setLoading({ kind: "loading", message: "Loading the local AI runtime…" });
-    void prepareMigan(gpu, controller.signal, (message) =>
-      setLoading({ kind: "loading", message }),
-    )
+    void prepareMigan(gpu, controller.signal, (message) => {
+      if (!controller.signal.aborted) {
+        setLoading({ kind: "loading", message });
+      }
+    })
       .then(() => setLoading({ kind: "ready" }))
       .catch((error: unknown) => {
         if (!controller.signal.aborted) {

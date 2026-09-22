@@ -2,9 +2,12 @@ import type { Gpu, Target } from "vgpu";
 import type { BrushStroke } from "@/core/document";
 import type { Point } from "@/core/image/frame";
 import { renderBitmap } from "@/core/renderer";
+import { strokeDabs } from "@/core/renderer/mask/dabs";
 import { miganBounds } from "./model";
+import { createPreparationGate, createRunQueue } from "./session";
 
 const modelPath = "/models/migan-pipeline-v2.onnx";
+const modelResolution = 512;
 
 type Tensor = { data: ArrayLike<number>; dispose(): void };
 type Session = {
@@ -27,8 +30,12 @@ type Runtime = {
 };
 
 type Prepared = { runtime: Runtime; session: Session };
+
 // The editor retains one session for its lifetime; HTTP caching owns cross-reload reuse.
-let prepared: Prepared | undefined;
+const sessions = createPreparationGate<Prepared>((value) =>
+  value.session.release(),
+);
+const enqueue = createRunQueue();
 
 /** Adopts the editor device and releases a session whose uncancellable creation outlives its request. */
 export async function createMiganSession(
@@ -50,33 +57,34 @@ export async function createMiganSession(
 
 async function load(
   gpu: Gpu,
-  signal?: AbortSignal,
-  status?: (message: string) => void,
+  status: ((message: string) => void) | undefined,
+  signal: AbortSignal,
 ) {
+  signal.throwIfAborted();
   status?.("Loading the local AI runtime…");
   const runtime = (await import(
     "./vendor/ort.webgpu.bundle.min.mjs"
   )) as Runtime;
+  signal.throwIfAborted();
   runtime.env.wasm.wasmPaths = {
     wasm: "/vendor/onnxruntime-web-1.30.0/ort-wasm-simd-threaded.asyncify.wasm",
   };
-  signal?.throwIfAborted();
   status?.("Loading the bundled 28 MB AI model…");
   const response = await fetch(modelPath, { signal });
   if (!response.ok)
     throw Error(`AI model failed to load: HTTP ${response.status}`);
+  signal.throwIfAborted();
   status?.("Preparing AI Remove on this device…");
   const session = await createMiganSession(
     runtime,
     await response.arrayBuffer(),
     gpu.gpu,
-    signal,
   );
   return { runtime, session };
 }
 
 export function isMiganReady() {
-  return Boolean(prepared);
+  return sessions.ready;
 }
 
 export function prepareMigan(
@@ -84,21 +92,16 @@ export function prepareMigan(
   signal?: AbortSignal,
   status?: (message: string) => void,
 ) {
-  if (prepared) return Promise.resolve(prepared);
-  return load(gpu, signal, status).then((value) => {
-    prepared = value;
-    return value;
-  });
+  return sessions.acquire(signal, (flight) => load(gpu, status, flight));
 }
 
-/** Runs the fixed 512 px MI-GAN model through one session shared by the editor. */
-export async function runMigan(
-  gpu: Gpu,
+async function executeMigan(
+  runtime: Runtime,
+  session: Session,
   pixels: ImageData,
   coverage: ImageData,
 ) {
-  const { runtime, session } = await prepareMigan(gpu);
-  const count = 512 * 512;
+  const count = modelResolution * modelResolution;
   const rgb = new Uint8Array(count * 3);
   const mask = new Uint8Array(count);
   for (let pixel = 0; pixel < count; pixel++) {
@@ -107,15 +110,16 @@ export async function runMigan(
     }
     mask[pixel] = coverage.data[pixel * 4 + 3] > 0 ? 0 : 255;
   }
+  const shape = [modelResolution, modelResolution];
   const inputs = {
-    image: new runtime.Tensor("uint8", rgb, [1, 3, 512, 512]),
-    mask: new runtime.Tensor("uint8", mask, [1, 1, 512, 512]),
+    image: new runtime.Tensor("uint8", rgb, [1, 3, ...shape]),
+    mask: new runtime.Tensor("uint8", mask, [1, 1, ...shape]),
   };
   let outputs: Record<string, Tensor> | undefined;
   try {
     outputs = await session.run(inputs);
     const data = outputs[session.outputNames[0]].data;
-    const result = new ImageData(512, 512);
+    const result = new ImageData(modelResolution, modelResolution);
     for (let pixel = 0; pixel < count; pixel++) {
       for (let channel = 0; channel < 3; channel++) {
         result.data[pixel * 4 + channel] = data[channel * count + pixel];
@@ -129,12 +133,59 @@ export async function runMigan(
   }
 }
 
+/** Runs the fixed 512 px MI-GAN model through one session shared by the editor. */
+export function runMigan(
+  gpu: Gpu,
+  pixels: ImageData,
+  coverage: ImageData,
+  signal?: AbortSignal,
+) {
+  return prepareMigan(gpu, signal).then(({ runtime, session }) =>
+    enqueue(() => executeMigan(runtime, session, pixels, coverage), signal),
+  );
+}
+
+type MaskRegion = { origin: Point; extent: Point };
+
+/** Hard dabs in model pixels. Feather stays in the blend, so a low-pressure or zero dab does not grow the hole. */
+export function miganMaskDabs(stroke: BrushStroke, region: MaskRegion) {
+  const scaleX = modelResolution / region.extent[0];
+  const scaleY = modelResolution / region.extent[1];
+  return strokeDabs(stroke).flatMap(([x, y, radius, alpha]) =>
+    alpha <= 0 || radius <= 0
+      ? []
+      : [
+          {
+            x: (x - region.origin[0]) * scaleX,
+            y: (y - region.origin[1]) * scaleY,
+            rx: radius * scaleX,
+            ry: radius * scaleY,
+          },
+        ],
+  );
+}
+
+function paintMiganMask(
+  context: OffscreenCanvasRenderingContext2D,
+  stroke: BrushStroke,
+  region: MaskRegion,
+) {
+  context.clearRect(0, 0, modelResolution, modelResolution);
+  context.fillStyle = "white";
+  for (const dab of miganMaskDabs(stroke, region)) {
+    context.beginPath();
+    context.ellipse(dab.x, dab.y, dab.rx, dab.ry, 0, 0, Math.PI * 2);
+    context.fill();
+  }
+}
+
 /** Extracts display-referred model input and paints the stroke into its binary mask. */
 export async function generateMigan(
   gpu: Gpu,
   image: Target,
   dimensions: Point,
   stroke: BrushStroke,
+  signal?: AbortSignal,
 ) {
   const region = miganBounds(stroke, dimensions);
   const scale = Math.min(1, 2048 / Math.max(...dimensions));
@@ -143,7 +194,7 @@ export async function generateMigan(
     Math.max(1, Math.round(dimensions[1] * scale)),
   ];
   const bitmap = await renderBitmap(gpu, image, previewSize);
-  const input = new OffscreenCanvas(512, 512);
+  const input = new OffscreenCanvas(modelResolution, modelResolution);
   const context = input.getContext("2d", { willReadFrequently: true });
   if (!context) throw Error("Canvas is unavailable.");
   context.drawImage(
@@ -154,35 +205,15 @@ export async function generateMigan(
     region.extent[1] * scale,
     0,
     0,
-    512,
-    512,
+    modelResolution,
+    modelResolution,
   );
   bitmap.close();
-  const pixels = context.getImageData(0, 0, 512, 512);
-  context.clearRect(0, 0, 512, 512);
-  context.strokeStyle = "white";
-  context.fillStyle = "white";
-  context.lineCap = "round";
-  context.lineJoin = "round";
-  context.lineWidth = (stroke.size / region.extent[0]) * 512;
-  context.beginPath();
-  for (const [index, point] of stroke.points.entries()) {
-    const x = ((point[0] - region.origin[0]) / region.extent[0]) * 512;
-    const y = ((point[1] - region.origin[1]) / region.extent[1]) * 512;
-    if (index === 0) context.moveTo(x, y);
-    else context.lineTo(x, y);
-  }
-  context.stroke();
-  const [x, y] = stroke.points[0];
-  context.beginPath();
-  context.arc(
-    ((x - region.origin[0]) / region.extent[0]) * 512,
-    ((y - region.origin[1]) / region.extent[1]) * 512,
-    context.lineWidth / 2,
-    0,
-    Math.PI * 2,
-  );
-  context.fill();
-  const coverage = context.getImageData(0, 0, 512, 512);
-  return { result: await runMigan(gpu, pixels, coverage), ...region };
+  const pixels = context.getImageData(0, 0, modelResolution, modelResolution);
+  paintMiganMask(context, stroke, region);
+  const coverage = context.getImageData(0, 0, modelResolution, modelResolution);
+  return {
+    result: await runMigan(gpu, pixels, coverage, signal),
+    ...region,
+  };
 }

@@ -2,6 +2,7 @@ import {
   type BrushStroke,
   type EditorDocument,
   editLayer,
+  findLayer,
   type HealAlgorithm,
   type StrokePoint,
   updateLayer,
@@ -172,14 +173,14 @@ export function extendHealPatch(
   });
 }
 
-export function setHealSource(
+function healSourceScene(
   document: EditorDocument,
   id: string,
   patchId: string,
   offset: Point,
 ) {
   validateOffset(offset);
-  editLayer(document, id, (layer) => {
+  return updateLayer(document.scene.getState(), id, (layer) => {
     if (
       layer.kind !== "heal" ||
       !layer.patches.some(
@@ -199,6 +200,61 @@ export function setHealSource(
       patches: invalidateGeneratedResults(patches, index + 1),
     };
   });
+}
+
+export function setHealSource(
+  document: EditorDocument,
+  id: string,
+  patchId: string,
+  offset: Point,
+) {
+  document.edit(healSourceScene(document, id, patchId, offset));
+}
+
+/** Writes a donor into the open stroke, or into the committed stroke when that gesture already closed. */
+export function finishHealSource(
+  document: EditorDocument,
+  id: string,
+  patchId: string,
+  offset: Point,
+) {
+  const next = healSourceScene(document, id, patchId, offset);
+  if (document.history.status.getState().editing) document.edit(next);
+  else document.history.amend(next);
+}
+
+/** Drops an automatic stroke that never received its donor or AI result. */
+export function discardPendingHealPatch(
+  document: EditorDocument,
+  id: string,
+  patchId: string,
+  automatic: boolean,
+) {
+  const scene = document.scene.getState();
+  const layer = findLayer(scene.layers, id);
+  if (layer?.kind !== "heal") return;
+  const patch = layer.patches.find((item) => item.id === patchId);
+  if (!patch) return;
+  const unfinished =
+    (patch.algorithm === "ai" && !patch.result) ||
+    (automatic &&
+      patch.algorithm === "clone" &&
+      patch.offset[0] === 0 &&
+      patch.offset[1] === 0);
+  if (!unfinished) return;
+  const index = layer.patches.findIndex((item) => item.id === patchId);
+  const next = updateLayer(scene, id, (item) => {
+    if (item.kind !== "heal") return item;
+    return {
+      ...item,
+      patches: invalidateGeneratedResults(
+        item.patches.filter((entry) => entry.id !== patchId),
+        index,
+      ),
+    };
+  });
+  if (document.history.status.getState().editing) document.edit(next);
+  else document.history.amend(next);
 }
 
 /** Moves a patch while its Smart clone donor and existing AI result stay fixed. */
@@ -282,4 +338,18 @@ export function settleAiResult(
   result: AiResult,
 ) {
   document.history.amend(aiResult(document, id, patchId, result));
+}
+
+/** Stores a generated result in the open stroke, or amends it when that gesture already closed. */
+export function finishAiResult(
+  document: EditorDocument,
+  id: string,
+  patchId: string,
+  result: AiResult,
+) {
+  if (document.history.status.getState().editing) {
+    setAiResult(document, id, patchId, result);
+  } else {
+    settleAiResult(document, id, patchId, result);
+  }
 }

@@ -78,9 +78,7 @@ export function BrushCanvas({
     if (!current) {
       if (!commit && completing.current) {
         completing.current.abort();
-        completing.current = null;
         document.history.cancel();
-        setBusy(false);
       }
       return;
     }
@@ -98,11 +96,6 @@ export function BrushCanvas({
       setBusy(true);
       const controller = new AbortController();
       completing.current = controller;
-      const unsubscribe = document.history.status.subscribe(({ editing }) => {
-        if (!editing) {
-          controller.abort();
-        }
-      });
       void Promise.resolve()
         .then(() => onComplete(controller.signal))
         .then(() => {
@@ -117,7 +110,6 @@ export function BrushCanvas({
           }
         })
         .finally(() => {
-          unsubscribe();
           if (completing.current === controller) {
             completing.current = null;
             setBusy(false);
