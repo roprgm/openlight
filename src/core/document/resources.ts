@@ -5,11 +5,14 @@ export function createResources() {
   const images = new Map<string, { file: File } & ImageSource>();
   let disposed = false;
   return {
-    add(file: File, source: ImageSource) {
+    /** A saved document restores each source under its original ID. */
+    add(file: File, source: ImageSource, id: string = crypto.randomUUID()) {
       if (disposed) {
         throw new Error("Document is closed.");
       }
-      const id = crypto.randomUUID();
+      if (images.has(id)) {
+        throw new Error("Image resource already exists.");
+      }
       images.set(id, { file, ...source });
       return id;
     },

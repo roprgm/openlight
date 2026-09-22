@@ -13,7 +13,7 @@ import { useShortcuts } from "@/hooks/use-shortcuts";
 import { AdjustPanel } from "./adjust";
 import { EditorCanvas } from "./canvas";
 import { ComparisonControl } from "./comparison-control";
-import { EmptyEditor } from "./empty";
+import { EmptyEditor, type Recovery } from "./empty";
 import { EditorHeader } from "./header";
 import { HistoryControls } from "./history";
 import { createMask } from "./layers";
@@ -150,10 +150,11 @@ function DocumentEditor({ file }: { file: string }) {
 type EditorProps = {
   state: ReturnType<Workspace["state"]["getState"]>;
   onOpen: (files: File[]) => void;
+  draft?: Recovery;
 };
-function EditorContent({ state, onOpen }: EditorProps) {
+function EditorContent({ state, onOpen, draft }: EditorProps) {
   if (state.status !== "ready") {
-    return <EmptyEditor state={state} onOpen={onOpen} />;
+    return <EmptyEditor state={state} onOpen={onOpen} draft={draft} />;
   }
   return (
     <DocumentProvider key={state.document.id} value={state.document}>

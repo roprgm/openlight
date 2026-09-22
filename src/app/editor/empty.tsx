@@ -57,7 +57,39 @@ type EmptyState = Exclude<
   { status: "ready" }
 >;
 
-function Status({ state, onOpen }: { state: EmptyState } & OpenProps) {
+/** A draft kept from an earlier visit, offered until it is recovered or forgotten. */
+export type Recovery = {
+  name: string;
+  onRecover: () => void;
+  onForget: () => void;
+};
+
+function RecoverDraft({ name, onRecover, onForget }: Recovery) {
+  return (
+    <p className="flex max-w-md items-center gap-3 text-neutral-500">
+      <button
+        type="button"
+        onClick={onRecover}
+        className="min-w-0 cursor-pointer truncate text-neutral-200 underline decoration-neutral-600 underline-offset-4 transition-colors hover:decoration-neutral-200 focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-neutral-400/80"
+      >
+        Recover {name}
+      </button>
+      <button
+        type="button"
+        onClick={onForget}
+        className="cursor-pointer underline decoration-neutral-700 underline-offset-4 transition-colors hover:text-neutral-300 hover:decoration-neutral-400 focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-neutral-400/80"
+      >
+        Forget
+      </button>
+    </p>
+  );
+}
+
+function Status({
+  state,
+  onOpen,
+  draft,
+}: { state: EmptyState; draft?: Recovery } & OpenProps) {
   if (state.status === "loading") {
     return <Spinner />;
   }
@@ -77,6 +109,7 @@ function Status({ state, onOpen }: { state: EmptyState } & OpenProps) {
       <h1 className="text-2xl font-bold">OpenLight</h1>
       <p className="text-neutral-400">Edit photos in your browser.</p>
       <OpenImage onOpen={onOpen} />
+      {draft && <RecoverDraft {...draft} />}
     </>
   );
 }
@@ -99,7 +132,8 @@ function createEmptyDocument(gpu: Gpu) {
 export function EmptyEditor({
   state,
   onOpen,
-}: { state: EmptyState } & OpenProps) {
+  draft,
+}: { state: EmptyState; draft?: Recovery } & OpenProps) {
   const gpu = useGpu();
   const document = useMemo(() => createEmptyDocument(gpu), [gpu]);
   useEffect(() => () => document.dispose(), [document]);
@@ -116,7 +150,7 @@ export function EmptyEditor({
             <ToolTabList selected={tools[0]} />
             <div className="relative isolate grid min-h-0 min-w-0 flex-1 place-content-center justify-items-center gap-3 overflow-hidden bg-[radial-gradient(circle,#292929,#131313_55%)] p-6">
               <Backdrop />
-              <Status state={state} onOpen={onOpen} />
+              <Status state={state} onOpen={onOpen} draft={draft} />
             </div>
             <EditorSidebar inert>
               <AdjustPanel />

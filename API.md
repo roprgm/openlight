@@ -29,6 +29,8 @@ These methods accept browser `File` objects and return `Promise<void>`. Await th
 | `openFiles(files)` | Opens the first recognized image or scene file, then imports recognized XMP files in order. Unsupported files are ignored. |
 | `loadImage(file)` | Loads a file as an image, replacing the current document and its history. |
 | `loadScene(file)` | Opens a scene file as a new document, replacing the current one and its history. |
+| `recoverDraft()` | Opens the stored [draft](#drafts) as a new document, like `loadScene`. Rejects when no draft is stored or storage fails. |
+| `discardDraft()` | Deletes the stored draft and its source files. |
 | `loadUrl(url)` | Fetches an image from a same-origin URL and loads it. |
 | `importXmp(file)` | Applies supported Camera Raw adjustments as one undoable edit. |
 
@@ -161,6 +163,14 @@ The image renders at the document dimensions and downsamples to `longEdge` with 
 `scene` is the `getState()` scene; each image layer's `source` names an entry in `sources`. Opening the file with `loadScene`, `openFile`, a drop, or the file picker decodes the stored source again and restores the frame and every layer as a new document with empty history. Preview settings and history are not saved.
 
 Opening validates every value as the matching command does, and a file that fails leaves the workspace in its error state. A parameter missing from `adjustments`, `details`, `vignette`, `fill`, or `colorMixer` takes its default, so older files still open when a group gains a parameter; a RAW image without a white balance uses its As Shot value. `version` increases only when older files can no longer open as written; a newer version is rejected.
+
+## Drafts
+
+Once a document has an edit, OpenLight keeps it as the draft in the browser's IndexedDB, so closing the tab loses nothing. A save follows 1.5 s after the last scene change and flushes when the tab is hidden or the page unloads; saves run one at a time and never render. Opening an image or scene without editing it keeps the previous draft. Only the latest document is kept.
+
+A draft stores the same `scene.json` object a [scene file](#scene-files) holds, in a record with its own `version` and the document's name, while each source file sits in a separate store under its source ID. A save keeps source files already stored under their ID and deletes unreferenced ones in the same transaction, so edits never rewrite the photo.
+
+On a fresh load the start screen offers **Recover** with the draft's name, and **Forget**. `recoverDraft()` opens the draft through the same validation as a scene file, restoring each source under its original ID, with empty history; a newer draft `version` is rejected rather than dropped, and a parameter added to a group since takes its default. `discardDraft()` removes it. Both return `Promise<void>`. When IndexedDB is unavailable or fails, a dismissible notice suggests saving a scene file, and editing continues.
 
 ## State
 

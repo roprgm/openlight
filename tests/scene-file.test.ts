@@ -125,12 +125,7 @@ test("scene files reopen the photo with every layer for further editing", async 
     expect(reopened?.name).toBe("photo.nef");
     expect(reopened?.type).toBe("image/x-nikon-nef");
     expect(await reopened?.bytes()).toEqual(bytes);
-    const [image, ...layers] = edited.layers;
-    const scene = opened.scene.getState();
-    expect(scene).toEqual({
-      ...edited,
-      layers: [{ ...image, source: scene.layers[0].source }, ...layers],
-    });
+    expect(opened.scene.getState()).toEqual(edited);
     expect(opened.history.status.getState().undoCount).toBe(0);
     opened.dispose();
 

@@ -31,8 +31,8 @@ import { readZip, writeZip } from "@/lib/zip";
 /** Raised only when older files can no longer load as written; a parameter added later takes its default. */
 const version = 1;
 
-/** The archive's `scene.json`; each source's bytes are stored untouched at `sources/<id>`. */
-type SceneJson = {
+/** A saved scene: the scene as edited and the name and type of each source file, stored beside it by ID. */
+export type SceneJson = {
   format: "openlight";
   version: number;
   sources: Record<string, { name: string; type: string }>;
@@ -45,8 +45,8 @@ export function isSceneFile(file: File) {
   return file.name.toLowerCase().endsWith(sceneExtension);
 }
 
-/** The document as a ZIP archive of its scene and source file, named after the image. */
-export async function writeSceneFile(document: EditorDocument) {
+/** The document's scene and the source files it references, read without rendering. */
+export function snapshotScene(document: EditorDocument) {
   const scene = document.scene.getState();
   const { source } = scene.layers[0];
   const { file } = document.resources.get(source);
@@ -56,14 +56,21 @@ export async function writeSceneFile(document: EditorDocument) {
     sources: { [source]: { name: file.name, type: file.type } },
     scene,
   };
+  return { json, files: new Map([[source, file]]) };
+}
+
+/** The document as a ZIP archive: a deflated `scene.json` and each source's bytes at `sources/<id>`. */
+export async function writeSceneFile(document: EditorDocument) {
+  const { json, files } = snapshotScene(document);
   const archive = await writeZip([
     {
       name: "scene.json",
       data: new Blob([JSON.stringify(json)]),
       deflate: true,
     },
-    { name: `sources/${source}`, data: file },
+    ...[...files].map(([id, file]) => ({ name: `sources/${id}`, data: file })),
   ]);
+  const [file] = files.values();
   const name = file.name.replace(/\.[^.]*$/, "") || "scene";
   return new File([archive], `${name}${sceneExtension}`);
 }
@@ -173,17 +180,15 @@ function readLayer(layer: ProcessingLayer, ids: Set<string>): ProcessingLayer {
   }
 }
 
-/** Opens a scene file as a new document, validating every value as the edit that made it. */
-export async function openSceneFile(
-  file: Blob,
+/**
+ * Opens a saved scene as a new document, validating every value as the edit that made it.
+ * Scene files and drafts both open through here; `files` holds each source's bytes by ID.
+ */
+export async function openScene(
+  saved: SceneJson,
+  files: ReadonlyMap<string, Blob>,
   decode: (file: File) => Promise<ImageSource>,
 ) {
-  const entries = await readZip(file);
-  const json = entries.get("scene.json");
-  if (!json) {
-    throw Error("This file doesn't contain an OpenLight scene.");
-  }
-  const saved: SceneJson = JSON.parse(await json.text());
   if (saved?.format !== "openlight") {
     throw Error("This file doesn't contain an OpenLight scene.");
   }
@@ -214,7 +219,7 @@ export async function openSceneFile(
   const children = rest.map((layer) => readLayer(layer, ids));
   validateDepth(children);
   const source = saved.sources?.[image.source];
-  const data = entries.get(`sources/${image.source}`);
+  const data = files.get(image.source);
   if (typeof source?.name !== "string" || !data) {
     throw Error("The scene's image is missing.");
   }
@@ -222,7 +227,7 @@ export async function openSceneFile(
   const decoded = await decode(sourceFile);
   const resources = createResources();
   try {
-    const id = resources.add(sourceFile, decoded);
+    const id = resources.add(sourceFile, decoded, image.source);
     return createDocument(
       {
         frame: {
@@ -255,4 +260,21 @@ export async function openSceneFile(
     resources.dispose();
     throw error;
   }
+}
+
+export async function openSceneFile(
+  file: Blob,
+  decode: (file: File) => Promise<ImageSource>,
+) {
+  const entries = await readZip(file);
+  const json = entries.get("scene.json");
+  if (!json) {
+    throw Error("This file doesn't contain an OpenLight scene.");
+  }
+  const files = new Map(
+    [...entries].flatMap(([name, data]) =>
+      name.startsWith("sources/") ? [[name.slice(8), data] as const] : [],
+    ),
+  );
+  return openScene(JSON.parse(await json.text()), files, decode);
 }
