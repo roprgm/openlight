@@ -495,14 +495,15 @@ test("edit a photo, inspect the preview and histograms, undo changes, and export
     await modes.getByRole("tab", { name: "Crop" }).click();
     await expect(selected).toHaveAccessibleName("Crop");
     await page.keyboard.press("ArrowLeft");
+    await expect(selected).toHaveAccessibleName("Healing");
+    await page.keyboard.press("ArrowLeft");
     await expect(selected).toHaveAccessibleName("Radial gradient");
     await expect(
       page.getByRole("heading", { name: "Adjustments", exact: true }),
     ).toBeVisible();
     await page.keyboard.press("ArrowLeft");
     await page.keyboard.press("ArrowLeft");
-    await page.keyboard.press("ArrowLeft");
-    await expect(selected).toHaveAccessibleName("Healing");
+    await expect(selected).toHaveAccessibleName("Brush");
     await page.keyboard.press("ArrowLeft");
     await expect(selected).toHaveAccessibleName("Adjust");
     await expect(selected).toBeFocused();
