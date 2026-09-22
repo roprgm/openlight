@@ -1,6 +1,5 @@
 import {
   type Buffer,
-  type Effect,
   effect,
   type Frame,
   frame,
