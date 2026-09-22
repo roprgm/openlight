@@ -20,6 +20,9 @@ export function addHealPatch(
   if (stroke.mode !== "paint") {
     throw Error("Heal patches use painted strokes.");
   }
+  if (algorithm !== "healing" && algorithm !== "ai") {
+    throw Error("Choose Smart clone or AI Remove for a heal patch.");
+  }
   const base = {
     id: crypto.randomUUID(),
     feather: stroke.feather,

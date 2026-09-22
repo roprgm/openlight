@@ -134,11 +134,8 @@ export function HealPatchOutline({
           patch={patch}
           anchor={destination.center}
           onPreview={setPreview}
-          onRelease={
-            patch.algorithm === "ai"
-              ? (signal) =>
-                  onMoveDestination?.(patch.id, signal) ?? Promise.resolve()
-              : undefined
+          onRelease={(signal) =>
+            onMoveDestination?.(patch.id, signal) ?? Promise.resolve()
           }
         />
       ) : (

@@ -6,6 +6,7 @@ import {
   useEffect,
   useState,
 } from "react";
+import { useGpu } from "vgpu-react";
 import type { HealAlgorithm } from "@/core/document";
 import { isMiganReady, prepareMigan } from "./migan";
 
@@ -30,6 +31,7 @@ export function HealingProvider({
   children: ReactNode;
   onEdit?: () => void;
 }) {
+  const gpu = useGpu();
   const [algorithm, setAlgorithm] = useState<HealAlgorithm>("healing");
   const [selectedPatch, setSelectedPatch] = useState<string>();
   const [hoveredPatch, setHoveredPatch] = useState<string>();
@@ -41,7 +43,7 @@ export function HealingProvider({
     if (algorithm !== "ai" || isMiganReady()) return;
     const controller = new AbortController();
     setLoading({ kind: "loading", message: "Loading the local AI runtime…" });
-    void prepareMigan(controller.signal, (message) =>
+    void prepareMigan(gpu, controller.signal, (message) =>
       setLoading({ kind: "loading", message }),
     )
       .then(() => setLoading({ kind: "ready" }))
@@ -51,7 +53,7 @@ export function HealingProvider({
         }
       });
     return () => controller.abort();
-  }, [algorithm, attempt]);
+  }, [algorithm, attempt, gpu]);
   function cancel() {
     setAlgorithm("healing");
     setLoading({ kind: "idle" });

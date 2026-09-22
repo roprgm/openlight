@@ -19,7 +19,44 @@ import {
   setHealPatch,
   setHealSource,
 } from "@/features/heal/edits";
+import { createMiganSession } from "@/features/heal/migan";
 import { addLayer, deleteLayer } from "@/features/layers/edits";
+
+test("MI-GAN shares the editor device and releases a cancelled session", async () => {
+  let finish: ((session: { release(): Promise<void> }) => void) | undefined;
+  let options: unknown;
+  let released = false;
+  const session = {
+    async release() {
+      released = true;
+    },
+  };
+  const runtime = {
+    InferenceSession: {
+      create(_bytes: ArrayBuffer, value: unknown) {
+        options = value;
+        return new Promise<typeof session>((resolve) => {
+          finish = resolve;
+        });
+      },
+    },
+  };
+  const device = {};
+  const controller = new AbortController();
+  const loading = createMiganSession(
+    runtime as never,
+    new ArrayBuffer(0),
+    device as never,
+    controller.signal,
+  );
+  controller.abort();
+  finish?.(session);
+  await expect(loading).rejects.toThrow();
+  expect(options).toMatchObject({
+    executionProviders: [{ name: "webgpu", device }],
+  });
+  expect(released).toBe(true);
+});
 
 test("heal patches reuse brush rasters, scale with the proxy, undo, and release with the layer", async () => {
   const gpu = await init();
@@ -86,6 +123,9 @@ test("heal patches reuse brush rasters, scale with the proxy, undo, and release 
     expect(() =>
       addHealPatch(document, id, { ...stroke, mode: "erase" }, [1, 2]),
     ).toThrow("painted");
+    expect(() =>
+      addHealPatch(document, id, stroke, [1, 2], "clone" as never),
+    ).toThrow("Smart clone or AI Remove");
     expect(() => setHealSource(document, id, patch, [NaN, 0])).toThrow(
       "finite",
     );

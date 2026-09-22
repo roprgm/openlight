@@ -20,7 +20,10 @@ type Runtime = {
   InferenceSession: {
     create(
       bytes: ArrayBuffer,
-      options: { executionProviders: string[]; graphOptimizationLevel: string },
+      options: {
+        executionProviders: [{ name: "webgpu"; device: GPUDevice }];
+        graphOptimizationLevel: string;
+      },
     ): Promise<Session>;
   };
 };
@@ -29,7 +32,29 @@ type Prepared = { runtime: Runtime; session: Session };
 // The editor retains one session for its lifetime; model hosting owns cross-reload caching.
 let prepared: Prepared | undefined;
 
-async function load(signal?: AbortSignal, status?: (message: string) => void) {
+/** Adopts the editor device and releases a session whose uncancellable creation outlives its request. */
+export async function createMiganSession(
+  runtime: Runtime,
+  bytes: ArrayBuffer,
+  device: GPUDevice,
+  signal?: AbortSignal,
+) {
+  signal?.throwIfAborted();
+  const session = await runtime.InferenceSession.create(bytes, {
+    executionProviders: [{ name: "webgpu", device }],
+    graphOptimizationLevel: "all",
+  });
+  if (!signal?.aborted) return session;
+  await session.release();
+  signal.throwIfAborted();
+  throw Error("AI Remove preparation was cancelled.");
+}
+
+async function load(
+  gpu: Gpu,
+  signal?: AbortSignal,
+  status?: (message: string) => void,
+) {
   status?.("Loading the local AI runtime…");
   const runtime = (await import(/* @vite-ignore */ runtimeUrl)) as Runtime;
   signal?.throwIfAborted();
@@ -38,14 +63,12 @@ async function load(signal?: AbortSignal, status?: (message: string) => void) {
   if (!response.ok)
     throw Error(`AI model download failed: HTTP ${response.status}`);
   status?.("Preparing AI Remove on this device…");
-  const session = await runtime.InferenceSession.create(
+  const session = await createMiganSession(
+    runtime,
     await response.arrayBuffer(),
-    { executionProviders: ["webgpu"], graphOptimizationLevel: "all" },
+    gpu.gpu,
+    signal,
   );
-  if (signal?.aborted) {
-    await session.release();
-    signal.throwIfAborted();
-  }
   return { runtime, session };
 }
 
@@ -54,19 +77,24 @@ export function isMiganReady() {
 }
 
 export function prepareMigan(
+  gpu: Gpu,
   signal?: AbortSignal,
   status?: (message: string) => void,
 ) {
   if (prepared) return Promise.resolve(prepared);
-  return load(signal, status).then((value) => {
+  return load(gpu, signal, status).then((value) => {
     prepared = value;
     return value;
   });
 }
 
 /** Runs the fixed 512 px MI-GAN model through one session shared by the editor. */
-export async function runMigan(pixels: ImageData, coverage: ImageData) {
-  const { runtime, session } = await prepareMigan();
+export async function runMigan(
+  gpu: Gpu,
+  pixels: ImageData,
+  coverage: ImageData,
+) {
+  const { runtime, session } = await prepareMigan(gpu);
   const count = 512 * 512;
   const rgb = new Uint8Array(count * 3);
   const mask = new Uint8Array(count);
@@ -153,5 +181,5 @@ export async function generateMigan(
   );
   context.fill();
   const coverage = context.getImageData(0, 0, 512, 512);
-  return { result: await runMigan(pixels, coverage), ...region };
+  return { result: await runMigan(gpu, pixels, coverage), ...region };
 }
