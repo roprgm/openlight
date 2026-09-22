@@ -183,9 +183,3 @@ export function createControls(gpu: Gpu, workspace: Workspace) {
     },
   };
 }
-
-declare global {
-  interface Window {
-    openlight: ReturnType<typeof createControls>;
-  }
-}

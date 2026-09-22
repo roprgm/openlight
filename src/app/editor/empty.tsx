@@ -20,6 +20,11 @@ import { ToolTabList } from "./tool-rail";
 import { tools } from "./tools";
 
 type OpenProps = { onOpen: (files: File[]) => void };
+export type Recovery = {
+  name: string;
+  onRecover: () => void;
+  onDiscard: () => void;
+};
 
 /** The drop hint doubles as the picker: "choose a file" opens the input. */
 function OpenImage({ onOpen }: OpenProps) {
@@ -56,7 +61,34 @@ type EmptyState = Exclude<
   { status: "ready" }
 >;
 
-function Status({ state, onOpen }: { state: EmptyState } & OpenProps) {
+function RecoveryLink({ recovery }: { recovery: Recovery }) {
+  return (
+    <p className="text-neutral-500">
+      Previous edit: {recovery.name}.{" "}
+      <button
+        type="button"
+        className="cursor-pointer text-neutral-300 underline decoration-neutral-600 underline-offset-4 hover:decoration-neutral-300"
+        onClick={recovery.onRecover}
+      >
+        Recover
+      </button>
+      <span className="mx-2 text-neutral-700">·</span>
+      <button
+        type="button"
+        className="cursor-pointer underline decoration-neutral-700 underline-offset-4 hover:decoration-neutral-400"
+        onClick={recovery.onDiscard}
+      >
+        Forget
+      </button>
+    </p>
+  );
+}
+
+function Status({
+  state,
+  onOpen,
+  recovery,
+}: { state: EmptyState; recovery?: Recovery } & OpenProps) {
   if (state.status === "loading") {
     return <Spinner />;
   }
@@ -67,6 +99,7 @@ function Status({ state, onOpen }: { state: EmptyState } & OpenProps) {
           Couldn't open {state.file}: {state.error}
         </p>
         <OpenImage onOpen={onOpen} />
+        {recovery && <RecoveryLink recovery={recovery} />}
       </>
     );
   }
@@ -76,6 +109,7 @@ function Status({ state, onOpen }: { state: EmptyState } & OpenProps) {
       <h1 className="text-2xl font-bold">OpenLight</h1>
       <p className="text-neutral-400">Edit photos in your browser.</p>
       <OpenImage onOpen={onOpen} />
+      {recovery && <RecoveryLink recovery={recovery} />}
     </>
   );
 }
@@ -98,7 +132,8 @@ function createEmptyDocument(gpu: Gpu) {
 export function EmptyEditor({
   state,
   onOpen,
-}: { state: EmptyState } & OpenProps) {
+  recovery,
+}: { state: EmptyState; recovery?: Recovery } & OpenProps) {
   const gpu = useGpu();
   const document = useMemo(() => createEmptyDocument(gpu), [gpu]);
   useEffect(() => () => document.dispose(), [document]);
@@ -115,7 +150,7 @@ export function EmptyEditor({
             <ToolTabList selected={tools[0]} />
             <div className="relative isolate grid min-h-0 min-w-0 flex-1 place-content-center justify-items-center gap-3 overflow-hidden bg-[radial-gradient(circle,#292929,#131313_55%)] p-6">
               <Backdrop />
-              <Status state={state} onOpen={onOpen} />
+              <Status state={state} onOpen={onOpen} recovery={recovery} />
             </div>
             <EditorSidebar inert>
               <AdjustPanel />

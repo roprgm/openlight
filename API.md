@@ -34,6 +34,8 @@ These methods accept browser `File` objects and return `Promise<void>`. Await th
 
 Loading calls are queued. XMP import is skipped if no document is ready; an invalid XMP import can reject without blocking later loads. Image decoding failures appear in the workspace's error state and do not reject the loading promise. Check `getState().documentId` to confirm success. Loading completion does not guarantee the preview has rendered.
 
+`recoverDraft()` opens the latest local recovery draft as an editable document. `discardDraft()` permanently removes that draft. Both return `Promise<void>`. See [local recovery](docs/local-recovery.md).
+
 ## Editing
 
 Commands take explicit layer IDs rather than using UI selection. Without an ID, adjustments, the tone curve, and white balance address the base image; color-mixer, Details, and vignette commands use the first matching root effect or create one at the top of the stack; effects nested in other layers stay untouched. Creation and parameter changes are one edit, respecting an open history group.

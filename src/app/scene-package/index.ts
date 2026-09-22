@@ -1,33 +1,17 @@
 import { unzipSync, zipSync } from "fflate";
 import type { Gpu } from "vgpu";
-import {
-  createDocument,
-  createResources,
-  type EditorDocument,
-  walkLayers,
-} from "@/core/document";
-import decode from "@/core/image/decode";
+import { captureDocument, restoreDocument } from "@/app/persistence/snapshot";
+import type { EditorDocument } from "@/core/document";
 import { type AssetEntry, type Manifest, parseManifest } from "./manifest";
 
 const encoder = new TextEncoder();
 
 /** A versioned ZIP containing JSON content and unchanged original image files. */
 export async function exportScene(document: EditorDocument): Promise<File> {
-  const scene = document.scene.getState();
-  const sourceIds = [
-    ...new Set(
-      walkLayers(scene.layers)
-        .filter((item) => item.kind === "image")
-        .map((item) => item.source),
-    ),
-  ];
-  const sourceFiles = sourceIds.map((id) => ({
-    id,
-    file: document.resources.get(id).file,
-  }));
+  const snapshot = captureDocument(document);
   const assets: AssetEntry[] = [];
   const entries: Record<string, Uint8Array> = {};
-  for (const [index, { id, file }] of sourceFiles.entries()) {
+  for (const [index, { id, file }] of snapshot.sources.entries()) {
     const path = `sources/${index}`;
     assets.push({
       id,
@@ -41,7 +25,7 @@ export async function exportScene(document: EditorDocument): Promise<File> {
   const manifest: Manifest = {
     format: "openlight",
     version: 1,
-    scene,
+    scene: snapshot.scene,
     assets,
   };
   entries["manifest.json"] = encoder.encode(JSON.stringify(manifest));
@@ -74,19 +58,13 @@ export async function loadScene(gpu: Gpu, file: File): Promise<EditorDocument> {
   const manifestBytes = entries["manifest.json"];
   if (!manifestBytes) throw new Error("Scene manifest is missing.");
   const manifest = parseManifest(manifestBytes);
-  const resources = createResources();
-  try {
-    for (const source of manifest.assets) {
-      const bytes = entries[source.path];
-      if (!bytes) throw new Error(`Scene image is missing: ${source.name}`);
-      const imageFile = new File([bytes], source.name, {
-        type: source.mediaType,
-      });
-      resources.add(imageFile, await decode(gpu, imageFile), source.id);
-    }
-    return createDocument(manifest.scene, resources);
-  } catch (error) {
-    resources.dispose();
-    throw error;
-  }
+  const sources = manifest.assets.map((source) => {
+    const bytes = entries[source.path];
+    if (!bytes) throw new Error(`Scene image is missing: ${source.name}`);
+    return {
+      id: source.id,
+      file: new File([bytes], source.name, { type: source.mediaType }),
+    };
+  });
+  return restoreDocument(gpu, { scene: manifest.scene, sources });
 }
