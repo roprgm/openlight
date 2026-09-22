@@ -38,7 +38,7 @@ type Group = {
 };
 
 /** A mask's own coverage followed by the children that shape it, in stored order. */
-export function maskOps(layer: MaskLayer): readonly MaskModifier[] {
+function maskOps(layer: MaskLayer): readonly MaskModifier[] {
   return [
     { id: layer.id, mask: layer.mask, operation: "add", opacity: 1 },
     ...maskModifiers(layer),

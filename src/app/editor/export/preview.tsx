@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import type { Target } from "vgpu";
 import { useGpu } from "vgpu-react";
 import { useRenderer } from "@/components/editor/pipeline";
-import linearize from "@/core/image/decode/linearize";
+import { linearize } from "@/core/image/decode/linearize";
 import { type ExportOptions, encodeImage } from "./export-image";
 
 /** Quiet time after a change before encoding; typical encodes take tens of milliseconds. */

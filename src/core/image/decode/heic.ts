@@ -227,7 +227,7 @@ function sizeOf(ispe: Uint8Array) {
   return [view.getUint32(4), view.getUint32(8)] as const;
 }
 
-export function parseHeic(bytes: Uint8Array) {
+function parseHeic(bytes: Uint8Array) {
   const reader = new Reader(bytes);
   const meta = find(reader.boxes(0, reader.bytes.byteLength), "meta");
   const boxes = reader.boxes(meta.start + 4, meta.end);

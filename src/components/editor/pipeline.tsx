@@ -3,7 +3,6 @@ import {
   type ReactNode,
   useContext,
   useEffect,
-  useMemo,
   useState,
 } from "react";
 import type { Gpu } from "vgpu";
@@ -12,6 +11,7 @@ import { Notice } from "@/components/ui/notice";
 import { adjustmentTarget } from "@/core/document";
 import type { ImageSource } from "@/core/image";
 import type { createRenderer } from "@/core/renderer";
+import { useDisposable } from "@/hooks/use-disposable";
 import { useDocument, useScene } from "./session";
 
 const RendererContext = createContext<ReturnType<typeof createRenderer> | null>(
@@ -50,7 +50,7 @@ export function RendererProvider({
   const document = useDocument();
   const sourceId = useScene((scene) => scene.layers[0].source);
   const source = document.resources.get(sourceId);
-  const renderer = useMemo(
+  const renderer = useDisposable(
     () => createRenderer(gpu, source),
     [gpu, source, createRenderer],
   );
@@ -97,7 +97,6 @@ export function RendererProvider({
       unsubscribeScene();
       unsubscribeSelection();
       unsubscribeHistory();
-      renderer.dispose();
     };
   }, [renderer, document]);
 

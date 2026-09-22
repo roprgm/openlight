@@ -1,8 +1,8 @@
 import type { Gpu, Target } from "vgpu";
 import { createImageSource, type ImageSource } from "@/core/image";
 import { decodeHeic } from "./heic";
-import linearize from "./linearize";
-import decodeSvg from "./svg";
+import { linearize } from "./linearize";
+import { decodeSvg } from "./svg";
 import type { Decoder } from "./types";
 
 export type { Target };
@@ -99,10 +99,7 @@ export const accept = formats
 export const canDecode = (file: File) => formatOf(file) !== undefined;
 
 /** Decodes the file into a linear rgba16float target: the format's decoder, then its GPU leg. */
-export default async function decode(
-  gpu: Gpu,
-  file: File,
-): Promise<ImageSource> {
+export async function decode(gpu: Gpu, file: File): Promise<ImageSource> {
   const format = formatOf(file);
   if (!format) {
     throw new Error(`Unsupported image: ${file.name}`);

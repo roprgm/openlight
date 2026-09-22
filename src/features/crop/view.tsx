@@ -5,7 +5,7 @@ import { useDocument, useEditorSession } from "@/components/editor/session";
 import { EditorViewport } from "@/components/editor/viewport";
 import { FlipIcon } from "@/components/icons/flip";
 import { RotateIcon } from "@/components/icons/rotate";
-import Button from "@/components/ui/button";
+import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
 import { imageFrame, type Point } from "@/core/image/frame";

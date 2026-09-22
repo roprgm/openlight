@@ -1,6 +1,6 @@
 import { cn } from "cn";
 import type { ComponentProps, KeyboardEvent } from "react";
-import Button from "./button";
+import { Button } from "./button";
 
 const steps: Record<string, number> = {
   ArrowRight: 1,

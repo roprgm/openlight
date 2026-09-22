@@ -3,7 +3,7 @@ import type { Workspace } from "@/app/workspace";
 import { BrushProvider } from "@/components/editor/brush-tool";
 import { RendererProvider } from "@/components/editor/pipeline";
 import { DocumentProvider, useDocument } from "@/components/editor/session";
-import Button from "@/components/ui/button";
+import { Button } from "@/components/ui/button";
 import type { Mask } from "@/core/document";
 import { findLayer, locateLayer } from "@/core/document";
 import { HealingProvider } from "@/features/heal/mode";
@@ -164,7 +164,7 @@ function EditorContent({ state, onOpen, draft }: EditorProps) {
     </DocumentProvider>
   );
 }
-export default function Editor(props: EditorProps) {
+export function Editor(props: EditorProps) {
   return (
     <main className="flex h-dvh flex-col">
       <EditorContent {...props} />

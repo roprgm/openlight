@@ -1,8 +1,8 @@
 import { cn } from "cn";
 import type { KeyboardEventHandler, ReactNode } from "react";
 import { CloseIcon } from "@/components/icons/close";
-import Button from "@/components/ui/button";
-import ResizablePanel from "@/components/ui/resizable-panel";
+import { Button } from "@/components/ui/button";
+import { ResizablePanel } from "@/components/ui/resizable-panel";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useEditorSession } from "./session";
 

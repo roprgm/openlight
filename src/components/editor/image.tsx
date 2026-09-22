@@ -1,9 +1,10 @@
-import { useEffect, useMemo } from "react";
+import { useEffect } from "react";
 import type { Target } from "vgpu";
 import { useCanvas, useFrame, useGpu } from "vgpu-react";
 import { useStore } from "zustand";
 import type { ImageFrame } from "@/core/image/frame";
 import { createDisplay } from "@/core/renderer";
+import { useDisposable } from "@/hooks/use-disposable";
 import { fitScale } from "@/hooks/use-pan-zoom";
 import { useRenderer } from "./pipeline";
 import { useDocument, useScene } from "./session";
@@ -32,8 +33,7 @@ export function Image({
     useScene((scene) => scene.layers[0].source),
   ).image.size;
   const renderer = useRenderer();
-  const display = useMemo(() => createDisplay(gpu), [gpu]);
-  useEffect(() => () => display.dispose(), [display]);
+  const display = useDisposable(() => createDisplay(gpu), [gpu]);
   const render = useFrame((frame) => {
     const before = original && renderer[original]();
     const target = typeof image === "string" ? renderer[image]() : image;

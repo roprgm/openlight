@@ -22,7 +22,7 @@ const button = cva(
   },
 );
 
-export default function Button({
+export function Button({
   className,
   variant,
   size,
