@@ -83,15 +83,6 @@ export const exportTool = {
 export const tools = [
   adjust,
   {
-    id: "heal",
-    label: "Healing",
-    key: "h",
-    Icon: HealIcon,
-    group: "edit",
-    Canvas: HealCanvas,
-    Options: HealOptions,
-  },
-  {
     id: "brush",
     label: "Brush",
     key: "b",
@@ -115,6 +106,15 @@ export const tools = [
     Icon: RadialGradientIcon,
     group: "edit",
     Canvas: RadialCanvas,
+  },
+  {
+    id: "heal",
+    label: "Healing",
+    key: "h",
+    Icon: HealIcon,
+    group: "edit",
+    Canvas: HealCanvas,
+    Options: HealOptions,
   },
   {
     id: "crop",
