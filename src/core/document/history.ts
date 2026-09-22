@@ -82,6 +82,17 @@ export function createHistory<T extends object>(
       }
       publish();
     },
+    /** Replaces the current snapshot while preserving its existing undo boundary. */
+    amend(next: T) {
+      if (group !== undefined) {
+        throw Error("Commit the current history group before amending it.");
+      }
+      if (equal(state.getState(), next)) {
+        return;
+      }
+      state.setState(next, true);
+      publish();
+    },
     /** Returns whether this call opened the group; nested callers leave it to the opener. */
     begin() {
       const opened = group === undefined;

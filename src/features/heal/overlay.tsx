@@ -1,11 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useGpu } from "vgpu-react";
+import { useStore } from "zustand";
 import { BrushCanvas } from "@/components/editor/brush-canvas";
 import { useDocumentMapping } from "@/components/editor/mapping";
 import { useRenderer } from "@/components/editor/pipeline";
 import { useDocument, useScene } from "@/components/editor/session";
-import { findLayer } from "@/core/document";
+import { findLayer, type HealAlgorithm } from "@/core/document";
 import type { Point } from "@/core/image/frame";
+import { createAiGeneration } from "./ai";
 import { addHealPatch, extendHealPatch, setHealSource } from "./edits";
 import { useHealing } from "./mode";
 import { dabTouchesImage, findHealPatch } from "./model";
@@ -25,10 +27,19 @@ export function HealOverlay({
   const mapping = useDocumentMapping();
   const gpu = useGpu();
   const search = useMemo(() => createHealSearch(gpu), [gpu]);
-  const { feather, selectedPatch, selectPatch, hoveredPatch } = useHealing();
+  const {
+    algorithm,
+    feather,
+    selectedPatch,
+    selectPatch,
+    hoveredPatch,
+    migan,
+  } = useHealing();
   const [source, setSource] = useState<Point>();
   const [drawingPatch, setDrawingPatch] = useState<string>();
   const [resolvingSource, setResolvingSource] = useState<string>();
+  const [regenerationError, setRegenerationError] = useState<string>();
+  const editing = useStore(document.history.status).editing;
   const layer = useScene((scene) =>
     findLayer(scene.layers, document.selection.getState().layerId),
   );
@@ -39,8 +50,37 @@ export function HealOverlay({
     : undefined;
   const visiblePatch = drawingPatch ?? hovered ?? selectedPatch;
   const pending = useRef<
-    { layer: string; patch: string; automatic: boolean } | undefined
+    | {
+        layer: string;
+        patch: string;
+        automatic: boolean;
+        algorithm: HealAlgorithm;
+      }
+    | undefined
   >(undefined);
+  const generation = useMemo(
+    () => createAiGeneration(document, renderer, gpu, migan),
+    [document, renderer, gpu, migan],
+  );
+  const stalePatch = patches.find(
+    (patch) => patch.algorithm === "ai" && (patch.stale || !patch.result),
+  )?.id;
+  useEffect(() => {
+    if (!healLayer || !stalePatch || editing || drawingPatch) return;
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => {
+      setRegenerationError(undefined);
+      void generation
+        .generate(healLayer.id, stalePatch, controller.signal, true)
+        .catch((error: unknown) => {
+          if (!controller.signal.aborted) setRegenerationError(String(error));
+        });
+    }, 150);
+    return () => {
+      window.clearTimeout(timeout);
+      controller.abort();
+    };
+  }, [generation, healLayer, stalePatch, editing, drawingPatch]);
   useEffect(() => {
     const layer = findLayer(
       document.scene.getState().layers,
@@ -71,14 +111,27 @@ export function HealOverlay({
   async function complete(signal: AbortSignal) {
     const current = pending.current;
     try {
-      if (!current?.automatic || signal.aborted) return;
+      if (!current || signal.aborted) {
+        return;
+      }
       const scene = document.scene.getState();
       const patch = findHealPatch(scene, current.layer, current.patch);
-      if (!patch) return;
+      if (!patch) {
+        return;
+      }
+      if (current.algorithm === "ai") {
+        await generation.generate(current.layer, current.patch, signal);
+        return;
+      }
       await renderer.update(scene, current.patch, true);
-      if (signal.aborted) return;
+      if (signal.aborted) {
+        return;
+      }
       const image = renderer.inputImage(current.patch);
-      if (!image) throw Error("Heal input is unavailable.");
+      if (!image) {
+        throw Error("Heal input is unavailable.");
+      }
+      if (!current.automatic) return;
       const dimensions = document.resources.get(scene.layers[0].source).image
         .size;
       const offset = await search.find(image, dimensions, patch.stroke);
@@ -98,6 +151,7 @@ export function HealOverlay({
   return (
     <BrushCanvas
       label="Healing canvas"
+      hint={regenerationError}
       erase={false}
       feather={feather}
       onStart={(stroke) => {
@@ -114,11 +168,19 @@ export function HealOverlay({
           layer.id,
           { ...stroke, flow: 1 },
           offset,
+          algorithm,
         );
         setDrawingPatch(patch);
-        setResolvingSource(source ? undefined : patch);
+        setResolvingSource(
+          algorithm === "clone" && !source ? patch : undefined,
+        );
         selectPatch(patch);
-        pending.current = { layer: layer.id, patch, automatic: !source };
+        pending.current = {
+          layer: layer.id,
+          patch,
+          automatic: !source,
+          algorithm,
+        };
         return true;
       }}
       onExtend={(points) => {
@@ -132,7 +194,7 @@ export function HealOverlay({
         setDrawingPatch(undefined);
         if (!committed) setResolvingSource(undefined);
       }}
-      onPickSource={setSource}
+      onPickSource={algorithm === "ai" ? undefined : setSource}
       onDone={onDone}
     >
       {healLayer && patches.length > 0 && (
@@ -149,7 +211,12 @@ export function HealOverlay({
                     layer={healLayer.id}
                     patch={patch}
                     showSource={
-                      patch.id !== drawingPatch && patch.id !== resolvingSource
+                      patch.algorithm === "clone" &&
+                      patch.id !== drawingPatch &&
+                      patch.id !== resolvingSource
+                    }
+                    onMove={(signal) =>
+                      generation.regenerateFrom(healLayer.id, patch.id, signal)
                     }
                     interactive={
                       patch.id === selectedPatch && patch.id !== drawingPatch
@@ -170,7 +237,7 @@ export function HealOverlay({
           )}
         </svg>
       )}
-      {marker && (
+      {algorithm !== "ai" && marker && (
         <svg
           aria-hidden="true"
           className="pointer-events-none absolute inset-0 size-full overflow-visible"
@@ -188,7 +255,7 @@ export function HealOverlay({
           />
         </svg>
       )}
-      {source && (
+      {algorithm !== "ai" && source && (
         <button
           type="button"
           onPointerDown={(event) => event.stopPropagation()}

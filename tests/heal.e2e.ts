@@ -36,7 +36,9 @@ test("healing preserves an edge, alpha, and HDR texture at full and proxy resolu
   }
 });
 
-test("Healing paints patches, edits them, and undoes", async ({ page }) => {
+test("Healing loads AI on demand, paints Smart clone, and undoes patches", async ({
+  page,
+}) => {
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.goto("/");
   await page
@@ -61,6 +63,21 @@ test("Healing paints patches, edits them, and undoes", async ({ page }) => {
   await expect(
     page.getByRole("heading", { name: "Healing", exact: true }),
   ).toBeVisible();
+  const algorithm = page.getByRole("combobox", {
+    name: "Healing algorithm",
+  });
+  await algorithm.click();
+  const smart = page.getByRole("option", { name: "Smart clone" });
+  const ai = page.getByRole("option", { name: "AI Remove" });
+  await expect(smart).toBeFocused();
+  await smart.press("ArrowDown");
+  await expect(ai).toBeFocused();
+  await ai.press("Enter");
+  const loading = page.getByRole("dialog", { name: "Preparing AI Remove" });
+  await expect(loading).toContainText("28 MB");
+  await loading.getByRole("button", { name: "Cancel" }).click();
+  await expect(loading).toHaveCount(0);
+  await expect(algorithm).toContainText("Smart clone");
   const toolbar = page.getByRole("group", { name: "Layer options" });
   const initialToolbarWidth = await toolbar.evaluate(
     (element) => element.getBoundingClientRect().width,
@@ -103,6 +120,7 @@ test("Healing paints patches, edits them, and undoes", async ({ page }) => {
     throw Error("Heal layer missing");
   }
   expect(layer.patches).toHaveLength(1);
+  expect(layer.patches[0].algorithm).toBe("clone");
   // A click in the canvas margin, where the brush cannot reach the image, creates nothing.
   await page.mouse.click(bounds.x + 4, bounds.y + 4);
   expect(
@@ -152,6 +170,9 @@ test("Healing paints patches, edits them, and undoes", async ({ page }) => {
   ).toBe(300);
   await size.fill("300");
   await size.press("Enter");
+  if (layer.patches[0].algorithm !== "clone") {
+    throw Error("Smart clone patch missing");
+  }
   expect(layer.patches[0].offset).not.toEqual([0, 0]);
   const after = await readImage(page, undefined, [
     [350, 200],
@@ -204,7 +225,9 @@ test("Healing paints patches, edits them, and undoes", async ({ page }) => {
       .scene?.layers.find((layer) => layer.kind === "heal");
     if (layer?.kind !== "heal") throw Error("Healing layer missing");
     const patch = layer.patches.at(-1);
-    if (!patch) throw Error("Healing patch missing");
+    if (patch?.algorithm !== "clone") {
+      throw Error("Smart clone patch missing");
+    }
     return {
       id: patch.id,
       y: Math.round(patch.stroke.points[0][1] + patch.offset[1]),

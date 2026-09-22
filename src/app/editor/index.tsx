@@ -22,6 +22,19 @@ import { EditorSidebar } from "./sidebar";
 import { ToolRail } from "./tool-rail";
 import { exportTool, ToolProvider, tools, useTool } from "./tools";
 
+function createDocumentRenderer(
+  gpu: Parameters<typeof createEditorRenderer>[0],
+  source: Parameters<typeof createEditorRenderer>[1],
+  document: ReturnType<typeof useDocument>,
+) {
+  return createEditorRenderer(
+    gpu,
+    source,
+    undefined,
+    (id) => document.resources.get(id).image,
+  );
+}
+
 /** A View replaces the canvas and sidebar; otherwise the tool's Canvas and Options join the shared canvas. */
 function ToolView() {
   const { tool, setTool } = useTool();
@@ -157,7 +170,7 @@ function EditorContent({ state, onOpen }: EditorProps) {
   }
   return (
     <DocumentProvider key={state.document.id} value={state.document}>
-      <RendererProvider createRenderer={createEditorRenderer}>
+      <RendererProvider createRenderer={createDocumentRenderer}>
         <DocumentEditor file={state.file} />
       </RendererProvider>
     </DocumentProvider>

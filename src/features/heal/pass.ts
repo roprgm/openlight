@@ -1,6 +1,8 @@
-import type { HealPatch } from "@/core/document";
+import type { Target } from "vgpu";
+import type { HealPatch, SmartHealPatch } from "@/core/document";
 import {
   type Composition,
+  input,
   merge,
   node,
   type RenderImage,
@@ -8,6 +10,7 @@ import {
   sourceSize,
 } from "@/core/renderer";
 import shader from "./heal.wgsl";
+import miganShader from "./migan.wgsl";
 import { patchBounds } from "./model";
 
 type HealComposition = Pick<Composition, "brush" | "inputId" | "retain">;
@@ -15,7 +18,7 @@ type HealComposition = Pick<Composition, "brush" | "inputId" | "retain">;
 function healPatch(
   source: RenderImage,
   coverage: RenderInput,
-  patch: HealPatch,
+  patch: SmartHealPatch,
   name: string,
 ) {
   const dimensions = sourceSize(source);
@@ -85,12 +88,46 @@ export function heal(
   patches: readonly HealPatch[],
   name: string,
   composition: HealComposition,
+  resolve?: (id: string) => Target,
 ) {
   let image = source;
   let inspected: RenderImage | undefined;
   for (const patch of patches) {
     if (patch.id === composition.inputId) inspected = image;
     const id = `${name}/${patch.id}`;
+    if (patch.algorithm === "ai") {
+      const result = patch.result;
+      if (!result) continue;
+      const coverage = composition.brush(id, [patch.stroke]);
+      composition.retain(id);
+      if (!resolve) throw Error("AI image resource is unavailable.");
+      const dimensions = sourceSize(image);
+      const bounds = patchBounds(patch.stroke, dimensions, 0);
+      image = merge(
+        {
+          source: image,
+          coverage,
+          result: input(resolve(result.source)),
+        },
+        node(`${id}/migan`, miganShader, {
+          samplers: {
+            linearSampler: { minFilter: "linear", magFilter: "linear" },
+          },
+          set: {
+            params: {
+              origin: result.origin,
+              extent: result.extent,
+              maskOrigin: bounds.origin,
+              maskExtent: bounds.extent,
+              dimensions,
+              feather: (patch.stroke.size * patch.feather) / 2,
+              opacity: patch.opacity,
+            },
+          },
+        }),
+      );
+      continue;
+    }
     if (patch.offset[0] === 0 && patch.offset[1] === 0) continue;
     const coverage = composition.brush(id, [patch.stroke]);
     composition.retain(id);

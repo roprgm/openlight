@@ -1,7 +1,14 @@
 {
   "$schema": "./node_modules/@biomejs/biome/configuration_schema.json",
   "files": {
-    "includes": ["**", "!dist", "!.cache", "!.claude"]
+    "includes": [
+      "**",
+      "!dist",
+      "!.cache",
+      "!.claude",
+      "!public/vendor",
+      "!src/features/heal/ai/vendor"
+    ]
   },
   "formatter": {
     "indentStyle": "space",

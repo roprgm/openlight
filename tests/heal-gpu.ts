@@ -32,6 +32,7 @@ export async function renderHealReference() {
         patches: [
           {
             id: "spot",
+            algorithm: "clone",
             feather: 0.25,
             opacity: 1,
             stroke: {
