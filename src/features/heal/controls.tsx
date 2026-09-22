@@ -64,40 +64,28 @@ function SourceFields({
 }) {
   const document = useDocument();
   const { selectPatch } = useHealing();
-  const [destinationX, destinationY] = patch.stroke.points[0];
+  const destination = patch.stroke.points[0];
   return (
     <div
       className="flex shrink-0 items-center gap-1"
       onPointerDownCapture={() => selectPatch(patch.id)}
     >
-      <ScrubInput
-        aria-label="Source X"
-        label="X"
-        value={Math.round(destinationX + patch.offset[0])}
-        min={0}
-        max={limit[0]}
-        variant="text"
-        onChange={(x) =>
-          setHealSource(document, layer, patch.id, [
-            Math.round(x - destinationX),
-            patch.offset[1],
-          ])
-        }
-      />
-      <ScrubInput
-        aria-label="Source Y"
-        label="Y"
-        value={Math.round(destinationY + patch.offset[1])}
-        min={0}
-        max={limit[1]}
-        variant="text"
-        onChange={(y) =>
-          setHealSource(document, layer, patch.id, [
-            patch.offset[0],
-            Math.round(y - destinationY),
-          ])
-        }
-      />
+      {(["X", "Y"] as const).map((axis, index) => (
+        <ScrubInput
+          key={axis}
+          aria-label={`Source ${axis}`}
+          label={axis}
+          value={Math.round(destination[index] + patch.offset[index])}
+          min={0}
+          max={limit[index]}
+          variant="text"
+          onChange={(value) => {
+            const offset: [number, number] = [...patch.offset];
+            offset[index] = Math.round(value - destination[index]);
+            setHealSource(document, layer, patch.id, offset);
+          }}
+        />
+      ))}
     </div>
   );
 }

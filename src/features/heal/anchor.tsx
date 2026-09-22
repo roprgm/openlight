@@ -2,36 +2,63 @@ import { type PointerEvent, useEffect, useRef } from "react";
 import { useDocumentMapping } from "@/components/editor/mapping";
 import { useDocument } from "@/components/editor/session";
 import { useViewport } from "@/components/editor/viewport";
-import type { HealPatch } from "@/core/document";
 import type { Point } from "@/core/image/frame";
-import { setHealDestination } from "./edits";
 
 type Drag = {
   pointer: number;
   box?: DOMRect;
+  start: Point;
+  /** The value when the drag began; a live edit changes the rendered value under the pointer. */
   from: Point;
-  destination: Point;
   next: Point;
 };
 
-/** Moves one destination as a single edit and regenerates AI only after release. */
-export function HealDestinationHandle({
-  layer,
-  patch,
-  anchor,
-  onPreview,
-  onRelease,
+/** A dragged value: the destination's first point or the donor offset, changed as one history edit. */
+export type AnchorDrag = {
+  from: Point;
+  /** Previews the value during the drag; no value ends the preview. */
+  onDrag: (next?: Point) => void;
+  onDrop: (next: Point) => void;
+  /** Regenerates after the drop; the edit commits when it settles. */
+  onRelease: (signal: AbortSignal) => Promise<void>;
+};
+
+const marker = { r: 7, fill: "#3b82f6", stroke: "white", strokeWidth: 2 };
+
+/** The first-point anchor of a destination or source contour, draggable while its patch is selected. */
+export function HealAnchor({
+  kind,
+  center,
+  drag,
 }: {
-  layer: string;
-  patch: HealPatch;
-  anchor: Point;
-  onPreview?: (destination?: Point) => void;
-  onRelease?: (signal: AbortSignal) => Promise<void>;
+  kind: "destination" | "source";
+  center: Point;
+  drag?: AnchorDrag;
+}) {
+  if (drag) return <DraggedAnchor kind={kind} center={center} drag={drag} />;
+  return (
+    <circle
+      {...{ [`data-heal-${kind}-anchor`]: "true" }}
+      cx={center[0]}
+      cy={center[1]}
+      {...marker}
+    />
+  );
+}
+
+function DraggedAnchor({
+  kind,
+  center,
+  drag,
+}: {
+  kind: "destination" | "source";
+  center: Point;
+  drag: AnchorDrag;
 }) {
   const document = useDocument();
   const mapping = useDocumentMapping();
   const camera = useViewport();
-  const drag = useRef<Drag | undefined>(undefined);
+  const current = useRef<Drag | undefined>(undefined);
   const pending = useRef<AbortController | undefined>(undefined);
   const opened = useRef(false);
   /** A drag inside an open group, such as a finishing stroke, joins it and leaves the group to its opener. */
@@ -44,10 +71,10 @@ export function HealDestinationHandle({
   function point(event: PointerEvent<SVGCircleElement>, box?: DOMRect) {
     return mapping.toDocument(event.clientX, event.clientY, box);
   }
-  function cancelDrag() {
-    if (!drag.current) return;
-    drag.current = undefined;
-    onPreview?.();
+  function cancel() {
+    if (!current.current) return;
+    current.current = undefined;
+    drag.onDrag();
     end(false);
   }
   useEffect(
@@ -67,62 +94,49 @@ export function HealDestinationHandle({
       return;
     }
     const box = camera.ref.current?.getBoundingClientRect();
-    const [x, y] = patch.stroke.points[0];
     opened.current = document.history.begin();
-    drag.current = {
+    current.current = {
       pointer: event.pointerId,
       box,
-      from: point(event, box),
-      destination: [x, y],
-      next: [x, y],
+      start: point(event, box),
+      from: drag.from,
+      next: drag.from,
     };
     event.preventDefault();
     event.stopPropagation();
     event.currentTarget.setPointerCapture(event.pointerId);
   }
   function move(event: PointerEvent<SVGCircleElement>) {
-    const current = drag.current;
-    if (!current || current.pointer !== event.pointerId) return;
-    const next = point(event, current.box);
-    const destination: Point = [
-      current.destination[0] + next[0] - current.from[0],
-      current.destination[1] + next[1] - current.from[1],
+    const active = current.current;
+    if (!active || active.pointer !== event.pointerId) return;
+    const at = point(event, active.box);
+    active.next = [
+      active.from[0] + at[0] - active.start[0],
+      active.from[1] + at[1] - active.start[1],
     ];
-    current.next = destination;
-    if (patch.algorithm === "ai") {
-      onPreview?.(destination);
-    } else {
-      setHealDestination(document, layer, patch.id, destination);
-    }
+    drag.onDrag(active.next);
     event.preventDefault();
     event.stopPropagation();
   }
   function finish(event: PointerEvent<SVGCircleElement>) {
-    const current = drag.current;
-    if (!current || current.pointer !== event.pointerId) return;
-    drag.current = undefined;
-    const moved =
-      current.next[0] !== current.destination[0] ||
-      current.next[1] !== current.destination[1];
-    if (!moved) {
-      onPreview?.();
-      end(false);
-      event.currentTarget.releasePointerCapture(event.pointerId);
-      return;
-    }
-    if (patch.algorithm === "ai") {
-      setHealDestination(document, layer, patch.id, current.next);
-      onPreview?.();
-    }
+    const active = current.current;
+    if (!active || active.pointer !== event.pointerId) return;
+    current.current = undefined;
     event.stopPropagation();
     event.currentTarget.releasePointerCapture(event.pointerId);
-    if (!onRelease) {
-      end(true);
+    const moved =
+      active.next[0] !== active.from[0] || active.next[1] !== active.from[1];
+    if (!moved) {
+      drag.onDrag();
+      end(false);
       return;
     }
+    drag.onDrop(active.next);
+    drag.onDrag();
     const controller = new AbortController();
     pending.current = controller;
-    void onRelease(controller.signal)
+    void drag
+      .onRelease(controller.signal)
       .then(() => {
         if (!controller.signal.aborted) end(true);
       })
@@ -135,20 +149,17 @@ export function HealDestinationHandle({
   }
   return (
     <circle
-      data-heal-destination-handle="true"
+      {...{ [`data-heal-${kind}-handle`]: "true" }}
       data-hide-brush-cursor="true"
-      cx={anchor[0]}
-      cy={anchor[1]}
-      r="7"
-      fill="#3b82f6"
-      stroke="white"
-      strokeWidth="2"
+      cx={center[0]}
+      cy={center[1]}
+      {...marker}
       className="pointer-events-auto cursor-grab active:cursor-grabbing"
       onPointerDown={start}
       onPointerMove={move}
       onPointerUp={finish}
-      onPointerCancel={cancelDrag}
-      onLostPointerCapture={cancelDrag}
+      onPointerCancel={cancel}
+      onLostPointerCapture={cancel}
     />
   );
 }

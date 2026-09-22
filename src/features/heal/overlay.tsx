@@ -58,16 +58,6 @@ export function HealOverlay({
       }
     | undefined
   >(undefined);
-  function selected() {
-    const layer = findLayer(
-      document.scene.getState().layers,
-      document.selection.getState().layerId,
-    );
-    if (layer?.kind !== "heal") {
-      throw Error("Select a Heal layer.");
-    }
-    return layer;
-  }
   function livePatch(layerId: string, patchId: string) {
     const layer = findLayer(document.scene.getState().layers, layerId);
     if (layer?.kind !== "heal") return;
@@ -215,7 +205,8 @@ export function HealOverlay({
       erase={false}
       feather={feather}
       onStart={(stroke) => {
-        const layer = selected();
+        const layer = healLayer;
+        if (!layer) throw Error("Select a Healing layer.");
         const [x, y] = stroke.points[0];
         const offset: Point = source ? [source[0] - x, source[1] - y] : [0, 0];
         const patch = addHealPatch(
@@ -257,41 +248,39 @@ export function HealOverlay({
           className="absolute inset-0 size-full overflow-visible"
           style={{ pointerEvents: "none" }}
         >
-          {patches.map((patch) => {
-            const visible = visiblePatch === patch.id;
-            return visible ? (
-              <g key={`outline-${patch.id}`} data-heal-patch={patch.id}>
-                <HealPatchOutline
-                  layer={healLayer.id}
+          {patches.map(
+            (patch) =>
+              visiblePatch === patch.id && (
+                <g key={`outline-${patch.id}`} data-heal-patch={patch.id}>
+                  <HealPatchOutline
+                    layer={healLayer.id}
+                    patch={patch}
+                    mapping={mapping}
+                    showSource={
+                      patch.algorithm === "clone" &&
+                      patch.id !== drawingPatch &&
+                      patch.id !== resolvingSource
+                    }
+                    onMove={(signal) =>
+                      regenerateFrom(healLayer.id, patch.id, signal)
+                    }
+                    interactive={
+                      patch.id === selectedPatch && patch.id !== drawingPatch
+                    }
+                  />
+                </g>
+              ),
+          )}
+          {patches.map(
+            (patch) =>
+              patch.id !== selectedPatch && (
+                <HealPatchHitTarget
+                  key={`hit-${patch.id}`}
                   patch={patch}
                   mapping={mapping}
-                  showSource={
-                    patch.algorithm === "clone" &&
-                    patch.id !== drawingPatch &&
-                    patch.id !== resolvingSource
-                  }
-                  onMoveDestination={(patch, signal) =>
-                    regenerateFrom(healLayer.id, patch, signal)
-                  }
-                  onMoveSource={(patch, signal) =>
-                    regenerateFrom(healLayer.id, patch, signal)
-                  }
-                  interactive={
-                    patch.id === selectedPatch && patch.id !== drawingPatch
-                  }
+                  onSelect={selectPatch}
                 />
-              </g>
-            ) : null;
-          })}
-          {patches.map((patch) =>
-            patch.id !== selectedPatch ? (
-              <HealPatchHitTarget
-                key={`hit-${patch.id}`}
-                patch={patch}
-                mapping={mapping}
-                onSelect={selectPatch}
-              />
-            ) : null,
+              ),
           )}
         </svg>
       )}

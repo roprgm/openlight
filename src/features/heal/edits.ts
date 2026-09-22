@@ -3,6 +3,8 @@ import {
   type EditorDocument,
   editLayer,
   type HealAlgorithm,
+  type HealPatch,
+  type Layer,
   type StrokePoint,
   updateLayer,
 } from "@/core/document";
@@ -55,6 +57,40 @@ type AiResult = {
   extent: Point;
 };
 
+function healPatches(layer: Layer) {
+  if (layer.kind !== "heal") throw Error("Select a Healing layer.");
+  return layer.patches;
+}
+
+function indexOf(patches: readonly HealPatch[], patchId: string) {
+  const index = patches.findIndex((patch) => patch.id === patchId);
+  if (index < 0) throw Error("Heal patch is unavailable.");
+  return index;
+}
+
+/** Rewrites the patches around one patch. Generated results from `stale` onward regenerate afterwards. */
+function editPatches(
+  document: EditorDocument,
+  id: string,
+  patchId: string,
+  edit: (
+    patches: readonly HealPatch[],
+    index: number,
+  ) => { patches: readonly HealPatch[]; stale: number },
+) {
+  editLayer(document, id, (layer) => {
+    const current = healPatches(layer);
+    const { patches, stale } = edit(current, indexOf(current, patchId));
+    return { ...layer, patches: invalidateGeneratedResults(patches, stale) };
+  });
+}
+
+function unit(name: string, value: number | undefined) {
+  if (value !== undefined && !(value >= 0 && value <= 1)) {
+    throw Error(`Heal patch ${name} must be between 0 and 1.`);
+  }
+}
+
 /** Edits one patch's blend and marks later generated input as stale. */
 export function setHealPatch(
   document: EditorDocument,
@@ -62,41 +98,16 @@ export function setHealPatch(
   patchId: string,
   change: PatchChange,
 ) {
-  if (
-    change.feather !== undefined &&
-    (!Number.isFinite(change.feather) ||
-      change.feather < 0 ||
-      change.feather > 1)
-  ) {
-    throw Error("Heal patch feather must be between 0 and 1.");
-  }
-  if (
-    change.opacity !== undefined &&
-    (!Number.isFinite(change.opacity) ||
-      change.opacity < 0 ||
-      change.opacity > 1)
-  ) {
-    throw Error("Heal patch opacity must be between 0 and 1.");
-  }
-  editLayer(document, id, (layer) => {
-    if (layer.kind !== "heal") throw Error("Select a Healing layer.");
-    const current = layer.patches.find((patch) => patch.id === patchId);
-    if (!current) throw Error("Heal patch is unavailable.");
-    const index = layer.patches.findIndex((patch) => patch.id === patchId);
-    const patches = layer.patches.map((patch) =>
-      patch.id === patchId
-        ? {
-            ...patch,
-            feather: change.feather ?? patch.feather,
-            opacity: change.opacity ?? patch.opacity,
-          }
-        : patch,
-    );
-    return {
-      ...layer,
-      patches: invalidateGeneratedResults(patches, index + 1),
-    };
-  });
+  unit("feather", change.feather);
+  unit("opacity", change.opacity);
+  editPatches(document, id, patchId, (patches, index) => ({
+    patches: patches.with(index, {
+      ...patches[index],
+      feather: change.feather ?? patches[index].feather,
+      opacity: change.opacity ?? patches[index].opacity,
+    }),
+    stale: index + 1,
+  }));
 }
 
 export function duplicateHealPatch(
@@ -105,20 +116,13 @@ export function duplicateHealPatch(
   patchId: string,
 ) {
   const nextId = crypto.randomUUID();
-  editLayer(document, id, (layer) => {
-    if (layer.kind !== "heal") throw Error("Select a Healing layer.");
-    const index = layer.patches.findIndex((patch) => patch.id === patchId);
-    if (index < 0) throw Error("Heal patch is unavailable.");
-    const patches = [...layer.patches];
-    patches.splice(index + 1, 0, {
+  editPatches(document, id, patchId, (patches, index) => ({
+    patches: patches.toSpliced(index + 1, 0, {
       ...structuredClone(patches[index]),
       id: nextId,
-    });
-    return {
-      ...layer,
-      patches: invalidateGeneratedResults(patches, index + 1),
-    };
-  });
+    }),
+    stale: index + 1,
+  }));
   return nextId;
 }
 
@@ -127,18 +131,10 @@ export function deleteHealPatch(
   id: string,
   patchId: string,
 ) {
-  editLayer(document, id, (layer) => {
-    if (layer.kind !== "heal") throw Error("Select a Healing layer.");
-    if (!layer.patches.some((patch) => patch.id === patchId)) {
-      throw Error("Heal patch is unavailable.");
-    }
-    const index = layer.patches.findIndex((patch) => patch.id === patchId);
-    const patches = layer.patches.filter((patch) => patch.id !== patchId);
-    return {
-      ...layer,
-      patches: invalidateGeneratedResults(patches, index),
-    };
-  });
+  editPatches(document, id, patchId, (patches, index) => ({
+    patches: patches.toSpliced(index, 1),
+    stale: index,
+  }));
 }
 
 export function extendHealPatch(
@@ -179,24 +175,15 @@ export function setHealSource(
   offset: Point,
 ) {
   validateOffset(offset);
-  editLayer(document, id, (layer) => {
-    if (
-      layer.kind !== "heal" ||
-      !layer.patches.some(
-        (patch) => patch.id === patchId && patch.algorithm === "clone",
-      )
-    ) {
-      throw Error("Heal patch is unavailable.");
-    }
-    const index = layer.patches.findIndex((patch) => patch.id === patchId);
-    const patches = layer.patches.map((patch) =>
-      patch.id === patchId
-        ? { ...patch, offset: [offset[0], offset[1]] as Point }
-        : patch,
-    );
+  editPatches(document, id, patchId, (patches, index) => {
+    const patch = patches[index];
+    if (patch.algorithm !== "clone") throw Error("Heal patch is unavailable.");
     return {
-      ...layer,
-      patches: invalidateGeneratedResults(patches, index + 1),
+      patches: patches.with(index, {
+        ...patch,
+        offset: [offset[0], offset[1]],
+      }),
+      stale: index + 1,
     };
   });
 }
@@ -209,39 +196,29 @@ export function setHealDestination(
   destination: Point,
 ) {
   validateOffset(destination);
-  editLayer(document, id, (layer) => {
-    if (layer.kind !== "heal") throw Error("Select a Healing layer.");
-    const current = layer.patches.find((patch) => patch.id === patchId);
-    if (!current) throw Error("Heal patch is unavailable.");
-    const first = current.stroke.points[0];
-    const delta: Point = [destination[0] - first[0], destination[1] - first[1]];
+  editPatches(document, id, patchId, (patches, index) => {
+    const patch = patches[index];
+    const [x, y] = patch.stroke.points[0];
+    const delta: Point = [destination[0] - x, destination[1] - y];
     const stroke = {
-      ...current.stroke,
-      points: current.stroke.points.map(
+      ...patch.stroke,
+      points: patch.stroke.points.map(
         ([x, y, pressure]) => [x + delta[0], y + delta[1], pressure] as const,
       ),
     };
-    const moved =
-      current.algorithm === "clone"
-        ? {
-            ...current,
-            stroke,
-            offset: [
-              current.offset[0] - delta[0],
-              current.offset[1] - delta[1],
-            ] as Point,
-          }
-        : { ...current, stroke };
-    const index = layer.patches.findIndex((patch) => patch.id === patchId);
-    const patches = layer.patches.map((patch) =>
-      patch.id === patchId ? moved : patch,
-    );
+    if (patch.algorithm === "ai") {
+      return {
+        patches: patches.with(index, { ...patch, stroke }),
+        stale: index,
+      };
+    }
+    const offset: Point = [
+      patch.offset[0] - delta[0],
+      patch.offset[1] - delta[1],
+    ];
     return {
-      ...layer,
-      patches: invalidateGeneratedResults(
-        patches,
-        current.algorithm === "ai" ? index : index + 1,
-      ),
+      patches: patches.with(index, { ...patch, stroke, offset }),
+      stale: index + 1,
     };
   });
 }
@@ -253,18 +230,14 @@ function aiResult(
   result: AiResult,
 ) {
   return updateLayer(document.scene.getState(), id, (layer) => {
-    if (layer.kind !== "heal") throw Error("Select a Healing layer.");
-    return {
-      ...layer,
-      patches: layer.patches.map((patch) => {
-        if (patch.id !== patchId || patch.algorithm !== "ai") return patch;
-        const { stale: _, ...current } = patch;
-        return { ...current, result };
-      }),
-    };
+    const patches = healPatches(layer);
+    const index = indexOf(patches, patchId);
+    const current = patches[index];
+    if (current.algorithm !== "ai") throw Error("Heal patch is unavailable.");
+    const { stale: _, ...patch } = current;
+    return { ...layer, patches: patches.with(index, { ...patch, result }) };
   });
 }
-
 export function setAiResult(
   document: EditorDocument,
   id: string,

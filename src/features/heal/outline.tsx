@@ -1,9 +1,10 @@
 import { memo, type PointerEvent, useId, useState } from "react";
 import type { useDocumentMapping } from "@/components/editor/mapping";
+import { useDocument } from "@/components/editor/session";
 import type { BrushStroke, HealPatch } from "@/core/document";
 import type { Point } from "@/core/image/frame";
-import { HealDestinationHandle } from "./destination-handle";
-import { HealSourceHandle } from "./source-handle";
+import { type AnchorDrag, HealAnchor } from "./anchor";
+import { setHealDestination, setHealSource } from "./edits";
 
 type Geometry = {
   center: Point;
@@ -105,18 +106,18 @@ export function HealPatchOutline({
   patch,
   showSource,
   mapping,
-  onMoveDestination,
-  onMoveSource,
+  onMove,
   interactive,
 }: {
   layer: string;
   patch: HealPatch;
   showSource: boolean;
   mapping: Mapping;
-  onMoveDestination?: (id: string, signal: AbortSignal) => Promise<void>;
-  onMoveSource?: (id: string, signal: AbortSignal) => Promise<void>;
+  /** Regenerates the AI results a moved anchor affects. */
+  onMove: (signal: AbortSignal) => Promise<void>;
   interactive: boolean;
 }) {
+  const document = useDocument();
   const [preview, setPreview] = useState<Point>();
   const [sourcePreview, setSourcePreview] = useState<Point>();
   const first = patch.stroke.points[0];
@@ -125,55 +126,44 @@ export function HealPatchOutline({
     : [0, 0];
   const destination = geometry(patch.stroke, previewOffset, mapping);
   const source =
-    patch.algorithm === "clone"
+    showSource && patch.algorithm === "clone"
       ? geometry(patch.stroke, sourcePreview ?? patch.offset, mapping)
+      : undefined;
+  // Smart clone moves live; AI Remove keeps its result in place until the drop.
+  function previewDestination(next?: Point) {
+    if (patch.algorithm === "ai") setPreview(next);
+    else if (next) setHealDestination(document, layer, patch.id, next);
+  }
+  const destinationDrag: AnchorDrag | undefined = interactive
+    ? {
+        from: [first[0], first[1]],
+        onDrag: previewDestination,
+        onDrop: (next) => setHealDestination(document, layer, patch.id, next),
+        onRelease: onMove,
+      }
+    : undefined;
+  const sourceDrag: AnchorDrag | undefined =
+    interactive && patch.algorithm === "clone"
+      ? {
+          from: patch.offset,
+          onDrag: setSourcePreview,
+          onDrop: (next) => setHealSource(document, layer, patch.id, next),
+          onRelease: onMove,
+        }
       : undefined;
   return (
     <>
       <Outline shape={destination} kind="destination" />
-      {interactive ? (
-        <HealDestinationHandle
-          layer={layer}
-          patch={patch}
-          anchor={destination.center}
-          onPreview={setPreview}
-          onRelease={(signal) =>
-            onMoveDestination?.(patch.id, signal) ?? Promise.resolve()
-          }
-        />
-      ) : (
-        <circle
-          data-heal-destination-anchor="true"
-          cx={destination.center[0]}
-          cy={destination.center[1]}
-          r="7"
-          fill="#3b82f6"
-          stroke="white"
-          strokeWidth="2"
-        />
-      )}
-      {showSource && source && <Outline shape={source} kind="source" />}
-      {showSource && source && patch.algorithm === "clone" && interactive && (
-        <HealSourceHandle
-          layer={layer}
-          patch={patch}
-          center={source.center}
-          onPreview={setSourcePreview}
-          onRelease={(signal) =>
-            onMoveSource?.(patch.id, signal) ?? Promise.resolve()
-          }
-        />
-      )}
-      {showSource && source && !interactive && (
-        <circle
-          data-heal-source-anchor="true"
-          cx={source.center[0]}
-          cy={source.center[1]}
-          r="7"
-          fill="#3b82f6"
-          stroke="white"
-          strokeWidth="2"
-        />
+      <HealAnchor
+        kind="destination"
+        center={destination.center}
+        drag={destinationDrag}
+      />
+      {source && (
+        <>
+          <Outline shape={source} kind="source" />
+          <HealAnchor kind="source" center={source.center} drag={sourceDrag} />
+        </>
       )}
     </>
   );
