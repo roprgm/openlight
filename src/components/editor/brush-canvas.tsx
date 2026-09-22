@@ -16,6 +16,9 @@ import { useViewport } from "./viewport";
 
 type Stroke = {
   pointer: number;
+  touch: boolean;
+  /** The last screen position, handed to the viewport when a second finger turns the stroke into a pinch. */
+  client: Point;
   /** The viewport bounds measured once; pointer capture keeps them valid for the drag. */
   box: DOMRect | undefined;
   pending: StrokePoint[];
@@ -166,6 +169,14 @@ export function BrushCanvas({
     "]": () => brush.update({ size: Math.round(brush.settings.size * 1.25) }),
   });
   function start(event: PointerEvent<HTMLDivElement>) {
+    const current = stroke.current;
+    if (current?.touch && event.pointerType === "touch" && !event.isPrimary) {
+      // A second finger means a pinch: drop the stroke and let the viewport take both fingers.
+      finish(false);
+      event.currentTarget.releasePointerCapture(current.pointer);
+      camera.adopt(current.pointer, current.client);
+      return;
+    }
     if (event.button !== 0 || !event.isPrimary || camera.panMode) {
       return;
     }
@@ -189,7 +200,13 @@ export function BrushCanvas({
       flow: brush.settings.flow,
       points: [first],
     });
-    stroke.current = { pointer: event.pointerId, box, pending: [] };
+    stroke.current = {
+      pointer: event.pointerId,
+      touch: event.pointerType === "touch",
+      client: [event.clientX, event.clientY],
+      box,
+      pending: [],
+    };
     // The viewport below would otherwise capture the pointer to pan.
     event.preventDefault();
     event.stopPropagation();
@@ -211,6 +228,7 @@ export function BrushCanvas({
     if (!current || current.pointer !== event.pointerId) {
       return;
     }
+    current.client = [event.clientX, event.clientY];
     const native = event.nativeEvent;
     const events = native.getCoalescedEvents?.() ?? [];
     for (const item of events.length ? events : [native]) {

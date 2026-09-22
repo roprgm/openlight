@@ -280,3 +280,65 @@ test("paint a brush mask, adjust it in the sidebar, erase, and undo", async ({
     expect((await state()).selectedLayerId).toBe(initial.scene?.layers[0].id);
   });
 });
+
+test("a second finger during a touch stroke cancels it and pinches instead", async ({
+  browser,
+}) => {
+  const context = await browser.newContext({
+    viewport: { width: 390, height: 844 },
+    isMobile: true,
+    hasTouch: true,
+    deviceScaleFactor: 2,
+  });
+  try {
+    const page = await context.newPage();
+    await page.goto("/");
+    await page
+      .locator('input[type="file"]')
+      .setInputFiles("tests/fixtures/photo.svg");
+    await expect(
+      page.getByRole("textbox", { name: "Exposure", exact: true }),
+    ).toHaveValue("0.00");
+    await page.getByRole("tab", { name: "Brush", exact: true }).click();
+    const canvas = page.getByLabel("Brush canvas", { exact: true });
+    await expect(canvas).toBeVisible();
+    const zoom = page.locator('button[title="Fit to view"]');
+    const before = await zoom.textContent();
+    const bounds = await box(canvas);
+    const [cx, cy] = [
+      bounds.x + bounds.width / 2,
+      bounds.y + bounds.height / 2,
+    ];
+    const touch = await context.newCDPSession(page);
+    const send = (
+      type: "touchStart" | "touchMove" | "touchEnd",
+      points: number[][],
+    ) =>
+      touch.send("Input.dispatchTouchEvent", {
+        type,
+        touchPoints: points.map(([x, y]) => ({ x, y })),
+      });
+    await send("touchStart", [[cx - 40, cy]]);
+    await send("touchMove", [[cx - 20, cy + 10]]);
+    await send("touchStart", [
+      [cx - 20, cy + 10],
+      [cx + 40, cy],
+    ]);
+    for (let step = 1; step <= 6; step++) {
+      await send("touchMove", [
+        [cx - 20 - step * 8, cy + 10 + step * 4],
+        [cx + 40 + step * 8, cy - step * 4],
+      ]);
+    }
+    await send("touchEnd", []);
+    await expect(zoom).not.toHaveText(before ?? "");
+    const state = await page.evaluate(() => window.openlight.getState());
+    const mask = state.scene?.layers[1];
+    expect(
+      mask?.kind === "mask" && mask.mask.kind === "brush" && mask.mask.strokes,
+    ).toEqual([]);
+    expect("editing" in state.history && state.history.editing).toBe(false);
+  } finally {
+    await context.close();
+  }
+});

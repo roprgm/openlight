@@ -200,15 +200,24 @@ export function usePanZoom(
         constrain ? 1 : fitZoom.current * 0.1,
       ),
     );
+  function track(pointerId: number, position: Point, element: Element) {
+    if (pointers.current.size === 0) {
+      boundedDrag.current = constrain && !panMode;
+    }
+    pointers.current.set(pointerId, position);
+    element.setPointerCapture(pointerId);
+  }
   function startDrag(event: PointerEvent<HTMLElement>) {
     if (event.button !== 0 || pointers.current.size === 2) {
       return;
     }
-    if (pointers.current.size === 0) {
-      boundedDrag.current = constrain && !panMode;
+    track(event.pointerId, [event.clientX, event.clientY], event.currentTarget);
+  }
+  /** Takes over a pointer a tool was tracking, so a second finger turns its stroke into a pinch. */
+  function adopt(pointerId: number, position: Point) {
+    if (ref.current && pointers.current.size < 2) {
+      track(pointerId, position, ref.current);
     }
-    pointers.current.set(event.pointerId, [event.clientX, event.clientY]);
-    event.currentTarget.setPointerCapture(event.pointerId);
   }
   const handlers = {
     onPointerDownCapture: (event: PointerEvent<HTMLElement>) => {
@@ -257,6 +266,7 @@ export function usePanZoom(
 
   return {
     ref,
+    adopt,
     view,
     viewport,
     handlers,
