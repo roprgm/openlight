@@ -1,15 +1,15 @@
 import { type EditorDocument, editLayer, type Fill } from "@/core/document";
-import { parse } from "@/lib/parse";
+import { change, parse } from "@/lib/parse";
 import { fillSchema } from "./model";
 
-const fillChange = fillSchema.partial().strict();
+const fillChange = change(fillSchema);
 
 export function setFill(
   document: EditorDocument,
-  change: Partial<Fill>,
+  fill: Partial<Fill>,
   id: string,
 ) {
-  const values = parse(fillChange, change, "Invalid fill setting");
+  const values = parse(fillChange, fill, "Invalid fill setting");
   editLayer(document, id, (layer) => {
     if (layer.kind !== "fill") {
       throw Error("Select a color layer.");

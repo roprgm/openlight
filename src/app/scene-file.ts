@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "zod/mini";
 import {
   createDocument,
   createResources,
@@ -53,11 +53,11 @@ export function snapshotScene(document: EditorDocument) {
   return { json, files: new Map([[source, file]]) };
 }
 
-const id = z.string().min(1);
+const id = z.string().check(z.minLength(1));
 const adjustments = withDefaults(defaultAdjustments, adjustmentsSchema);
 
 /** Layers nest two levels, so a child's own children must be empty. */
-function processingLayer(children: z.ZodType<readonly ProcessingLayer[]>) {
+function processingLayer(children: z.ZodMiniType<readonly ProcessingLayer[]>) {
   const base = { id, ...layerSettings.shape, children };
   return z.discriminatedUnion(
     "kind",
@@ -111,10 +111,10 @@ function processingLayer(children: z.ZodType<readonly ProcessingLayer[]>) {
 }
 
 function empty(message: string) {
-  return z
-    .array(z.unknown())
-    .max(0, message)
-    .transform((): ProcessingLayer[] => []);
+  return z.pipe(
+    z.array(z.unknown()).check(z.maxLength(0, message)),
+    z.transform((): ProcessingLayer[] => []),
+  );
 }
 
 const child = processingLayer(
@@ -126,9 +126,9 @@ const imageLayer = z.object({
   id,
   name: layerSettings.shape.name,
   source: id,
-  whiteBalance: z
-    .object({ temperature: z.number(), tint: z.number() })
-    .optional(),
+  whiteBalance: z.optional(
+    z.object({ temperature: z.number(), tint: z.number() }),
+  ),
   adjustments,
   toneCurve: curveSchema,
   children: empty("The image layer cannot contain layers"),
@@ -139,23 +139,27 @@ const sceneSchema = z
     frame: frameSchema,
     layers: z.tuple([imageLayer], processingLayer(z.array(child))),
   })
-  .refine((scene) => {
-    const ids = Array.from(walkLayers(scene.layers), ({ layer }) => [
-      layer.id,
-      ...(layer.kind === "heal" ? layer.patches.map((patch) => patch.id) : []),
-    ]).flat();
-    return new Set(ids).size === ids.length;
-  }, "Layer and patch IDs must be unique");
+  .check(
+    z.refine((scene) => {
+      const ids = Array.from(walkLayers(scene.layers), ({ layer }) => [
+        layer.id,
+        ...(layer.kind === "heal"
+          ? layer.patches.map((patch) => patch.id)
+          : []),
+      ]).flat();
+      return new Set(ids).size === ids.length;
+    }, "Layer and patch IDs must be unique"),
+  );
 
 const notScene = "This file doesn't contain an OpenLight scene";
 const header = z.object(
   {
     format: z.literal("openlight", notScene),
-    version: z.int().min(1),
+    version: z.int().check(z.minimum(1)),
   },
   notScene,
 );
-const savedSchema = header.extend({
+const savedSchema = z.extend(header, {
   sources: z.record(
     z.string(),
     z.object({ name: z.string(), type: z.string() }),

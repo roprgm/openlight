@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "zod/mini";
 import type { Blend, Fill } from "@/core/document";
 
 export const blends: readonly (readonly [Blend, string])[] = [
@@ -17,12 +17,9 @@ export const defaultFill: Readonly<Fill> = {
 };
 
 export const fillSchema = z.object({
-  color: z
-    .string()
-    .regex(/^#[0-9a-f]{6}$/i)
-    .toLowerCase(),
+  color: z.string().check(z.regex(/^#[0-9a-f]{6}$/i), z.toLowerCase()),
   blend: z.enum(blends.map(([blend]) => blend)),
-}) satisfies z.ZodType<Fill>;
+}) satisfies z.ZodMiniType<Fill>;
 
 /** The sRGB channels of a `#rrggbb` color, 0 to 1. */
 export function parseColor(color: string): [number, number, number] {

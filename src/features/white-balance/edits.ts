@@ -1,7 +1,7 @@
-import { z } from "zod";
+import { z } from "zod/mini";
 import { type EditorDocument, editLayer } from "@/core/document";
 import type { WhiteBalance } from "@/core/image";
-import { parse } from "@/lib/parse";
+import { parse, range } from "@/lib/parse";
 
 export function whiteBalanceLimits(asShot: WhiteBalance) {
   return {
@@ -20,9 +20,9 @@ export function whiteBalanceLimits(asShot: WhiteBalance) {
 export function whiteBalanceSchema(asShot: WhiteBalance) {
   const { temperature, tint } = whiteBalanceLimits(asShot);
   return z.object({
-    temperature: z.number().min(temperature.min).max(temperature.max),
-    tint: z.number().min(tint.min).max(tint.max),
-  }) satisfies z.ZodType<WhiteBalance>;
+    temperature: range(temperature.min, temperature.max),
+    tint: range(tint.min, tint.max),
+  }) satisfies z.ZodMiniType<WhiteBalance>;
 }
 
 /** Without a change, resets to the camera's as-shot balance. */

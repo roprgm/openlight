@@ -1,5 +1,6 @@
-import { z } from "zod";
+import { z } from "zod/mini";
 import type { Details } from "@/core/document";
+import { range } from "@/lib/parse";
 
 export const defaultDetails: Details = {
   clarity: 0,
@@ -12,11 +13,8 @@ export const detailLimits = {
   sharpenRadius: [0.5, 3],
 } as const;
 
-const range = ([min, max]: readonly [number, number]) =>
-  z.number().min(min).max(max);
-
 export const detailsSchema = z.object({
-  clarity: range(detailLimits.clarity),
-  sharpening: range(detailLimits.sharpening),
-  sharpenRadius: range(detailLimits.sharpenRadius),
-}) satisfies z.ZodType<Details>;
+  clarity: range(...detailLimits.clarity),
+  sharpening: range(...detailLimits.sharpening),
+  sharpenRadius: range(...detailLimits.sharpenRadius),
+}) satisfies z.ZodMiniType<Details>;
