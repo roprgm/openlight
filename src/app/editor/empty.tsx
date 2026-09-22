@@ -1,10 +1,14 @@
 import { useEffect, useMemo, useRef } from "react";
 import { type Gpu, target } from "vgpu";
 import { useGpu } from "vgpu-react";
+import { sceneExtension } from "@/app/scene-file";
 import type { Workspace } from "@/app/workspace";
 import { RendererProvider } from "@/components/editor/pipeline";
 import { DocumentProvider } from "@/components/editor/session";
+import Button from "@/components/ui/button";
+import { Notice } from "@/components/ui/notice";
 import Spinner from "@/components/ui/spinner";
+import { TextLink } from "@/components/ui/text-link";
 import { createDocument, createResources } from "@/core/document";
 import { createImageSource } from "@/core/image";
 import { accept } from "@/core/image/decode";
@@ -25,17 +29,11 @@ type OpenProps = { onOpen: (files: File[]) => void };
 function OpenImage({ onOpen }: OpenProps) {
   const input = useRef<HTMLInputElement>(null);
   return (
-    <p className="mt-8 rounded-full border border-neutral-700 border-dashed px-5 py-2.5 text-neutral-500">
+    <p className="mt-4 text-neutral-500">
       Drop an image here or{" "}
-      <button
-        type="button"
-        onClick={() => input.current?.click()}
-        className="cursor-pointer text-neutral-200 underline decoration-neutral-600 underline-offset-4 transition-colors hover:decoration-neutral-200 focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-neutral-400/80"
-      >
-        choose a file
-      </button>
+      <TextLink onClick={() => input.current?.click()}>choose a file</TextLink>
       <input
-        accept={accept}
+        accept={`${accept},${sceneExtension}`}
         hidden
         multiple
         onChange={(event) => {
@@ -56,6 +54,32 @@ type EmptyState = Exclude<
   { status: "ready" }
 >;
 
+/** A draft kept from an earlier visit, offered until it is recovered or forgotten. */
+export type Recovery = {
+  onRecover: () => void;
+  onForget: () => void;
+};
+
+/** Offered away from the welcome copy, since returning users see it on every visit. */
+function RecoverDraft({ onRecover, onForget }: Recovery) {
+  return (
+    <Notice
+      anchor="viewport"
+      placement="start"
+      actions={
+        <>
+          <Button onClick={onRecover}>Recover</Button>
+          <Button variant="ghost" onClick={onForget}>
+            Forget
+          </Button>
+        </>
+      }
+    >
+      Your last scene is still here from a previous visit.
+    </Notice>
+  );
+}
+
 function Status({ state, onOpen }: { state: EmptyState } & OpenProps) {
   if (state.status === "loading") {
     return <Spinner />;
@@ -72,7 +96,13 @@ function Status({ state, onOpen }: { state: EmptyState } & OpenProps) {
   }
   return (
     <>
-      <img alt="" className="w-16" height="64" src="/logo.svg" width="64" />
+      <img
+        alt=""
+        className="mb-1.5 w-16"
+        height="64"
+        src="/logo.svg"
+        width="64"
+      />
       <h1 className="text-2xl font-bold">OpenLight</h1>
       <p className="text-neutral-400">Edit photos in your browser.</p>
       <OpenImage onOpen={onOpen} />
@@ -98,7 +128,8 @@ function createEmptyDocument(gpu: Gpu) {
 export function EmptyEditor({
   state,
   onOpen,
-}: { state: EmptyState } & OpenProps) {
+  draft,
+}: { state: EmptyState; draft?: Recovery } & OpenProps) {
   const gpu = useGpu();
   const document = useMemo(() => createEmptyDocument(gpu), [gpu]);
   useEffect(() => () => document.dispose(), [document]);
@@ -113,9 +144,10 @@ export function EmptyEditor({
           <EditorHeader file={state.file} />
           <div className="flex min-h-0 flex-1 flex-col md:flex-row">
             <ToolTabList selected={tools[0]} />
-            <div className="relative isolate grid min-h-0 min-w-0 flex-1 place-content-center justify-items-center gap-3 overflow-hidden bg-[radial-gradient(circle,#292929,#131313_55%)] p-6">
+            <div className="relative isolate grid min-h-0 min-w-0 flex-1 place-content-center justify-items-center gap-1.5 overflow-hidden bg-[radial-gradient(circle,#292929,#131313_55%)] p-6">
               <Backdrop />
               <Status state={state} onOpen={onOpen} />
+              {draft && <RecoverDraft {...draft} />}
             </div>
             <EditorSidebar inert>
               <AdjustPanel />

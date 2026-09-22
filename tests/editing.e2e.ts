@@ -482,7 +482,7 @@ test("edit a photo, inspect the preview and histograms, undo changes, and export
     await exportButton.click();
     await expect(exportButton).toHaveAttribute("aria-pressed", "true");
     await expect(
-      page.getByRole("region", { name: "Export settings" }),
+      page.getByRole("region", { name: "Image export" }),
     ).toBeVisible();
     await expect(
       page.getByRole("region", { name: "Layers", exact: true }),
@@ -495,14 +495,15 @@ test("edit a photo, inspect the preview and histograms, undo changes, and export
     await modes.getByRole("tab", { name: "Crop" }).click();
     await expect(selected).toHaveAccessibleName("Crop");
     await page.keyboard.press("ArrowLeft");
+    await expect(selected).toHaveAccessibleName("Healing");
+    await page.keyboard.press("ArrowLeft");
     await expect(selected).toHaveAccessibleName("Radial gradient");
     await expect(
       page.getByRole("heading", { name: "Adjustments", exact: true }),
     ).toBeVisible();
     await page.keyboard.press("ArrowLeft");
     await page.keyboard.press("ArrowLeft");
-    await page.keyboard.press("ArrowLeft");
-    await expect(selected).toHaveAccessibleName("Healing");
+    await expect(selected).toHaveAccessibleName("Brush");
     await page.keyboard.press("ArrowLeft");
     await expect(selected).toHaveAccessibleName("Adjust");
     await expect(selected).toBeFocused();
@@ -973,7 +974,7 @@ test("edit a photo, inspect the preview and histograms, undo changes, and export
     expect(expected.corner[3]).toBe(255);
     await canvas.hover();
     await zoom(page, Math.E);
-    const panel = page.getByRole("region", { name: "Export settings" });
+    const panel = page.getByRole("region", { name: "Image export" });
     await page.getByRole("button", { name: "Export", exact: true }).click();
     const quality = panel.getByRole("textbox", { name: "Quality" });
     async function save(name: string) {

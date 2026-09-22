@@ -25,3 +25,18 @@ export const adjustmentLimits: Adjustments = {
   vibrance: 100,
   saturation: 100,
 };
+
+export function validateAdjustments(change: Partial<Adjustments>) {
+  for (const [name, value] of Object.entries(change)) {
+    const limit = Reflect.get(adjustmentLimits, name);
+    if (
+      typeof limit !== "number" ||
+      typeof value !== "number" ||
+      !Number.isFinite(value) ||
+      value > limit ||
+      value < -limit
+    ) {
+      throw new Error(`Invalid adjustment: ${name}.`);
+    }
+  }
+}

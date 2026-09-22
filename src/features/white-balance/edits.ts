@@ -14,7 +14,10 @@ export function whiteBalanceLimits(asShot: WhiteBalance) {
   };
 }
 
-function validateWhiteBalance(balance: WhiteBalance, asShot: WhiteBalance) {
+export function validateWhiteBalance(
+  balance: WhiteBalance,
+  asShot: WhiteBalance,
+) {
   const limits = whiteBalanceLimits(asShot);
   for (const channel of ["temperature", "tint"] as const) {
     const value = balance[channel];

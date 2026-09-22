@@ -45,8 +45,10 @@ Image processing runs on your own GPU with WebGPU. Photos never leave your devic
 - Open JPEG, PNG, WebP, AVIF, GIF, BMP, SVG, HEIC, TIFF at 8-bit, 16-bit, and floating-point precision, and camera RAW/DNG with absolute white balance and As Shot reset.
 - Import Camera Raw XMP settings.
 - Export PNG, JPEG, or WebP with resizing, a live preview, and the resulting file size.
+- Save the photo with every edit as an OpenLight scene, then open it to continue editing.
+- Recover the latest edited photo after closing the tab, from a draft kept in the browser.
 
-Documents live in memory for now; export saves a flattened image. HEIC needs a browser with a WebCodecs HEVC decoder. RAW decoding uses [raw-webgpu](https://github.com/roprgm/raw-webgpu), which documents format support and limitations.
+Export saves a flattened image, a scene file keeps the photo with its edits, and the browser keeps the latest edited document as a draft. HEIC needs a browser with a WebCodecs HEVC decoder. RAW decoding uses [raw-webgpu](https://github.com/roprgm/raw-webgpu), which documents format support and limitations.
 
 ## Browser support
 

@@ -1,11 +1,18 @@
 import type { Gpu } from "vgpu";
 import {
+  createDraftStore,
+  type DraftStore,
+  openDraft,
+} from "@/app/draft/store";
+import {
   type ExportOptions,
   exportImage,
 } from "@/app/editor/export/export-image";
 import { createCameraRawXmpLoader } from "@/app/loaders/camera-raw-xmp";
 import { createImageLoader } from "@/app/loaders/image";
 import { createLoaderRegistry } from "@/app/loaders/registry";
+import { createSceneLoader } from "@/app/loaders/scene";
+import { writeSceneFile } from "@/app/scene-file";
 import type {
   Adjustments,
   BrushStroke,
@@ -18,6 +25,7 @@ import type {
   Vignette,
 } from "@/core/document";
 import type { WhiteBalance } from "@/core/image";
+import decode from "@/core/image/decode";
 import type { ImageFrame, Point } from "@/core/image/frame";
 import { setAdjustments } from "@/features/adjustments/edits";
 import { defaultAdjustments } from "@/features/adjustments/model";
@@ -57,11 +65,16 @@ import {
 import type { Workspace } from "./workspace";
 
 /** Imperative commands bound to an explicit workspace, usable without React. */
-export function createControls(gpu: Gpu, workspace: Workspace) {
+export function createControls(
+  gpu: Gpu,
+  workspace: Workspace,
+  drafts: DraftStore = createDraftStore(),
+) {
   const image = createImageLoader(gpu, workspace);
   const xmp = createCameraRawXmpLoader(workspace);
+  const scene = createSceneLoader(gpu, workspace);
   const files = createLoaderRegistry(
-    [xmp, image],
+    [scene, xmp, image],
     () => workspace.state.getState().status === "ready",
   );
 
@@ -70,6 +83,18 @@ export function createControls(gpu: Gpu, workspace: Workspace) {
     openFile: (file: File) => files.openFiles([file]),
     loadImage: (file: File) => files.loadFile(image, file),
     loadUrl: image.loadUrl,
+    loadScene: (file: File) => files.loadFile(scene, file),
+    /** Opens the stored draft like a scene file; a draft that fails to open leaves the workspace in its error state. */
+    async recoverDraft() {
+      const draft = await drafts.read();
+      if (!draft) {
+        throw Error("There is no draft to recover.");
+      }
+      await workspace.open(draft.record.name, () =>
+        openDraft(draft, (file) => decode(gpu, file)),
+      );
+    },
+    discardDraft: () => drafts.discard(),
     importXmp: (file: File) => files.loadFile(xmp, file),
     setDetails(change: Partial<Details>, id?: string) {
       const document = workspace.getDocument();
@@ -151,6 +176,7 @@ export function createControls(gpu: Gpu, workspace: Workspace) {
     redo: () => workspace.getDocument().history.redo(),
     exportImage: (options?: ExportOptions) =>
       exportImage(gpu, workspace.getDocument(), options),
+    exportScene: () => writeSceneFile(workspace.getDocument()),
     getState() {
       const { file, document } = workspace.state.getState();
       const scene = document?.scene.getState();
