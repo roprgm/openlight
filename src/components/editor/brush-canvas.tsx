@@ -184,7 +184,14 @@ export function BrushCanvas({
   }
   function move(event: PointerEvent<HTMLDivElement>) {
     const bounds = event.currentTarget.getBoundingClientRect();
-    setPointer([event.clientX - bounds.left, event.clientY - bounds.top]);
+    const overHandle =
+      event.target instanceof Element &&
+      event.target.closest("[data-hide-brush-cursor]");
+    setPointer(
+      overHandle
+        ? null
+        : [event.clientX - bounds.left, event.clientY - bounds.top],
+    );
     const current = stroke.current;
     if (!current || current.pointer !== event.pointerId) {
       return;

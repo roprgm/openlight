@@ -14,14 +14,25 @@ test("healing preserves an edge, alpha, and HDR texture at full and proxy resolu
     return renderHealReference();
   });
   expect(result.errors).toEqual([]);
-  for (const { samples } of result.results) {
-    for (const { actual, expected } of samples) {
+  for (const { feather, samples } of result.results) {
+    for (const [index, { actual, expected }] of samples.entries()) {
+      if (feather > 0 && index < 4) continue;
       for (let channel = 0; channel < 4; channel++) {
         expect(Math.abs(actual[channel] - expected[channel])).toBeLessThan(
           0.015,
         );
       }
     }
+  }
+  const interactive = result.results.filter(({ proxy }) => proxy);
+  expect(interactive).toHaveLength(2);
+  for (let channel = 0; channel < 4; channel++) {
+    expect(
+      Math.abs(
+        interactive[0].samples[0].actual[channel] -
+          interactive[1].samples[0].actual[channel],
+      ),
+    ).toBeLessThan(0.002);
   }
 });
 
@@ -246,6 +257,10 @@ test("Healing loads AI on demand, paints Smart clone, and undoes patches", async
   const handle = canvas.locator('[data-heal-source-handle="true"]');
   const handleBounds = await handle.boundingBox();
   if (!handleBounds) throw Error("Healing source handle is unavailable");
+  await handle.hover();
+  await expect(canvas.locator("svg:has(radialGradient)")).toHaveCount(0);
+  await page.mouse.move(bounds.x + 10, bounds.y + 10);
+  await expect(canvas.locator("svg:has(radialGradient)")).toHaveCount(1);
   await page.mouse.move(
     handleBounds.x + handleBounds.width / 2,
     handleBounds.y + handleBounds.height / 2,
@@ -298,6 +313,46 @@ test("Healing loads AI on demand, paints Smart clone, and undoes patches", async
     )
     .not.toBe(beforeDestination);
   await expect(sourceX).toHaveValue(`${fixedSource}`);
+  await feather.fill("60");
+  await feather.press("Enter");
+  const opacity = page.getByRole("textbox", {
+    name: "Opacity",
+    exact: true,
+  });
+  await opacity.fill("50");
+  await opacity.press("Enter");
+  const thumbnail = patchList.getByLabel("Patch shape").first();
+  const thumbnailBytes = await thumbnail.screenshot();
+  const thumbnailMask = await page.evaluate(
+    async (bytes) => {
+      const image = await createImageBitmap(new Blob([new Uint8Array(bytes)]));
+      const canvas = new OffscreenCanvas(image.width, image.height);
+      const context = canvas.getContext("2d");
+      if (!context) throw Error("Cannot inspect patch thumbnail.");
+      context.drawImage(image, 0, 0);
+      image.close();
+      const pixels = context.getImageData(0, 0, canvas.width, canvas.height);
+      const sample = (x: number, y: number) =>
+        pixels.data[(y * canvas.width + x) * 4];
+      const levels = new Set<number>();
+      for (let y = 2; y < canvas.height - 2; y++) {
+        for (let x = 2; x < canvas.width - 2; x++) levels.add(sample(x, y));
+      }
+      return {
+        center: sample(
+          Math.floor(canvas.width / 2),
+          Math.floor(canvas.height / 2),
+        ),
+        edge: sample(Math.floor(canvas.width / 2), 2),
+        levels: levels.size,
+      };
+    },
+    [...thumbnailBytes],
+  );
+  expect(thumbnailMask.edge).toBeLessThan(20);
+  expect(thumbnailMask.center).toBeGreaterThanOrEqual(120);
+  expect(thumbnailMask.center).toBeLessThanOrEqual(135);
+  expect(thumbnailMask.levels).toBeGreaterThan(12);
   await page.keyboard.press("Enter");
   await expect(canvas).not.toBeVisible();
 });

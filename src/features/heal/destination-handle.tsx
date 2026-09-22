@@ -129,6 +129,7 @@ export function HealDestinationHandle({
   return (
     <circle
       data-heal-destination-handle="true"
+      data-hide-brush-cursor="true"
       cx={anchor[0]}
       cy={anchor[1]}
       r="7"

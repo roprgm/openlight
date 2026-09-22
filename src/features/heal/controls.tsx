@@ -139,7 +139,11 @@ export function HealControls({
               onClick={() => selectPatch(patch.id)}
               className="flex min-w-0 flex-1 items-center gap-2 self-stretch px-2 text-left"
             >
-              <PatchThumbnail stroke={patch.stroke} feather={patch.feather} />
+              <PatchThumbnail
+                stroke={patch.stroke}
+                feather={patch.feather}
+                opacity={patch.opacity}
+              />
               <span className="min-w-0 flex-1 truncate">Patch {index + 1}</span>
             </button>
             {patch.algorithm === "healing" ? (

@@ -20,5 +20,6 @@ export fn patchCoverage(
     total += textureSampleLevel(texture, textureSampler, uv + direction * 0.35, 0.0).r * 2.0;
     total += textureSampleLevel(texture, textureSampler, uv + direction * 0.85, 0.0).r;
   }
-  return total / 28.0;
+  // Feather only the covered side of the hard patch boundary.
+  return min(center, total / 28.0);
 }

@@ -151,12 +151,16 @@ test("one Healing layer composes Smart clone and AI patches through render nodes
     await renderer.update(document.scene.getState(), patch);
     expect(renderer.inputImage(patch)).toBeDefined();
     expect(renderer.inputImage(patch)).not.toBe(layerInput);
+    const correctionGraph = renderer.inspect();
     setHealDestination(document, layer, smart, [80, 60]);
     setHealDestination(document, layer, patch, [70, 55]);
     setHealPatch(document, layer, smart, {
       feather: 0.2,
       opacity: 0.6,
     });
+    await renderer.update(document.scene.getState(), patch);
+    expect(renderer.inspect().passes).toEqual(correctionGraph.passes);
+    expect(renderer.inspect().textures).toEqual(correctionGraph.textures);
     const copy = duplicateHealPatch(document, layer, smart);
     let healing = document.scene
       .getState()

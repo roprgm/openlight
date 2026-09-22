@@ -18,7 +18,8 @@ export async function renderHealReference() {
     `
     @fragment fn fs_main(@builtin(position) p: vec4f) -> @location(0) vec4f {
       let background = vec3f(0.2 + p.x * 0.002 + select(0.0, 0.5, p.x >= 128.0), 0.3 + p.y * 0.001, 1.4);
-      return vec4f(select(background, vec3f(0.02), distance(p.xy, vec2f(128.0, 96.0)) < 10.0), 0.75);
+      let defect = distance(p.xy, vec2f(128.0, 96.0)) < 10.0 || distance(p.xy, vec2f(158.0, 156.0)) < 2.0;
+      return vec4f(select(background, vec3f(0.02), defect), 0.75);
     }
   `,
   );
@@ -50,34 +51,52 @@ export async function renderHealReference() {
   try {
     frame(gpu, (frame) => frame.pass(image, shader));
     const results = [];
-    for (const proxy of [false, true]) {
-      renderer.setDisplayScale(0.25);
-      await renderer.update(scene, undefined, proxy);
-      const output = renderer.fullImage();
-      const pixels = await output.readFloats();
-      const scale = 256 / output.size[0];
-      const samples = [
-        [120, 96],
-        [136, 96],
-        [100, 96],
-        [156, 96],
-        [64, 64],
-      ].map(([x, y]) => {
-        const px = Math.floor(x / scale);
-        const py = Math.floor(y / scale);
-        const p = [(px + 0.5) * scale, (py + 0.5) * scale];
-        const i = (py * output.size[0] + px) * 4;
-        return {
-          actual: [...pixels.slice(i, i + 4)],
-          expected: [
-            0.2 + p[0] * 0.002 + (p[0] >= 128 ? 0.5 : 0),
-            0.3 + p[1] * 0.001,
-            1.4,
-            0.75,
-          ],
-        };
-      });
-      results.push({ proxy, samples });
+    const healing = scene.layers[1];
+    if (healing.kind !== "heal") throw Error("Healing layer missing.");
+    for (const feather of [0, 0.75]) {
+      const renderScene: Scene = {
+        ...scene,
+        layers: [
+          scene.layers[0],
+          {
+            ...healing,
+            patches: healing.patches.map((patch) => ({
+              ...patch,
+              feather,
+            })),
+          },
+        ],
+      };
+      for (const proxy of [false, true]) {
+        renderer.setDisplayScale(0.25);
+        await renderer.update(renderScene, undefined, proxy);
+        const output = renderer.fullImage();
+        const pixels = await output.readFloats();
+        const scale = 256 / output.size[0];
+        const samples = [
+          [128, 96],
+          [120, 96],
+          [136, 96],
+          [100, 96],
+          [158, 96],
+          [64, 64],
+        ].map(([x, y]) => {
+          const px = Math.floor(x / scale);
+          const py = Math.floor(y / scale);
+          const p = [(px + 0.5) * scale, (py + 0.5) * scale];
+          const i = (py * output.size[0] + px) * 4;
+          return {
+            actual: [...pixels.slice(i, i + 4)],
+            expected: [
+              0.2 + p[0] * 0.002 + (p[0] >= 128 ? 0.5 : 0),
+              0.3 + p[1] * 0.001,
+              1.4,
+              0.75,
+            ],
+          };
+        });
+        results.push({ feather, proxy, samples });
+      }
     }
     return { results, errors };
   } finally {

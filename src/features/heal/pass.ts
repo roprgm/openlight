@@ -23,11 +23,7 @@ function healPatch(
     return source;
   }
   const dimensions = sourceSize(source);
-  const { origin, extent } = patchBounds(
-    patch.stroke,
-    dimensions,
-    (patch.stroke.size * patch.feather) / 2,
-  );
+  const { origin, extent } = patchBounds(patch.stroke, dimensions, 0);
   const samplers = {
     linearSampler: { minFilter: "linear", magFilter: "linear" },
   } as const;
@@ -36,8 +32,6 @@ function healPatch(
     extent,
     dimensions,
     offset: patch.offset,
-    feather: (patch.stroke.size * patch.feather) / 2,
-    opacity: patch.opacity,
   };
   let correction = source;
   // Coarse-to-fine harmonic extension of the destination/donor log color ratio.
@@ -48,7 +42,7 @@ function healPatch(
       Math.max(2, Math.ceil(extent[0] * ratio)),
       Math.max(2, Math.ceil(extent[1] * ratio)),
     ];
-    const params = { ...common, grid: size };
+    const params = { ...common, grid: size, feather: 0, opacity: 1 };
     correction = merge(
       { source, coverage, previous: correction },
       node(`${name}/${resolution}/seed`, shader, {
@@ -76,7 +70,15 @@ function healPatch(
     { source, coverage, previous: correction },
     node(`${name}/blend`, shader, {
       samplers,
-      set: { params: { ...common, grid: source.size, mode: 3 } },
+      set: {
+        params: {
+          ...common,
+          grid: source.size,
+          mode: 3,
+          feather: (patch.stroke.size * patch.feather) / 2,
+          opacity: patch.opacity,
+        },
+      },
     }),
   );
 }
@@ -99,11 +101,7 @@ export function heal(
       if (!patch.result) continue;
       if (!resolve) throw Error("AI image resource is unavailable.");
       const dimensions = sourceSize(image);
-      const bounds = patchBounds(
-        patch.stroke,
-        dimensions,
-        (patch.stroke.size * patch.feather) / 2,
-      );
+      const bounds = patchBounds(patch.stroke, dimensions, 0);
       image = merge(
         {
           source: image,

@@ -73,6 +73,7 @@ export function HealSourceHandle({
   return (
     <circle
       data-heal-source-handle="true"
+      data-hide-brush-cursor="true"
       cx={center[0]}
       cy={center[1]}
       r="7"
