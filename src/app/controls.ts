@@ -90,7 +90,7 @@ export function createControls(
       if (!draft) {
         throw Error("There is no draft to recover.");
       }
-      await workspace.open(String(draft.record.name), () =>
+      await workspace.open(draft.record.name, () =>
         openDraft(draft, (file) => decode(gpu, file)),
       );
     },

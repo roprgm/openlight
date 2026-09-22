@@ -15,27 +15,31 @@ export function snapshotDraft(document: EditorDocument, name: string): Draft {
   return { record: { version, name, scene: json }, files };
 }
 
-/** Opens a draft through the same validation as a scene file. */
-export async function openDraft(
-  { record, files }: Draft,
-  decode: (file: File) => Promise<ImageSource>,
-) {
-  if (!Number.isInteger(record?.version) || record.version < 1) {
+/** Storage returns whatever an earlier version wrote, so the record is checked where it is read. */
+function validateRecord(record: DraftRecord | undefined): DraftRecord {
+  if (
+    !record ||
+    !Number.isInteger(record.version) ||
+    record.version < 1 ||
+    typeof record.name !== "string"
+  ) {
     throw Error("Invalid draft.");
   }
   if (record.version > version) {
     throw Error("This draft needs a newer version of OpenLight.");
   }
-  return openScene(record.scene, files, decode);
+  return record;
 }
 
-function request<T>(request: IDBRequest<T>) {
-  return new Promise<T>((resolve, reject) => {
-    request.onsuccess = () => resolve(request.result);
-    request.onerror = () => reject(request.error);
-  });
+/** Opens a draft through the same validation as a scene file. */
+export async function openDraft(
+  { record, files }: Draft,
+  decode: (file: File) => Promise<ImageSource>,
+) {
+  return openScene(validateRecord(record).scene, files, decode);
 }
 
+/** Resolves once every request issued in the transaction has run, so callers read results from the requests. */
 function complete(transaction: IDBTransaction) {
   return new Promise<void>((resolve, reject) => {
     transaction.oncomplete = () => resolve();
@@ -48,6 +52,7 @@ function complete(transaction: IDBTransaction) {
 /**
  * One draft in IndexedDB: the record under a single key, and source files keyed by source ID.
  * Operations run one at a time in call order, so a discard never races a save.
+ * Requests are issued from the transaction's own callbacks, never after an await, so it can't auto-commit early.
  */
 export function createDraftStore(
   factory: IDBFactory | undefined = globalThis.indexedDB,
@@ -93,19 +98,21 @@ export function createDraftStore(
           ["draft", "sources"],
           "readwrite",
         );
-        const sources = transaction.objectStore("sources");
-        const stored = await request(sources.getAllKeys());
         transaction.objectStore("draft").put(record, "latest");
-        for (const [id, file] of files) {
-          if (!stored.includes(id)) {
-            sources.put(file, id);
+        const sources = transaction.objectStore("sources");
+        const stored = sources.getAllKeys();
+        stored.onsuccess = () => {
+          for (const [id, file] of files) {
+            if (!stored.result.includes(id)) {
+              sources.put(file, id);
+            }
           }
-        }
-        for (const id of stored) {
-          if (typeof id === "string" && !files.has(id)) {
-            sources.delete(id);
+          for (const id of stored.result) {
+            if (typeof id === "string" && !files.has(id)) {
+              sources.delete(id);
+            }
           }
-        }
+        };
         await complete(transaction);
       });
     },
@@ -113,30 +120,34 @@ export function createDraftStore(
     peek() {
       return run(async (database) => {
         const transaction = database.transaction("draft");
-        const record: DraftRecord | undefined = await request(
-          transaction.objectStore("draft").get("latest"),
-        );
-        return record && { name: String(record.name) };
+        const record: IDBRequest<DraftRecord | undefined> = transaction
+          .objectStore("draft")
+          .get("latest");
+        await complete(transaction);
+        return record.result && { name: validateRecord(record.result).name };
       });
     },
+    /** The record with every stored source file; a save leaves only the files the draft uses. */
     read() {
       return run(async (database): Promise<Draft | undefined> => {
         const transaction = database.transaction(["draft", "sources"]);
-        const record: DraftRecord | undefined = await request(
-          transaction.objectStore("draft").get("latest"),
-        );
-        if (!record) {
+        const record: IDBRequest<DraftRecord | undefined> = transaction
+          .objectStore("draft")
+          .get("latest");
+        const sources = transaction.objectStore("sources");
+        const ids = sources.getAllKeys();
+        const blobs: IDBRequest<Blob[]> = sources.getAll();
+        await complete(transaction);
+        if (!record.result) {
           return undefined;
         }
-        const sources = transaction.objectStore("sources");
         const files = new Map<string, Blob>();
-        for (const id of Object.keys(record.scene?.sources ?? {})) {
-          const file: Blob | undefined = await request(sources.get(id));
-          if (file) {
-            files.set(id, file);
+        ids.result.forEach((id, index) => {
+          if (typeof id === "string") {
+            files.set(id, blobs.result[index]);
           }
-        }
-        return { record, files };
+        });
+        return { record: validateRecord(record.result), files };
       });
     },
     discard() {

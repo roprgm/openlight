@@ -31,4 +31,17 @@ test("zip archives round-trip stored and deflated entries and read Info-ZIP data
     "ñandú ".repeat(100),
   );
   expect(await entries.get("image.raw")?.bytes()).toEqual(bytes);
+
+  // A deflated entry declares its size, so a small archive can't inflate into gigabytes.
+  await expect(readZip(archive, 100)).rejects.toThrow(
+    "ZIP entry is too large: notes/ñandú.txt.",
+  );
+  // The directory sits at the end, so a truncated archive fails before any entry is read.
+  await expect(readZip(archive.slice(0, 40))).rejects.toThrow(
+    "Not a ZIP archive.",
+  );
+  const tail = archive.slice(archive.size - 22 - 3 * 46 - 30);
+  await expect(readZip(new Blob([tail]))).rejects.toThrow(
+    "Invalid ZIP directory.",
+  );
 });

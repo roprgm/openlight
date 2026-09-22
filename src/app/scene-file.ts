@@ -41,6 +41,9 @@ export type SceneJson = {
 
 export const sceneExtension = ".openlight";
 
+/** Sources are stored, so only `scene.json` inflates; a scene with 7,000 stroke points is about 200 kB. */
+const inflateLimit = 256 * 2 ** 20;
+
 export function isSceneFile(file: File) {
   return file.name.toLowerCase().endsWith(sceneExtension);
 }
@@ -266,7 +269,7 @@ export async function openSceneFile(
   file: Blob,
   decode: (file: File) => Promise<ImageSource>,
 ) {
-  const entries = await readZip(file);
+  const entries = await readZip(file, inflateLimit);
   const json = entries.get("scene.json");
   if (!json) {
     throw Error("This file doesn't contain an OpenLight scene.");
