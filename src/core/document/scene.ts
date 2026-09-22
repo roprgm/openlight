@@ -103,19 +103,19 @@ export type SmartHealPatch = HealPatchBase & {
   readonly algorithm: "clone";
   readonly offset: Point;
 };
-/** One non-destructive repair. AI results are image resources positioned in source pixels. */
-export type HealPatch =
-  | SmartHealPatch
-  | (HealPatchBase & {
-      readonly algorithm: "ai";
-      /** The input changed after generation started, so the result is missing or outdated. */
-      readonly stale?: true;
-      readonly result?: {
-        readonly source: string;
-        readonly origin: Point;
-        readonly extent: Point;
-      };
-    });
+/** The generated crop is an image resource positioned in source pixels. */
+export type AiHealPatch = HealPatchBase & {
+  readonly algorithm: "ai";
+  /** The input changed after generation started, so the result is missing or outdated. */
+  readonly stale?: true;
+  readonly result?: {
+    readonly source: string;
+    readonly origin: Point;
+    readonly extent: Point;
+  };
+};
+/** One non-destructive repair. */
+export type HealPatch = SmartHealPatch | AiHealPatch;
 export type HealAlgorithm = HealPatch["algorithm"];
 export type Mask = Gradient | BrushMask;
 export type ProcessingLayer = {

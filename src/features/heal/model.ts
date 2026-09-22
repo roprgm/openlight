@@ -1,5 +1,11 @@
-import type { BrushStroke, HealPatch } from "@/core/document";
+import type { BrushStroke, HealPatch, Scene } from "@/core/document";
 import type { Point } from "@/core/image/frame";
+
+export function findHealPatch(scene: Scene, layerId: string, patchId: string) {
+  const layer = scene.layers.find((layer) => layer.id === layerId);
+  if (layer?.kind !== "heal") return;
+  return layer.patches.find((patch) => patch.id === patchId);
+}
 
 /** Marks generated patches whose input changed during ordered replay, including one still generating. */
 export function invalidateGeneratedResults(

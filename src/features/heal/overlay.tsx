@@ -6,17 +6,11 @@ import { useDocumentMapping } from "@/components/editor/mapping";
 import { useRenderer } from "@/components/editor/pipeline";
 import { useDocument, useScene } from "@/components/editor/session";
 import { findLayer, type HealAlgorithm } from "@/core/document";
-import { createPixelSource } from "@/core/image";
 import type { Point } from "@/core/image/frame";
-import {
-  addHealPatch,
-  extendHealPatch,
-  setAiResult,
-  setHealSource,
-  settleAiResult,
-} from "./edits";
-import { generateMigan } from "./migan";
+import { addHealPatch, extendHealPatch, setHealSource } from "./edits";
+import { createAiGeneration } from "./generation";
 import { useHealing } from "./mode";
+import { findHealPatch } from "./model";
 import { HealPatchHitTarget, HealPatchOutline } from "./outline";
 import { createHealSearch } from "./source";
 
@@ -33,8 +27,14 @@ export function HealOverlay({
   const mapping = useDocumentMapping();
   const gpu = useGpu();
   const search = useMemo(() => createHealSearch(gpu), [gpu]);
-  const { algorithm, feather, selectedPatch, selectPatch, hoveredPatch } =
-    useHealing();
+  const {
+    algorithm,
+    feather,
+    selectedPatch,
+    selectPatch,
+    hoveredPatch,
+    migan,
+  } = useHealing();
   const [source, setSource] = useState<Point>();
   const [drawingPatch, setDrawingPatch] = useState<string>();
   const [resolvingSource, setResolvingSource] = useState<string>();
@@ -58,65 +58,10 @@ export function HealOverlay({
       }
     | undefined
   >(undefined);
-  function livePatch(layerId: string, patchId: string) {
-    const layer = findLayer(document.scene.getState().layers, layerId);
-    if (layer?.kind !== "heal") return;
-    return layer.patches.find((patch) => patch.id === patchId);
-  }
-  async function generateAi(
-    layerId: string,
-    patchId: string,
-    signal: AbortSignal,
-    settle = false,
-  ) {
-    const scene = document.scene.getState();
-    const patch = livePatch(layerId, patchId);
-    if (patch?.algorithm !== "ai") return;
-    await renderer.update(scene, patchId, false);
-    signal.throwIfAborted();
-    const image = renderer.inputImage(patchId);
-    if (!image) throw Error("Heal input is unavailable.");
-    const dimensions = document.resources.get(scene.layers[0].source).image
-      .size;
-    const generated = await generateMigan(
-      gpu,
-      image,
-      dimensions,
-      patch.stroke,
-      signal,
-    );
-    signal.throwIfAborted();
-    // A stroke edited meanwhile, or moved, regenerates after it commits instead of taking this result.
-    const live = livePatch(layerId, patchId);
-    if (live?.algorithm !== "ai" || (!settle && live.stale)) return;
-    const resource = createPixelSource(gpu, generated.result);
-    const result = document.resources.add(
-      new File([], "AI Remove result"),
-      resource,
-    );
-    const stored = {
-      source: result,
-      origin: generated.origin,
-      extent: generated.extent,
-    };
-    if (settle) settleAiResult(document, layerId, patchId, stored);
-    else setAiResult(document, layerId, patchId, stored);
-  }
-  async function regenerateFrom(
-    layerId: string,
-    patchId: string,
-    signal: AbortSignal,
-  ) {
-    const layer = findLayer(document.scene.getState().layers, layerId);
-    if (layer?.kind !== "heal") return;
-    const index = layer.patches.findIndex((patch) => patch.id === patchId);
-    if (index < 0) return;
-    const affected = layer.patches
-      .slice(index)
-      .filter((patch) => patch.algorithm === "ai")
-      .map((patch) => patch.id);
-    for (const id of affected) await generateAi(layerId, id, signal);
-  }
+  const ai = useMemo(
+    () => createAiGeneration(document, renderer, gpu, migan),
+    [document, renderer, gpu, migan],
+  );
   const stalePatch = patches.find(
     (patch) => patch.algorithm === "ai" && (patch.stale || !patch.result),
   )?.id;
@@ -125,11 +70,11 @@ export function HealOverlay({
     const controller = new AbortController();
     const timeout = window.setTimeout(() => {
       setRegenerationError(undefined);
-      void generateAi(healLayer.id, stalePatch, controller.signal, true).catch(
-        (error: unknown) => {
+      void ai
+        .generate(healLayer.id, stalePatch, controller.signal, true)
+        .catch((error: unknown) => {
           if (!controller.signal.aborted) setRegenerationError(String(error));
-        },
-      );
+        });
     }, 150);
     return () => {
       window.clearTimeout(timeout);
@@ -170,12 +115,12 @@ export function HealOverlay({
         return;
       }
       const scene = document.scene.getState();
-      const patch = livePatch(current.layer, current.patch);
+      const patch = findHealPatch(scene, current.layer, current.patch);
       if (!patch) {
         return;
       }
       if (current.algorithm === "ai") {
-        await generateAi(current.layer, current.patch, signal);
+        await ai.generate(current.layer, current.patch, signal);
         return;
       }
       await renderer.update(scene, current.patch, true);
@@ -191,7 +136,12 @@ export function HealOverlay({
         .size;
       const offset = await search.find(image, dimensions, patch.stroke);
       // The stroke's group stays open through the search; undo or cancel aborts it and removes the patch.
-      if (signal.aborted || !livePatch(current.layer, current.patch)) return;
+      if (
+        signal.aborted ||
+        !findHealPatch(document.scene.getState(), current.layer, current.patch)
+      ) {
+        return;
+      }
       setHealSource(document, current.layer, current.patch, offset);
     } finally {
       setResolvingSource((id) => (id === current?.patch ? undefined : id));
@@ -255,14 +205,13 @@ export function HealOverlay({
                   <HealPatchOutline
                     layer={healLayer.id}
                     patch={patch}
-                    mapping={mapping}
                     showSource={
                       patch.algorithm === "clone" &&
                       patch.id !== drawingPatch &&
                       patch.id !== resolvingSource
                     }
                     onMove={(signal) =>
-                      regenerateFrom(healLayer.id, patch.id, signal)
+                      ai.regenerateFrom(healLayer.id, patch.id, signal)
                     }
                     interactive={
                       patch.id === selectedPatch && patch.id !== drawingPatch
@@ -277,7 +226,6 @@ export function HealOverlay({
                 <HealPatchHitTarget
                   key={`hit-${patch.id}`}
                   patch={patch}
-                  mapping={mapping}
                   onSelect={selectPatch}
                 />
               ),

@@ -1,7 +1,7 @@
 import { useId } from "react";
 import type { BrushStroke } from "@/core/document";
 
-function StrokeShape({
+function ThumbnailShape({
   stroke,
   points,
 }: {
@@ -67,7 +67,7 @@ export function PatchThumbnail({
           height={height}
           maskUnits="userSpaceOnUse"
         >
-          <StrokeShape stroke={stroke} points={points} />
+          <ThumbnailShape stroke={stroke} points={points} />
         </mask>
         {blur > 0 && (
           <filter
@@ -85,7 +85,7 @@ export function PatchThumbnail({
       </defs>
       <g opacity={opacity} mask={`url(#${mask})`}>
         <g filter={blur > 0 ? `url(#${filter})` : undefined}>
-          <StrokeShape stroke={stroke} points={points} />
+          <ThumbnailShape stroke={stroke} points={points} />
         </g>
       </g>
     </svg>

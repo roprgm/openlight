@@ -39,7 +39,7 @@ export function addHealPatch(
       : { ...base, algorithm };
   editLayer(document, id, (layer) => {
     if (layer.kind !== "heal") {
-      throw Error("Select a Heal layer.");
+      throw Error("Select a Healing layer.");
     }
     return { ...layer, patches: [...layer.patches, patch] };
   });
@@ -177,7 +177,8 @@ export function setHealSource(
   validateOffset(offset);
   editPatches(document, id, patchId, (patches, index) => {
     const patch = patches[index];
-    if (patch.algorithm !== "clone") throw Error("Heal patch is unavailable.");
+    if (patch.algorithm !== "clone")
+      throw Error("Heal patch is not Smart clone.");
     return {
       patches: patches.with(index, {
         ...patch,
@@ -233,7 +234,7 @@ function aiResult(
     const patches = healPatches(layer);
     const index = indexOf(patches, patchId);
     const current = patches[index];
-    if (current.algorithm !== "ai") throw Error("Heal patch is unavailable.");
+    if (current.algorithm !== "ai") throw Error("Heal patch is not AI Remove.");
     const { stale: _, ...patch } = current;
     return { ...layer, patches: patches.with(index, { ...patch, result }) };
   });

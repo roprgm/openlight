@@ -1,5 +1,5 @@
 import { memo, type PointerEvent, useId, useState } from "react";
-import type { useDocumentMapping } from "@/components/editor/mapping";
+import { useDocumentMapping } from "@/components/editor/mapping";
 import { useDocument } from "@/components/editor/session";
 import type { BrushStroke, HealPatch } from "@/core/document";
 import type { Point } from "@/core/image/frame";
@@ -105,19 +105,18 @@ export function HealPatchOutline({
   layer,
   patch,
   showSource,
-  mapping,
   onMove,
   interactive,
 }: {
   layer: string;
   patch: HealPatch;
   showSource: boolean;
-  mapping: Mapping;
   /** Regenerates the AI results a moved anchor affects. */
   onMove: (signal: AbortSignal) => Promise<void>;
   interactive: boolean;
 }) {
   const document = useDocument();
+  const mapping = useDocumentMapping();
   const [preview, setPreview] = useState<Point>();
   const [sourcePreview, setSourcePreview] = useState<Point>();
   const first = patch.stroke.points[0];
@@ -172,14 +171,12 @@ export function HealPatchOutline({
 /** Keeps canvas selection on the painted geometry without adding a visible marker over the result. */
 export const HealPatchHitTarget = memo(function HealPatchHitTarget({
   patch,
-  mapping,
   onSelect,
 }: {
   patch: HealPatch;
-  mapping: Mapping;
   onSelect: (id: string) => void;
 }) {
-  const shape = geometry(patch.stroke, [0, 0], mapping);
+  const shape = geometry(patch.stroke, [0, 0], useDocumentMapping());
   const select = (event: PointerEvent<SVGElement>) => {
     event.preventDefault();
     event.stopPropagation();

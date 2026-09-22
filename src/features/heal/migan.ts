@@ -23,17 +23,13 @@ type Runtime = {
       options: {
         executionProviders: [{ name: "webgpu"; device: GPUDevice }];
         graphOptimizationLevel: string;
+        logSeverityLevel: number;
       },
     ): Promise<Session>;
   };
 };
 
 type Prepared = { runtime: Runtime; session: Session };
-
-// The editor retains one session for its lifetime; HTTP caching owns cross-reload reuse.
-let ready: Prepared | undefined;
-let creating: Promise<Prepared> | undefined;
-let running: Promise<unknown> = Promise.resolve();
 
 export function createMiganSession(
   runtime: Runtime,
@@ -43,43 +39,9 @@ export function createMiganSession(
   return runtime.InferenceSession.create(bytes, {
     executionProviders: [{ name: "webgpu", device }],
     graphOptimizationLevel: "all",
+    // Initialisation warns that shape operations run on the CPU, which is expected for this model.
+    logSeverityLevel: 3,
   });
-}
-
-export function isMiganReady() {
-  return ready !== undefined;
-}
-
-/** Downloads first, where cancelling still saves data, then builds one session shared by every caller. */
-export async function prepareMigan(
-  gpu: Gpu,
-  signal?: AbortSignal,
-  status?: (message: string) => void,
-) {
-  if (ready) return ready;
-  if (creating) return creating;
-  status?.("Loading the local AI runtime…");
-  const runtime = (await import(
-    "./vendor/ort.webgpu.bundle.min.mjs"
-  )) as Runtime;
-  signal?.throwIfAborted();
-  runtime.env.wasm.wasmPaths = {
-    wasm: "/vendor/onnxruntime-web-1.30.0/ort-wasm-simd-threaded.asyncify.wasm",
-  };
-  status?.("Loading the bundled 28 MB AI model…");
-  const response = await fetch(modelPath, { signal });
-  if (!response.ok)
-    throw Error(`AI model failed to load: HTTP ${response.status}`);
-  const bytes = await response.arrayBuffer();
-  status?.("Preparing AI Remove on this device…");
-  creating ??= createMiganSession(runtime, bytes, gpu.gpu).then(
-    (session) => (ready = { runtime, session }),
-    (error: unknown) => {
-      creating = undefined;
-      throw error;
-    },
-  );
-  return creating;
 }
 
 async function executeMigan(
@@ -119,23 +81,6 @@ async function executeMigan(
   }
 }
 
-/** Runs the fixed 512 px MI-GAN model. The session rejects overlapping runs, so each waits for the previous one. */
-export function runMigan(
-  gpu: Gpu,
-  pixels: ImageData,
-  coverage: ImageData,
-  signal?: AbortSignal,
-) {
-  const turn = Promise.all([prepareMigan(gpu, signal), running]).then(
-    ([prepared]) => {
-      signal?.throwIfAborted();
-      return executeMigan(prepared, pixels, coverage);
-    },
-  );
-  running = turn.catch(() => undefined);
-  return turn;
-}
-
 type MaskRegion = { origin: Point; extent: Point };
 
 /** Hard dabs in model pixels, so the hole covers exactly what the blend paints. */
@@ -152,47 +97,115 @@ export function miganMaskDabs(stroke: BrushStroke, region: MaskRegion) {
     }));
 }
 
-/** Extracts display-referred model input and paints the stroke into its binary mask. */
-export async function generateMigan(
-  gpu: Gpu,
-  image: Target,
-  dimensions: Point,
-  stroke: BrushStroke,
-  signal?: AbortSignal,
-) {
-  const region = miganBounds(stroke, dimensions);
-  const scale = Math.min(1, 2048 / Math.max(...dimensions));
-  const previewSize: Point = [
-    Math.max(1, Math.round(dimensions[0] * scale)),
-    Math.max(1, Math.round(dimensions[1] * scale)),
-  ];
-  const bitmap = await renderBitmap(gpu, image, previewSize);
-  const input = new OffscreenCanvas(modelResolution, modelResolution);
-  const context = input.getContext("2d", { willReadFrequently: true });
-  if (!context) throw Error("Canvas is unavailable.");
-  context.drawImage(
-    bitmap,
-    region.origin[0] * scale,
-    region.origin[1] * scale,
-    region.extent[0] * scale,
-    region.extent[1] * scale,
-    0,
-    0,
-    modelResolution,
-    modelResolution,
-  );
-  bitmap.close();
-  const pixels = context.getImageData(0, 0, modelResolution, modelResolution);
-  context.clearRect(0, 0, modelResolution, modelResolution);
-  context.fillStyle = "white";
-  for (const dab of miganMaskDabs(stroke, region)) {
-    context.beginPath();
-    context.ellipse(dab.x, dab.y, dab.rx, dab.ry, 0, 0, Math.PI * 2);
-    context.fill();
+export type MiganRuntime = ReturnType<typeof createMiganRuntime>;
+
+/** Owns one MI-GAN session on the editor device: the model downloads first, where cancelling still saves data, and runs wait for each other because the session rejects overlap. */
+export function createMiganRuntime(gpu: Gpu) {
+  let ready: Prepared | undefined;
+  let creating: Promise<Prepared> | undefined;
+  let running: Promise<unknown> = Promise.resolve();
+  let disposed = false;
+  async function prepare(
+    signal?: AbortSignal,
+    status?: (message: string) => void,
+  ) {
+    if (ready) return ready;
+    if (creating) return creating;
+    status?.("Loading the local AI runtime…");
+    const runtime = (await import(
+      "./vendor/ort.webgpu.bundle.min.mjs"
+    )) as Runtime;
+    signal?.throwIfAborted();
+    runtime.env.wasm.wasmPaths = {
+      wasm: "/vendor/onnxruntime-web-1.30.0/ort-wasm-simd-threaded.asyncify.wasm",
+    };
+    status?.("Loading the bundled 28 MB AI model…");
+    const response = await fetch(modelPath, { signal });
+    if (!response.ok)
+      throw Error(`AI model failed to load: HTTP ${response.status}`);
+    const bytes = await response.arrayBuffer();
+    status?.("Preparing AI Remove on this device…");
+    creating ??= createMiganSession(runtime, bytes, gpu.gpu).then(
+      async (session) => {
+        if (disposed) {
+          await session.release();
+          throw Error("AI Remove was closed.");
+        }
+        ready = { runtime, session };
+        return ready;
+      },
+      (error: unknown) => {
+        creating = undefined;
+        throw error;
+      },
+    );
+    return creating;
   }
-  const coverage = context.getImageData(0, 0, modelResolution, modelResolution);
+  function run(pixels: ImageData, coverage: ImageData, signal?: AbortSignal) {
+    const turn = Promise.all([prepare(signal), running]).then(([prepared]) => {
+      signal?.throwIfAborted();
+      return executeMigan(prepared, pixels, coverage);
+    });
+    running = turn.catch(() => undefined);
+    return turn;
+  }
+  /** Extracts display-referred model input around the stroke and paints the stroke into its binary mask. */
+  async function generate(
+    image: Target,
+    dimensions: Point,
+    stroke: BrushStroke,
+    signal?: AbortSignal,
+  ) {
+    const region = miganBounds(stroke, dimensions);
+    const scale = Math.min(1, 2048 / Math.max(...dimensions));
+    const previewSize: Point = [
+      Math.max(1, Math.round(dimensions[0] * scale)),
+      Math.max(1, Math.round(dimensions[1] * scale)),
+    ];
+    const bitmap = await renderBitmap(gpu, image, previewSize);
+    const input = new OffscreenCanvas(modelResolution, modelResolution);
+    const context = input.getContext("2d", { willReadFrequently: true });
+    if (!context) throw Error("Canvas is unavailable.");
+    context.drawImage(
+      bitmap,
+      region.origin[0] * scale,
+      region.origin[1] * scale,
+      region.extent[0] * scale,
+      region.extent[1] * scale,
+      0,
+      0,
+      modelResolution,
+      modelResolution,
+    );
+    bitmap.close();
+    const pixels = context.getImageData(0, 0, modelResolution, modelResolution);
+    context.clearRect(0, 0, modelResolution, modelResolution);
+    context.fillStyle = "white";
+    for (const dab of miganMaskDabs(stroke, region)) {
+      context.beginPath();
+      context.ellipse(dab.x, dab.y, dab.rx, dab.ry, 0, 0, Math.PI * 2);
+      context.fill();
+    }
+    const coverage = context.getImageData(
+      0,
+      0,
+      modelResolution,
+      modelResolution,
+    );
+    return { result: await run(pixels, coverage, signal), ...region };
+  }
   return {
-    result: await runMigan(gpu, pixels, coverage, signal),
-    ...region,
+    get ready() {
+      return ready !== undefined;
+    },
+    prepare,
+    generate,
+    dispose() {
+      disposed = true;
+      void creating?.then(
+        (prepared) => prepared.session.release(),
+        () => undefined,
+      );
+    },
   };
 }

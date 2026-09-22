@@ -4,11 +4,13 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useMemo,
   useState,
 } from "react";
 import { useGpu } from "vgpu-react";
 import type { HealAlgorithm } from "@/core/document";
-import { isMiganReady, prepareMigan } from "./migan";
+import { HealLoadingDialog, type Loading } from "./loading-dialog";
+import { createMiganRuntime, type MiganRuntime } from "./migan";
 
 const HealingContext = createContext<{
   algorithm: HealAlgorithm;
@@ -19,13 +21,11 @@ const HealingContext = createContext<{
   selectPatch: (id?: string) => void;
   hoveredPatch?: string;
   hoverPatch: (id?: string) => void;
+  /** One prepared session serves every patch while the editor stays open. */
+  migan: MiganRuntime;
 } | null>(null);
 
-type Loading =
-  | { kind: "idle" | "ready" }
-  | { kind: "loading"; message: string }
-  | { kind: "error"; message: string };
-
+/** Owns the tool's next-stroke settings, patch selection, and the AI runtime for the editor's lifetime. */
 export function HealingProvider({
   children,
   onEdit,
@@ -34,21 +34,22 @@ export function HealingProvider({
   onEdit?: () => void;
 }) {
   const gpu = useGpu();
+  const migan = useMemo(() => createMiganRuntime(gpu), [gpu]);
+  useEffect(() => () => migan.dispose(), [migan]);
   const [algorithm, setAlgorithm] = useState<HealAlgorithm>("clone");
   const [feather, setFeather] = useState(0.1);
   const [selectedPatch, setSelectedPatch] = useState<string>();
   const [hoveredPatch, setHoveredPatch] = useState<string>();
-  const [loading, setLoading] = useState<Loading>(() => ({
-    kind: isMiganReady() ? "ready" : "idle",
-  }));
+  const [loading, setLoading] = useState<Loading>({ kind: "idle" });
   const [attempt, setAttempt] = useState(0);
   useEffect(() => {
-    if (algorithm !== "ai" || isMiganReady()) return;
+    if (algorithm !== "ai" || migan.ready) return;
     const controller = new AbortController();
     setLoading({ kind: "loading", message: "Loading the local AI runtime…" });
-    void prepareMigan(gpu, controller.signal, (message) =>
-      setLoading({ kind: "loading", message }),
-    )
+    void migan
+      .prepare(controller.signal, (message) =>
+        setLoading({ kind: "loading", message }),
+      )
       .then(() => setLoading({ kind: "ready" }))
       .catch((error: unknown) => {
         if (!controller.signal.aborted) {
@@ -56,11 +57,7 @@ export function HealingProvider({
         }
       });
     return () => controller.abort();
-  }, [algorithm, attempt, gpu]);
-  function cancel() {
-    setAlgorithm("clone");
-    setLoading({ kind: "idle" });
-  }
+  }, [algorithm, attempt, migan]);
   const selectPatch = useCallback(
     (id?: string) => {
       setSelectedPatch(id);
@@ -79,59 +76,22 @@ export function HealingProvider({
         selectPatch,
         hoveredPatch,
         hoverPatch: setHoveredPatch,
+        migan,
       }}
     >
       {children}
-      {algorithm === "ai" && loading.kind !== "ready" && (
-        <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 p-4 backdrop-blur-sm">
-          <section
-            role="dialog"
-            aria-modal="true"
-            aria-label="Preparing AI Remove"
-            className="w-full max-w-sm rounded-lg border border-white/10 bg-neutral-900 p-5 shadow-2xl"
-          >
-            <div className="mb-4 flex items-center gap-3">
-              {loading.kind === "loading" && (
-                <span className="size-5 animate-spin rounded-full border-2 border-neutral-600 border-t-neutral-100" />
-              )}
-              <h2 className="font-medium text-neutral-100">
-                {loading.kind === "error"
-                  ? "AI Remove couldn't load"
-                  : "Preparing AI Remove"}
-              </h2>
-            </div>
-            <p className="text-neutral-300">
-              {"message" in loading
-                ? loading.message
-                : "Starting the local AI…"}
-            </p>
-            <p className="mt-2 text-neutral-500">
-              AI Remove loads a 28 MB model included with OpenLight. Processing
-              stays on this device, and later uses in this session reuse it.
-            </p>
-            <div className="mt-5 flex justify-end gap-2">
-              <button
-                type="button"
-                className="rounded px-3 py-1.5 text-neutral-300 hover:bg-white/10"
-                onClick={cancel}
-              >
-                Cancel
-              </button>
-              {loading.kind === "error" && (
-                <button
-                  type="button"
-                  className="rounded bg-neutral-100 px-3 py-1.5 text-neutral-900"
-                  onClick={() => {
-                    setLoading({ kind: "idle" });
-                    setAttempt((value) => value + 1);
-                  }}
-                >
-                  Retry
-                </button>
-              )}
-            </div>
-          </section>
-        </div>
+      {algorithm === "ai" && !migan.ready && loading.kind !== "ready" && (
+        <HealLoadingDialog
+          loading={loading}
+          onCancel={() => {
+            setAlgorithm("clone");
+            setLoading({ kind: "idle" });
+          }}
+          onRetry={() => {
+            setLoading({ kind: "idle" });
+            setAttempt((value) => value + 1);
+          }}
+        />
       )}
     </HealingContext>
   );

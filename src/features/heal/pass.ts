@@ -1,5 +1,5 @@
 import type { Target } from "vgpu";
-import type { HealPatch } from "@/core/document";
+import type { HealPatch, SmartHealPatch } from "@/core/document";
 import {
   type Composition,
   input,
@@ -18,7 +18,7 @@ type HealComposition = Pick<Composition, "brush" | "inputId" | "retain">;
 function healPatch(
   source: RenderImage,
   coverage: RenderInput,
-  patch: Extract<HealPatch, { algorithm: "clone" }>,
+  patch: SmartHealPatch,
   name: string,
 ) {
   const dimensions = sourceSize(source);

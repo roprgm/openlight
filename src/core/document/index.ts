@@ -7,6 +7,7 @@ import { findLayer, walkLayers } from "./tree";
 
 export type {
   Adjustments,
+  AiHealPatch,
   Blend,
   BrushMask,
   BrushStroke,
