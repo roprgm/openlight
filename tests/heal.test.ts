@@ -116,7 +116,7 @@ test("heal patches reuse brush rasters, scale with the proxy, undo, and release 
       addHealPatch(document, id, { ...stroke, mode: "erase" }, [1, 2]),
     ).toThrow("painted");
     expect(() => setHealSource(document, id, patch, [NaN, 0])).toThrow(
-      "finite",
+      "Invalid heal source",
     );
     expect(() => setHealPatch(document, id, patch, { feather: NaN })).toThrow(
       "feather",

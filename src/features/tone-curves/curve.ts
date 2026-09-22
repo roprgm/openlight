@@ -1,5 +1,7 @@
+import { z } from "zod";
 import type { CurvePoint, ToneCurve } from "@/core/document";
 import { clamp, interpolatePchip } from "@/lib/math";
+import { unit } from "@/lib/parse";
 
 export const defaultCurve: ToneCurve = [
   { x: 0, y: 0 },
@@ -8,35 +10,19 @@ export const defaultCurve: ToneCurve = [
 
 const gap = 1 / 1024;
 
-export function validateCurve(points: ToneCurve) {
-  if (!Array.isArray(points) || points.length < 2) {
-    throw new Error("A curve needs at least two points.");
-  }
-  for (const [index, point] of points.entries()) {
-    if (
-      !point ||
-      ![point.x, point.y].every(
-        (value) => Number.isFinite(value) && value >= 0 && value <= 1,
-      )
-    ) {
-      throw new Error(
-        "Curve coordinates must be finite numbers between 0 and 1.",
-      );
-    }
-    if (index > 0 && point.x < points[index - 1].x + gap) {
-      throw new Error(
-        "Curve points must be ordered with a minimum x gap of 1/1024.",
-      );
-    }
-  }
-  const first = points[0];
-  const last = points[points.length - 1];
-  if ((first.x !== 0 && first.y !== 0) || (last.x !== 1 && last.y !== 1)) {
-    throw new Error(
-      "Curve endpoints must follow the lower-left and upper-right edges.",
-    );
-  }
-}
+export const curveSchema = z
+  .array(z.object({ x: unit, y: unit }))
+  .min(2, "A curve needs at least two points")
+  .refine(
+    (points) =>
+      points.every((point, i) => !i || point.x >= points[i - 1].x + gap),
+    "Curve points must be ordered with a minimum x gap of 1/1024",
+  )
+  .refine((points) => {
+    const first = points[0];
+    const last = points[points.length - 1];
+    return (first.x === 0 || first.y === 0) && (last.x === 1 || last.y === 1);
+  }, "Curve endpoints must follow the lower-left and upper-right edges") satisfies z.ZodType<ToneCurve>;
 
 export function moveCurvePoint(
   points: ToneCurve,

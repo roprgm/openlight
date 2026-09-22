@@ -1,29 +1,19 @@
 import { type EditorDocument, editLayer, type Vignette } from "@/core/document";
+import { parse } from "@/lib/parse";
+import { vignetteSchema } from "./model";
 
-export function validateVignette(change: Partial<Vignette>) {
-  for (const [name, value] of Object.entries(change)) {
-    if (
-      (name !== "intensity" && name !== "softness") ||
-      typeof value !== "number" ||
-      !Number.isFinite(value) ||
-      value < 0 ||
-      value > 100
-    ) {
-      throw new Error(`Invalid vignette adjustment: ${name}.`);
-    }
-  }
-}
+const vignetteChange = vignetteSchema.partial().strict();
 
 export function setVignette(
   document: EditorDocument,
   change: Partial<Vignette>,
   id: string,
 ) {
-  validateVignette(change);
+  const values = parse(vignetteChange, change, "Invalid vignette adjustment");
   editLayer(document, id, (layer) => {
     if (layer.kind !== "vignette") {
       throw Error("Select a vignette layer.");
     }
-    return { ...layer, vignette: { ...layer.vignette, ...change } };
+    return { ...layer, vignette: { ...layer.vignette, ...values } };
   });
 }

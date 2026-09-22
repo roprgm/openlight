@@ -1,3 +1,4 @@
+import { z } from "zod";
 import type { ColorMixer } from "@/core/document";
 
 // Oklab angles of the eight full-saturation sRGB colors, for circular interpolation.
@@ -33,23 +34,19 @@ export function isNeutral(mixer: ColorMixer) {
   return channels.every(({ id }) => mixer[id].every((value) => value === 0));
 }
 
-export function validMixerValue(value: unknown) {
-  return (
-    typeof value === "number" &&
-    Number.isFinite(value) &&
-    Math.abs(value) <= 100
-  );
-}
+const shift = z.number().min(-100).max(100);
+const shifts = z.array(shift).length(colors.length);
 
-export function validateMixer(mixer: ColorMixer) {
-  for (const [name, values] of Object.entries(mixer)) {
-    if (
-      !channels.some(({ id }) => id === name) ||
-      !Array.isArray(values) ||
-      values.length !== colors.length ||
-      !values.every(validMixerValue)
-    ) {
-      throw new Error(`Invalid color mixer adjustment: ${name}.`);
-    }
-  }
-}
+export const mixerSchema = z.object({
+  hue: shifts,
+  saturation: shifts,
+  luminance: shifts,
+}) satisfies z.ZodType<ColorMixer>;
+
+/** One color's channels; unspecified channels keep their values. */
+export const mixerChange = z.strictObject({
+  hue: shift.optional(),
+  saturation: shift.optional(),
+  luminance: shift.optional(),
+});
+export const mixerColor = z.enum(colors.map(({ id }) => id));

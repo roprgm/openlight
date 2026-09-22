@@ -1,3 +1,4 @@
+import { z } from "zod";
 import type { Details } from "@/core/document";
 
 export const defaultDetails: Details = {
@@ -11,17 +12,11 @@ export const detailLimits = {
   sharpenRadius: [0.5, 3],
 } as const;
 
-export function validateDetails(change: Partial<Details>) {
-  for (const [name, value] of Object.entries(change)) {
-    const limits = Reflect.get(detailLimits, name);
-    if (
-      !Array.isArray(limits) ||
-      typeof value !== "number" ||
-      !Number.isFinite(value) ||
-      value < limits[0] ||
-      value > limits[1]
-    ) {
-      throw Error(`Invalid detail adjustment: ${name}.`);
-    }
-  }
-}
+const range = ([min, max]: readonly [number, number]) =>
+  z.number().min(min).max(max);
+
+export const detailsSchema = z.object({
+  clarity: range(detailLimits.clarity),
+  sharpening: range(detailLimits.sharpening),
+  sharpenRadius: range(detailLimits.sharpenRadius),
+}) satisfies z.ZodType<Details>;
