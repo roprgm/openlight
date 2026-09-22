@@ -4,10 +4,7 @@ import type { Point } from "@/core/image/frame";
 import { renderBitmap } from "@/core/renderer";
 import { miganBounds } from "./model";
 
-const runtimeUrl =
-  "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.30.0/dist/ort.webgpu.min.mjs";
-const modelUrl =
-  "https://huggingface.co/andraniksargsyan/migan/resolve/406830d0fa60666da0071c342ad2fbc8f30c5c64/migan_pipeline_v2.onnx";
+const modelPath = "/models/migan-pipeline-v2.onnx";
 
 type Tensor = { data: ArrayLike<number>; dispose(): void };
 type Session = {
@@ -16,6 +13,7 @@ type Session = {
   release(): Promise<void>;
 };
 type Runtime = {
+  env: { wasm: { wasmPaths: { wasm: string } } };
   Tensor: new (type: "uint8", data: Uint8Array, dimensions: number[]) => Tensor;
   InferenceSession: {
     create(
@@ -29,7 +27,7 @@ type Runtime = {
 };
 
 type Prepared = { runtime: Runtime; session: Session };
-// The editor retains one session for its lifetime; model hosting owns cross-reload caching.
+// The editor retains one session for its lifetime; HTTP caching owns cross-reload reuse.
 let prepared: Prepared | undefined;
 
 /** Adopts the editor device and releases a session whose uncancellable creation outlives its request. */
@@ -56,12 +54,17 @@ async function load(
   status?: (message: string) => void,
 ) {
   status?.("Loading the local AI runtime…");
-  const runtime = (await import(/* @vite-ignore */ runtimeUrl)) as Runtime;
+  const runtime = (await import(
+    "./vendor/ort.webgpu.bundle.min.mjs"
+  )) as Runtime;
+  runtime.env.wasm.wasmPaths = {
+    wasm: "/vendor/onnxruntime-web-1.30.0/ort-wasm-simd-threaded.asyncify.wasm",
+  };
   signal?.throwIfAborted();
-  status?.("Downloading the 28 MB AI model…");
-  const response = await fetch(modelUrl, { signal });
+  status?.("Loading the bundled 28 MB AI model…");
+  const response = await fetch(modelPath, { signal });
   if (!response.ok)
-    throw Error(`AI model download failed: HTTP ${response.status}`);
+    throw Error(`AI model failed to load: HTTP ${response.status}`);
   status?.("Preparing AI Remove on this device…");
   const session = await createMiganSession(
     runtime,

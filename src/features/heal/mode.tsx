@@ -101,8 +101,8 @@ export function HealingProvider({
                 : "Starting the local AI…"}
             </p>
             <p className="mt-2 text-neutral-500">
-              The first use downloads a 28 MB model. Processing stays on this
-              device, and later uses in this session reuse it.
+              AI Remove loads a 28 MB model included with OpenLight. Processing
+              stays on this device, and later uses in this session reuse it.
             </p>
             <div className="mt-5 flex justify-end gap-2">
               <button
