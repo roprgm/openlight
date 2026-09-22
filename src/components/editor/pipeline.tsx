@@ -70,10 +70,7 @@ export function RendererProvider({
         scene.layers,
         document.selection.getState().layerId,
       );
-      const input =
-        target && ("toneCurve" in target || target.kind === "heal")
-          ? target.id
-          : undefined;
+      const input = target && "toneCurve" in target ? target.id : undefined;
       // An open gesture renders a proxy; its end renders the same scene in full.
       const interactive = document.history.status.getState().editing;
       // A dropped input can stay live; only a new one needs a render.

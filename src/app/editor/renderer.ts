@@ -104,13 +104,7 @@ function composeLayer(
     masks,
     coverage,
   );
-  return {
-    image,
-    input:
-      layer.kind === "heal" && layer.id === composition.inputId
-        ? image
-        : (input ?? children.input),
-  };
+  return { image, input: input ?? children.input };
 }
 
 function composeLayers(

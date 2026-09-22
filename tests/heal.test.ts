@@ -188,12 +188,13 @@ test("one Healing layer composes Smart clone and AI patches through render nodes
     expect(renderer.inspect().passes).toContain(
       `layer/${layer}/${smart}/blend`,
     );
-    expect(renderer.inputImage(layer)).toBeDefined();
-    expect(renderer.inputImage(layer)).not.toBe(source.image);
-    const layerInput = renderer.inputImage(layer);
+    await renderer.update(document.scene.getState(), smart);
+    const smartInput = renderer.inputImage(smart);
+    expect(smartInput).toBeDefined();
+    // A later patch sees the result of the earlier ones.
     await renderer.update(document.scene.getState(), patch);
     expect(renderer.inputImage(patch)).toBeDefined();
-    expect(renderer.inputImage(patch)).not.toBe(layerInput);
+    expect(renderer.inputImage(patch)).not.toBe(smartInput);
     const correctionGraph = renderer.inspect();
     setHealDestination(document, layer, smart, [80, 60]);
     setHealDestination(document, layer, patch, [70, 55]);
