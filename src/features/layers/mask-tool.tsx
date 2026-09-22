@@ -9,6 +9,7 @@ import {
 import { createStore, type StoreApi } from "zustand/vanilla";
 import { useDocument } from "@/components/editor/session";
 import type { Gradient, Mask } from "@/core/document";
+import { blurActive } from "@/lib/dom";
 
 /** Where a new mask goes: inside a mask group, adding or subtracting coverage. */
 export type Nesting = {
@@ -91,9 +92,7 @@ export function MaskToolProvider({
         edit: (shape) => {
           setPending(null);
           // Keys after entering or leaving belong to the canvas, not to the row or tab that asked.
-          if (window.document.activeElement instanceof HTMLElement) {
-            window.document.activeElement.blur();
-          }
+          blurActive();
           if (shape) {
             onTool?.(shape);
           } else {

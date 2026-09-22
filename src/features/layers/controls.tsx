@@ -1,9 +1,14 @@
-import { memo, useCallback, useEffect, useState } from "react";
+import {
+  type ComponentType,
+  memo,
+  useCallback,
+  useEffect,
+  useState,
+} from "react";
 import { useStore } from "zustand";
 import { PanelHeader } from "@/components/editor/panel";
 import { useDocument, useScene } from "@/components/editor/session";
-import { HealIcon } from "@/components/icons/heal";
-import { Icon } from "@/components/icons/icon";
+import { Icon, type IconProps } from "@/components/icons/icon";
 import { Menu } from "@/components/ui/menu";
 import { PanelListItem } from "@/components/ui/panel-list";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -12,12 +17,7 @@ import {
   type TreeDrop,
   useTreeDragItem,
 } from "@/components/ui/tree-drag";
-import {
-  type EffectLayer,
-  findLayer,
-  type Layer,
-  type ProcessingLayer,
-} from "@/core/document";
+import { type EffectLayer, findLayer, type Layer } from "@/core/document";
 import { useShortcuts } from "@/hooks/use-shortcuts";
 import { layerDrop } from "./drop";
 import { deleteLayer, moveLayer, setLayer } from "./edits";
@@ -26,45 +26,22 @@ import { useMaskTool } from "./mask-tool";
 import { LayerActions, MaskNesting } from "./menu";
 import { ImageThumbnail, MaskThumbnail } from "./thumbnails";
 
-type EffectKind = Exclude<ProcessingLayer["kind"], "mask" | "fill">;
+/** How the stack shows and offers each effect kind; the app supplies them so this feature names no other. */
+export type EffectKind = {
+  readonly kind: EffectLayer["kind"];
+  readonly label: string;
+  readonly Icon?: ComponentType<IconProps>;
+  /** Offered in the Add menu; tools create the others. */
+  readonly addable: boolean;
+};
 
-/** Each effect's mark in the layer stack; a new effect kind must name one. */
-function EffectIcon({ kind }: { kind: EffectKind }) {
-  switch (kind) {
-    case "heal":
-      return <HealIcon className="size-4" />;
-    case "color-mixer":
-      return (
-        <Icon className="size-4">
-          <circle cx="9" cy="9" r="5" />
-          <circle cx="15" cy="9" r="5" />
-          <circle cx="12" cy="15" r="5" />
-        </Icon>
-      );
-    case "details":
-      return (
-        <Icon className="size-4">
-          <path d="m4 18 8-14 8 14H4Zm8-8v6" />
-        </Icon>
-      );
-    case "vignette":
-      return (
-        <Icon className="size-4">
-          <circle cx="12" cy="12" r="8" />
-          <circle cx="12" cy="12" r="3" />
-        </Icon>
-      );
-    case "exposure":
-      return (
-        <Icon className="size-4">
-          <circle cx="12" cy="12" r="8" />
-          <path d="M12 4a8 8 0 0 1 0 16Z" fill="currentColor" stroke="none" />
-        </Icon>
-      );
-  }
-}
-
-function LayerThumbnail({ layer }: { layer: Layer }) {
+function LayerThumbnail({
+  layer,
+  effects,
+}: {
+  layer: Layer;
+  effects: readonly EffectKind[];
+}) {
   if (layer.kind === "image") {
     return <ImageThumbnail />;
   }
@@ -81,9 +58,10 @@ function LayerThumbnail({ layer }: { layer: Layer }) {
       />
     );
   }
+  const Icon = effects.find(({ kind }) => kind === layer.kind)?.Icon;
   return (
     <span className="grid size-8 shrink-0 place-items-center rounded border border-black/50 bg-neutral-950/40 text-neutral-400">
-      <EffectIcon kind={layer.kind} />
+      {Icon && <Icon className="size-4" />}
     </span>
   );
 }
@@ -93,11 +71,13 @@ const LayerRow = memo(function LayerRow({
   layer,
   parent,
   depth,
+  effects,
   onSelect,
 }: {
   layer: Layer;
   parent?: Layer;
   depth: number;
+  effects: readonly EffectKind[];
   onSelect: (id: string) => void;
 }) {
   const document = useDocument();
@@ -156,7 +136,7 @@ const LayerRow = memo(function LayerRow({
           onClick={() => onSelect(layer.id)}
           className="mr-2 shrink-0"
         >
-          <LayerThumbnail layer={layer} />
+          <LayerThumbnail layer={layer} effects={effects} />
         </button>
         <LayerName
           layer={layer}
@@ -209,6 +189,7 @@ const LayerRow = memo(function LayerRow({
               layer={child}
               parent={layer}
               depth={depth + 1}
+              effects={effects}
               onSelect={onSelect}
             />
           ))}
@@ -217,8 +198,10 @@ const LayerRow = memo(function LayerRow({
 });
 
 export function LayersControls({
+  effects,
   onAdd,
 }: {
+  effects: readonly EffectKind[];
   onAdd: (kind: EffectLayer["kind"]) => void;
 }) {
   const document = useDocument();
@@ -263,21 +246,13 @@ export function LayersControls({
             </Icon>
           }
         >
-          <button type="submit" onClick={() => onAdd("details")}>
-            Details
-          </button>
-          <button type="submit" onClick={() => onAdd("exposure")}>
-            Exposure
-          </button>
-          <button type="submit" onClick={() => onAdd("color-mixer")}>
-            Color Mixer
-          </button>
-          <button type="submit" onClick={() => onAdd("vignette")}>
-            Vignette
-          </button>
-          <button type="submit" onClick={() => onAdd("fill")}>
-            Color
-          </button>
+          {effects
+            .filter(({ addable }) => addable)
+            .map(({ kind, label }) => (
+              <button key={kind} type="submit" onClick={() => onAdd(kind)}>
+                {label}
+              </button>
+            ))}
         </Menu>
       </PanelHeader>
       <ScrollArea fade>
@@ -293,6 +268,7 @@ export function LayersControls({
               key={layer.id}
               layer={layer}
               depth={0}
+              effects={effects}
               onSelect={select}
             />
           ))}

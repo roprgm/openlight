@@ -8,9 +8,10 @@ function focusChoice(surface: HTMLElement) {
 
 function moveFocus(menu: HTMLElement, direction: number) {
   const items = [
-    ...menu.querySelectorAll<HTMLButtonElement>("button:not(:disabled)"),
+    ...menu.querySelectorAll<HTMLElement>("button:not(:disabled)"),
   ];
-  const current = items.indexOf(document.activeElement as HTMLButtonElement);
+  const focused = document.activeElement;
+  const current = focused instanceof HTMLElement ? items.indexOf(focused) : -1;
   const next =
     current < 0 ? 0 : (current + direction + items.length) % items.length;
   items[next]?.focus();
@@ -51,8 +52,10 @@ export function MenuSurface({
         <div
           role={role}
           onClick={(event) => {
-            const target = event.target as Element;
-            if (target.closest('button[type="submit"]')) {
+            if (
+              event.target instanceof Element &&
+              event.target.closest('button[type="submit"]')
+            ) {
               popover.current?.hidePopover();
             }
           }}

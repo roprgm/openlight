@@ -1,3 +1,8 @@
+import { ColorMixerIcon } from "@/components/icons/color-mixer";
+import { DetailsIcon } from "@/components/icons/details";
+import { ExposureIcon } from "@/components/icons/exposure";
+import { HealIcon } from "@/components/icons/heal";
+import { VignetteIcon } from "@/components/icons/vignette";
 import type {
   EditorDocument,
   EffectLayer,
@@ -12,7 +17,9 @@ import { defaultAdjustments } from "@/features/adjustments/model";
 import { defaultMixer, isNeutral } from "@/features/color-mixer/model";
 import { defaultDetails } from "@/features/details/model";
 import { defaultFill } from "@/features/fill/model";
+import type { EffectKind } from "@/features/layers/controls";
 import { defaultCurve } from "@/features/tone-curves/curve";
+import { defaultVignette } from "@/features/vignette/model";
 
 function baseLayer() {
   return { id: crypto.randomUUID(), visible: true, opacity: 1, children: [] };
@@ -35,31 +42,40 @@ export function createImageLayer(
   };
 }
 
+/** Every effect kind's name and mark, in Add menu order; the stack and new layers read it. */
+export const effectKinds = [
+  { kind: "details", label: "Details", Icon: DetailsIcon, addable: true },
+  { kind: "exposure", label: "Exposure", Icon: ExposureIcon, addable: true },
+  {
+    kind: "color-mixer",
+    label: "Color Mixer",
+    Icon: ColorMixerIcon,
+    addable: true,
+  },
+  { kind: "vignette", label: "Vignette", Icon: VignetteIcon, addable: true },
+  { kind: "fill", label: "Color", addable: true },
+  { kind: "heal", label: "Healing", Icon: HealIcon, addable: false },
+] as const satisfies readonly EffectKind[];
+
 export function createLayer<K extends EffectLayer["kind"]>(
   kind: K,
 ): Extract<EffectLayer, { kind: K }>;
 export function createLayer(kind: EffectLayer["kind"]): EffectLayer {
-  const base = baseLayer();
+  const name = effectKinds.find((entry) => entry.kind === kind)?.label ?? kind;
+  const base = { ...baseLayer(), name };
   switch (kind) {
     case "details":
-      return { ...base, kind, name: "Details", details: { ...defaultDetails } };
+      return { ...base, kind, details: { ...defaultDetails } };
     case "exposure":
-      return { ...base, kind, name: "Exposure", exposure: 1 };
+      return { ...base, kind, exposure: 1 };
     case "vignette":
-      return {
-        ...base,
-        kind,
-        name: "Vignette",
-        vignette: { intensity: 50, softness: 50 },
-      };
+      return { ...base, kind, vignette: { ...defaultVignette, intensity: 50 } };
     case "color-mixer":
-      return { ...base, kind, name: "Color Mixer", colorMixer: defaultMixer };
+      return { ...base, kind, colorMixer: defaultMixer };
     case "fill":
-      return { ...base, kind, name: "Color", fill: { ...defaultFill } };
+      return { ...base, kind, fill: { ...defaultFill } };
     case "heal":
-      return { ...base, kind, name: "Healing", patches: [] };
-    default:
-      throw Error("Unknown layer kind.");
+      return { ...base, kind, patches: [] };
   }
 }
 

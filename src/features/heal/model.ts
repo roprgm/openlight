@@ -61,15 +61,15 @@ export function patchBounds(
 export function patchThumbnailRegion(
   stroke: BrushStroke,
   size: readonly number[],
-) {
+): { origin: Point; extent: Point } {
   const { origin, extent } = patchBounds(stroke, size);
   const side = Math.max(extent[0], extent[1]) * 1.1;
   return {
     origin: [
       origin[0] + (extent[0] - side) / 2,
       origin[1] + (extent[1] - side) / 2,
-    ] as Point,
-    extent: [side, side] as Point,
+    ],
+    extent: [side, side],
   };
 }
 

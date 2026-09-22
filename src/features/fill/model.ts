@@ -26,7 +26,7 @@ export const fillSchema = z.object({
 
 /** The sRGB channels of a `#rrggbb` color, 0 to 1. */
 export function parseColor(color: string): [number, number, number] {
-  return [1, 3, 5].map(
-    (offset) => Number.parseInt(color.slice(offset, offset + 2), 16) / 255,
-  ) as [number, number, number];
+  const channel = (offset: number) =>
+    Number.parseInt(color.slice(offset, offset + 2), 16) / 255;
+  return [channel(1), channel(3), channel(5)];
 }
