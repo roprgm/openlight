@@ -22,6 +22,20 @@ export function invalidateGeneratedResults(
   ];
 }
 
+/** Whether a dab reaches the image at all; a stroke starting further away has nothing to repair. */
+export function dabTouchesImage(
+  [x, y]: readonly number[],
+  radius: number,
+  size: readonly number[],
+) {
+  return (
+    x + radius > 0 &&
+    y + radius > 0 &&
+    x - radius < size[0] &&
+    y - radius < size[1]
+  );
+}
+
 /** Bounds include the whole soft brush edge, with room for a known boundary. */
 export function patchBounds(
   stroke: BrushStroke,

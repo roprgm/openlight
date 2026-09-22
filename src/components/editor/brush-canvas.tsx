@@ -51,7 +51,8 @@ export function BrushCanvas({
   erase: boolean;
   /** Overrides the shared brush feather for tools that own their stroke softness. */
   feather?: number;
-  onStart: (stroke: BrushStroke) => void;
+  /** Records the first dab and returns whether the stroke started; a declined stroke leaves nothing behind. */
+  onStart: (stroke: BrushStroke) => boolean;
   onExtend: (points: readonly StrokePoint[]) => void;
   onComplete?: (signal: AbortSignal) => void | Promise<void>;
   onFinish?: (committed: boolean) => void;
@@ -192,14 +193,18 @@ export function BrushCanvas({
       return;
     }
     setError(undefined);
-    document.history.begin();
-    onStart({
+    const opened = document.history.begin();
+    const started = onStart({
       mode: erase ? "erase" : "paint",
       size: brush.settings.size,
       feather: strokeFeather,
       flow: brush.settings.flow,
       points: [first],
     });
+    if (!started) {
+      if (opened) document.history.cancel();
+      return;
+    }
     stroke.current = {
       pointer: event.pointerId,
       touch: event.pointerType === "touch",

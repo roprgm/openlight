@@ -9,7 +9,7 @@ import { findLayer, type HealAlgorithm } from "@/core/document";
 import type { Point } from "@/core/image/frame";
 import { addHealPatch, extendHealPatch, setHealSource } from "./edits";
 import { useHealing } from "./mode";
-import { findHealPatch } from "./model";
+import { dabTouchesImage, findHealPatch } from "./model";
 import { HealPatchHitTarget, HealPatchOutline } from "./outline";
 import { createHealSearch } from "./source";
 
@@ -153,6 +153,10 @@ export function HealOverlay({
         const layer = healLayer;
         if (!layer) throw Error("Select a Healing layer.");
         const [x, y] = stroke.points[0];
+        const size = document.resources.get(
+          document.scene.getState().layers[0].source,
+        ).image.size;
+        if (!dabTouchesImage([x, y], stroke.size / 2, size)) return false;
         const offset: Point = source ? [source[0] - x, source[1] - y] : [0, 0];
         const patch = addHealPatch(
           document,
@@ -172,6 +176,7 @@ export function HealOverlay({
           automatic: !source,
           algorithm,
         };
+        return true;
       }}
       onExtend={(points) => {
         const id = pending.current?.layer;

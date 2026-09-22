@@ -50,10 +50,10 @@ export function BrushOverlay() {
       erase={brush.erase}
       onStart={(stroke) => {
         const id = selectedBrush();
-        if (id) {
-          painting.current = id;
-          paintStroke(document, id, stroke);
-        }
+        if (!id) return false;
+        painting.current = id;
+        paintStroke(document, id, stroke);
+        return true;
       }}
       onExtend={(points) => {
         const id = painting.current;

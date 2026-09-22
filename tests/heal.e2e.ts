@@ -121,6 +121,18 @@ test("Healing loads AI on demand, paints Smart clone, and undoes patches", async
   }
   expect(layer.patches).toHaveLength(1);
   expect(layer.patches[0].algorithm).toBe("clone");
+  // A click in the canvas margin, where the brush cannot reach the image, creates nothing.
+  await page.mouse.click(bounds.x + 4, bounds.y + 4);
+  expect(
+    await page.evaluate(() => {
+      const { scene, history } = window.openlight.getState();
+      const healing = scene?.layers.find((layer) => layer.kind === "heal");
+      return {
+        patches: healing?.kind === "heal" ? healing.patches.length : 0,
+        editing: "editing" in history && history.editing,
+      };
+    }),
+  ).toEqual({ patches: 1, editing: false });
   await expect(page.getByText("Patch 1", { exact: true })).toBeVisible();
   const patchList = page.getByRole("list", { name: "Healing patches" });
   await expect(
