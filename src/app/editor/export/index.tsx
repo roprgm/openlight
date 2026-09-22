@@ -1,7 +1,7 @@
 import { cn } from "cn";
 import { type ReactNode, useMemo, useRef, useState } from "react";
 import { useGpu } from "vgpu-react";
-import { writeSettings } from "@/app/settings";
+import { writeSceneFile } from "@/app/scene-file";
 import { Image } from "@/components/editor/image";
 import { EditorPanel, PanelHeader } from "@/components/editor/panel";
 import { useDocument, useScene } from "@/components/editor/session";
@@ -159,6 +159,44 @@ function download(file: File) {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
+function SaveScene() {
+  const editorDocument = useDocument();
+  const saving = useRef(false);
+  const [error, setError] = useState("");
+  const save = async () => {
+    if (saving.current) {
+      return;
+    }
+    saving.current = true;
+    setError("");
+    try {
+      download(await writeSceneFile(editorDocument));
+    } catch (error) {
+      setError(error instanceof Error ? error.message : "Couldn't save scene.");
+    } finally {
+      saving.current = false;
+    }
+  };
+  return (
+    <section
+      aria-label="Scene export"
+      className="flex flex-col gap-3 border-black border-t p-4"
+    >
+      <p className="text-neutral-500">
+        Saves the photo and every edit in one file. Open it to continue editing.
+      </p>
+      <Button className="w-full py-2" onClick={save}>
+        Save scene
+      </Button>
+      {error && (
+        <p className="text-red-400" role="alert">
+          {error}
+        </p>
+      )}
+    </section>
+  );
+}
+
 function LoadingOverlay() {
   return (
     <div className="pointer-events-none absolute inset-0 grid place-items-center">
@@ -242,20 +280,7 @@ export function ExportMode({ onClose }: { onClose: () => void }) {
             </p>
           )}
         </section>
-        <section
-          aria-label="Settings export"
-          className="flex flex-col gap-3 border-black border-t p-4"
-        >
-          <p className="text-neutral-500">
-            Drop the saved file onto this photo to restore its edits.
-          </p>
-          <Button
-            className="w-full py-2"
-            onClick={() => download(writeSettings(editorDocument))}
-          >
-            Save settings
-          </Button>
-        </section>
+        <SaveScene />
       </EditorPanel>
     </>
   );

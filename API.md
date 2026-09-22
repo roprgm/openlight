@@ -25,14 +25,14 @@ These methods accept browser `File` objects and return `Promise<void>`. Await th
 
 | Method | Behavior |
 | --- | --- |
-| `openFile(file)` | Opens one image or imports one Camera Raw XMP or OpenLight settings file. |
-| `openFiles(files)` | Opens the first recognized image, then imports recognized settings files in order. Unsupported files are ignored. |
+| `openFile(file)` | Opens one image or [scene file](#scene-files), or imports one Camera Raw XMP file. |
+| `openFiles(files)` | Opens the first recognized image or scene file, then imports recognized XMP files in order. Unsupported files are ignored. |
 | `loadImage(file)` | Loads a file as an image, replacing the current document and its history. |
+| `loadScene(file)` | Opens a scene file as a new document, replacing the current one and its history. |
 | `loadUrl(url)` | Fetches an image from a same-origin URL and loads it. |
 | `importXmp(file)` | Applies supported Camera Raw adjustments as one undoable edit. |
-| `importSettings(file)` | Replaces the scene with an OpenLight [settings file](#settings) as one undoable edit. |
 
-Loading calls are queued. Settings imports are skipped if no document is ready; an invalid import can reject without blocking later loads. Image decoding failures appear in the workspace's error state and do not reject the loading promise. Check `getState().documentId` to confirm success. Loading completion does not guarantee the preview has rendered.
+Loading calls are queued. XMP import is skipped if no document is ready; an invalid XMP import can reject without blocking later loads. Image and scene failures appear in the workspace's error state and do not reject the loading promise. Check `getState().documentId` to confirm success. Loading completion does not guarantee the preview has rendered.
 
 ## Editing
 
@@ -145,22 +145,22 @@ try {
 
 The image renders at the document dimensions and downsamples to `longEdge` with high-quality smoothing. Invalid values throw, as does a format the browser cannot encode.
 
-## Settings
+## Scene files
 
-`exportSettings()` returns a `File` containing the document's edits, named after the source file with the `.openlight` extension; **Save settings** in the Export panel downloads the same file. It is JSON:
+`exportScene()` returns `Promise<File>`: the document as an `.openlight` file named after its source image, which **Save scene** in the Export panel downloads. It is a ZIP archive holding the source file's original bytes at `sources/<id>` and a deflated `scene.json`:
 
 ```json
 {
   "format": "openlight",
   "version": 1,
-  "image": { "name": "photo.jpg", "size": [6000, 4000] },
+  "sources": { "<id>": { "name": "photo.jpg", "type": "image/jpeg" } },
   "scene": { "frame": {}, "layers": [] }
 }
 ```
 
-`scene` is the `getState()` scene without the image layer's `source`, which only identifies the image within its session. Geometry uses source pixels, so the file applies only to an image of the same `image.size`. Loading it with `importSettings`, `openFile`, or a drop replaces the frame and every layer as one undoable edit; the image layer keeps its current name and source. Absolute white balance applies to RAW images only: other images ignore it, and a RAW image without one uses its As Shot value.
+`scene` is the `getState()` scene; each image layer's `source` names an entry in `sources`. Opening the file with `loadScene`, `openFile`, a drop, or the file picker decodes the stored source again and restores the frame and every layer as a new document with empty history. Preview settings and history are not saved.
 
-Loading validates every value as the matching command does and rejects an invalid file without changing the document. A parameter missing from `adjustments`, `details`, `vignette`, `fill`, or `colorMixer` takes its default, so older files still load when a group gains a parameter. `version` increases only when older files can no longer load as written; a newer version is rejected.
+Opening validates every value as the matching command does, and a file that fails leaves the workspace in its error state. A parameter missing from `adjustments`, `details`, `vignette`, `fill`, or `colorMixer` takes its default, so older files still open when a group gains a parameter; a RAW image without a white balance uses its As Shot value. `version` increases only when older files can no longer open as written; a newer version is rejected.
 
 ## State
 

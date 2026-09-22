@@ -1,11 +1,12 @@
-import type {
-  EditorDocument,
-  ImageLayer,
-  ProcessingLayer,
-  Scene,
+import {
+  createDocument,
+  createResources,
+  type EditorDocument,
+  type ProcessingLayer,
+  type Scene,
 } from "@/core/document";
-import type { WhiteBalance } from "@/core/image";
-import { type ImageFrame, type Point, validateFrame } from "@/core/image/frame";
+import type { ImageSource, WhiteBalance } from "@/core/image";
+import { validateFrame } from "@/core/image/frame";
 import {
   defaultAdjustments,
   validateAdjustments,
@@ -25,42 +26,46 @@ import { validateCurve } from "@/features/tone-curves/curve";
 import { validateVignette } from "@/features/vignette/edits";
 import { defaultVignette } from "@/features/vignette/model";
 import { validateWhiteBalance } from "@/features/white-balance/edits";
+import { readZip, writeZip } from "@/lib/zip";
 
 /** Raised only when older files can no longer load as written; a parameter added later takes its default. */
 const version = 1;
 
-/** The scene without its session-bound image source, plus the image dimensions its geometry is measured in. */
-type Settings = {
+/** The archive's `scene.json`; each source's bytes are stored untouched at `sources/<id>`. */
+type SceneJson = {
   format: "openlight";
   version: number;
-  image: { name: string; size: Point };
-  scene: {
-    frame: ImageFrame;
-    layers: readonly [Omit<ImageLayer, "source">, ...ProcessingLayer[]];
-  };
+  sources: Record<string, { name: string; type: string }>;
+  scene: Scene;
 };
 
-export function isSettingsFile(file: File) {
-  return /\.openlight$/i.test(file.name);
+export const sceneExtension = ".openlight";
+
+export function isSceneFile(file: File) {
+  return file.name.toLowerCase().endsWith(sceneExtension);
 }
 
-/** The document's edits as a file named after its image; the pixels stay in the image. */
-export function writeSettings(document: EditorDocument) {
-  const {
-    frame,
-    layers: [{ source, ...image }, ...layers],
-  } = document.scene.getState();
-  const { file, image: pixels } = document.resources.get(source);
-  const settings: Settings = {
+/** The document as a ZIP archive of its scene and source file, named after the image. */
+export async function writeSceneFile(document: EditorDocument) {
+  const scene = document.scene.getState();
+  const { source } = scene.layers[0];
+  const { file } = document.resources.get(source);
+  const json: SceneJson = {
     format: "openlight",
     version,
-    image: { name: file.name, size: pixels.size },
-    scene: { frame, layers: [image, ...layers] },
+    sources: { [source]: { name: file.name, type: file.type } },
+    scene,
   };
-  const name = file.name.replace(/\.[^.]*$/, "") || "settings";
-  return new File([JSON.stringify(settings)], `${name}.openlight`, {
-    type: "application/json",
-  });
+  const archive = await writeZip([
+    {
+      name: "scene.json",
+      data: new Blob([JSON.stringify(json)]),
+      deflate: true,
+    },
+    { name: `sources/${source}`, data: file },
+  ]);
+  const name = file.name.replace(/\.[^.]*$/, "") || "scene";
+  return new File([archive], `${name}${sceneExtension}`);
 }
 
 function readId(id: string, ids: Set<string>) {
@@ -81,7 +86,7 @@ function complete<T extends object>(
   return merged;
 }
 
-/** Absolute white balance applies only to RAW images, which keep their as-shot balance without one. */
+/** Absolute white balance applies only to RAW images, which fall back to their as-shot balance. */
 function readWhiteBalance(
   balance: WhiteBalance | undefined,
   asShot: WhiteBalance | undefined,
@@ -168,67 +173,86 @@ function readLayer(layer: ProcessingLayer, ids: Set<string>): ProcessingLayer {
   }
 }
 
-/** The scene a settings file describes for the document's image, validated as the edits that made it. */
-export function readSettings(text: string, document: EditorDocument): Scene {
-  const settings: Settings = JSON.parse(text);
-  if (settings?.format !== "openlight") {
-    throw Error("This file doesn't contain OpenLight settings.");
+/** Opens a scene file as a new document, validating every value as the edit that made it. */
+export async function openSceneFile(
+  file: Blob,
+  decode: (file: File) => Promise<ImageSource>,
+) {
+  const entries = await readZip(file);
+  const json = entries.get("scene.json");
+  if (!json) {
+    throw Error("This file doesn't contain an OpenLight scene.");
   }
-  if (!Number.isInteger(settings.version) || settings.version < 1) {
-    throw Error("Invalid settings version.");
+  const saved: SceneJson = JSON.parse(await json.text());
+  if (saved?.format !== "openlight") {
+    throw Error("This file doesn't contain an OpenLight scene.");
   }
-  if (settings.version > version) {
-    throw Error("These settings need a newer version of OpenLight.");
+  if (!Number.isInteger(saved.version) || saved.version < 1) {
+    throw Error("Invalid scene version.");
   }
-  const current = document.scene.getState().layers[0];
-  const { image, raw } = document.resources.get(current.source);
-  const size = settings.image?.size;
-  if (!Array.isArray(size) || size.length !== 2) {
-    throw Error("Settings need the image size.");
+  if (saved.version > version) {
+    throw Error("This scene needs a newer version of OpenLight.");
   }
-  if (size[0] !== image.size[0] || size[1] !== image.size[1]) {
-    throw Error(
-      `These settings are for a ${size.join(" × ")} image, not ${image.size.join(" × ")}.`,
-    );
-  }
-  const { frame, layers } = settings.scene ?? {};
+  const { frame, layers } = saved.scene ?? {};
   validateFrame(frame);
   if (!Array.isArray(layers) || layers[0]?.kind !== "image") {
-    throw Error("Settings must start with the image layer.");
+    throw Error("A scene must start with its image layer.");
   }
-  const [base, ...rest] = layers;
+  const [image, ...rest] = layers;
   const ids = new Set<string>();
-  readId(base.id, ids);
-  if (base.children?.length) {
+  readId(image.id, ids);
+  validateLayerSettings({ name: image.name });
+  if (image.children?.length) {
     throw Error("The image layer cannot contain layers.");
   }
-  validateCurve(base.toneCurve);
-  const scene: Scene = {
-    frame: {
-      center: frame.center,
-      size: frame.size,
-      rotation: frame.rotation,
-      angle: frame.angle,
-      scale: frame.scale,
-    },
-    layers: [
+  validateCurve(image.toneCurve);
+  const adjustments = complete(
+    defaultAdjustments,
+    image.adjustments,
+    validateAdjustments,
+  );
+  const children = rest.map((layer) => readLayer(layer, ids));
+  validateDepth(children);
+  const source = saved.sources?.[image.source];
+  const data = entries.get(`sources/${image.source}`);
+  if (typeof source?.name !== "string" || !data) {
+    throw Error("The scene's image is missing.");
+  }
+  const sourceFile = new File([data], source.name, { type: source.type });
+  const decoded = await decode(sourceFile);
+  const resources = createResources();
+  try {
+    const id = resources.add(sourceFile, decoded);
+    return createDocument(
       {
-        kind: "image",
-        id: base.id,
-        name: current.name,
-        source: current.source,
-        whiteBalance: readWhiteBalance(base.whiteBalance, raw?.asShot),
-        adjustments: complete(
-          defaultAdjustments,
-          base.adjustments,
-          validateAdjustments,
-        ),
-        toneCurve: base.toneCurve,
-        children: [],
+        frame: {
+          center: frame.center,
+          size: frame.size,
+          rotation: frame.rotation,
+          angle: frame.angle,
+          scale: frame.scale,
+        },
+        layers: [
+          {
+            kind: "image",
+            id: image.id,
+            name: image.name,
+            source: id,
+            whiteBalance: readWhiteBalance(
+              image.whiteBalance,
+              decoded.raw?.asShot,
+            ),
+            adjustments,
+            toneCurve: image.toneCurve,
+            children: [],
+          },
+          ...children,
+        ],
       },
-      ...rest.map((layer) => readLayer(layer, ids)),
-    ],
-  };
-  validateDepth(scene.layers);
-  return scene;
+      resources,
+    );
+  } catch (error) {
+    resources.dispose();
+    throw error;
+  }
 }

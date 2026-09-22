@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef } from "react";
 import { type Gpu, target } from "vgpu";
 import { useGpu } from "vgpu-react";
+import { sceneExtension } from "@/app/scene-file";
 import type { Workspace } from "@/app/workspace";
 import { RendererProvider } from "@/components/editor/pipeline";
 import { DocumentProvider } from "@/components/editor/session";
@@ -35,7 +36,7 @@ function OpenImage({ onOpen }: OpenProps) {
         choose a file
       </button>
       <input
-        accept={accept}
+        accept={`${accept},${sceneExtension}`}
         hidden
         multiple
         onChange={(event) => {

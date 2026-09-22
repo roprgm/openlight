@@ -6,8 +6,8 @@ import {
 import { createCameraRawXmpLoader } from "@/app/loaders/camera-raw-xmp";
 import { createImageLoader } from "@/app/loaders/image";
 import { createLoaderRegistry } from "@/app/loaders/registry";
-import { createSettingsLoader } from "@/app/loaders/settings";
-import { writeSettings } from "@/app/settings";
+import { createSceneLoader } from "@/app/loaders/scene";
+import { writeSceneFile } from "@/app/scene-file";
 import type {
   Adjustments,
   BrushStroke,
@@ -62,9 +62,9 @@ import type { Workspace } from "./workspace";
 export function createControls(gpu: Gpu, workspace: Workspace) {
   const image = createImageLoader(gpu, workspace);
   const xmp = createCameraRawXmpLoader(workspace);
-  const settings = createSettingsLoader(workspace);
+  const scene = createSceneLoader(gpu, workspace);
   const files = createLoaderRegistry(
-    [settings, xmp, image],
+    [scene, xmp, image],
     () => workspace.state.getState().status === "ready",
   );
 
@@ -73,8 +73,8 @@ export function createControls(gpu: Gpu, workspace: Workspace) {
     openFile: (file: File) => files.openFiles([file]),
     loadImage: (file: File) => files.loadFile(image, file),
     loadUrl: image.loadUrl,
+    loadScene: (file: File) => files.loadFile(scene, file),
     importXmp: (file: File) => files.loadFile(xmp, file),
-    importSettings: (file: File) => files.loadFile(settings, file),
     setDetails(change: Partial<Details>, id?: string) {
       const document = workspace.getDocument();
       editEffect(document, "details", id, (id) =>
@@ -155,7 +155,7 @@ export function createControls(gpu: Gpu, workspace: Workspace) {
     redo: () => workspace.getDocument().history.redo(),
     exportImage: (options?: ExportOptions) =>
       exportImage(gpu, workspace.getDocument(), options),
-    exportSettings: () => writeSettings(workspace.getDocument()),
+    exportScene: () => writeSceneFile(workspace.getDocument()),
     getState() {
       const { file, document } = workspace.state.getState();
       const scene = document?.scene.getState();
