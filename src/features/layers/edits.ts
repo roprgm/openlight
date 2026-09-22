@@ -14,7 +14,7 @@ import {
   walkLayers,
 } from "@/core/document";
 import { strokePoints, strokeSchema } from "@/core/document/brush";
-import { parse } from "@/lib/parse";
+import { change, parse } from "@/lib/parse";
 import { layerSettings, maskOperation, maskSchema } from "./model";
 
 function processingLayer(document: EditorDocument, id: string) {
@@ -106,14 +106,14 @@ export function addLayer(
   return layer.id;
 }
 
-const settingsChange = layerSettings.partial().strict();
+const settingsChange = change(layerSettings);
 
 export function setLayer(
   document: EditorDocument,
   id: string,
-  change: Partial<Pick<ProcessingLayer, "visible" | "opacity" | "name">>,
+  values: Partial<Pick<ProcessingLayer, "visible" | "opacity" | "name">>,
 ) {
-  const settings = parse(settingsChange, change, "Invalid layer settings");
+  const settings = parse(settingsChange, values, "Invalid layer settings");
   processingLayer(document, id);
   editLayer(document, id, (layer) => ({ ...layer, ...settings }));
 }

@@ -1,8 +1,6 @@
 import type { Gpu, Target } from "vgpu";
 import { createImageSource, type ImageSource } from "@/core/image";
-import { decodeHeic } from "./heic";
 import { linearize } from "./linearize";
-import { decodeSvg } from "./svg";
 import type { Decoder } from "./types";
 
 export type { Target };
@@ -23,8 +21,8 @@ function pixelFormat(load: () => Promise<Decoder>) {
 }
 
 const native = pixelFormat(async () => createImageBitmap);
-const svg = pixelFormat(async () => decodeSvg);
-const heic = pixelFormat(async () => decodeHeic);
+const svg = pixelFormat(async () => (await import("./svg")).decodeSvg);
+const heic = pixelFormat(async () => (await import("./heic")).decodeHeic);
 const tiff = async (gpu: Gpu, file: File) =>
   (await import("./tiff")).decodeTiff(gpu, file);
 const raw = async (gpu: Gpu, file: File) =>

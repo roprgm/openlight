@@ -1,5 +1,6 @@
-import { z } from "zod";
+import { z } from "zod/mini";
 import type { Adjustments } from "@/core/document";
+import { range } from "@/lib/parse";
 
 export const defaultAdjustments: Adjustments = {
   exposure: 0,
@@ -27,20 +28,20 @@ export const adjustmentLimits: Adjustments = {
   saturation: 100,
 };
 
-const range = (limit: number) => z.number().min(-limit).max(limit);
+const signed = (limit: number) => range(-limit, limit);
 
 export const adjustmentsSchema = z.object({
-  exposure: range(adjustmentLimits.exposure),
-  incrementalTemperature: range(adjustmentLimits.incrementalTemperature),
-  incrementalTint: range(adjustmentLimits.incrementalTint),
-  contrast: range(adjustmentLimits.contrast),
-  highlights: range(adjustmentLimits.highlights),
-  shadows: range(adjustmentLimits.shadows),
-  whites: range(adjustmentLimits.whites),
-  blacks: range(adjustmentLimits.blacks),
-  vibrance: range(adjustmentLimits.vibrance),
-  saturation: range(adjustmentLimits.saturation),
-}) satisfies z.ZodType<Adjustments>;
+  exposure: signed(adjustmentLimits.exposure),
+  incrementalTemperature: signed(adjustmentLimits.incrementalTemperature),
+  incrementalTint: signed(adjustmentLimits.incrementalTint),
+  contrast: signed(adjustmentLimits.contrast),
+  highlights: signed(adjustmentLimits.highlights),
+  shadows: signed(adjustmentLimits.shadows),
+  whites: signed(adjustmentLimits.whites),
+  blacks: signed(adjustmentLimits.blacks),
+  vibrance: signed(adjustmentLimits.vibrance),
+  saturation: signed(adjustmentLimits.saturation),
+}) satisfies z.ZodMiniType<Adjustments>;
 
 /** An Exposure layer's value, in EV like the adjustment. */
-export const exposureSchema = range(adjustmentLimits.exposure);
+export const exposureSchema = signed(adjustmentLimits.exposure);

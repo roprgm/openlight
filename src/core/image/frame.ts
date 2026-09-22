@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "zod/mini";
 import { parse, point } from "@/lib/parse";
 
 export type Point = readonly [number, number];
@@ -31,11 +31,14 @@ export function frameValues(frame: ImageFrame) {
   ];
 }
 
-const nonzero = z.number().refine((value) => value !== 0, "Scale is zero");
+const nonzero = z
+  .number()
+  .check(z.refine((value) => value !== 0, "Scale is zero"));
+const side = z.number().check(z.minimum(1));
 
 export const frameSchema = z.object({
   center: point,
-  size: z.tuple([z.number().min(1), z.number().min(1)]),
+  size: z.tuple([side, side]),
   rotation: z.number(),
   angle: z.number(),
   scale: z.tuple([nonzero, nonzero]),

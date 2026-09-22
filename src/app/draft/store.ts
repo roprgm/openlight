@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "zod/mini";
 import { openScene, snapshotScene } from "@/app/scene-file";
 import type { EditorDocument } from "@/core/document";
 import type { ImageSource } from "@/core/image";
@@ -9,7 +9,11 @@ const version = 1;
 
 /** The latest document: the scene JSON a scene file holds, while its source files live in their own store by ID. */
 const recordSchema = z.object(
-  { version: z.int().min(1), name: z.string(), scene: z.unknown() },
+  {
+    version: z.int().check(z.minimum(1)),
+    name: z.string(),
+    scene: z.unknown(),
+  },
   "Invalid draft",
 );
 export type DraftRecord = z.output<typeof recordSchema>;

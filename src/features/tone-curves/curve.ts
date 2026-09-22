@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "zod/mini";
 import type { CurvePoint, ToneCurve } from "@/core/document";
 import { clamp, interpolatePchip } from "@/lib/math";
 import { unit } from "@/lib/parse";
@@ -10,19 +10,19 @@ export const defaultCurve: ToneCurve = [
 
 const gap = 1 / 1024;
 
-export const curveSchema = z
-  .array(z.object({ x: unit, y: unit }))
-  .min(2, "A curve needs at least two points")
-  .refine(
+export const curveSchema = z.array(z.object({ x: unit, y: unit })).check(
+  z.minLength(2, "A curve needs at least two points"),
+  z.refine(
     (points) =>
       points.every((point, i) => !i || point.x >= points[i - 1].x + gap),
     "Curve points must be ordered with a minimum x gap of 1/1024",
-  )
-  .refine((points) => {
+  ),
+  z.refine((points) => {
     const first = points[0];
     const last = points[points.length - 1];
     return (first.x === 0 || first.y === 0) && (last.x === 1 || last.y === 1);
-  }, "Curve endpoints must follow the lower-left and upper-right edges") satisfies z.ZodType<ToneCurve>;
+  }, "Curve endpoints must follow the lower-left and upper-right edges"),
+) satisfies z.ZodMiniType<ToneCurve>;
 
 export function moveCurvePoint(
   points: ToneCurve,

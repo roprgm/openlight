@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "zod/mini";
 import {
   type BrushStroke,
   findLayer,
@@ -7,7 +7,7 @@ import {
 } from "@/core/document";
 import { strokeSchema } from "@/core/document/brush";
 import type { Point } from "@/core/image/frame";
-import { point, unit } from "@/lib/parse";
+import { change, point, unit } from "@/lib/parse";
 
 export function findHealPatch(scene: Scene, layerId: string, patchId: string) {
   const layer = findLayer(scene.layers, layerId);
@@ -73,20 +73,19 @@ export function patchThumbnailRegion(
   };
 }
 
-export const patchStroke = strokeSchema.refine(
-  (stroke) => stroke.mode === "paint",
-  "Heal patches use painted strokes",
+export const patchStroke = strokeSchema.check(
+  z.refine(
+    (stroke) => stroke.mode === "paint",
+    "Heal patches use painted strokes",
+  ),
 );
 
-export const patchBlend = z.strictObject({
-  feather: unit.optional(),
-  opacity: unit.optional(),
-});
+export const patchBlend = change(z.object({ feather: unit, opacity: unit }));
 
 export const healPatchSchema = z.object({
-  id: z.string().min(1),
+  id: z.string().check(z.minLength(1)),
   feather: unit,
   stroke: patchStroke,
   opacity: unit,
   offset: point,
-}) satisfies z.ZodType<HealPatch>;
+}) satisfies z.ZodMiniType<HealPatch>;

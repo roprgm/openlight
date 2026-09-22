@@ -3,17 +3,17 @@ import {
   type EditorDocument,
   editLayer,
 } from "@/core/document";
-import { parse } from "@/lib/parse";
+import { change, parse } from "@/lib/parse";
 import { adjustmentsSchema, exposureSchema } from "./model";
 
-const adjustmentChange = adjustmentsSchema.partial().strict();
+const adjustmentChange = change(adjustmentsSchema);
 
 export function setAdjustments(
   document: EditorDocument,
-  change: Partial<Adjustments>,
+  adjustments: Partial<Adjustments>,
   id = document.scene.getState().layers[0].id,
 ) {
-  const values = parse(adjustmentChange, change, "Invalid adjustment");
+  const values = parse(adjustmentChange, adjustments, "Invalid adjustment");
   editLayer(document, id, (layer) => {
     if (layer.kind !== "image" && layer.kind !== "mask") {
       throw Error("Select an image or mask layer.");
