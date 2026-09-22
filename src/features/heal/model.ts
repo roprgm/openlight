@@ -1,4 +1,5 @@
-import type { BrushStroke, Scene } from "@/core/document";
+import type { BrushStroke, HealPatch, Scene } from "@/core/document";
+import { validateStroke } from "@/core/document/brush";
 import type { Point } from "@/core/image/frame";
 
 export function findHealPatch(scene: Scene, layerId: string, patchId: string) {
@@ -69,4 +70,28 @@ export function validateOffset(offset: Point) {
   if (offset.length !== 2 || !offset.every(Number.isFinite)) {
     throw Error("A heal source needs two finite source-pixel offsets.");
   }
+}
+
+export function validatePatchStroke(stroke: BrushStroke) {
+  validateStroke(stroke);
+  if (stroke.mode !== "paint") {
+    throw Error("Heal patches use painted strokes.");
+  }
+}
+
+export function validatePatchBlend(change: {
+  feather?: number;
+  opacity?: number;
+}) {
+  for (const [name, value] of Object.entries(change)) {
+    if (typeof value !== "number" || !(value >= 0 && value <= 1)) {
+      throw Error(`Heal patch ${name} must be between 0 and 1.`);
+    }
+  }
+}
+
+export function validateHealPatch(patch: HealPatch) {
+  validatePatchStroke(patch.stroke);
+  validateOffset(patch.offset);
+  validatePatchBlend({ feather: patch.feather, opacity: patch.opacity });
 }

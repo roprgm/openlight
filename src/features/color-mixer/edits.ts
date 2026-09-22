@@ -9,6 +9,7 @@ import {
   defaultMixer,
   type MixerChange,
   type MixerColor,
+  validMixerValue,
 } from "./model";
 
 export function changeColorMixer(
@@ -21,12 +22,7 @@ export function changeColorMixer(
     throw new Error(`Invalid color range: ${color}.`);
   }
   for (const [name, value] of Object.entries(change)) {
-    if (
-      !channels.some(({ id }) => id === name) ||
-      typeof value !== "number" ||
-      !Number.isFinite(value) ||
-      Math.abs(value) > 100
-    ) {
+    if (!channels.some(({ id }) => id === name) || !validMixerValue(value)) {
       throw new Error(`Invalid color mixer adjustment: ${name}.`);
     }
   }

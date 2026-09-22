@@ -1,6 +1,7 @@
 import { cn } from "cn";
 import { type ReactNode, useMemo, useRef, useState } from "react";
 import { useGpu } from "vgpu-react";
+import { writeSettings } from "@/app/settings";
 import { Image } from "@/components/editor/image";
 import { EditorPanel, PanelHeader } from "@/components/editor/panel";
 import { useDocument, useScene } from "@/components/editor/session";
@@ -149,6 +150,15 @@ function SizeFields({
   );
 }
 
+function download(file: File) {
+  const url = URL.createObjectURL(file);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = file.name;
+  link.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
 function LoadingOverlay() {
   return (
     <div className="pointer-events-none absolute inset-0 grid place-items-center">
@@ -181,13 +191,7 @@ export function ExportMode({ onClose }: { onClose: () => void }) {
     exporting.current = true;
     setError("");
     try {
-      const file = await exportImage(gpu, editorDocument, options);
-      const url = URL.createObjectURL(file);
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = file.name;
-      link.click();
-      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      download(await exportImage(gpu, editorDocument, options));
     } catch (error) {
       setError(
         error instanceof Error ? error.message : "Couldn't export image.",
@@ -205,10 +209,7 @@ export function ExportMode({ onClose }: { onClose: () => void }) {
         {encoded && <Image image={encoded.image} />}
       </EditorViewport>
       <EditorPanel header={<PanelHeader title="Export" onClose={onClose} />}>
-        <section
-          aria-label="Export settings"
-          className="flex flex-col gap-5 p-4"
-        >
+        <section aria-label="Image export" className="flex flex-col gap-5 p-4">
           <FormatSelect value={format} onChange={setFormat} />
           {format.lossy && (
             <Slider
@@ -240,6 +241,20 @@ export function ExportMode({ onClose }: { onClose: () => void }) {
               {error}
             </p>
           )}
+        </section>
+        <section
+          aria-label="Settings export"
+          className="flex flex-col gap-3 border-black border-t p-4"
+        >
+          <p className="text-neutral-500">
+            Drop the saved file onto this photo to restore its edits.
+          </p>
+          <Button
+            className="w-full py-2"
+            onClick={() => download(writeSettings(editorDocument))}
+          >
+            Save settings
+          </Button>
         </section>
       </EditorPanel>
     </>

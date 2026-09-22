@@ -6,9 +6,13 @@ import {
   type Layer,
   type StrokePoint,
 } from "@/core/document";
-import { validateStroke, validPoints } from "@/core/document/brush";
+import { validPoints } from "@/core/document/brush";
 import type { Point } from "@/core/image/frame";
-import { validateOffset } from "./model";
+import {
+  validateOffset,
+  validatePatchBlend,
+  validatePatchStroke,
+} from "./model";
 
 export function addHealPatch(
   document: EditorDocument,
@@ -16,10 +20,7 @@ export function addHealPatch(
   stroke: BrushStroke,
   offset: Point,
 ) {
-  validateStroke(stroke);
-  if (stroke.mode !== "paint") {
-    throw Error("Heal patches use painted strokes.");
-  }
+  validatePatchStroke(stroke);
   validateOffset(offset);
   const patch: HealPatch = {
     id: crypto.randomUUID(),
@@ -55,12 +56,6 @@ function editPatches(
   });
 }
 
-function unit(name: string, value: number | undefined) {
-  if (value !== undefined && !(value >= 0 && value <= 1)) {
-    throw Error(`Heal patch ${name} must be between 0 and 1.`);
-  }
-}
-
 /** Edits one patch's blend; its shape and donor stay as painted. */
 export function setHealPatch(
   document: EditorDocument,
@@ -68,8 +63,7 @@ export function setHealPatch(
   patchId: string,
   change: { feather?: number; opacity?: number },
 ) {
-  unit("feather", change.feather);
-  unit("opacity", change.opacity);
+  validatePatchBlend(change);
   editPatches(document, id, patchId, (patches, index) =>
     patches.with(index, {
       ...patches[index],

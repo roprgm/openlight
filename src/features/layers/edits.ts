@@ -6,6 +6,7 @@ import {
   type Layer,
   locateLayer,
   type Mask,
+  type MaskLayer,
   type ProcessingLayer,
   type Scene,
   type StrokePoint,
@@ -14,7 +15,7 @@ import {
 } from "@/core/document";
 import { validateStroke, validPoints } from "@/core/document/brush";
 
-function validateMask(mask: Mask) {
+export function validateMask(mask: Mask) {
   if (mask.kind === "brush") {
     if (!Array.isArray(mask.strokes)) {
       throw Error("A brush mask needs a list of strokes.");
@@ -76,7 +77,7 @@ function changeChildren(
   }));
 }
 
-function validateDepth(layers: readonly Layer[]) {
+export function validateDepth(layers: readonly Layer[]) {
   if (
     layers.some((layer) =>
       layer.children.some((child) => child.children.length > 0),
@@ -137,11 +138,9 @@ export function addLayer(
   return layer.id;
 }
 
-export function setLayer(
-  document: EditorDocument,
-  id: string,
-  change: Partial<Pick<ProcessingLayer, "visible" | "opacity" | "name">>,
-) {
+type LayerSettings = Pick<ProcessingLayer, "visible" | "opacity" | "name">;
+
+export function validateLayerSettings(change: Partial<LayerSettings>) {
   if (
     Object.keys(change).some(
       (key) => !["visible", "opacity", "name"].includes(key),
@@ -157,8 +156,22 @@ export function setLayer(
   ) {
     throw Error("Invalid layer settings.");
   }
+}
+
+export function setLayer(
+  document: EditorDocument,
+  id: string,
+  change: Partial<LayerSettings>,
+) {
+  validateLayerSettings(change);
   processingLayer(document, id);
   editLayer(document, id, (layer) => ({ ...layer, ...change }));
+}
+
+export function validateExposure(exposure: number) {
+  if (!Number.isFinite(exposure) || Math.abs(exposure) > 5) {
+    throw Error("Exposure must be between -5 and 5 EV.");
+  }
 }
 
 export function setExposure(
@@ -166,9 +179,7 @@ export function setExposure(
   id: string,
   exposure: number,
 ) {
-  if (!Number.isFinite(exposure) || Math.abs(exposure) > 5) {
-    throw Error("Exposure must be between -5 and 5 EV.");
-  }
+  validateExposure(exposure);
   editLayer(document, id, (layer) => {
     if (layer.kind !== "exposure") {
       throw Error("Select an exposure layer.");
@@ -235,14 +246,18 @@ export function extendStroke(
   });
 }
 
-export function setMaskOperation(
-  document: EditorDocument,
-  id: string,
-  operation: "add" | "subtract",
-) {
+export function validateMaskOperation(operation: MaskLayer["operation"]) {
   if (operation !== "add" && operation !== "subtract") {
     throw Error("Choose Add or Subtract for a mask.");
   }
+}
+
+export function setMaskOperation(
+  document: EditorDocument,
+  id: string,
+  operation: MaskLayer["operation"],
+) {
+  validateMaskOperation(operation);
   editLayer(document, id, (layer) => {
     if (layer.kind !== "mask") {
       throw Error("Select a mask layer.");

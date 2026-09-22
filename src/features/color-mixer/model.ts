@@ -32,3 +32,24 @@ export const defaultMixer: ColorMixer = Object.freeze({
 export function isNeutral(mixer: ColorMixer) {
   return channels.every(({ id }) => mixer[id].every((value) => value === 0));
 }
+
+export function validMixerValue(value: unknown) {
+  return (
+    typeof value === "number" &&
+    Number.isFinite(value) &&
+    Math.abs(value) <= 100
+  );
+}
+
+export function validateMixer(mixer: ColorMixer) {
+  for (const [name, values] of Object.entries(mixer)) {
+    if (
+      !channels.some(({ id }) => id === name) ||
+      !Array.isArray(values) ||
+      values.length !== colors.length ||
+      !values.every(validMixerValue)
+    ) {
+      throw new Error(`Invalid color mixer adjustment: ${name}.`);
+    }
+  }
+}
