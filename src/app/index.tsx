@@ -12,14 +12,9 @@ export default function App() {
   useFileDrop(controls.openFiles);
   const state = useStore(workspace.state);
   const { available, error } = useStore(drafts.state);
-  const recovery =
-    available === undefined
-      ? undefined
-      : {
-          name: available,
-          onRecover: drafts.recover,
-          onForget: drafts.forget,
-        };
+  const recovery = available
+    ? { onRecover: drafts.recover, onForget: drafts.forget }
+    : undefined;
   return (
     <>
       <Editor state={state} onOpen={controls.openFiles} draft={recovery} />

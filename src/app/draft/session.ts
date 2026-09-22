@@ -6,14 +6,16 @@ function message(error: unknown) {
 }
 
 /**
- * What the start screen offers from draft storage: the stored draft's name, and a failure to mention without blocking.
+ * What the start screen offers from draft storage: whether a draft exists, and a failure to mention without blocking.
  * Autosave fails the same way on every save, so a dismissed message stays dismissed.
  */
 export function createDraftSession(
   store: DraftStore,
   commands: { recoverDraft(): Promise<void>; discardDraft(): Promise<void> },
 ) {
-  const state = createStore<{ available?: string; error?: string }>(() => ({}));
+  const state = createStore<{ available?: boolean; error?: string }>(
+    () => ({}),
+  );
   let dismissed: string | undefined;
   function report(error: unknown) {
     if (message(error) !== dismissed) {
@@ -27,17 +29,17 @@ export function createDraftSession(
     offer() {
       store
         .peek()
-        .then((found) => state.setState({ available: found?.name }))
+        .then((found) => state.setState({ available: Boolean(found) }))
         .catch(report);
     },
     recover() {
-      state.setState({ available: undefined });
+      state.setState({ available: false });
       commands.recoverDraft().catch(report);
     },
     forget() {
       commands
         .discardDraft()
-        .then(() => state.setState({ available: undefined }), report);
+        .then(() => state.setState({ available: false }), report);
     },
     dismiss() {
       dismissed = state.getState().error;

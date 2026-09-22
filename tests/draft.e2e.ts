@@ -73,7 +73,7 @@ test("edits survive a reload as a draft that recovers, keeps editing, and can be
   expect(sources).toHaveLength(1);
 
   await page.reload();
-  await expect(recover).toHaveAccessibleName("Recover photo.svg");
+  await expect(recover).toBeVisible();
   await expect(forget).toBeVisible();
   await recover.click();
   await expect(exposure).toHaveValue("-1.00");

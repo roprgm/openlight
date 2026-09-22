@@ -170,7 +170,7 @@ Once a document has an edit, OpenLight keeps it as the draft in the browser's In
 
 A draft stores the same `scene.json` object a [scene file](#scene-files) holds, in a record with its own `version` and the document's name, while each source file sits in a separate store under its source ID. A save keeps source files already stored under their ID and deletes unreferenced ones in the same transaction, so edits never rewrite the photo.
 
-On a fresh load the start screen offers **Recover** with the draft's name, and **Forget**. `recoverDraft()` opens the draft through the same validation as a scene file, restoring each source under its original ID, with empty history; a newer draft `version` is rejected rather than dropped, and a parameter added to a group since takes its default. `discardDraft()` removes it. Both return `Promise<void>`. When IndexedDB is unavailable or fails, a dismissible notice suggests saving a scene file, and editing continues.
+On a fresh load the start screen offers **Recover your last scene** and **Forget**. `recoverDraft()` opens the draft through the same validation as a scene file, restoring each source under its original ID, with empty history; a newer draft `version` is rejected rather than dropped, and a parameter added to a group since takes its default. `discardDraft()` removes it. Both return `Promise<void>`. When IndexedDB is unavailable or fails, a dismissible notice suggests saving a scene file, and editing continues.
 
 ## State
 

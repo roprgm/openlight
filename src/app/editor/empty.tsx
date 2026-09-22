@@ -27,7 +27,7 @@ type OpenProps = { onOpen: (files: File[]) => void };
 function OpenImage({ onOpen }: OpenProps) {
   const input = useRef<HTMLInputElement>(null);
   return (
-    <p className="mt-8 rounded-full border border-neutral-700 border-dashed px-5 py-2.5 text-neutral-500">
+    <p className="mt-4 text-neutral-500">
       Drop an image here or{" "}
       <TextLink onClick={() => input.current?.click()}>choose a file</TextLink>
       <input
@@ -54,17 +54,15 @@ type EmptyState = Exclude<
 
 /** A draft kept from an earlier visit, offered until it is recovered or forgotten. */
 export type Recovery = {
-  name: string;
   onRecover: () => void;
   onForget: () => void;
 };
 
-function RecoverDraft({ name, onRecover, onForget }: Recovery) {
+function RecoverDraft({ onRecover, onForget }: Recovery) {
   return (
-    <p className="flex max-w-md items-center gap-3 text-neutral-500">
-      <TextLink className="min-w-0 truncate" onClick={onRecover}>
-        Recover {name}
-      </TextLink>
+    <p className="text-neutral-500">
+      <TextLink onClick={onRecover}>Recover your last scene</TextLink>
+      <span className="mx-2 text-neutral-700">·</span>
       <TextLink variant="muted" onClick={onForget}>
         Forget
       </TextLink>
@@ -92,7 +90,13 @@ function Status({
   }
   return (
     <>
-      <img alt="" className="w-16" height="64" src="/logo.svg" width="64" />
+      <img
+        alt=""
+        className="mb-1.5 w-16"
+        height="64"
+        src="/logo.svg"
+        width="64"
+      />
       <h1 className="text-2xl font-bold">OpenLight</h1>
       <p className="text-neutral-400">Edit photos in your browser.</p>
       <OpenImage onOpen={onOpen} />
@@ -135,7 +139,7 @@ export function EmptyEditor({
           <EditorHeader file={state.file} />
           <div className="flex min-h-0 flex-1 flex-col md:flex-row">
             <ToolTabList selected={tools[0]} />
-            <div className="relative isolate grid min-h-0 min-w-0 flex-1 place-content-center justify-items-center gap-3 overflow-hidden bg-[radial-gradient(circle,#292929,#131313_55%)] p-6">
+            <div className="relative isolate grid min-h-0 min-w-0 flex-1 place-content-center justify-items-center gap-1.5 overflow-hidden bg-[radial-gradient(circle,#292929,#131313_55%)] p-6">
               <Backdrop />
               <Status state={state} onOpen={onOpen} draft={draft} />
             </div>
