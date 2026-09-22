@@ -11,7 +11,7 @@ import { useGpu } from "vgpu-react";
 import type { HealAlgorithm } from "@/core/document";
 import type * as AiRemove from "./ai";
 
-/** The AI Remove capability the app composes in when its experiment is on; Smart clone alone otherwise. */
+/** The AI Remove capability the app composes in when its flag is on; Smart clone alone otherwise. */
 export type AiRemoveModule = typeof AiRemove;
 
 type Ai = {

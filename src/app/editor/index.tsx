@@ -1,5 +1,5 @@
 import { type ReactNode, useEffect, useState } from "react";
-import { experiments } from "@/app/experiments";
+import { loadFlags } from "@/app/flags";
 import type { Workspace } from "@/app/workspace";
 import { BrushProvider } from "@/components/editor/brush-tool";
 import { RendererProvider } from "@/components/editor/pipeline";
@@ -120,15 +120,18 @@ function MaskTools({ children }: { children: ReactNode }) {
   );
 }
 
-/** Loads AI Remove only for its experiment, so the runtime never enters the default bundle. */
+/** Loads AI Remove only behind its flag, so the runtime never enters the default bundle. */
 function useAiRemove() {
   const [ai, setAi] = useState<AiRemoveModule>();
   useEffect(() => {
-    if (!experiments().has("ai-remove")) return;
     let active = true;
-    void import("@/features/heal/ai").then((module) => {
-      if (active) setAi(module);
-    });
+    void loadFlags()
+      .then((flags) =>
+        flags.aiHeal ? import("@/features/heal/ai") : undefined,
+      )
+      .then((module) => {
+        if (active && module) setAi(module);
+      });
     return () => {
       active = false;
     };

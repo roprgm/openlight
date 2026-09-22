@@ -25,7 +25,7 @@ Image processing runs on your own GPU with WebGPU. Photos never leave your devic
 
 **Tools**
 
-- Healing paints automatic or manually positioned Smart clone patches; the `ai-remove` experiment adds local AI Remove. Repairs remain editable and each patch builds on the previous result.
+- Healing paints automatic or manually positioned Smart clone patches; the `ai-heal` flag adds local AI Remove. Repairs remain editable and each patch builds on the previous result.
 - Brush, linear, and radial gradient tools on the rail draw masks; their options sit in the bar over the image.
 - Brush masks with size, feather, flow, pen pressure, and Alt to erase.
 - The mask overlay shows until a mask changes the image, then the image shows the mask; the Overlay button shows or hides it.
