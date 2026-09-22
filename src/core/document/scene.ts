@@ -92,31 +92,15 @@ export type BrushMask = {
   readonly kind: "brush";
   readonly strokes: readonly BrushStroke[];
 };
-type HealPatchBase = {
+/** One non-destructive repair: a painted shape filled from a donor at `offset` source pixels away. */
+export type HealPatch = {
   readonly id: string;
   /** Feather applied after the stroke's dabs have accumulated into one patch shape. */
   readonly feather: number;
   readonly stroke: BrushStroke;
   readonly opacity: number;
-};
-export type SmartHealPatch = HealPatchBase & {
-  readonly algorithm: "clone";
   readonly offset: Point;
 };
-/** The generated crop is an image resource positioned in source pixels. */
-export type AiHealPatch = HealPatchBase & {
-  readonly algorithm: "ai";
-  /** The input changed after generation started, so the result is missing or outdated. */
-  readonly stale?: true;
-  readonly result?: {
-    readonly source: string;
-    readonly origin: Point;
-    readonly extent: Point;
-  };
-};
-/** One non-destructive repair. */
-export type HealPatch = SmartHealPatch | AiHealPatch;
-export type HealAlgorithm = HealPatch["algorithm"];
 export type Mask = Gradient | BrushMask;
 export type ProcessingLayer = {
   readonly id: string;

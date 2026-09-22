@@ -82,12 +82,7 @@ export async function exportImage(
 ) {
   const scene = document.scene.getState();
   const source = document.resources.get(scene.layers[0].source);
-  const renderer = createEditorRenderer(
-    gpu,
-    source,
-    undefined,
-    (id) => document.resources.get(id).image,
-  );
+  const renderer = createEditorRenderer(gpu, source);
   try {
     await renderer.update(scene);
     // The renderer retains the source until encoding finishes.

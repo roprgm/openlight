@@ -1,4 +1,4 @@
-import type { Gpu, Target, Timer } from "vgpu";
+import type { Gpu, Timer } from "vgpu";
 import { maskModifiers, type ProcessingLayer } from "@/core/document";
 import type { ImageSource } from "@/core/image";
 import {
@@ -29,7 +29,6 @@ function composeLayer(
   below: RenderImage,
   layer: ProcessingLayer,
   composition: Composition,
-  resolve?: (id: string) => Target,
 ): Branch {
   const name = `layer/${layer.id}`;
   composition.retain(name);
@@ -83,7 +82,7 @@ function composeLayer(
       edited = pipeline(below, [fill(layer.fill, `${name}/fill`)]);
       break;
     case "heal": {
-      const result = heal(below, layer.patches, name, composition, resolve);
+      const result = heal(below, layer.patches, name, composition);
       edited = result.image;
       input = result.input;
       break;
@@ -94,7 +93,7 @@ function composeLayer(
     layer.kind === "mask"
       ? layer.children.filter((child) => child.kind !== "mask")
       : layer.children;
-  const children = composeLayers(edited, effects, composition, resolve);
+  const children = composeLayers(edited, effects, composition);
   const image = mixAdjustment(
     name,
     below,
@@ -117,12 +116,11 @@ function composeLayers(
   below: RenderImage,
   layers: readonly ProcessingLayer[],
   composition: Composition,
-  resolve?: (id: string) => Target,
 ): Branch {
   let image = below;
   let input: RenderImage | undefined;
   for (const layer of layers) {
-    const branch = composeLayer(image, layer, composition, resolve);
+    const branch = composeLayer(image, layer, composition);
     image = branch.image;
     input ??= branch.input;
   }
@@ -138,7 +136,6 @@ export function createEditorRenderer(
   gpu: Gpu,
   source: ImageSource,
   timer?: Timer,
-  resolve?: (id: string) => Target,
 ) {
   return createRenderer(
     gpu,
@@ -147,18 +144,8 @@ export function createEditorRenderer(
       const [sourceLayer, ...layers] = scene.layers;
       const name = `layer/${sourceLayer.id}`;
       composition.retain(name);
-      const children = composeLayers(
-        image,
-        sourceLayer.children,
-        composition,
-        resolve,
-      );
-      const composite = composeLayers(
-        children.image,
-        layers,
-        composition,
-        resolve,
-      );
+      const children = composeLayers(image, sourceLayer.children, composition);
+      const composite = composeLayers(children.image, layers, composition);
       const adjusted = pipeline(composite.image, [
         adjustments(sourceLayer.adjustments, name),
       ]);

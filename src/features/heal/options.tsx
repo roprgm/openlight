@@ -1,28 +1,15 @@
 import { useBrushTool } from "@/components/editor/brush-tool";
 import { useDocument, useScene } from "@/components/editor/session";
 import { barSlider, useBarDensity } from "@/components/editor/toolbar-density";
-import { Select } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
 import { findLayer } from "@/core/document";
 import { setHealPatch } from "./edits";
 import { useHealing } from "./mode";
 
-const algorithms = [
-  { value: "clone", label: "Smart clone" },
-  { value: "ai", label: "AI Remove" },
-] as const;
-
 export function HealOptions() {
   const document = useDocument();
   const { settings, maxSize, setPreview, update } = useBrushTool();
-  const {
-    algorithm,
-    setAlgorithm,
-    feather: nextFeather,
-    setFeather,
-    selectedPatch,
-    ai,
-  } = useHealing();
+  const { feather: nextFeather, setFeather, selectedPatch } = useHealing();
   const layer = useScene((scene) =>
     findLayer(scene.layers, document.selection.getState().layerId),
   );
@@ -40,15 +27,6 @@ export function HealOptions() {
   }
   return (
     <>
-      {ai && (
-        <Select
-          aria-label="Healing algorithm"
-          variant="pill"
-          value={algorithm}
-          options={algorithms}
-          onChange={setAlgorithm}
-        />
-      )}
       <Slider
         label="Size"
         min={1}

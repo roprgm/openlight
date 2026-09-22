@@ -1,5 +1,4 @@
-import type { Gpu, Target } from "vgpu";
-import linearize from "./decode/linearize";
+import type { Target } from "vgpu";
 
 export type WhiteBalance = { temperature: number; tint: number };
 export type RawDevelopment = {
@@ -43,14 +42,3 @@ export function createImageSource(image: Target, raw?: RawDevelopment) {
 }
 
 export type ImageSource = ReturnType<typeof createImageSource>;
-
-/** Uploads browser sRGB pixels into OpenLight's linear Rec.2020 working space. */
-export function createPixelSource(gpu: Gpu, pixels: ImageData) {
-  return createImageSource(
-    linearize(gpu, {
-      width: pixels.width,
-      height: pixels.height,
-      data: pixels.data,
-    }),
-  );
-}

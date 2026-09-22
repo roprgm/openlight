@@ -3,11 +3,10 @@ import { validateFrame } from "@/core/image/frame";
 import { createHistory } from "./history";
 import { createResources } from "./resources";
 import type { Mask, MaskModifier, Scene } from "./scene";
-import { findLayer, walkLayers } from "./tree";
+import { findLayer } from "./tree";
 
 export type {
   Adjustments,
-  AiHealPatch,
   Blend,
   BrushMask,
   BrushStroke,
@@ -17,7 +16,6 @@ export type {
   EffectLayer,
   Fill,
   Gradient,
-  HealAlgorithm,
   HealPatch,
   ImageLayer,
   Layer,
@@ -28,7 +26,6 @@ export type {
   ProcessingLayer,
   RadialGradient,
   Scene,
-  SmartHealPatch,
   StrokePoint,
   ToneCurve,
   Vignette,
@@ -93,20 +90,9 @@ export function createDocument(initial: Scene, resources = createResources()) {
     equal,
     100,
     (retained) => {
-      const ids = new Set<string>();
-      for (const state of retained) {
-        ids.add(state.layers[0].source);
-        for (const layer of walkLayers(state.layers)) {
-          if (layer.kind === "heal") {
-            for (const patch of layer.patches) {
-              if (patch.algorithm === "ai" && patch.result) {
-                ids.add(patch.result.source);
-              }
-            }
-          }
-        }
-      }
-      resources.retain(ids);
+      resources.retain(
+        new Set(retained.map((state) => state.layers[0].source)),
+      );
     },
   );
   const unsubscribe = scene.subscribe((state) => {

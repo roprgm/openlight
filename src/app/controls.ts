@@ -11,7 +11,6 @@ import type {
   BrushStroke,
   Details,
   Fill,
-  HealAlgorithm,
   Mask,
   Preview,
   ProcessingLayer,
@@ -108,12 +107,8 @@ export function createControls(gpu: Gpu, workspace: Workspace) {
       const document = workspace.getDocument();
       editEffect(document, "fill", id, (id) => setFill(document, change, id));
     },
-    addHealPatch: (
-      id: string,
-      stroke: BrushStroke,
-      offset: Point,
-      algorithm?: HealAlgorithm,
-    ) => addHealPatch(workspace.getDocument(), id, stroke, offset, algorithm),
+    addHealPatch: (id: string, stroke: BrushStroke, offset: Point) =>
+      addHealPatch(workspace.getDocument(), id, stroke, offset),
     setHealSource: (id: string, patchId: string, offset: Point) =>
       setHealSource(workspace.getDocument(), id, patchId, offset),
     addLayer(kind: ProcessingLayer["kind"], placement?: LayerPlacement) {

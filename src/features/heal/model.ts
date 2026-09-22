@@ -1,25 +1,10 @@
-import type { BrushStroke, HealPatch, Scene } from "@/core/document";
+import type { BrushStroke, Scene } from "@/core/document";
 import type { Point } from "@/core/image/frame";
 
 export function findHealPatch(scene: Scene, layerId: string, patchId: string) {
   const layer = scene.layers.find((layer) => layer.id === layerId);
   if (layer?.kind !== "heal") return;
   return layer.patches.find((patch) => patch.id === patchId);
-}
-
-/** Marks generated patches whose input changed during ordered replay, including one still generating. */
-export function invalidateGeneratedResults(
-  patches: readonly HealPatch[],
-  from: number,
-) {
-  return [
-    ...patches.slice(0, from),
-    ...patches
-      .slice(from)
-      .map((patch) =>
-        patch.algorithm === "ai" ? { ...patch, stale: true as const } : patch,
-      ),
-  ];
 }
 
 /** Whether a dab reaches the image at all; a stroke starting further away has nothing to repair. */
@@ -84,23 +69,4 @@ export function validateOffset(offset: Point) {
   if (offset.length !== 2 || !offset.every(Number.isFinite)) {
     throw Error("A heal source needs two finite source-pixel offsets.");
   }
-}
-
-/** Context around the patch: a square when the image allows one, otherwise as much of each axis as fits, so a long stroke keeps its ends and its surroundings. */
-export function miganBounds(stroke: BrushStroke, size: readonly number[]) {
-  const bounds = patchBounds(stroke, size);
-  const side = Math.ceil(
-    Math.max(512, bounds.extent[0] * 2, bounds.extent[1] * 2),
-  );
-  const axis = (index: number) => {
-    const extent = Math.min(size[index], Math.max(side, bounds.extent[index]));
-    const centre = bounds.origin[index] + bounds.extent[index] / 2;
-    const origin = Math.round(
-      Math.max(0, Math.min(size[index] - extent, centre - extent / 2)),
-    );
-    return [origin, extent] as const;
-  };
-  const [x, width] = axis(0);
-  const [y, height] = axis(1);
-  return { origin: [x, y] as Point, extent: [width, height] as Point };
 }

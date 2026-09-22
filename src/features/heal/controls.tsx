@@ -5,12 +5,12 @@ import { Icon } from "@/components/icons/icon";
 import { Menu } from "@/components/ui/menu";
 import { PanelListItem } from "@/components/ui/panel-list";
 import { ScrubInput } from "@/components/ui/scrub-input";
-import type { HealPatch, SmartHealPatch } from "@/core/document";
+import type { HealPatch } from "@/core/document";
 import { deleteHealPatch, duplicateHealPatch, setHealSource } from "./edits";
 import { useHealing } from "./mode";
 import { patchThumbnailRegion } from "./model";
 
-/** A patch still finding its donor or generating has no raster yet. */
+/** A patch still finding its donor has no raster yet. */
 function PendingThumbnail() {
   return (
     <span
@@ -74,7 +74,7 @@ function SourceFields({
   limit,
 }: {
   layer: string;
-  patch: SmartHealPatch;
+  patch: HealPatch;
   limit: readonly [number, number];
 }) {
   const document = useDocument();
@@ -95,7 +95,7 @@ function SourceFields({
           max={limit[index]}
           variant="text"
           onChange={(value) => {
-            const offset: [number, number] = [...patch.offset];
+            const offset: [number, number] = [patch.offset[0], patch.offset[1]];
             offset[index] = Math.round(value - destination[index]);
             setHealSource(document, layer, patch.id, offset);
           }}
@@ -151,15 +151,7 @@ export function HealControls({
               />
               <span className="min-w-0 flex-1 truncate">Patch {index + 1}</span>
             </button>
-            {patch.algorithm === "clone" ? (
-              <SourceFields
-                layer={id}
-                patch={patch}
-                limit={source.image.size}
-              />
-            ) : (
-              <span className="shrink-0 text-neutral-500">AI</span>
-            )}
+            <SourceFields layer={id} patch={patch} limit={source.image.size} />
             <PatchActions
               layer={id}
               patch={patch}

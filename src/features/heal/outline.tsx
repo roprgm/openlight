@@ -100,56 +100,44 @@ function Outline({
   );
 }
 
-/** Draws a solid destination and a quieter Smart clone source with first-point anchors. */
+/** Draws a solid destination and a quieter source contour with first-point anchors. */
 export function HealPatchOutline({
   layer,
   patch,
   showSource,
-  onMove,
   interactive,
 }: {
   layer: string;
   patch: HealPatch;
   showSource: boolean;
-  /** Regenerates the AI results a moved anchor affects. */
-  onMove: (signal: AbortSignal) => Promise<void>;
   interactive: boolean;
 }) {
   const document = useDocument();
   const mapping = useDocumentMapping();
-  const [preview, setPreview] = useState<Point>();
+  // The donor only previews its contour while dragged, so the correction renders once on release.
   const [sourcePreview, setSourcePreview] = useState<Point>();
   const first = patch.stroke.points[0];
-  const previewOffset: Point = preview
-    ? [preview[0] - first[0], preview[1] - first[1]]
-    : [0, 0];
-  const destination = geometry(patch.stroke, previewOffset, mapping);
+  const destination = geometry(patch.stroke, [0, 0], mapping);
   const source =
-    showSource && patch.algorithm === "clone"
-      ? geometry(patch.stroke, sourcePreview ?? patch.offset, mapping)
-      : undefined;
-  // Smart clone moves live; AI Remove keeps its result in place until the drop.
-  function previewDestination(next?: Point) {
-    if (patch.algorithm === "ai") setPreview(next);
-    else if (next) setHealDestination(document, layer, patch.id, next);
-  }
+    showSource &&
+    geometry(patch.stroke, sourcePreview ?? patch.offset, mapping);
+  const moveDestination = (next?: Point) => {
+    if (next) setHealDestination(document, layer, patch.id, next);
+  };
   const destinationDrag: AnchorDrag | undefined = interactive
     ? {
         from: [first[0], first[1]],
-        onDrag: previewDestination,
-        onDrop: (next) => setHealDestination(document, layer, patch.id, next),
-        onRelease: onMove,
+        onDrag: moveDestination,
+        onDrop: moveDestination,
       }
     : undefined;
-  const sourceDrag: AnchorDrag | undefined =
-    interactive && patch.algorithm === "clone"
-      ? {
-          from: patch.offset,
-          onDrag: setSourcePreview,
-          onDrop: (next) => setHealSource(document, layer, patch.id, next),
-          onRelease: onMove,
-        }
-      : undefined;
+  const sourceDrag: AnchorDrag | undefined = interactive
+    ? {
+        from: patch.offset,
+        onDrag: setSourcePreview,
+        onDrop: (next) => setHealSource(document, layer, patch.id, next),
+      }
+    : undefined;
   return (
     <>
       <Outline shape={destination} kind="destination" />

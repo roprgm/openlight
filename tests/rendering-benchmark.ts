@@ -199,7 +199,6 @@ export async function benchmarkRendering(
           : [
               {
                 id: "spot",
-                algorithm: "clone",
                 feather: 0.4,
                 opacity: 1,
                 stroke: {
