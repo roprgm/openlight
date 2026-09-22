@@ -42,9 +42,15 @@ export function BrushProvider({ children }: { children: ReactNode }) {
   const document = useDocument();
   const sourceId = useScene((scene) => scene.layers[0].source);
   const size = document.resources.get(sourceId).image.size;
-  const maxSize = Math.max(1, Math.round(Math.max(size[0], size[1]) / 2));
+  const longest = Math.max(size[0], size[1]);
+  const maxSize = Math.max(1, Math.round(longest / 2));
+  // 3% of the image in steps of 5, never under 10 px unless the image itself is that small.
+  const initialSize = Math.min(
+    maxSize,
+    Math.max(10, Math.round((longest * 0.03) / 5) * 5),
+  );
   const [settings, setSettings] = useState<BrushSettings>({
-    size: Math.max(1, Math.round(maxSize / 10)),
+    size: initialSize,
     feather: 0.5,
     flow: 1,
     erase: false,
