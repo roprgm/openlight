@@ -1,11 +1,13 @@
 import { type PointerEvent, useEffect, useRef, useState } from "react";
 import { useStore } from "zustand";
+import { CanvasHint } from "@/components/editor/canvas-hint";
 import { useDocumentMapping } from "@/components/editor/mapping";
 import { useDocument, useScene } from "@/components/editor/session";
 import { useViewport } from "@/components/editor/viewport";
 import { findLayer, type Gradient, locateLayer } from "@/core/document";
 import type { Point } from "@/core/image/frame";
 import { useShortcuts } from "@/hooks/use-shortcuts";
+import { blurActive } from "@/lib/dom";
 import { setLayerMask } from "./edits";
 import {
   drawGradient,
@@ -19,7 +21,7 @@ import { type Nesting, useMaskTool } from "./mask-tool";
 type Drag = {
   pointer: number;
   /** The viewport bounds measured once; pointer capture keeps them valid for the drag. */
-  box: DOMRect | undefined;
+  box: DOMRect;
   from: Point;
   to: Point;
   mask: Gradient;
@@ -72,11 +74,12 @@ export function GradientOverlay({ shape }: { shape: Gradient["kind"] }) {
       }
     },
   });
-  function documentPoint(event: PointerEvent, box: DOMRect | undefined): Point {
+  function documentPoint(event: PointerEvent, box: DOMRect): Point {
     return mapping.toDocument(event.clientX, event.clientY, box);
   }
   function start(event: PointerEvent<HTMLDivElement>) {
-    if (event.button !== 0 || !event.isPrimary || camera.panMode) {
+    const box = camera.ref.current?.getBoundingClientRect();
+    if (event.button !== 0 || !event.isPrimary || camera.panMode || !box) {
       return;
     }
     const target =
@@ -88,7 +91,6 @@ export function GradientOverlay({ shape }: { shape: Gradient["kind"] }) {
     const handle = gradientHandles.find((handle) => handle === target);
     // Guides win over drawing, unless a chosen nesting is waiting for this shape.
     const drawing = !handle || !mask || tool.pending?.shape === shape;
-    const box = camera.ref.current?.getBoundingClientRect();
     const from = documentPoint(event, box);
     if (drawing) {
       const location = locateLayer(document.scene.getState().layers, selected);
@@ -131,9 +133,7 @@ export function GradientOverlay({ shape }: { shape: Gradient["kind"] }) {
     event.stopPropagation();
     event.currentTarget.setPointerCapture(event.pointerId);
     // Keys after a drag belong to the mask, not to the button that started the tool.
-    if (window.document.activeElement instanceof HTMLElement) {
-      window.document.activeElement.blur();
-    }
+    blurActive();
   }
   function move(event: PointerEvent<HTMLDivElement>) {
     const drag = dragging.current;
@@ -209,10 +209,10 @@ export function GradientOverlay({ shape }: { shape: Gradient["kind"] }) {
           extent={Math.hypot(...camera.viewport)}
         />
       )}
-      <p className="pointer-events-none absolute bottom-3 left-3 rounded-full bg-neutral-800/80 px-3 py-1.5 text-white backdrop-blur-sm">
+      <CanvasHint>
         Drag to draw · Shift constrains · Alt subtracts from the selected mask ·
         Enter when done
-      </p>
+      </CanvasHint>
     </div>
   );
 }

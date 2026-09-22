@@ -10,6 +10,7 @@ import { HealingProvider } from "@/features/heal/mode";
 import { addLayer } from "@/features/layers/edits";
 import { MaskToolProvider, type Nesting } from "@/features/layers/mask-tool";
 import { useShortcuts } from "@/hooks/use-shortcuts";
+import { blurActive } from "@/lib/dom";
 import { AdjustPanel } from "./adjust";
 import { EditorCanvas } from "./canvas";
 import { ComparisonControl } from "./comparison-control";
@@ -39,9 +40,7 @@ function ToolView() {
   );
   function close() {
     setTool(tools[0]);
-    if (window.document.activeElement instanceof HTMLElement) {
-      window.document.activeElement.blur();
-    }
+    blurActive();
   }
   if ("View" in tool) {
     return <tool.View onClose={close} />;

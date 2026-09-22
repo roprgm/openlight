@@ -3,6 +3,7 @@ import { useStore } from "zustand";
 import { useDocument } from "@/components/editor/session";
 import { Button } from "@/components/ui/button";
 import type { Preview } from "@/core/document";
+import { isTyping } from "@/lib/dom";
 
 export function ComparisonControl() {
   const { preview } = useDocument();
@@ -26,14 +27,7 @@ export function ComparisonControl() {
       ) {
         return;
       }
-      const target = event.target;
-      if (
-        target instanceof HTMLElement &&
-        (target.isContentEditable ||
-          target.closest(
-            'input:not([type="range"]), textarea, select, [role="dialog"]',
-          ))
-      ) {
+      if (isTyping(event.target)) {
         return;
       }
       event.preventDefault();
