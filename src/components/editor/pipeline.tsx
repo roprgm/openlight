@@ -8,6 +8,7 @@ import {
 } from "react";
 import type { Gpu } from "vgpu";
 import { useGpu } from "vgpu-react";
+import { Notice } from "@/components/ui/notice";
 import { adjustmentTarget } from "@/core/document";
 import type { ImageSource } from "@/core/image";
 import type { createRenderer } from "@/core/renderer";
@@ -27,12 +28,9 @@ export function useRenderer() {
 
 function RendererError({ message }: { message: string }) {
   return (
-    <p
-      role="alert"
-      className="fixed bottom-4 left-4 rounded bg-neutral-900 px-3 py-2 text-red-300"
-    >
+    <Notice tone="alert" placement="start">
       Renderer error: {message}
-    </p>
+    </Notice>
   );
 }
 

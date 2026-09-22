@@ -6,6 +6,7 @@ import type { Workspace } from "@/app/workspace";
 import { RendererProvider } from "@/components/editor/pipeline";
 import { DocumentProvider } from "@/components/editor/session";
 import Spinner from "@/components/ui/spinner";
+import { TextLink } from "@/components/ui/text-link";
 import { createDocument, createResources } from "@/core/document";
 import { createImageSource } from "@/core/image";
 import { accept } from "@/core/image/decode";
@@ -28,13 +29,7 @@ function OpenImage({ onOpen }: OpenProps) {
   return (
     <p className="mt-8 rounded-full border border-neutral-700 border-dashed px-5 py-2.5 text-neutral-500">
       Drop an image here or{" "}
-      <button
-        type="button"
-        onClick={() => input.current?.click()}
-        className="cursor-pointer text-neutral-200 underline decoration-neutral-600 underline-offset-4 transition-colors hover:decoration-neutral-200 focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-neutral-400/80"
-      >
-        choose a file
-      </button>
+      <TextLink onClick={() => input.current?.click()}>choose a file</TextLink>
       <input
         accept={`${accept},${sceneExtension}`}
         hidden
@@ -67,20 +62,12 @@ export type Recovery = {
 function RecoverDraft({ name, onRecover, onForget }: Recovery) {
   return (
     <p className="flex max-w-md items-center gap-3 text-neutral-500">
-      <button
-        type="button"
-        onClick={onRecover}
-        className="min-w-0 cursor-pointer truncate text-neutral-200 underline decoration-neutral-600 underline-offset-4 transition-colors hover:decoration-neutral-200 focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-neutral-400/80"
-      >
+      <TextLink className="min-w-0 truncate" onClick={onRecover}>
         Recover {name}
-      </button>
-      <button
-        type="button"
-        onClick={onForget}
-        className="cursor-pointer underline decoration-neutral-700 underline-offset-4 transition-colors hover:text-neutral-300 hover:decoration-neutral-400 focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-neutral-400/80"
-      >
+      </TextLink>
+      <TextLink variant="muted" onClick={onForget}>
         Forget
-      </button>
+      </TextLink>
     </p>
   );
 }

@@ -5,6 +5,7 @@ import { createRoot } from "react-dom/client";
 import { GpuProvider } from "vgpu-react";
 
 import App from "@/app";
+import { TextLink } from "@/components/ui/text-link";
 import "./index.css";
 
 /** GPU initialization throws during render; without WebGPU the page would otherwise stay blank. */
@@ -29,12 +30,9 @@ class GpuBoundary extends Component<
           in a recent Chrome, Edge, Safari, or Firefox.
         </p>
         <p className="text-neutral-500">{String(this.state.error)}</p>
-        <a
-          href="https://github.com/roprgm/openlight"
-          className="text-neutral-200 underline decoration-neutral-600 underline-offset-4 hover:decoration-neutral-200"
-        >
+        <TextLink href="https://github.com/roprgm/openlight">
           github.com/roprgm/openlight
-        </a>
+        </TextLink>
       </main>
     );
   }
