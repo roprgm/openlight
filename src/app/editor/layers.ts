@@ -56,6 +56,8 @@ export function createLayer(kind: EffectLayer["kind"]): EffectLayer {
       return { ...base, kind, name: "Color Mixer", colorMixer: defaultMixer };
     case "fill":
       return { ...base, kind, name: "Color", fill: { ...defaultFill } };
+    case "heal":
+      return { ...base, kind, name: "Healing", patches: [] };
     default:
       throw Error("Unknown layer kind.");
   }
@@ -97,6 +99,8 @@ function effectNeutral(layer: ProcessingLayer): boolean {
       return isNeutral(layer.colorMixer);
     case "fill":
       return false;
+    case "heal":
+      return layer.patches.length === 0;
     case "mask":
       return true;
   }

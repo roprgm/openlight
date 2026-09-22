@@ -1,11 +1,12 @@
 import type { ReactNode } from "react";
 import type { Workspace } from "@/app/workspace";
+import { BrushProvider } from "@/components/editor/brush-tool";
 import { RendererProvider } from "@/components/editor/pipeline";
 import { DocumentProvider, useDocument } from "@/components/editor/session";
 import Button from "@/components/ui/button";
 import type { Mask } from "@/core/document";
 import { findLayer, locateLayer } from "@/core/document";
-import { BrushProvider } from "@/features/layers/brush-tool";
+import { HealingProvider } from "@/features/heal/mode";
 import { addLayer } from "@/features/layers/edits";
 import { MaskToolProvider, type Nesting } from "@/features/layers/mask-tool";
 import { useShortcuts } from "@/hooks/use-shortcuts";
@@ -105,25 +106,42 @@ function MaskTools({ children }: { children: ReactNode }) {
   );
 }
 
+/** Connects feature-owned patch selection to the application-owned tool rail. */
+function HealingTools({ children }: { children: ReactNode }) {
+  const { setTool } = useTool();
+  return (
+    <HealingProvider
+      onEdit={() => {
+        const healing = tools.find((tool) => tool.id === "heal");
+        if (healing) setTool(healing);
+      }}
+    >
+      {children}
+    </HealingProvider>
+  );
+}
+
 function DocumentEditor({ file }: { file: string }) {
   return (
     <ToolProvider>
       <MaskTools>
-        <BrushProvider>
-          <EditorHeader file={file}>
-            <HistoryControls />
-            <hr
-              aria-orientation="vertical"
-              className="mx-1 h-4 w-px border-0 bg-neutral-600"
-            />
-            <ComparisonControl />
-            <ExportButton />
-          </EditorHeader>
-          <div className="flex min-h-0 flex-1 flex-col md:flex-row">
-            <ToolRail />
-            <ToolView />
-          </div>
-        </BrushProvider>
+        <HealingTools>
+          <BrushProvider>
+            <EditorHeader file={file}>
+              <HistoryControls />
+              <hr
+                aria-orientation="vertical"
+                className="mx-1 h-4 w-px border-0 bg-neutral-600"
+              />
+              <ComparisonControl />
+              <ExportButton />
+            </EditorHeader>
+            <div className="flex min-h-0 flex-1 flex-col md:flex-row">
+              <ToolRail />
+              <ToolView />
+            </div>
+          </BrushProvider>
+        </HealingTools>
       </MaskTools>
     </ToolProvider>
   );

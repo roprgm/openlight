@@ -5,15 +5,16 @@ import {
   useRef,
 } from "react";
 
-type Edit = { begin: () => void; commit: () => void; cancel: () => void };
+type Edit = { begin: () => boolean; commit: () => void; cancel: () => void };
 type Gesture = "pointerup" | "keyup";
 
-/** Groups pointer and repeated keyboard changes; text fields commit their own draft. */
+/** Groups pointer and repeated keyboard changes; text fields commit their own draft. A gesture inside an open group joins it and leaves the group to its opener. */
 export function useEditGesture(edit: Edit) {
   const active = useRef<Gesture | null>(null);
+  const opened = useRef(false);
   function begin(end: Gesture) {
     active.current = end;
-    edit.begin();
+    opened.current = edit.begin() || opened.current;
   }
   useEffect(() => {
     function finish(event: Event) {
@@ -21,14 +22,20 @@ export function useEditGesture(edit: Edit) {
         return;
       }
       active.current = null;
-      edit.commit();
+      if (opened.current) {
+        opened.current = false;
+        edit.commit();
+      }
     }
     function cancel() {
       if (!active.current) {
         return;
       }
       active.current = null;
-      edit.cancel();
+      if (opened.current) {
+        opened.current = false;
+        edit.cancel();
+      }
     }
     const controller = new AbortController();
     const { signal } = controller;
@@ -57,7 +64,7 @@ export function useEditGesture(edit: Edit) {
     },
     onPointerMoveCapture() {
       if (active.current === "pointerup") {
-        edit.begin();
+        opened.current = edit.begin() || opened.current;
       }
     },
     onKeyDownCapture(event: KeyboardEvent) {

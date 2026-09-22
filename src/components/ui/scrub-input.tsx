@@ -16,9 +16,12 @@ type ScrubInputProps = Omit<
   label?: string;
   value: number;
   onChange: (value: number) => void;
+  onEditingChange?: (editing: boolean) => void;
   min: number;
   max: number;
   step?: number;
+  /** Minimum width of the numeric part in tabular characters. */
+  minChars?: number;
   /** Follows the number after a hair of space, in a quieter color. */
   unit?: string;
   /**
@@ -48,9 +51,11 @@ export function ScrubInput({
   label,
   value,
   onChange,
+  onEditingChange,
   min,
   max,
   step = 1,
+  minChars = 1,
   unit,
   variant = "box",
   className,
@@ -59,11 +64,8 @@ export function ScrubInput({
   const decimals = `${step}`.split(".")[1]?.length ?? 0;
   const [draft, setDraft] = useState<string>();
   const drag = useRef<Drag | undefined>(undefined);
-  // Room for the longest value in range, so the field neither clips nor floats in empty space.
-  const chars = Math.max(
-    2,
-    ...[min, max].map((bound) => bound.toFixed(decimals).length),
-  );
+  const shown = draft ?? value.toFixed(decimals);
+  const chars = Math.max(1, shown.length);
 
   const clamp = (next: number) =>
     Math.min(max, Math.max(min, Number(next.toFixed(decimals))));
@@ -71,6 +73,7 @@ export function ScrubInput({
   const commit = () => {
     if (draft && !Number.isNaN(Number(draft))) onChange(clamp(Number(draft)));
     setDraft(undefined);
+    onEditingChange?.(false);
   };
 
   const startScrub = (event: PointerEvent<HTMLInputElement>) => {
@@ -78,6 +81,7 @@ export function ScrubInput({
     event.preventDefault();
     event.currentTarget.setPointerCapture(event.pointerId);
     drag.current = { dx: 0, lastX: event.clientX, value, moved: false };
+    onEditingChange?.(true);
   };
 
   const scrub = (event: PointerEvent<HTMLInputElement>) => {
@@ -103,6 +107,7 @@ export function ScrubInput({
     if (!state) return;
     if (state.moved) {
       document.exitPointerLock();
+      onEditingChange?.(false);
       return;
     }
     // A press that never moved is a click: enter text editing.
@@ -112,7 +117,7 @@ export function ScrubInput({
 
   return (
     <label
-      className={cn("flex items-center gap-1.5 text-neutral-400", className)}
+      className={cn("flex items-center gap-1 text-neutral-400", className)}
     >
       {label}
       <Field
@@ -125,18 +130,27 @@ export function ScrubInput({
         <input
           {...props}
           className={input({ variant })}
-          style={variant === "box" ? undefined : { width: `${chars}ch` }}
+          style={
+            variant === "box"
+              ? undefined
+              : { width: `${Math.max(chars, minChars)}ch` }
+          }
           inputMode="decimal"
           onBlur={commit}
           onChange={(event) => setDraft(event.currentTarget.value)}
+          onFocus={() => onEditingChange?.(true)}
           onKeyDown={(event) =>
             event.key === "Enter" && event.currentTarget.blur()
           }
           onPointerDown={startScrub}
           onPointerMove={scrub}
+          onPointerCancel={() => {
+            drag.current = undefined;
+            onEditingChange?.(false);
+          }}
           onPointerUp={endScrub}
           type="text"
-          value={draft ?? value.toFixed(decimals)}
+          value={shown}
         />
         {unit && <span className="text-neutral-500">{unit}</span>}
       </Field>

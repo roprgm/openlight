@@ -1,6 +1,6 @@
+import { useBrushTool } from "@/components/editor/brush-tool";
+import { barSlider, useBarDensity } from "@/components/editor/toolbar-density";
 import { Slider } from "@/components/ui/slider";
-import { useBrushTool } from "./brush-tool";
-import { barSlider, useBarDensity } from "./toolbar";
 
 const modes = [
   ["paint", "Paint", "Add coverage"],
@@ -9,7 +9,7 @@ const modes = [
 
 /** The next stroke's mode, size, edge, and flow, in the bar over the canvas. Alt shows on the Erase chip. */
 export function BrushOptions() {
-  const { settings, erase, maxSize, update } = useBrushTool();
+  const { settings, erase, maxSize, setPreview, update } = useBrushTool();
   const variant = barSlider(useBarDensity());
   return (
     <>
@@ -36,7 +36,9 @@ export function BrushOptions() {
         min={1}
         max={maxSize}
         unit="px"
+        valueWidth={`${maxSize}`.length}
         variant={variant}
+        onEditingChange={setPreview}
         onChange={(size) => update({ size: Math.round(size) })}
       />
       <Slider
@@ -46,7 +48,9 @@ export function BrushOptions() {
         max={100}
         defaultValue={50}
         unit="%"
+        valueWidth={3}
         variant={variant}
+        onEditingChange={setPreview}
         onChange={(value) => update({ feather: value / 100 })}
       />
       <Slider
@@ -56,6 +60,7 @@ export function BrushOptions() {
         max={100}
         defaultValue={100}
         unit="%"
+        valueWidth={3}
         variant={variant}
         onChange={(value) => update({ flow: value / 100 })}
       />

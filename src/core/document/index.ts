@@ -16,6 +16,7 @@ export type {
   EffectLayer,
   Fill,
   Gradient,
+  HealPatch,
   ImageLayer,
   Layer,
   LinearGradient,

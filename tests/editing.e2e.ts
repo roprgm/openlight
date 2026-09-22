@@ -5,7 +5,7 @@ import { interpolatePchip } from "@/lib/math";
 import { colorMixerEditing } from "./color-mixer-editing";
 import { expect, test } from "./fixtures";
 import { readImage, readPixel, readPreview } from "./images";
-import { box, drag } from "./pointer";
+import { box, choose, drag } from "./pointer";
 
 function expectCentered(
   actual: { x: number; y: number; width: number; height: number },
@@ -502,6 +502,8 @@ test("edit a photo, inspect the preview and histograms, undo changes, and export
     await page.keyboard.press("ArrowLeft");
     await page.keyboard.press("ArrowLeft");
     await page.keyboard.press("ArrowLeft");
+    await expect(selected).toHaveAccessibleName("Healing");
+    await page.keyboard.press("ArrowLeft");
     await expect(selected).toHaveAccessibleName("Adjust");
     await expect(selected).toBeFocused();
     await page.keyboard.press("e");
@@ -535,7 +537,7 @@ test("edit a photo, inspect the preview and histograms, undo changes, and export
   await test.step("Enter activates focused crop panel buttons", async () => {
     const before = await state();
     await open.click();
-    await aspect.selectOption({ label: "Square" });
+    await choose(page, aspect, "Square");
     await page
       .getByRole("button", { name: "Close", exact: true })
       .press("Enter");
@@ -589,7 +591,7 @@ test("edit a photo, inspect the preview and histograms, undo changes, and export
       ] as const) {
         await setFrame({ size: [300, 200] });
         await open.click();
-        if (!locked) await aspect.selectOption({ label: "Free" });
+        if (!locked) await choose(page, aspect, "Free");
         const bounds = await box(selection);
         const edge = page.getByRole("button", {
           name: `Resize crop ${label}`,
@@ -629,8 +631,8 @@ test("edit a photo, inspect the preview and histograms, undo changes, and export
     const before = await state();
     await expect(output).toHaveAttribute("points", histogram ?? "");
     await open.click();
-    await expect(aspect).toHaveValue("1.5");
-    await aspect.selectOption({ label: "Square" });
+    await expect(aspect).toContainText("Original");
+    await choose(page, aspect, "Square");
     const bounds = await box(selection);
     await drag(
       page,
@@ -697,7 +699,7 @@ test("edit a photo, inspect the preview and histograms, undo changes, and export
     expect((await state()).history).toEqual(before.history);
     await open.focus();
     await page.keyboard.press("c");
-    await aspect.selectOption({ label: "Square" });
+    await choose(page, aspect, "Square");
     await corner.press("Enter");
     await expect(panel).toBeHidden();
     await expectImage([800, 800], 128);
@@ -924,8 +926,8 @@ test("edit a photo, inspect the preview and histograms, undo changes, and export
     await expect(
       page.getByRole("slider", { name: "Rotation", exact: true }),
     ).toHaveValue("0");
-    await expect(aspect).toHaveValue("1.5");
-    await aspect.selectOption({ label: "Square" });
+    await expect(aspect).toContainText("Original");
+    await choose(page, aspect, "Square");
     const fixed = await box(selection);
     for (const direction of [
       "ArrowLeft",
@@ -984,14 +986,14 @@ test("edit a photo, inspect the preview and histograms, undo changes, and export
       return readFile(path);
     }
     const format = panel.getByRole("combobox", { name: "Format" });
-    await format.selectOption("png");
+    await choose(page, format, "PNG");
     await expect(panel.getByRole("textbox", { name: "Width" })).toHaveValue(
       "1200",
     );
     await expect(panel.getByText(/kB|MB/)).toBeVisible();
     expect(await readImage(page, await save("photo.png"))).toEqual(expected);
-    await format.selectOption("jpeg");
-    await expect(format).toHaveValue("jpeg");
+    await choose(page, format, "JPEG");
+    await expect(format).toContainText("JPEG");
     await quality.fill("20");
     await quality.press("Enter");
     const small = await save("photo.jpg");
@@ -1006,7 +1008,7 @@ test("edit a photo, inspect the preview and histograms, undo changes, and export
       ).toBeLessThanOrEqual(3);
     }
     expect(large.length).toBeGreaterThan(small.length);
-    await format.selectOption("webp");
+    await choose(page, format, "WebP");
     const width = panel.getByRole("textbox", { name: "Width" });
     await width.fill("600");
     await width.press("Enter");

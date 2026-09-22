@@ -5,6 +5,8 @@ type SliderProps = {
   label: string;
   value: number;
   onChange: (value: number) => void;
+  /** Reports interaction with either the range or its numeric field. */
+  onEditingChange?: (editing: boolean) => void;
   min: number;
   max: number;
   step?: number;
@@ -13,12 +15,14 @@ type SliderProps = {
   /** CSS color stops painting the bar left to right, e.g. ["#46f", "#fc3"]. */
   stops?: string[];
   unit?: string;
+  /** Minimum width of the numeric value in tabular characters. */
+  valueWidth?: number;
   /** "panel" stacks the bar under its label; "toolbar" keeps one row; "compact" is that row without the bar. */
   variant?: "panel" | "toolbar" | "compact";
 };
 
 // In the bar, the label is inset like the text of the pills around it.
-const root = cva("items-center text-neutral-400", {
+const root = cva("items-center whitespace-nowrap text-neutral-400", {
   variants: {
     variant: {
       panel: "grid grid-cols-[1fr_auto] gap-y-0.5",
@@ -50,12 +54,14 @@ export function Slider({
   label,
   value,
   onChange,
+  onEditingChange,
   min,
   max,
   step = 1,
   defaultValue,
   stops,
   unit,
+  valueWidth,
   variant = "panel",
 }: SliderProps) {
   const gradient = stops && {
@@ -72,7 +78,9 @@ export function Slider({
           max={max}
           min={min}
           onChange={onChange}
+          onEditingChange={onEditingChange}
           step={step}
+          minChars={valueWidth}
           unit={unit}
           value={value}
           variant={variant === "panel" ? "text" : "pill"}
@@ -86,10 +94,15 @@ export function Slider({
           min={min}
           onChange={(event) => onChange(event.currentTarget.valueAsNumber)}
           onDoubleClick={reset}
+          onBlur={() => onEditingChange?.(false)}
+          onFocus={() => onEditingChange?.(true)}
           onKeyDown={(event) =>
             event.key === "Enter" && event.currentTarget.blur()
           }
           step={step}
+          onPointerCancel={() => onEditingChange?.(false)}
+          onPointerDown={() => onEditingChange?.(true)}
+          onPointerUp={() => onEditingChange?.(false)}
           type="range"
           value={value}
         />

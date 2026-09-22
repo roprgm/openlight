@@ -5,7 +5,7 @@ Try it at [openlight.app](https://openlight.app).
 
 Image processing runs on your own GPU with WebGPU. Photos never leave your device.
 
-![The OpenLight editor with a mountain trail photo open and a gradient mask layer](public/og.png)
+![The OpenLight editor repairing a mountain trail photo with the Healing tool](public/og.png)
 
 ## Features
 
@@ -25,6 +25,7 @@ Image processing runs on your own GPU with WebGPU. Photos never leave your devic
 
 **Tools**
 
+- Healing paints patches from an automatic or manually positioned donor. Repairs remain editable and each patch builds on the previous result.
 - Brush, linear, and radial gradient tools on the rail draw masks; their options sit in the bar over the image.
 - Brush masks with size, feather, flow, pen pressure, and Alt to erase.
 - The mask overlay shows until a mask changes the image, then the image shows the mask; the Overlay button shows or hides it.

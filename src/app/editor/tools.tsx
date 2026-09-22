@@ -6,17 +6,23 @@ import {
   useContext,
   useState,
 } from "react";
+import { useDocument } from "@/components/editor/session";
 import { AdjustIcon } from "@/components/icons/adjust";
 import { BrushIcon } from "@/components/icons/brush";
 import { CropIcon } from "@/components/icons/crop";
 import { ExportIcon } from "@/components/icons/export";
+import { HealIcon } from "@/components/icons/heal";
 import { LinearGradientIcon } from "@/components/icons/linear-gradient";
 import { RadialGradientIcon } from "@/components/icons/radial-gradient";
 import { CropEditor } from "@/features/crop/view";
+import { HealOptions } from "@/features/heal/options";
+import { HealOverlay } from "@/features/heal/overlay";
 import { BrushOptions } from "@/features/layers/brush-options";
 import { BrushOverlay } from "@/features/layers/brush-overlay";
+import { addLayer } from "@/features/layers/edits";
 import { GradientOverlay } from "@/features/layers/gradient-overlay";
 import { ExportMode } from "./export";
+import { createLayer } from "./layers";
 
 const ToolContext = createContext<{
   tool: Tool;
@@ -37,6 +43,17 @@ function LinearCanvas() {
 
 function RadialCanvas() {
   return <GradientOverlay shape="radial" />;
+}
+
+function HealCanvas() {
+  const document = useDocument();
+  const { setTool } = useTool();
+  return (
+    <HealOverlay
+      onCreate={() => addLayer(document, createLayer("heal"))}
+      onDone={() => setTool(adjust)}
+    />
+  );
 }
 
 /** No mask canvas: the selected layer is active for its sliders, but not being edited on the image. */
@@ -89,6 +106,15 @@ export const tools = [
     Icon: RadialGradientIcon,
     group: "edit",
     Canvas: RadialCanvas,
+  },
+  {
+    id: "heal",
+    label: "Healing",
+    key: "h",
+    Icon: HealIcon,
+    group: "edit",
+    Canvas: HealCanvas,
+    Options: HealOptions,
   },
   {
     id: "crop",

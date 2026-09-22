@@ -65,6 +65,13 @@ function clamp(view: View, content: Size, viewport: Size): View {
   };
 }
 
+function inset(size: Size, padding: number): Point {
+  return [
+    Math.max(0, size[0] - padding * 2),
+    Math.max(0, size[1] - padding * 2),
+  ];
+}
+
 /**
  * Pan and zoom over `content` inside the element given `ref`.
  * Zoom 1 is the initial fit: contain, but capped at 200%. `pan` is in CSS px from the viewport center.
@@ -73,7 +80,7 @@ function clamp(view: View, content: Size, viewport: Size): View {
 export function usePanZoom(
   state: Camera,
   content: Size,
-  { constrain = true } = {},
+  { constrain = true, padding = 0 } = {},
 ) {
   const ref = useRef<HTMLDivElement>(null);
   const pointers = useRef(new Map<number, Point>());
@@ -130,11 +137,13 @@ export function usePanZoom(
         const viewport: Size = [element.clientWidth, element.clientHeight];
         state.setState((view) => {
           const result = next(view);
-          return bounded ? clamp(result, content, viewport) : result;
+          return bounded
+            ? clamp(result, content, inset(viewport, padding))
+            : result;
         }, true);
       }
     },
-    [state, content, constrain],
+    [state, content, constrain, padding],
   );
 
   useLayoutEffect(() => update((view) => view), [update, viewport]);
@@ -191,15 +200,24 @@ export function usePanZoom(
         constrain ? 1 : fitZoom.current * 0.1,
       ),
     );
+  function track(pointerId: number, position: Point, element: Element) {
+    if (pointers.current.size === 0) {
+      boundedDrag.current = constrain && !panMode;
+    }
+    pointers.current.set(pointerId, position);
+    element.setPointerCapture(pointerId);
+  }
   function startDrag(event: PointerEvent<HTMLElement>) {
     if (event.button !== 0 || pointers.current.size === 2) {
       return;
     }
-    if (pointers.current.size === 0) {
-      boundedDrag.current = constrain && !panMode;
+    track(event.pointerId, [event.clientX, event.clientY], event.currentTarget);
+  }
+  /** Takes over a pointer a tool was tracking, so a second finger turns its stroke into a pinch. */
+  function adopt(pointerId: number, position: Point) {
+    if (ref.current && pointers.current.size < 2) {
+      track(pointerId, position, ref.current);
     }
-    pointers.current.set(event.pointerId, [event.clientX, event.clientY]);
-    event.currentTarget.setPointerCapture(event.pointerId);
   }
   const handlers = {
     onPointerDownCapture: (event: PointerEvent<HTMLElement>) => {
@@ -248,12 +266,13 @@ export function usePanZoom(
 
   return {
     ref,
+    adopt,
     view,
     viewport,
     handlers,
     resetView,
     zoomBy,
     panMode,
-    scale: fitScale(content, viewport) * view.zoom,
+    scale: fitScale(content, inset(viewport, padding)) * view.zoom,
   };
 }

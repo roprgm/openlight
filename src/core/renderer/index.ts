@@ -1,10 +1,5 @@
 import type { Gpu, Target, Timer } from "vgpu";
-import {
-  type Layer,
-  type MaskLayer,
-  type Scene,
-  walkLayers,
-} from "@/core/document";
+import type { BrushStroke, Layer, MaskLayer, Scene } from "@/core/document";
 import type { ImageSource, WhiteBalance } from "@/core/image";
 import { createRenderGraph } from "./graph";
 import { createMaskRaster } from "./mask";
@@ -14,6 +9,7 @@ import { createProxy } from "./proxy";
 export { maskInput, mixAdjustment } from "./blend";
 export {
   type Clipping,
+  type CoverageRegion,
   createDisplay,
   type MaskOverlay,
   renderBitmap,
@@ -39,8 +35,11 @@ export { createRenderGraph };
 
 export type Composition = {
   inputId?: string;
+  /** Keep one stable composition instance and its render-graph resources reusable. */
+  retain: (id: string) => void;
   /** Rasterized coverage of a mask that paints with brushes, prepared before composition. */
   coverage: (layer: MaskLayer) => RenderInput | undefined;
+  brush: (id: string, strokes: readonly BrushStroke[]) => RenderInput;
 };
 
 /** App composition describes requested outputs; the engine owns their storage. */
@@ -104,13 +103,7 @@ export function createRenderer(
     ) {
       return;
     }
-    const active = new Set(walkLayers(scene.layers).map((layer) => layer.id));
-    for (const id of instances) {
-      if (!active.has(id)) {
-        graph.release(`layer/${id}/`);
-      }
-    }
-    instances = active;
+    const active = new Set<string>();
     const developed = raw?.render() ?? source;
     // A mask updates its rasters with those of the masks inside it, which only shape its coverage.
     function prepare(layer: Layer, parent?: Layer) {
@@ -124,13 +117,19 @@ export function createRenderer(
     for (const layer of scene.layers) {
       prepare(layer);
     }
-    raster.sweep();
     const image =
       factor > 1 ? proxy.render(developed, factor, version) : input(developed);
     const images = compose(image, scene, {
       inputId,
-      coverage: (layer) => raster.get(layer.id),
+      retain: (id) => active.add(id),
+      coverage: (layer) => raster.update(layer, developed.size),
+      brush: (id, strokes) => raster.brush(id, strokes, developed.size),
     });
+    for (const id of instances) {
+      if (!active.has(id)) graph.release(`${id}/`);
+    }
+    instances = active;
+    raster.sweep();
     const targets = graph.render([
       images.original,
       images.full,

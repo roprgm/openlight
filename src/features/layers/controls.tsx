@@ -8,8 +8,10 @@ import {
 import { useStore } from "zustand";
 import { PanelHeader } from "@/components/editor/panel";
 import { useDocument, useScene } from "@/components/editor/session";
+import { HealIcon } from "@/components/icons/heal";
 import { Icon } from "@/components/icons/icon";
 import { Menu } from "@/components/ui/menu";
+import { PanelListItem } from "@/components/ui/panel-list";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   TreeDrag,
@@ -29,31 +31,40 @@ import { useMaskTool } from "./mask-tool";
 import { LayerActions, MaskNesting } from "./menu";
 import { ImageThumbnail, MaskThumbnail } from "./thumbnails";
 
-function EffectSymbol({ kind }: { kind: ProcessingLayer["kind"] }) {
+type EffectKind = Exclude<ProcessingLayer["kind"], "mask" | "fill">;
+
+/** Each effect's mark in the layer stack; a new effect kind must name one. */
+function EffectIcon({ kind }: { kind: EffectKind }) {
   switch (kind) {
+    case "heal":
+      return <HealIcon className="size-4" />;
     case "color-mixer":
       return (
-        <>
+        <Icon className="size-4">
           <circle cx="9" cy="9" r="5" />
           <circle cx="15" cy="9" r="5" />
           <circle cx="12" cy="15" r="5" />
-        </>
+        </Icon>
       );
     case "details":
-      return <path d="m4 18 8-14 8 14H4Zm8-8v6" />;
+      return (
+        <Icon className="size-4">
+          <path d="m4 18 8-14 8 14H4Zm8-8v6" />
+        </Icon>
+      );
     case "vignette":
       return (
-        <>
+        <Icon className="size-4">
           <circle cx="12" cy="12" r="8" />
           <circle cx="12" cy="12" r="3" />
-        </>
+        </Icon>
       );
-    default:
+    case "exposure":
       return (
-        <>
+        <Icon className="size-4">
           <circle cx="12" cy="12" r="8" />
           <path d="M12 4a8 8 0 0 1 0 16Z" fill="currentColor" stroke="none" />
-        </>
+        </Icon>
       );
   }
 }
@@ -77,9 +88,7 @@ function LayerThumbnail({ layer }: { layer: Layer }) {
   }
   return (
     <span className="grid size-8 shrink-0 place-items-center rounded border border-black/50 bg-neutral-950/40 text-neutral-400">
-      <Icon className="size-4">
-        <EffectSymbol kind={layer.kind} />
-      </Icon>
+      <EffectIcon kind={layer.kind} />
     </span>
   );
 }
@@ -176,14 +185,15 @@ const LayerRow = memo(function LayerRow({
   const expandLabel = `${expanded ? "Collapse" : "Expand"} ${layer.name}`;
   return (
     <>
-      <div
+      <PanelListItem
         ref={drag.ref}
         data-drop={drag.drop}
         data-dragging={drag.dragging}
-        data-selected={selected === layer.id}
         data-hidden={!visible}
+        selected={selected === layer.id}
+        muted={!visible}
         style={{ paddingLeft: depth * 12 }}
-        className="group relative flex h-10 items-center border-b border-black/50 pr-1 text-neutral-300 pointer-coarse:h-12 data-[selected=false]:hover:bg-white/5 data-[selected=true]:bg-neutral-700 data-[hidden=true]:text-neutral-500 data-[dragging=true]:opacity-40 data-[drop=inside]:ring-1 data-[drop=inside]:ring-blue-400 data-[drop=inside]:ring-inset data-[drop=before]:before:absolute data-[drop=before]:before:inset-x-0 data-[drop=before]:before:-top-px data-[drop=before]:before:border-t-2 data-[drop=before]:before:border-blue-400 data-[drop=after]:after:absolute data-[drop=after]:after:inset-x-0 data-[drop=after]:after:-bottom-px data-[drop=after]:after:border-b-2 data-[drop=after]:after:border-blue-400"
+        className="pr-1 data-[dragging=true]:opacity-40 data-[drop=inside]:ring-1 data-[drop=inside]:ring-blue-400 data-[drop=inside]:ring-inset data-[drop=before]:before:absolute data-[drop=before]:before:inset-x-0 data-[drop=before]:before:-top-px data-[drop=before]:before:border-t-2 data-[drop=before]:before:border-blue-400 data-[drop=after]:after:absolute data-[drop=after]:after:inset-x-0 data-[drop=after]:after:-bottom-px data-[drop=after]:after:border-b-2 data-[drop=after]:after:border-blue-400"
       >
         <button
           type="button"
@@ -251,7 +261,7 @@ const LayerRow = memo(function LayerRow({
         {layer.kind !== "image" && (
           <LayerActions layer={layer} onSelect={onSelect} />
         )}
-      </div>
+      </PanelListItem>
       {expanded &&
         layer.children
           .toReversed()

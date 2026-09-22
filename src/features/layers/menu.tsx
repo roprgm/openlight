@@ -64,10 +64,14 @@ function LayerActionItems({
           Move into
           <Select
             aria-label={`Move ${layer.name} into`}
-            value=""
+            placeholder="Choose layer"
+            options={containers.map((item) => ({
+              value: item.id,
+              label: item.name,
+            }))}
             className="max-w-32"
-            onChange={(event) => {
-              const target = findLayer(layers, event.target.value);
+            onChange={(id) => {
+              const target = findLayer(layers, id);
               if (target) {
                 moveLayer(
                   document,
@@ -77,16 +81,7 @@ function LayerActionItems({
                 );
               }
             }}
-          >
-            <option value="" disabled>
-              Choose layer
-            </option>
-            {containers.map((item) => (
-              <option key={item.id} value={item.id}>
-                {item.name}
-              </option>
-            ))}
-          </Select>
+          />
         </div>
       )}
       <div className="my-1 border-t border-white/10" />

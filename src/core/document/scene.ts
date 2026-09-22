@@ -92,6 +92,15 @@ export type BrushMask = {
   readonly kind: "brush";
   readonly strokes: readonly BrushStroke[];
 };
+/** One non-destructive repair: a painted shape filled from a donor at `offset` source pixels away. */
+export type HealPatch = {
+  readonly id: string;
+  /** Feather applied after the stroke's dabs have accumulated into one patch shape. */
+  readonly feather: number;
+  readonly stroke: BrushStroke;
+  readonly opacity: number;
+  readonly offset: Point;
+};
 export type Mask = Gradient | BrushMask;
 export type ProcessingLayer = {
   readonly id: string;
@@ -105,6 +114,7 @@ export type ProcessingLayer = {
   | { readonly kind: "vignette"; readonly vignette: Vignette }
   | { readonly kind: "color-mixer"; readonly colorMixer: ColorMixer }
   | { readonly kind: "fill"; readonly fill: Fill }
+  | { readonly kind: "heal"; readonly patches: readonly HealPatch[] }
   | {
       readonly kind: "mask";
       readonly operation: "add" | "subtract";

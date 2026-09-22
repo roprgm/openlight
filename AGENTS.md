@@ -43,7 +43,7 @@ React composes controls and mounts engine outputs. The engine owns GPU resources
 
 ## Styling
 
-Keep Tailwind classes inline. Reuse presentation through components or repeat classes, whichever is simpler; do not share class-string constants across files. Use `cva` for variants and `src/index.css` for app-global tokens such as shadows and typography. Text has one size, set on `body` in `src/index.css`; express hierarchy with color and weight, not size.
+Follow [DESIGN.md](DESIGN.md) for shared interaction and surface patterns. Keep Tailwind classes inline. Reuse presentation through components or repeat classes, whichever is simpler; do not share class-string constants across files. Use `cva` for variants and `src/index.css` for app-global tokens such as shadows and typography. Text has one size, set on `body` in `src/index.css`; express hierarchy with color and weight, not size.
 
 ## GPU invariants
 

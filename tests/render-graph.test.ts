@@ -127,3 +127,27 @@ test("a shared branch renders once and reuses effects, buffers, and temporary st
     gpu.dispose();
   }
 });
+
+test("passes with identical uniforms can share prepared binding state", async () => {
+  const gpu = await init();
+  const image = target(gpu, { size: [8, 8], format: "rgba16float" });
+  const source = input(image);
+  const graph = createRenderGraph(gpu);
+  const first = merge(
+    { source, base: source },
+    node("first", shader, { ...options, instance: "shared" }),
+  );
+  const second = merge(
+    { source: first, base: source },
+    node("second", shader, { ...options, instance: "shared" }),
+  );
+  try {
+    graph.render([second]);
+    expect(graph.inspect().passes).toEqual(["first", "second"]);
+    expect(graph.inspect().effects).toBe(1);
+  } finally {
+    graph.dispose();
+    image.color.dispose();
+    gpu.dispose();
+  }
+});

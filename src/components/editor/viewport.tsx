@@ -69,10 +69,10 @@ export function EditorViewport({
   tools?: ReactNode;
 }) {
   const { camera } = useEditorSession();
-  const viewport = usePanZoom(camera, size, { constrain });
+  const viewport = usePanZoom(camera, size, { constrain, padding: 24 });
   return (
     <section
-      className="@container relative min-h-0 min-w-0 flex-1 overflow-hidden p-6"
+      className="@container relative min-h-0 min-w-0 flex-1 overflow-hidden"
       aria-label="Image canvas"
     >
       <Viewport value={viewport}>
@@ -82,9 +82,7 @@ export function EditorViewport({
           data-pan-mode={viewport.panMode}
           className="relative size-full cursor-grab touch-none active:cursor-grabbing data-[pan-mode=true]:[&_*]:cursor-grab! data-[pan-mode=true]:active:[&_*]:cursor-grabbing!"
         >
-          <Canvas className="absolute -inset-6 size-[calc(100%+3rem)]">
-            {children}
-          </Canvas>
+          <Canvas className="absolute inset-0 size-full">{children}</Canvas>
           {tools}
         </div>
         {overlay}

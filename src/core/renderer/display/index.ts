@@ -128,8 +128,15 @@ export function createDisplay(gpu: Gpu) {
 const displays = new WeakMap<Gpu, ReturnType<typeof createDisplay>>();
 const previews = new WeakMap<Gpu, Effect>();
 
-/** Draws a coverage raster as a gray preview of `size` and takes its pixels; no texture outlives the call. */
-export async function renderCoverage(gpu: Gpu, coverage: Target, size: Point) {
+export type CoverageRegion = { origin: Point; extent: Point };
+
+/** Draws a coverage raster, or a region of it in raster pixels, as a gray preview of `size` and takes its pixels; no texture outlives the call. */
+export async function renderCoverage(
+  gpu: Gpu,
+  coverage: Target,
+  size: Point,
+  region: CoverageRegion = { origin: [0, 0], extent: coverage.size },
+) {
   let preview = previews.get(gpu);
   if (!preview) {
     preview = effect(gpu, coverageShader);
@@ -139,7 +146,13 @@ export async function renderCoverage(gpu: Gpu, coverage: Target, size: Point) {
   const output = surface(gpu, canvas, { size, dpr: 1 });
   try {
     frame(gpu, (frame) =>
-      frame.pass(output, preview.set({ coverage: coverage.color, size })),
+      frame.pass(
+        output,
+        preview.set({
+          coverage: coverage.color,
+          params: { size, origin: region.origin, extent: region.extent },
+        }),
+      ),
     );
     await gpu.gpu.queue.onSubmittedWorkDone();
     return canvas.transferToImageBitmap();

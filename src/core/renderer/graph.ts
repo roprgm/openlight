@@ -51,7 +51,8 @@ export function createRenderGraph(gpu: Gpu, timer?: Timer) {
   let passes: string[] = [];
   let disposed = false;
   function prepare(node: RenderNode) {
-    let pass = effects.get(node.name);
+    const instance = node.instance ?? node.name;
+    let pass = effects.get(instance);
     if (!pass) {
       const bindings = Object.fromEntries(
         Object.entries(node.samplers ?? {}).map(([name, descriptor]) => [
@@ -67,7 +68,7 @@ export function createRenderGraph(gpu: Gpu, timer?: Timer) {
         }),
         buffers: new Map(),
       };
-      effects.set(node.name, pass);
+      effects.set(instance, pass);
     }
     if (pass.shader !== node.shader) {
       throw Error(`Render node ${node.name} changed shader; use a new name.`);
@@ -183,6 +184,7 @@ export function createRenderGraph(gpu: Gpu, timer?: Timer) {
     inspect() {
       return {
         passes: [...passes],
+        effects: effects.size,
         textures: pool.map(({ size, format }) => ({
           size: [...size],
           format,

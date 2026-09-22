@@ -1,6 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { expect, test } from "./fixtures";
 import { readImage } from "./images";
+import { choose } from "./pointer";
 
 test("decode an image, apply XMP, recover from failure, and replace a document during export", async ({
   page,
@@ -52,9 +53,11 @@ test("decode an image, apply XMP, recover from failure, and replace a document d
   await page.evaluate(() => window.openlight.redo());
   expect(await readImage(page)).toEqual(expected);
   await page.getByRole("tab", { name: "Crop" }).click();
-  await page
-    .getByRole("combobox", { name: "Aspect ratio" })
-    .selectOption({ label: "Square" });
+  await choose(
+    page,
+    page.getByRole("combobox", { name: "Aspect ratio" }),
+    "Square",
+  );
   const exported = await page.evaluate(async () => {
     const api = window.openlight;
     const convert = OffscreenCanvas.prototype.convertToBlob;

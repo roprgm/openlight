@@ -104,7 +104,11 @@ export function EmptyEditor({
   useEffect(() => () => document.dispose(), [document]);
   return (
     <DocumentProvider value={document}>
-      <RendererProvider createRenderer={createEditorRenderer}>
+      <RendererProvider
+        createRenderer={(rendererGpu, source) =>
+          createEditorRenderer(rendererGpu, source)
+        }
+      >
         <MaskToolProvider onCreate={() => {}}>
           <EditorHeader file={state.file} />
           <div className="flex min-h-0 flex-1 flex-col md:flex-row">

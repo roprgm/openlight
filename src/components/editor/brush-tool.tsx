@@ -5,8 +5,8 @@ import {
   useEffect,
   useState,
 } from "react";
-import { useDocument, useScene } from "@/components/editor/session";
 import { clamp } from "@/lib/math";
+import { useDocument, useScene } from "./session";
 
 export type BrushSettings = {
   /** Diameter in source pixels. */
@@ -23,6 +23,9 @@ const BrushTool = createContext<{
   erase: boolean;
   /** The largest useful diameter: half the image's long edge. */
   maxSize: number;
+  /** Keeps the brush cursor visible while a setting that shapes it is edited. */
+  preview: boolean;
+  setPreview: (preview: boolean) => void;
   update: (change: Partial<BrushSettings>) => void;
 } | null>(null);
 
@@ -39,14 +42,21 @@ export function BrushProvider({ children }: { children: ReactNode }) {
   const document = useDocument();
   const sourceId = useScene((scene) => scene.layers[0].source);
   const size = document.resources.get(sourceId).image.size;
-  const maxSize = Math.max(1, Math.round(Math.max(size[0], size[1]) / 2));
+  const longest = Math.max(size[0], size[1]);
+  const maxSize = Math.max(1, Math.round(longest / 2));
+  // 3% of the image in steps of 5, never under 10 px unless the image itself is that small.
+  const initialSize = Math.min(
+    maxSize,
+    Math.max(10, Math.round((longest * 0.03) / 5) * 5),
+  );
   const [settings, setSettings] = useState<BrushSettings>({
-    size: Math.max(1, Math.round(maxSize / 10)),
+    size: initialSize,
     feather: 0.5,
     flow: 1,
     erase: false,
   });
   const [alt, setAlt] = useState(false);
+  const [preview, setPreview] = useState(false);
   useEffect(() => {
     const controller = new AbortController();
     const { signal } = controller;
@@ -65,7 +75,14 @@ export function BrushProvider({ children }: { children: ReactNode }) {
   }
   return (
     <BrushTool
-      value={{ settings, erase: settings.erase !== alt, maxSize, update }}
+      value={{
+        settings,
+        erase: settings.erase !== alt,
+        maxSize,
+        preview,
+        setPreview,
+        update,
+      }}
     >
       {children}
     </BrushTool>
