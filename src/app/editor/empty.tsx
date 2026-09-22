@@ -5,6 +5,8 @@ import { sceneExtension } from "@/app/scene-file";
 import type { Workspace } from "@/app/workspace";
 import { RendererProvider } from "@/components/editor/pipeline";
 import { DocumentProvider } from "@/components/editor/session";
+import Button from "@/components/ui/button";
+import { Notice } from "@/components/ui/notice";
 import Spinner from "@/components/ui/spinner";
 import { TextLink } from "@/components/ui/text-link";
 import { createDocument, createResources } from "@/core/document";
@@ -58,23 +60,27 @@ export type Recovery = {
   onForget: () => void;
 };
 
+/** Offered away from the welcome copy, since returning users see it on every visit. */
 function RecoverDraft({ onRecover, onForget }: Recovery) {
   return (
-    <p className="text-neutral-500">
-      <TextLink onClick={onRecover}>Recover your last scene</TextLink>
-      <span className="mx-2 text-neutral-700">·</span>
-      <TextLink variant="muted" onClick={onForget}>
-        Forget
-      </TextLink>
-    </p>
+    <Notice
+      anchor="viewport"
+      placement="start"
+      actions={
+        <>
+          <Button onClick={onRecover}>Recover</Button>
+          <Button variant="ghost" onClick={onForget}>
+            Forget
+          </Button>
+        </>
+      }
+    >
+      Your last scene is still here from a previous visit.
+    </Notice>
   );
 }
 
-function Status({
-  state,
-  onOpen,
-  draft,
-}: { state: EmptyState; draft?: Recovery } & OpenProps) {
+function Status({ state, onOpen }: { state: EmptyState } & OpenProps) {
   if (state.status === "loading") {
     return <Spinner />;
   }
@@ -100,7 +106,6 @@ function Status({
       <h1 className="text-2xl font-bold">OpenLight</h1>
       <p className="text-neutral-400">Edit photos in your browser.</p>
       <OpenImage onOpen={onOpen} />
-      {draft && <RecoverDraft {...draft} />}
     </>
   );
 }
@@ -141,7 +146,8 @@ export function EmptyEditor({
             <ToolTabList selected={tools[0]} />
             <div className="relative isolate grid min-h-0 min-w-0 flex-1 place-content-center justify-items-center gap-1.5 overflow-hidden bg-[radial-gradient(circle,#292929,#131313_55%)] p-6">
               <Backdrop />
-              <Status state={state} onOpen={onOpen} draft={draft} />
+              <Status state={state} onOpen={onOpen} />
+              {draft && <RecoverDraft {...draft} />}
             </div>
             <EditorSidebar inert>
               <AdjustPanel />

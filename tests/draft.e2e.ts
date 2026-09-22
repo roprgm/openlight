@@ -38,7 +38,7 @@ test("edits survive a reload as a draft that recovers, keeps editing, and can be
   page,
 }) => {
   await page.goto("/");
-  const recover = page.getByRole("button", { name: /^Recover / });
+  const recover = page.getByRole("button", { name: "Recover", exact: true });
   const forget = page.getByRole("button", { name: "Forget", exact: true });
   await page
     .locator('input[type="file"]')
