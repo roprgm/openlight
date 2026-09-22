@@ -56,6 +56,7 @@ function healPatch(
       correction = merge(
         { source, coverage, previous: correction },
         node(`${name}/${resolution}/relax-${i}`, shader, {
+          instance: `${name}/${resolution}/relax`,
           size,
           samplers,
           set: { params: { ...params, mode: 2 } },

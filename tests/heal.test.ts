@@ -107,6 +107,8 @@ test("heal patches reuse brush rasters, scale with the proxy, undo, and release 
     expect(renderer.fullImage().size).toEqual([256, 192]);
     expect(renderer.inspect().stamped).toBe(extended);
     expect(renderer.inspect().passes.at(-1)).toBe(`layer/${id}/${patch}/blend`);
+    expect(renderer.inspect().passes.length).toBeGreaterThan(1);
+    expect(renderer.inspect().effects).toBeLessThan(15);
     const textures = renderer.inspect().textures;
     setHealSource(document, id, patch, [70, 0]);
     await renderer.update(document.scene.getState());
@@ -132,6 +134,9 @@ test("heal patches reuse brush rasters, scale with the proxy, undo, and release 
     expect(() => setHealPatch(document, id, patch, { feather: NaN })).toThrow(
       "feather",
     );
+    setHealSource(document, id, patch, [0, 0]);
+    await renderer.update(document.scene.getState());
+    expect(renderer.inspect().effects).toBe(0);
     deleteLayer(document, id);
     await renderer.update(document.scene.getState());
     expect(renderer.inspect().rasters).toEqual([]);
@@ -214,6 +219,7 @@ test("one Healing layer composes Smart clone and AI patches through render nodes
     expect(healing.patches.find((item) => item.id === patch)).toMatchObject({
       stroke: { points: [[70, 55, 1]] },
       result: { origin: [16, 0], extent: [96, 96] },
+      stale: true,
     });
     expect(healing.patches.find((item) => item.id === smart)).toMatchObject({
       feather: 0.2,
@@ -222,6 +228,13 @@ test("one Healing layer composes Smart clone and AI patches through render nodes
     });
     expect(healing.patches.find((item) => item.id === copy)?.algorithm).toBe(
       "healing",
+    );
+    setAiResult(document, layer, patch, result, [16, 0], [96, 96]);
+    healing = document.scene
+      .getState()
+      .layers.find((item) => item.id === layer);
+    expect(healing?.kind === "heal" && healing.patches[1]).not.toHaveProperty(
+      "stale",
     );
     deleteHealPatch(document, layer, copy);
     healing = document.scene

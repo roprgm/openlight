@@ -34,6 +34,7 @@ export function BrushCanvas({
   label,
   hint,
   erase,
+  feather,
   onStart,
   onExtend,
   onComplete,
@@ -45,6 +46,8 @@ export function BrushCanvas({
   label: string;
   hint?: string;
   erase: boolean;
+  /** Overrides the shared brush feather for tools that own their stroke softness. */
+  feather?: number;
   onStart: (stroke: BrushStroke) => void;
   onExtend: (points: readonly StrokePoint[]) => void;
   onComplete?: (signal: AbortSignal) => void | Promise<void>;
@@ -55,6 +58,7 @@ export function BrushCanvas({
 }) {
   const document = useDocument();
   const brush = useBrushTool();
+  const strokeFeather = feather ?? brush.settings.feather;
   const camera = useViewport();
   const mapping = useDocumentMapping();
   const stroke = useRef<Stroke | null>(null);
@@ -169,7 +173,7 @@ export function BrushCanvas({
     onStart({
       mode: erase ? "erase" : "paint",
       size: brush.settings.size,
-      feather: brush.settings.feather,
+      feather: strokeFeather,
       flow: brush.settings.flow,
       points: [first],
     });
@@ -245,7 +249,7 @@ export function BrushCanvas({
             <radialGradient id={gradient} cx="0.5" cy="0.5" r="0.5">
               <stop offset="0" stopColor={color} stopOpacity="0.3" />
               <stop
-                offset={1 - brush.settings.feather}
+                offset={1 - strokeFeather}
                 stopColor={color}
                 stopOpacity="0.3"
               />

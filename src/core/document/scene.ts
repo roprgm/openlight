@@ -108,6 +108,8 @@ export type HealPatch =
   | SmartHealPatch
   | (HealPatchBase & {
       readonly algorithm: "ai";
+      /** A previous patch changed after this generated result was produced. */
+      readonly stale?: true;
       readonly result?: {
         readonly source: string;
         readonly origin: Point;

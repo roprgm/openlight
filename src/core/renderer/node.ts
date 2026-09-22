@@ -1,6 +1,8 @@
 import type { EffectOptions, ShaderSource, Target } from "vgpu";
 
 type NodeOptions = {
+  /** Shares state across passes whose shader and non-input bindings are identical. */
+  readonly instance?: string;
   readonly set?: EffectOptions["set"];
   readonly samplers?: Readonly<Record<string, GPUSamplerDescriptor>>;
   readonly storage?: Readonly<Record<string, Float32Array<ArrayBuffer>>>;

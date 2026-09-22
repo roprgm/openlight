@@ -13,6 +13,8 @@ import { isMiganReady, prepareMigan } from "./migan";
 const HealingContext = createContext<{
   algorithm: HealAlgorithm;
   setAlgorithm: (algorithm: HealAlgorithm) => void;
+  feather: number;
+  setFeather: (feather: number) => void;
   selectedPatch?: string;
   selectPatch: (id?: string) => void;
   hoveredPatch?: string;
@@ -33,6 +35,7 @@ export function HealingProvider({
 }) {
   const gpu = useGpu();
   const [algorithm, setAlgorithm] = useState<HealAlgorithm>("healing");
+  const [feather, setFeather] = useState(0.1);
   const [selectedPatch, setSelectedPatch] = useState<string>();
   const [hoveredPatch, setHoveredPatch] = useState<string>();
   const [loading, setLoading] = useState<Loading>(() => ({
@@ -70,6 +73,8 @@ export function HealingProvider({
       value={{
         algorithm,
         setAlgorithm,
+        feather,
+        setFeather,
         selectedPatch,
         selectPatch,
         hoveredPatch,

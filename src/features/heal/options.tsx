@@ -15,7 +15,13 @@ const algorithms = [
 export function HealOptions() {
   const document = useDocument();
   const { settings, maxSize, update } = useBrushTool();
-  const { algorithm, setAlgorithm, selectedPatch } = useHealing();
+  const {
+    algorithm,
+    setAlgorithm,
+    feather: nextFeather,
+    setFeather,
+    selectedPatch,
+  } = useHealing();
   const layer = useScene((scene) =>
     findLayer(scene.layers, document.selection.getState().layerId),
   );
@@ -25,7 +31,7 @@ export function HealOptions() {
       : undefined;
   const variant = barSlider(useBarDensity());
   const size = settings.size;
-  const feather = selected?.feather ?? settings.feather;
+  const feather = selected?.feather ?? nextFeather;
   function changePatch(change: Parameters<typeof setHealPatch>[3]) {
     if (selected && layer?.kind === "heal") {
       setHealPatch(document, layer.id, selected.id, change);
@@ -60,7 +66,7 @@ export function HealOptions() {
         variant={variant}
         onChange={(value) => {
           const feather = value / 100;
-          update({ feather });
+          setFeather(feather);
           changePatch({ feather });
         }}
       />

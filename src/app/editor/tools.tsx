@@ -6,7 +6,6 @@ import {
   useContext,
   useState,
 } from "react";
-import { useBrushTool } from "@/components/editor/brush-tool";
 import { useDocument } from "@/components/editor/session";
 import { AdjustIcon } from "@/components/icons/adjust";
 import { BrushIcon } from "@/components/icons/brush";
@@ -48,14 +47,10 @@ function RadialCanvas() {
 
 function HealCanvas() {
   const document = useDocument();
-  const brush = useBrushTool();
   const { setTool } = useTool();
   return (
     <HealOverlay
-      onCreate={() => {
-        brush.update({ feather: 0.1 });
-        return addLayer(document, createLayer("heal"));
-      }}
+      onCreate={() => addLayer(document, createLayer("heal"))}
       onDone={() => setTool(adjust)}
     />
   );

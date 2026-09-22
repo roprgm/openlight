@@ -11,6 +11,7 @@ type Drag = {
   box?: DOMRect;
   from: Point;
   offset: Point;
+  next: Point;
 };
 
 /** Moves one Smart clone donor as a single history edit. */
@@ -18,26 +19,44 @@ export function HealSourceHandle({
   layer,
   patch,
   center,
+  onPreview,
+  onRelease,
 }: {
   layer: string;
   patch: SmartHealPatch;
   center: Point;
+  onPreview?: (offset?: Point) => void;
+  onRelease?: (signal: AbortSignal) => Promise<void>;
 }) {
   const document = useDocument();
   const mapping = useDocumentMapping();
   const camera = useViewport();
   const drag = useRef<Drag | undefined>(undefined);
+  const pending = useRef<AbortController | undefined>(undefined);
   function point(event: PointerEvent<SVGCircleElement>, box?: DOMRect) {
     return mapping.toDocument(event.clientX, event.clientY, box);
   }
   function cancel() {
     if (!drag.current) return;
     drag.current = undefined;
+    onPreview?.();
     document.history.cancel();
   }
-  useEffect(() => cancel, []);
+  useEffect(
+    () => () => {
+      pending.current?.abort();
+      if (drag.current || pending.current) document.history.cancel();
+    },
+    [],
+  );
   function start(event: PointerEvent<SVGCircleElement>) {
-    if (event.button !== 0 || !event.isPrimary || camera.panMode) return;
+    if (
+      event.button !== 0 ||
+      !event.isPrimary ||
+      camera.panMode ||
+      pending.current
+    )
+      return;
     const box = camera.ref.current?.getBoundingClientRect();
     document.history.commit();
     document.history.begin();
@@ -46,6 +65,7 @@ export function HealSourceHandle({
       box,
       from: point(event, box),
       offset: patch.offset,
+      next: patch.offset,
     };
     event.preventDefault();
     event.stopPropagation();
@@ -55,10 +75,12 @@ export function HealSourceHandle({
     const current = drag.current;
     if (!current || current.pointer !== event.pointerId) return;
     const next = point(event, current.box);
-    setHealSource(document, layer, patch.id, [
+    const offset: Point = [
       current.offset[0] + next[0] - current.from[0],
       current.offset[1] + next[1] - current.from[1],
-    ]);
+    ];
+    current.next = offset;
+    onPreview?.(offset);
     event.preventDefault();
     event.stopPropagation();
   }
@@ -66,9 +88,34 @@ export function HealSourceHandle({
     const current = drag.current;
     if (!current || current.pointer !== event.pointerId) return;
     drag.current = undefined;
-    document.history.commit();
     event.stopPropagation();
     event.currentTarget.releasePointerCapture(event.pointerId);
+    const moved =
+      current.next[0] !== current.offset[0] ||
+      current.next[1] !== current.offset[1];
+    if (!moved) {
+      onPreview?.();
+      document.history.cancel();
+      return;
+    }
+    setHealSource(document, layer, patch.id, current.next);
+    onPreview?.();
+    if (!onRelease) {
+      document.history.commit();
+      return;
+    }
+    const controller = new AbortController();
+    pending.current = controller;
+    void onRelease(controller.signal)
+      .then(() => {
+        if (!controller.signal.aborted) document.history.commit();
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) document.history.cancel();
+      })
+      .finally(() => {
+        if (pending.current === controller) pending.current = undefined;
+      });
   }
   return (
     <circle

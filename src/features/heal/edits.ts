@@ -3,11 +3,20 @@ import {
   type EditorDocument,
   editLayer,
   type HealAlgorithm,
+  type HealPatch,
   type StrokePoint,
 } from "@/core/document";
 import { validateStroke, validPoints } from "@/core/document/brush";
 import type { Point } from "@/core/image/frame";
 import { validateOffset } from "./model";
+
+function staleAiFrom(patches: readonly HealPatch[], from: number) {
+  return patches.map((patch, index) =>
+    index >= from && patch.algorithm === "ai" && patch.result
+      ? { ...patch, stale: true as const }
+      : patch,
+  );
+}
 
 export function addHealPatch(
   document: EditorDocument,
@@ -48,7 +57,7 @@ type PatchChange = {
   opacity?: number;
 };
 
-/** Edits the visible shape of one patch without regenerating its donor or AI result. */
+/** Edits one patch's blend and marks later generated input as stale. */
 export function setHealPatch(
   document: EditorDocument,
   id: string,
@@ -75,18 +84,17 @@ export function setHealPatch(
     if (layer.kind !== "heal") throw Error("Select a Healing layer.");
     const current = layer.patches.find((patch) => patch.id === patchId);
     if (!current) throw Error("Heal patch is unavailable.");
-    return {
-      ...layer,
-      patches: layer.patches.map((patch) =>
-        patch.id === patchId
-          ? {
-              ...patch,
-              feather: change.feather ?? patch.feather,
-              opacity: change.opacity ?? patch.opacity,
-            }
-          : patch,
-      ),
-    };
+    const index = layer.patches.findIndex((patch) => patch.id === patchId);
+    const patches = layer.patches.map((patch) =>
+      patch.id === patchId
+        ? {
+            ...patch,
+            feather: change.feather ?? patch.feather,
+            opacity: change.opacity ?? patch.opacity,
+          }
+        : patch,
+    );
+    return { ...layer, patches: staleAiFrom(patches, index + 1) };
   });
 }
 
@@ -105,7 +113,7 @@ export function duplicateHealPatch(
       ...structuredClone(patches[index]),
       id: nextId,
     });
-    return { ...layer, patches };
+    return { ...layer, patches: staleAiFrom(patches, index + 1) };
   });
   return nextId;
 }
@@ -120,10 +128,9 @@ export function deleteHealPatch(
     if (!layer.patches.some((patch) => patch.id === patchId)) {
       throw Error("Heal patch is unavailable.");
     }
-    return {
-      ...layer,
-      patches: layer.patches.filter((patch) => patch.id !== patchId),
-    };
+    const index = layer.patches.findIndex((patch) => patch.id === patchId);
+    const patches = layer.patches.filter((patch) => patch.id !== patchId);
+    return { ...layer, patches: staleAiFrom(patches, index) };
   });
 }
 
@@ -174,14 +181,13 @@ export function setHealSource(
     ) {
       throw Error("Heal patch is unavailable.");
     }
-    return {
-      ...layer,
-      patches: layer.patches.map((patch) =>
-        patch.id === patchId
-          ? { ...patch, offset: [offset[0], offset[1]] }
-          : patch,
-      ),
-    };
+    const index = layer.patches.findIndex((patch) => patch.id === patchId);
+    const patches = layer.patches.map((patch) =>
+      patch.id === patchId
+        ? { ...patch, offset: [offset[0], offset[1]] as Point }
+        : patch,
+    );
+    return { ...layer, patches: staleAiFrom(patches, index + 1) };
   });
 }
 
@@ -216,10 +222,15 @@ export function setHealDestination(
             ] as Point,
           }
         : { ...current, stroke };
+    const index = layer.patches.findIndex((patch) => patch.id === patchId);
+    const patches = layer.patches.map((patch) =>
+      patch.id === patchId ? moved : patch,
+    );
     return {
       ...layer,
-      patches: layer.patches.map((patch) =>
-        patch.id === patchId ? moved : patch,
+      patches: staleAiFrom(
+        patches,
+        current.algorithm === "ai" ? index : index + 1,
       ),
     };
   });
@@ -237,11 +248,11 @@ export function setAiResult(
     if (layer.kind !== "heal") throw Error("Select a Healing layer.");
     return {
       ...layer,
-      patches: layer.patches.map((patch) =>
-        patch.id === patchId && patch.algorithm === "ai"
-          ? { ...patch, result: { source: result, origin, extent } }
-          : patch,
-      ),
+      patches: layer.patches.map((patch) => {
+        if (patch.id !== patchId || patch.algorithm !== "ai") return patch;
+        const { stale: _, ...current } = patch;
+        return { ...current, result: { source: result, origin, extent } };
+      }),
     };
   });
 }

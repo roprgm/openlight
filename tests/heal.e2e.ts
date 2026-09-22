@@ -355,4 +355,8 @@ test("Healing loads AI on demand, paints Smart clone, and undoes patches", async
   expect(thumbnailMask.levels).toBeGreaterThan(12);
   await page.keyboard.press("Enter");
   await expect(canvas).not.toBeVisible();
+  await page.getByRole("tab", { name: "Brush", exact: true }).click();
+  await expect(
+    page.getByRole("textbox", { name: "Feather", exact: true }),
+  ).toHaveValue("50");
 });

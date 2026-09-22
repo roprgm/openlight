@@ -106,6 +106,7 @@ export function HealPatchOutline({
   showSource,
   mapping,
   onMoveDestination,
+  onMoveSource,
   interactive,
 }: {
   layer: string;
@@ -113,9 +114,11 @@ export function HealPatchOutline({
   showSource: boolean;
   mapping: Mapping;
   onMoveDestination?: (id: string, signal: AbortSignal) => Promise<void>;
+  onMoveSource?: (id: string, signal: AbortSignal) => Promise<void>;
   interactive: boolean;
 }) {
   const [preview, setPreview] = useState<Point>();
+  const [sourcePreview, setSourcePreview] = useState<Point>();
   const first = patch.stroke.points[0];
   const previewOffset: Point = preview
     ? [preview[0] - first[0], preview[1] - first[1]]
@@ -123,7 +126,7 @@ export function HealPatchOutline({
   const destination = geometry(patch.stroke, previewOffset, mapping);
   const source =
     patch.algorithm === "healing"
-      ? geometry(patch.stroke, patch.offset, mapping)
+      ? geometry(patch.stroke, sourcePreview ?? patch.offset, mapping)
       : undefined;
   return (
     <>
@@ -151,7 +154,15 @@ export function HealPatchOutline({
       )}
       {showSource && source && <Outline shape={source} kind="source" />}
       {showSource && source && patch.algorithm === "healing" && interactive && (
-        <HealSourceHandle layer={layer} patch={patch} center={source.center} />
+        <HealSourceHandle
+          layer={layer}
+          patch={patch}
+          center={source.center}
+          onPreview={setSourcePreview}
+          onRelease={(signal) =>
+            onMoveSource?.(patch.id, signal) ?? Promise.resolve()
+          }
+        />
       )}
       {showSource && source && !interactive && (
         <circle

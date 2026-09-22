@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useGpu } from "vgpu-react";
+import { useStore } from "zustand";
 import { BrushCanvas } from "@/components/editor/brush-canvas";
 import { useDocumentMapping } from "@/components/editor/mapping";
 import { useRenderer } from "@/components/editor/pipeline";
@@ -31,10 +32,13 @@ export function HealOverlay({
   const mapping = useDocumentMapping();
   const gpu = useGpu();
   const search = useMemo(() => createHealSearch(gpu), [gpu]);
-  const { algorithm, selectedPatch, selectPatch, hoveredPatch } = useHealing();
+  const { algorithm, feather, selectedPatch, selectPatch, hoveredPatch } =
+    useHealing();
   const [source, setSource] = useState<Point>();
   const [drawingPatch, setDrawingPatch] = useState<string>();
   const [resolvingSource, setResolvingSource] = useState<string>();
+  const [regenerationError, setRegenerationError] = useState<string>();
+  const editing = useStore(document.history.status).editing;
   const layer = useScene((scene) =>
     findLayer(scene.layers, document.selection.getState().layerId),
   );
@@ -113,6 +117,25 @@ export function HealOverlay({
       .map((patch) => patch.id);
     for (const id of affected) await generateAi(layerId, id, signal);
   }
+  const stalePatch = patches.find(
+    (patch) => patch.algorithm === "ai" && patch.stale,
+  )?.id;
+  useEffect(() => {
+    if (!healLayer || !stalePatch || editing || drawingPatch) return;
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => {
+      setRegenerationError(undefined);
+      void generateAi(healLayer.id, stalePatch, controller.signal).catch(
+        (error: unknown) => {
+          if (!controller.signal.aborted) setRegenerationError(String(error));
+        },
+      );
+    }, 150);
+    return () => {
+      window.clearTimeout(timeout);
+      controller.abort();
+    };
+  }, [healLayer, stalePatch, editing, drawingPatch]);
   useEffect(() => {
     const layer = findLayer(
       document.scene.getState().layers,
@@ -186,7 +209,9 @@ export function HealOverlay({
   return (
     <BrushCanvas
       label="Healing canvas"
+      hint={regenerationError}
       erase={false}
+      feather={feather}
       onStart={(stroke) => {
         const layer = selected();
         const [x, y] = stroke.points[0];
@@ -244,6 +269,9 @@ export function HealOverlay({
                     patch.id !== resolvingSource
                   }
                   onMoveDestination={(patch, signal) =>
+                    regenerateFrom(healLayer.id, patch, signal)
+                  }
+                  onMoveSource={(patch, signal) =>
                     regenerateFrom(healLayer.id, patch, signal)
                   }
                   interactive={
