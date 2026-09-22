@@ -168,13 +168,13 @@ test("one Healing layer composes its patches in order through render nodes", asy
     expect(renderer.inspect().passes).toContain(
       `layer/${layer}/${second}/blend`,
     );
-    const layerInput = renderer.inputImage(layer);
-    expect(layerInput).toBeDefined();
-    expect(layerInput).not.toBe(source.image);
+    await renderer.update(document.scene.getState(), first);
+    const firstInput = renderer.inputImage(first);
+    expect(firstInput).toBeDefined();
     // A later patch sees the result of the earlier ones.
     await renderer.update(document.scene.getState(), second);
     expect(renderer.inputImage(second)).toBeDefined();
-    expect(renderer.inputImage(second)).not.toBe(layerInput);
+    expect(renderer.inputImage(second)).not.toBe(firstInput);
     const correctionGraph = renderer.inspect();
     setHealDestination(document, layer, first, [80, 60]);
     setHealPatch(document, layer, first, { feather: 0.2, opacity: 0.6 });

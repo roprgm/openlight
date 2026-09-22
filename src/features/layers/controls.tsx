@@ -31,31 +31,40 @@ import { useMaskTool } from "./mask-tool";
 import { LayerActions, MaskNesting } from "./menu";
 import { ImageThumbnail, MaskThumbnail } from "./thumbnails";
 
-function EffectSymbol({ kind }: { kind: ProcessingLayer["kind"] }) {
+type EffectKind = Exclude<ProcessingLayer["kind"], "mask" | "fill">;
+
+/** Each effect's mark in the layer stack; a new effect kind must name one. */
+function EffectIcon({ kind }: { kind: EffectKind }) {
   switch (kind) {
+    case "heal":
+      return <HealIcon className="size-4" />;
     case "color-mixer":
       return (
-        <>
+        <Icon className="size-4">
           <circle cx="9" cy="9" r="5" />
           <circle cx="15" cy="9" r="5" />
           <circle cx="12" cy="15" r="5" />
-        </>
+        </Icon>
       );
     case "details":
-      return <path d="m4 18 8-14 8 14H4Zm8-8v6" />;
+      return (
+        <Icon className="size-4">
+          <path d="m4 18 8-14 8 14H4Zm8-8v6" />
+        </Icon>
+      );
     case "vignette":
       return (
-        <>
+        <Icon className="size-4">
           <circle cx="12" cy="12" r="8" />
           <circle cx="12" cy="12" r="3" />
-        </>
+        </Icon>
       );
-    default:
+    case "exposure":
       return (
-        <>
+        <Icon className="size-4">
           <circle cx="12" cy="12" r="8" />
           <path d="M12 4a8 8 0 0 1 0 16Z" fill="currentColor" stroke="none" />
-        </>
+        </Icon>
       );
   }
 }
@@ -77,18 +86,9 @@ function LayerThumbnail({ layer }: { layer: Layer }) {
       />
     );
   }
-  if (layer.kind === "heal") {
-    return (
-      <span className="grid size-8 shrink-0 place-items-center rounded border border-black/50 bg-neutral-950/40 text-neutral-400">
-        <HealIcon className="size-4" />
-      </span>
-    );
-  }
   return (
     <span className="grid size-8 shrink-0 place-items-center rounded border border-black/50 bg-neutral-950/40 text-neutral-400">
-      <Icon className="size-4">
-        <EffectSymbol kind={layer.kind} />
-      </Icon>
+      <EffectIcon kind={layer.kind} />
     </span>
   );
 }
