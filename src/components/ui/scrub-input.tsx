@@ -16,6 +16,7 @@ type ScrubInputProps = Omit<
   label?: string;
   value: number;
   onChange: (value: number) => void;
+  onEditingChange?: (editing: boolean) => void;
   min: number;
   max: number;
   step?: number;
@@ -50,6 +51,7 @@ export function ScrubInput({
   label,
   value,
   onChange,
+  onEditingChange,
   min,
   max,
   step = 1,
@@ -71,6 +73,7 @@ export function ScrubInput({
   const commit = () => {
     if (draft && !Number.isNaN(Number(draft))) onChange(clamp(Number(draft)));
     setDraft(undefined);
+    onEditingChange?.(false);
   };
 
   const startScrub = (event: PointerEvent<HTMLInputElement>) => {
@@ -78,6 +81,7 @@ export function ScrubInput({
     event.preventDefault();
     event.currentTarget.setPointerCapture(event.pointerId);
     drag.current = { dx: 0, lastX: event.clientX, value, moved: false };
+    onEditingChange?.(true);
   };
 
   const scrub = (event: PointerEvent<HTMLInputElement>) => {
@@ -103,6 +107,7 @@ export function ScrubInput({
     if (!state) return;
     if (state.moved) {
       document.exitPointerLock();
+      onEditingChange?.(false);
       return;
     }
     // A press that never moved is a click: enter text editing.
@@ -133,11 +138,16 @@ export function ScrubInput({
           inputMode="decimal"
           onBlur={commit}
           onChange={(event) => setDraft(event.currentTarget.value)}
+          onFocus={() => onEditingChange?.(true)}
           onKeyDown={(event) =>
             event.key === "Enter" && event.currentTarget.blur()
           }
           onPointerDown={startScrub}
           onPointerMove={scrub}
+          onPointerCancel={() => {
+            drag.current = undefined;
+            onEditingChange?.(false);
+          }}
           onPointerUp={endScrub}
           type="text"
           value={shown}

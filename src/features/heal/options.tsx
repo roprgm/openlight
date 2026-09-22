@@ -8,13 +8,13 @@ import { setHealPatch } from "./edits";
 import { useHealing } from "./mode";
 
 const algorithms = [
-  { value: "healing", label: "Smart clone" },
+  { value: "clone", label: "Smart clone" },
   { value: "ai", label: "AI Remove" },
 ] as const;
 
 export function HealOptions() {
   const document = useDocument();
-  const { settings, maxSize, update } = useBrushTool();
+  const { settings, maxSize, setPreview, update } = useBrushTool();
   const {
     algorithm,
     setAlgorithm,
@@ -54,6 +54,7 @@ export function HealOptions() {
         valueWidth={`${maxSize}`.length}
         variant={variant}
         value={size}
+        onEditingChange={setPreview}
         onChange={(value) => update({ size: Math.round(value) })}
       />
       <Slider
@@ -64,6 +65,7 @@ export function HealOptions() {
         unit="%"
         valueWidth={3}
         variant={variant}
+        onEditingChange={setPreview}
         onChange={(value) => {
           const feather = value / 100;
           setFeather(feather);

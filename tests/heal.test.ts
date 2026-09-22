@@ -18,6 +18,7 @@ import {
   setHealDestination,
   setHealPatch,
   setHealSource,
+  settleAiResult,
 } from "@/features/heal/edits";
 import { createMiganSession } from "@/features/heal/migan";
 import { addLayer, deleteLayer } from "@/features/layers/edits";
@@ -126,7 +127,7 @@ test("heal patches reuse brush rasters, scale with the proxy, undo, and release 
       addHealPatch(document, id, { ...stroke, mode: "erase" }, [1, 2]),
     ).toThrow("painted");
     expect(() =>
-      addHealPatch(document, id, stroke, [1, 2], "clone" as never),
+      addHealPatch(document, id, stroke, [1, 2], "other" as never),
     ).toThrow("Smart clone or AI Remove");
     expect(() => setHealSource(document, id, patch, [NaN, 0])).toThrow(
       "finite",
@@ -137,6 +138,7 @@ test("heal patches reuse brush rasters, scale with the proxy, undo, and release 
     setHealSource(document, id, patch, [0, 0]);
     await renderer.update(document.scene.getState());
     expect(renderer.inspect().effects).toBe(0);
+    expect(renderer.inspect().rasters).toEqual([]);
     deleteLayer(document, id);
     await renderer.update(document.scene.getState());
     expect(renderer.inspect().rasters).toEqual([]);
@@ -176,13 +178,17 @@ test("one Healing layer composes Smart clone and AI patches through render nodes
       flow: 1,
       points: [[64, 48, 1]],
     };
-    const smart = addHealPatch(document, layer, stroke, [30, 0], "healing");
+    const smart = addHealPatch(document, layer, stroke, [30, 0], "clone");
     const patch = addHealPatch(document, layer, stroke, [0, 0], "ai");
     const generated = createImageSource(
       target(gpu, { size: [512, 512], format: "rgba16float" }),
     );
     const result = resources.add(new File([], "result"), generated);
-    setAiResult(document, layer, patch, result, [16, 0], [96, 96]);
+    setAiResult(document, layer, patch, {
+      source: result,
+      origin: [16, 0],
+      extent: [96, 96],
+    });
     await renderer.update(document.scene.getState(), layer);
     expect(renderer.inspect().passes).toContain(
       `layer/${layer}/${patch}/migan`,
@@ -227,9 +233,13 @@ test("one Healing layer composes Smart clone and AI patches through render nodes
       stroke: { size: 24, feather: 0 },
     });
     expect(healing.patches.find((item) => item.id === copy)?.algorithm).toBe(
-      "healing",
+      "clone",
     );
-    setAiResult(document, layer, patch, result, [16, 0], [96, 96]);
+    setAiResult(document, layer, patch, {
+      source: result,
+      origin: [16, 0],
+      extent: [96, 96],
+    });
     healing = document.scene
       .getState()
       .layers.find((item) => item.id === layer);
@@ -241,6 +251,23 @@ test("one Healing layer composes Smart clone and AI patches through render nodes
       .getState()
       .layers.find((item) => item.id === layer);
     expect(healing?.kind === "heal" && healing.patches).toHaveLength(2);
+    const beforeRegeneration = document.scene.getState();
+    document.history.clear();
+    setHealSource(document, layer, smart, [20, 0]);
+    const regenerated = resources.add(
+      new File([], "regenerated"),
+      createImageSource(
+        target(gpu, { size: [512, 512], format: "rgba16float" }),
+      ),
+    );
+    settleAiResult(document, layer, patch, {
+      source: regenerated,
+      origin: [16, 0],
+      extent: [96, 96],
+    });
+    expect(document.history.status.getState().undoCount).toBe(1);
+    document.history.undo();
+    expect(document.scene.getState()).toBe(beforeRegeneration);
   } finally {
     renderer.dispose();
     document.dispose();

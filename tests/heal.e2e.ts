@@ -83,12 +83,19 @@ test("Healing loads AI on demand, paints Smart clone, and undoes patches", async
     (element) => element.getBoundingClientRect().width,
   );
   const size = page.getByRole("textbox", { name: "Size", exact: true });
+  const brushCursor = canvas.locator('[data-brush-cursor="true"]');
+  await size.focus();
+  await expect(brushCursor).toHaveAttribute("data-preview", "true");
   await size.fill("300");
   await size.press("Enter");
+  await expect(brushCursor).toHaveCount(0);
   const feather = page.getByRole("textbox", { name: "Feather", exact: true });
   await expect(feather).toHaveValue("10");
+  await feather.focus();
+  await expect(brushCursor).toHaveAttribute("data-preview", "true");
   await feather.fill("0");
   await feather.press("Enter");
+  await expect(brushCursor).toHaveCount(0);
   expect(
     await toolbar.evaluate((element) => element.getBoundingClientRect().width),
   ).toBe(initialToolbarWidth);
@@ -113,7 +120,7 @@ test("Healing loads AI on demand, paints Smart clone, and undoes patches", async
     throw Error("Heal layer missing");
   }
   expect(layer.patches).toHaveLength(1);
-  expect(layer.patches[0].algorithm).toBe("healing");
+  expect(layer.patches[0].algorithm).toBe("clone");
   await expect(page.getByText("Patch 1", { exact: true })).toBeVisible();
   const patchList = page.getByRole("list", { name: "Healing patches" });
   await expect(
@@ -151,7 +158,7 @@ test("Healing loads AI on demand, paints Smart clone, and undoes patches", async
   ).toBe(300);
   await size.fill("300");
   await size.press("Enter");
-  if (layer.patches[0].algorithm !== "healing") {
+  if (layer.patches[0].algorithm !== "clone") {
     throw Error("Smart clone patch missing");
   }
   expect(layer.patches[0].offset).not.toEqual([0, 0]);
@@ -206,7 +213,7 @@ test("Healing loads AI on demand, paints Smart clone, and undoes patches", async
       .scene?.layers.find((layer) => layer.kind === "heal");
     if (layer?.kind !== "heal") throw Error("Healing layer missing");
     const patch = layer.patches.at(-1);
-    if (patch?.algorithm !== "healing") {
+    if (patch?.algorithm !== "clone") {
       throw Error("Smart clone patch missing");
     }
     return {

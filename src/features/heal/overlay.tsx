@@ -13,6 +13,7 @@ import {
   extendHealPatch,
   setAiResult,
   setHealSource,
+  settleAiResult,
 } from "./edits";
 import { generateMigan } from "./migan";
 import { useHealing } from "./mode";
@@ -71,6 +72,7 @@ export function HealOverlay({
     layerId: string,
     patchId: string,
     signal: AbortSignal,
+    apply: typeof setAiResult = setAiResult,
   ) {
     const scene = document.scene.getState();
     const layer = findLayer(scene.layers, layerId);
@@ -93,14 +95,11 @@ export function HealOverlay({
       new File([], "AI Remove result"),
       resource,
     );
-    setAiResult(
-      document,
-      layerId,
-      patchId,
-      result,
-      generated.origin,
-      generated.extent,
-    );
+    apply(document, layerId, patchId, {
+      source: result,
+      origin: generated.origin,
+      extent: generated.extent,
+    });
   }
   async function regenerateFrom(
     layerId: string,
@@ -125,11 +124,14 @@ export function HealOverlay({
     const controller = new AbortController();
     const timeout = window.setTimeout(() => {
       setRegenerationError(undefined);
-      void generateAi(healLayer.id, stalePatch, controller.signal).catch(
-        (error: unknown) => {
-          if (!controller.signal.aborted) setRegenerationError(String(error));
-        },
-      );
+      void generateAi(
+        healLayer.id,
+        stalePatch,
+        controller.signal,
+        settleAiResult,
+      ).catch((error: unknown) => {
+        if (!controller.signal.aborted) setRegenerationError(String(error));
+      });
     }, 150);
     return () => {
       window.clearTimeout(timeout);
@@ -225,7 +227,7 @@ export function HealOverlay({
         );
         setDrawingPatch(patch);
         setResolvingSource(
-          algorithm === "healing" && !source ? patch : undefined,
+          algorithm === "clone" && !source ? patch : undefined,
         );
         selectPatch(patch);
         pending.current = {
@@ -264,7 +266,7 @@ export function HealOverlay({
                   patch={patch}
                   mapping={mapping}
                   showSource={
-                    patch.algorithm === "healing" &&
+                    patch.algorithm === "clone" &&
                     patch.id !== drawingPatch &&
                     patch.id !== resolvingSource
                   }

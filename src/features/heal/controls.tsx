@@ -146,7 +146,7 @@ export function HealControls({
               />
               <span className="min-w-0 flex-1 truncate">Patch {index + 1}</span>
             </button>
-            {patch.algorithm === "healing" ? (
+            {patch.algorithm === "clone" ? (
               <SourceFields
                 layer={id}
                 patch={patch}

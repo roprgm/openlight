@@ -18,7 +18,7 @@ type HealComposition = Pick<Composition, "brush" | "inputId" | "retain">;
 function healPatch(
   source: RenderImage,
   coverage: RenderInput,
-  patch: Extract<HealPatch, { algorithm: "healing" }>,
+  patch: Extract<HealPatch, { algorithm: "clone" }>,
   name: string,
 ) {
   const dimensions = sourceSize(source);
@@ -95,18 +95,19 @@ export function heal(
   for (const patch of patches) {
     if (patch.id === composition.inputId) inspected = image;
     const id = `${name}/${patch.id}`;
-    const coverage = composition.brush(id, [patch.stroke]);
     if (patch.algorithm === "ai") {
-      if (!patch.result) continue;
-      if (!resolve) throw Error("AI image resource is unavailable.");
+      const result = patch.result;
+      if (!result) continue;
+      const coverage = composition.brush(id, [patch.stroke]);
       composition.retain(id);
+      if (!resolve) throw Error("AI image resource is unavailable.");
       const dimensions = sourceSize(image);
       const bounds = patchBounds(patch.stroke, dimensions, 0);
       image = merge(
         {
           source: image,
           coverage,
-          result: input(resolve(patch.result.source)),
+          result: input(resolve(result.source)),
         },
         node(`${id}/migan`, miganShader, {
           samplers: {
@@ -114,8 +115,8 @@ export function heal(
           },
           set: {
             params: {
-              origin: patch.result.origin,
-              extent: patch.result.extent,
+              origin: result.origin,
+              extent: result.extent,
               maskOrigin: bounds.origin,
               maskExtent: bounds.extent,
               dimensions,
@@ -128,6 +129,7 @@ export function heal(
       continue;
     }
     if (patch.offset[0] === 0 && patch.offset[1] === 0) continue;
+    const coverage = composition.brush(id, [patch.stroke]);
     composition.retain(id);
     image = healPatch(image, coverage, patch, id);
   }

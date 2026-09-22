@@ -4,6 +4,7 @@ import {
   editLayer,
   type HealAlgorithm,
   type StrokePoint,
+  updateLayer,
 } from "@/core/document";
 import { validateStroke, validPoints } from "@/core/document/brush";
 import type { Point } from "@/core/image/frame";
@@ -14,13 +15,13 @@ export function addHealPatch(
   id: string,
   stroke: BrushStroke,
   offset: Point,
-  algorithm: HealAlgorithm = "healing",
+  algorithm: HealAlgorithm = "clone",
 ) {
   validateStroke(stroke);
   if (stroke.mode !== "paint") {
     throw Error("Heal patches use painted strokes.");
   }
-  if (algorithm !== "healing" && algorithm !== "ai") {
+  if (algorithm !== "clone" && algorithm !== "ai") {
     throw Error("Choose Smart clone or AI Remove for a heal patch.");
   }
   const base = {
@@ -29,9 +30,9 @@ export function addHealPatch(
     stroke: { ...structuredClone(stroke), feather: 0 },
     opacity: 1,
   };
-  if (algorithm === "healing") validateOffset(offset);
+  if (algorithm === "clone") validateOffset(offset);
   const patch =
-    algorithm === "healing"
+    algorithm === "clone"
       ? { ...base, algorithm, offset: structuredClone(offset) }
       : { ...base, algorithm };
   editLayer(document, id, (layer) => {
@@ -46,6 +47,12 @@ export function addHealPatch(
 type PatchChange = {
   feather?: number;
   opacity?: number;
+};
+
+type AiResult = {
+  source: string;
+  origin: Point;
+  extent: Point;
 };
 
 /** Edits one patch's blend and marks later generated input as stale. */
@@ -176,7 +183,7 @@ export function setHealSource(
     if (
       layer.kind !== "heal" ||
       !layer.patches.some(
-        (patch) => patch.id === patchId && patch.algorithm === "healing",
+        (patch) => patch.id === patchId && patch.algorithm === "clone",
       )
     ) {
       throw Error("Heal patch is unavailable.");
@@ -215,7 +222,7 @@ export function setHealDestination(
       ),
     };
     const moved =
-      current.algorithm === "healing"
+      current.algorithm === "clone"
         ? {
             ...current,
             stroke,
@@ -239,23 +246,40 @@ export function setHealDestination(
   });
 }
 
-export function setAiResult(
+function aiResult(
   document: EditorDocument,
   id: string,
   patchId: string,
-  result: string,
-  origin: Point,
-  extent: Point,
+  result: AiResult,
 ) {
-  editLayer(document, id, (layer) => {
+  return updateLayer(document.scene.getState(), id, (layer) => {
     if (layer.kind !== "heal") throw Error("Select a Healing layer.");
     return {
       ...layer,
       patches: layer.patches.map((patch) => {
         if (patch.id !== patchId || patch.algorithm !== "ai") return patch;
         const { stale: _, ...current } = patch;
-        return { ...current, result: { source: result, origin, extent } };
+        return { ...current, result };
       }),
     };
   });
+}
+
+export function setAiResult(
+  document: EditorDocument,
+  id: string,
+  patchId: string,
+  result: AiResult,
+) {
+  document.edit(aiResult(document, id, patchId, result));
+}
+
+/** Settles regenerated content into the edit that made it stale. */
+export function settleAiResult(
+  document: EditorDocument,
+  id: string,
+  patchId: string,
+  result: AiResult,
+) {
+  document.history.amend(aiResult(document, id, patchId, result));
 }

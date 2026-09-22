@@ -57,7 +57,24 @@ test("paint a brush mask, adjust it in the sidebar, erase, and undo", async ({
   const center = [bounds.x + bounds.width / 2, bounds.y + bounds.height / 2];
   const from = [center[0] - 150 * scale, center[1]];
   const to = [center[0] + 150 * scale, center[1]];
-  await setField("Size", "200");
+  const brushCursor = canvas.locator('[data-brush-cursor="true"]');
+  const sizeField = options.getByRole("textbox", {
+    name: "Size",
+    exact: true,
+  });
+  await sizeField.focus();
+  await expect(brushCursor).toHaveAttribute("data-preview", "true");
+  await sizeField.fill("200");
+  await sizeField.press("Enter");
+  await expect(brushCursor).toHaveCount(0);
+  const featherField = options.getByRole("textbox", {
+    name: "Feather",
+    exact: true,
+  });
+  await featherField.focus();
+  await expect(brushCursor).toHaveAttribute("data-preview", "true");
+  await featherField.press("Enter");
+  await expect(brushCursor).toHaveCount(0);
   await test.step("a drag paints the new brush mask, which shows its overlay", async () => {
     await drag(page, from, to, 16);
     const layers = (await state()).scene?.layers;

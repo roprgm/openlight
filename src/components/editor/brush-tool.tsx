@@ -23,6 +23,9 @@ const BrushTool = createContext<{
   erase: boolean;
   /** The largest useful diameter: half the image's long edge. */
   maxSize: number;
+  /** Keeps the brush cursor visible while a setting that shapes it is edited. */
+  preview: boolean;
+  setPreview: (preview: boolean) => void;
   update: (change: Partial<BrushSettings>) => void;
 } | null>(null);
 
@@ -47,6 +50,7 @@ export function BrushProvider({ children }: { children: ReactNode }) {
     erase: false,
   });
   const [alt, setAlt] = useState(false);
+  const [preview, setPreview] = useState(false);
   useEffect(() => {
     const controller = new AbortController();
     const { signal } = controller;
@@ -65,7 +69,14 @@ export function BrushProvider({ children }: { children: ReactNode }) {
   }
   return (
     <BrushTool
-      value={{ settings, erase: settings.erase !== alt, maxSize, update }}
+      value={{
+        settings,
+        erase: settings.erase !== alt,
+        maxSize,
+        preview,
+        setPreview,
+        update,
+      }}
     >
       {children}
     </BrushTool>

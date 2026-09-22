@@ -34,7 +34,7 @@ export function HealingProvider({
   onEdit?: () => void;
 }) {
   const gpu = useGpu();
-  const [algorithm, setAlgorithm] = useState<HealAlgorithm>("healing");
+  const [algorithm, setAlgorithm] = useState<HealAlgorithm>("clone");
   const [feather, setFeather] = useState(0.1);
   const [selectedPatch, setSelectedPatch] = useState<string>();
   const [hoveredPatch, setHoveredPatch] = useState<string>();
@@ -58,7 +58,7 @@ export function HealingProvider({
     return () => controller.abort();
   }, [algorithm, attempt, gpu]);
   function cancel() {
-    setAlgorithm("healing");
+    setAlgorithm("clone");
     setLoading({ kind: "idle" });
   }
   const selectPatch = useCallback(

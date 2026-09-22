@@ -64,6 +64,7 @@ export function BrushCanvas({
   const stroke = useRef<Stroke | null>(null);
   const completing = useRef<AbortController | null>(null);
   const [pointer, setPointer] = useState<Point | null>(null);
+  const [pointerVisible, setPointerVisible] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
   const gradient = useId();
@@ -141,7 +142,18 @@ export function BrushCanvas({
       setError(String(error));
     }
   }
-  useEffect(() => () => finish(false), []);
+  useEffect(
+    () => () => {
+      finish(false);
+      brush.setPreview(false);
+    },
+    [],
+  );
+  useEffect(() => {
+    if (!brush.preview || pointer) return;
+    const bounds = camera.ref.current?.getBoundingClientRect();
+    if (bounds) setPointer([bounds.width / 2, bounds.height / 2]);
+  }, [brush.preview, pointer, camera.ref]);
   useShortcuts({
     escape: () =>
       stroke.current || completing.current ? finish(false) : onDone(),
@@ -191,11 +203,10 @@ export function BrushCanvas({
     const overHandle =
       event.target instanceof Element &&
       event.target.closest("[data-hide-brush-cursor]");
-    setPointer(
-      overHandle
-        ? null
-        : [event.clientX - bounds.left, event.clientY - bounds.top],
-    );
+    setPointerVisible(!overHandle);
+    if (!overHandle) {
+      setPointer([event.clientX - bounds.left, event.clientY - bounds.top]);
+    }
     const current = stroke.current;
     if (!current || current.pointer !== event.pointerId) {
       return;
@@ -220,6 +231,7 @@ export function BrushCanvas({
   const color = erase ? "black" : "white";
   const dash = erase ? "4 3" : undefined;
   const status = error ?? (busy ? "Finishing stroke…" : hint);
+  const cursor = pointerVisible || brush.preview ? pointer : null;
   return (
     <div
       role="application"
@@ -230,7 +242,7 @@ export function BrushCanvas({
       onPointerDown={start}
       onPointerMove={move}
       onPointerUp={end}
-      onPointerLeave={() => setPointer(null)}
+      onPointerLeave={() => setPointerVisible(false)}
       onPointerCancel={() => finish(false)}
       onLostPointerCapture={() => {
         if (stroke.current) {
@@ -239,9 +251,11 @@ export function BrushCanvas({
       }}
     >
       {children}
-      {pointer && !camera.panMode && (
+      {cursor && !camera.panMode && (
         <svg
           aria-hidden="true"
+          data-brush-cursor="true"
+          data-preview={brush.preview}
           className="pointer-events-none absolute inset-0 size-full overflow-visible"
         >
           <defs>
@@ -257,8 +271,8 @@ export function BrushCanvas({
             </radialGradient>
           </defs>
           <circle
-            cx={pointer[0]}
-            cy={pointer[1]}
+            cx={cursor[0]}
+            cy={cursor[1]}
             r={Math.max(2, radius)}
             fill={`url(#${gradient})`}
             stroke="white"
@@ -266,8 +280,8 @@ export function BrushCanvas({
             strokeDasharray={dash}
           />
           <circle
-            cx={pointer[0]}
-            cy={pointer[1]}
+            cx={cursor[0]}
+            cy={cursor[1]}
             r={Math.max(2, radius)}
             fill="none"
             stroke="black"

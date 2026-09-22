@@ -125,7 +125,7 @@ export function HealPatchOutline({
     : [0, 0];
   const destination = geometry(patch.stroke, previewOffset, mapping);
   const source =
-    patch.algorithm === "healing"
+    patch.algorithm === "clone"
       ? geometry(patch.stroke, sourcePreview ?? patch.offset, mapping)
       : undefined;
   return (
@@ -153,7 +153,7 @@ export function HealPatchOutline({
         />
       )}
       {showSource && source && <Outline shape={source} kind="source" />}
-      {showSource && source && patch.algorithm === "healing" && interactive && (
+      {showSource && source && patch.algorithm === "clone" && interactive && (
         <HealSourceHandle
           layer={layer}
           patch={patch}

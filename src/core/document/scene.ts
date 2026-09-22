@@ -100,7 +100,7 @@ type HealPatchBase = {
   readonly opacity: number;
 };
 export type SmartHealPatch = HealPatchBase & {
-  readonly algorithm: "healing";
+  readonly algorithm: "clone";
   readonly offset: Point;
 };
 /** One non-destructive repair. AI results are image resources positioned in source pixels. */

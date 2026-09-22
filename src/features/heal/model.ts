@@ -3,7 +3,7 @@ import type { Point } from "@/core/image/frame";
 
 function invalidateGeneratedResult(patch: HealPatch): HealPatch {
   switch (patch.algorithm) {
-    case "healing":
+    case "clone":
       return patch;
     case "ai": {
       if (!patch.result) return patch;

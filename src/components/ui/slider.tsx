@@ -5,6 +5,8 @@ type SliderProps = {
   label: string;
   value: number;
   onChange: (value: number) => void;
+  /** Reports interaction with either the range or its numeric field. */
+  onEditingChange?: (editing: boolean) => void;
   min: number;
   max: number;
   step?: number;
@@ -52,6 +54,7 @@ export function Slider({
   label,
   value,
   onChange,
+  onEditingChange,
   min,
   max,
   step = 1,
@@ -75,6 +78,7 @@ export function Slider({
           max={max}
           min={min}
           onChange={onChange}
+          onEditingChange={onEditingChange}
           step={step}
           minChars={valueWidth}
           unit={unit}
@@ -90,10 +94,15 @@ export function Slider({
           min={min}
           onChange={(event) => onChange(event.currentTarget.valueAsNumber)}
           onDoubleClick={reset}
+          onBlur={() => onEditingChange?.(false)}
+          onFocus={() => onEditingChange?.(true)}
           onKeyDown={(event) =>
             event.key === "Enter" && event.currentTarget.blur()
           }
           step={step}
+          onPointerCancel={() => onEditingChange?.(false)}
+          onPointerDown={() => onEditingChange?.(true)}
+          onPointerUp={() => onEditingChange?.(false)}
           type="range"
           value={value}
         />
