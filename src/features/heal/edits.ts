@@ -3,20 +3,11 @@ import {
   type EditorDocument,
   editLayer,
   type HealAlgorithm,
-  type HealPatch,
   type StrokePoint,
 } from "@/core/document";
 import { validateStroke, validPoints } from "@/core/document/brush";
 import type { Point } from "@/core/image/frame";
-import { validateOffset } from "./model";
-
-function staleAiFrom(patches: readonly HealPatch[], from: number) {
-  return patches.map((patch, index) =>
-    index >= from && patch.algorithm === "ai" && patch.result
-      ? { ...patch, stale: true as const }
-      : patch,
-  );
-}
+import { invalidateGeneratedResults, validateOffset } from "./model";
 
 export function addHealPatch(
   document: EditorDocument,
@@ -94,7 +85,10 @@ export function setHealPatch(
           }
         : patch,
     );
-    return { ...layer, patches: staleAiFrom(patches, index + 1) };
+    return {
+      ...layer,
+      patches: invalidateGeneratedResults(patches, index + 1),
+    };
   });
 }
 
@@ -113,7 +107,10 @@ export function duplicateHealPatch(
       ...structuredClone(patches[index]),
       id: nextId,
     });
-    return { ...layer, patches: staleAiFrom(patches, index + 1) };
+    return {
+      ...layer,
+      patches: invalidateGeneratedResults(patches, index + 1),
+    };
   });
   return nextId;
 }
@@ -130,7 +127,10 @@ export function deleteHealPatch(
     }
     const index = layer.patches.findIndex((patch) => patch.id === patchId);
     const patches = layer.patches.filter((patch) => patch.id !== patchId);
-    return { ...layer, patches: staleAiFrom(patches, index) };
+    return {
+      ...layer,
+      patches: invalidateGeneratedResults(patches, index),
+    };
   });
 }
 
@@ -187,7 +187,10 @@ export function setHealSource(
         ? { ...patch, offset: [offset[0], offset[1]] as Point }
         : patch,
     );
-    return { ...layer, patches: staleAiFrom(patches, index + 1) };
+    return {
+      ...layer,
+      patches: invalidateGeneratedResults(patches, index + 1),
+    };
   });
 }
 
@@ -228,7 +231,7 @@ export function setHealDestination(
     );
     return {
       ...layer,
-      patches: staleAiFrom(
+      patches: invalidateGeneratedResults(
         patches,
         current.algorithm === "ai" ? index : index + 1,
       ),

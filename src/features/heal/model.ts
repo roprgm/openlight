@@ -1,5 +1,27 @@
-import type { BrushStroke } from "@/core/document";
+import type { BrushStroke, HealPatch } from "@/core/document";
 import type { Point } from "@/core/image/frame";
+
+function invalidateGeneratedResult(patch: HealPatch): HealPatch {
+  switch (patch.algorithm) {
+    case "healing":
+      return patch;
+    case "ai": {
+      if (!patch.result) return patch;
+      return { ...patch, stale: true };
+    }
+  }
+}
+
+/** Invalidates generated patches whose inputs changed during ordered replay. */
+export function invalidateGeneratedResults(
+  patches: readonly HealPatch[],
+  from: number,
+) {
+  return [
+    ...patches.slice(0, from),
+    ...patches.slice(from).map(invalidateGeneratedResult),
+  ];
+}
 
 /** Bounds include the whole soft brush edge, with room for a known boundary. */
 export function patchBounds(

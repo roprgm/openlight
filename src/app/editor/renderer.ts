@@ -33,17 +33,6 @@ function composeLayer(
 ): Branch {
   const name = `layer/${layer.id}`;
   composition.retain(name);
-  if (layer.kind === "heal") {
-    for (const patch of layer.patches) {
-      const active =
-        patch.algorithm === "ai"
-          ? Boolean(patch.result)
-          : patch.offset[0] !== 0 || patch.offset[1] !== 0;
-      if (active) {
-        composition.retain(`${name}/${patch.id}`);
-      }
-    }
-  }
   // A hidden or transparent layer still shows what its curve receives while it is inspected.
   const bypassed = !layer.visible || layer.opacity === 0;
   const inspected =
@@ -94,14 +83,7 @@ function composeLayer(
       edited = pipeline(below, [fill(layer.fill, `${name}/fill`)]);
       break;
     case "heal": {
-      const result = heal(
-        below,
-        layer.patches,
-        name,
-        composition.brush,
-        composition.inputId,
-        resolve,
-      );
+      const result = heal(below, layer.patches, name, composition, resolve);
       edited = result.image;
       input = result.input;
       break;
