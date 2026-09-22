@@ -56,18 +56,6 @@ function LayerCurve({ id, toneCurve }: { id: string; toneCurve: ToneCurve }) {
   );
 }
 
-/** The sidebar heading for each layer kind's controls; a new kind must name one. */
-const titles: Record<Layer["kind"], string> = {
-  image: "Adjustments",
-  mask: "Adjustments",
-  exposure: "Adjustments",
-  details: "Adjustments",
-  vignette: "Adjustments",
-  "color-mixer": "Adjustments",
-  fill: "Adjustments",
-  heal: "Healing",
-};
-
 function SelectedControls({ layer }: { layer: Layer }) {
   const document = useDocument();
   switch (layer.kind) {
@@ -129,7 +117,7 @@ export function AdjustPanel() {
   );
   return (
     <div {...gesture}>
-      <PanelHeader title={titles[target.kind]} />
+      <PanelHeader title={target.kind === "image" ? "Image" : target.name} />
       <SelectedControls layer={target} />
     </div>
   );

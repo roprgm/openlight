@@ -50,7 +50,7 @@ test("paint a brush mask, adjust it in the sidebar, erase, and undo", async ({
     options.getByRole("textbox", { name: "Size", exact: true }),
   ).toBeVisible();
   await expect(
-    page.getByRole("heading", { name: "Adjustments", exact: true }),
+    page.getByRole("heading", { name: "Brush", exact: true }),
   ).toBeVisible();
   const bounds = await box(canvas);
   const scale = Math.min(bounds.width / 1200, bounds.height / 800, 2);
@@ -302,7 +302,7 @@ test("a second finger during a touch stroke cancels it and pinches instead", asy
     await page.getByRole("tab", { name: "Brush", exact: true }).click();
     const canvas = page.getByLabel("Brush canvas", { exact: true });
     await expect(canvas).toBeVisible();
-    const zoom = page.locator('button[title="Fit to view"]');
+    const zoom = page.getByRole("button", { name: /^\d+%$/ });
     const before = await zoom.textContent();
     const bounds = await box(canvas);
     const [cx, cy] = [

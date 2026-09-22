@@ -1,8 +1,7 @@
 import { useBrushTool } from "@/components/editor/brush-tool";
-import { useDocument, useScene } from "@/components/editor/session";
+import { useDocument, useSelectedLayer } from "@/components/editor/session";
 import { barSlider, useBarDensity } from "@/components/editor/toolbar-density";
 import { Slider } from "@/components/ui/slider";
-import { findLayer } from "@/core/document";
 import { setHealPatch } from "./edits";
 import { useHealing } from "./mode";
 
@@ -10,9 +9,7 @@ export function HealOptions() {
   const document = useDocument();
   const { settings, maxSize, setPreview, update } = useBrushTool();
   const { feather: nextFeather, setFeather, selectedPatch } = useHealing();
-  const layer = useScene((scene) =>
-    findLayer(scene.layers, document.selection.getState().layerId),
-  );
+  const layer = useSelectedLayer();
   const selected =
     layer?.kind === "heal"
       ? layer.patches.find((patch) => patch.id === selectedPatch)

@@ -26,7 +26,6 @@ import { validateCurve } from "@/features/tone-curves/curve";
 import { validateVignette } from "@/features/vignette/edits";
 import { defaultVignette } from "@/features/vignette/model";
 import { validateWhiteBalance } from "@/features/white-balance/edits";
-import { readZip, writeZip } from "@/lib/zip";
 
 /** Raised only when older files can no longer load as written; a parameter added later takes its default. */
 const version = 1;
@@ -38,15 +37,6 @@ export type SceneJson = {
   sources: Record<string, { name: string; type: string }>;
   scene: Scene;
 };
-
-export const sceneExtension = ".openlight";
-
-/** Sources are stored, so only `scene.json` inflates; a scene with 7,000 stroke points is about 200 kB. */
-const inflateLimit = 256 * 2 ** 20;
-
-export function isSceneFile(file: File) {
-  return file.name.toLowerCase().endsWith(sceneExtension);
-}
 
 /** The document's scene and the source files it references, read without rendering. */
 export function snapshotScene(document: EditorDocument) {
@@ -60,22 +50,6 @@ export function snapshotScene(document: EditorDocument) {
     scene,
   };
   return { json, files: new Map([[source, file]]) };
-}
-
-/** The document as a ZIP archive: a deflated `scene.json` and each source's bytes at `sources/<id>`. */
-export async function writeSceneFile(document: EditorDocument) {
-  const { json, files } = snapshotScene(document);
-  const archive = await writeZip([
-    {
-      name: "scene.json",
-      data: new Blob([JSON.stringify(json)]),
-      deflate: true,
-    },
-    ...[...files].map(([id, file]) => ({ name: `sources/${id}`, data: file })),
-  ]);
-  const [file] = files.values();
-  const name = file.name.replace(/\.[^.]*$/, "") || "scene";
-  return new File([archive], `${name}${sceneExtension}`);
 }
 
 function readId(id: string, ids: Set<string>) {
@@ -263,21 +237,4 @@ export async function openScene(
     resources.dispose();
     throw error;
   }
-}
-
-export async function openSceneFile(
-  file: Blob,
-  decode: (file: File) => Promise<ImageSource>,
-) {
-  const entries = await readZip(file, inflateLimit);
-  const json = entries.get("scene.json");
-  if (!json) {
-    throw Error("This file doesn't contain an OpenLight scene.");
-  }
-  const files = new Map(
-    [...entries].flatMap(([name, data]) =>
-      name.startsWith("sources/") ? [[name.slice(8), data] as const] : [],
-    ),
-  );
-  return openScene(JSON.parse(await json.text()), files, decode);
 }

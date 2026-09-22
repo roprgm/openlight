@@ -3,8 +3,9 @@ import { useGpu } from "vgpu-react";
 import { BrushCanvas } from "@/components/editor/brush-canvas";
 import { useDocumentMapping } from "@/components/editor/mapping";
 import { useRenderer } from "@/components/editor/pipeline";
-import { useDocument, useScene } from "@/components/editor/session";
-import { findLayer } from "@/core/document";
+import { useDocument, useSelectedLayer } from "@/components/editor/session";
+import { useToolLayer } from "@/components/editor/tool-layer";
+import type { Layer } from "@/core/document";
 import type { Point } from "@/core/image/frame";
 import { addHealPatch, extendHealPatch, setHealSource } from "./edits";
 import { useHealing } from "./mode";
@@ -12,12 +13,16 @@ import { dabTouchesImage, findHealPatch } from "./model";
 import { HealPatchHitTarget, HealPatchOutline } from "./outline";
 import { createHealSearch } from "./source";
 
+function isHealLayer(layer: Layer): layer is Extract<Layer, { kind: "heal" }> {
+  return layer.kind === "heal";
+}
+
 /** Paints ordinary brush strokes; only the donor search and patch edits belong to Heal. */
 export function HealOverlay({
   onCreate,
   onDone,
 }: {
-  onCreate: () => string;
+  onCreate: () => void;
   onDone: () => void;
 }) {
   const document = useDocument();
@@ -29,10 +34,13 @@ export function HealOverlay({
   const [source, setSource] = useState<Point>();
   const [drawingPatch, setDrawingPatch] = useState<string>();
   const [resolvingSource, setResolvingSource] = useState<string>();
-  const layer = useScene((scene) =>
-    findLayer(scene.layers, document.selection.getState().layerId),
-  );
-  const healLayer = layer?.kind === "heal" ? layer : undefined;
+  const selectedHealLayer = useToolLayer({
+    accepts: isHealLayer,
+    create: onCreate,
+    leave: onDone,
+  });
+  const layer = useSelectedLayer();
+  const healLayer = layer && isHealLayer(layer) ? layer : undefined;
   const patches = healLayer?.patches ?? [];
   const hovered = patches.some((patch) => patch.id === hoveredPatch)
     ? hoveredPatch
@@ -41,32 +49,6 @@ export function HealOverlay({
   const pending = useRef<
     { layer: string; patch: string; automatic: boolean } | undefined
   >(undefined);
-  useEffect(() => {
-    const layer = findLayer(
-      document.scene.getState().layers,
-      document.selection.getState().layerId,
-    );
-    const before =
-      layer?.kind === "heal" ? undefined : document.scene.getState();
-    if (before) {
-      onCreate();
-    }
-    const unsubscribe = document.selection.subscribe(() => {
-      const layer = findLayer(
-        document.scene.getState().layers,
-        document.selection.getState().layerId,
-      );
-      if (layer?.kind !== "heal") {
-        onDone();
-      }
-    });
-    return () => {
-      unsubscribe();
-      if (before) {
-        document.history.drop(before);
-      }
-    };
-  }, []);
   useEffect(() => () => search.dispose(), [search]);
   async function complete(signal: AbortSignal) {
     const current = pending.current;
@@ -101,8 +83,8 @@ export function HealOverlay({
       erase={false}
       feather={feather}
       onStart={(stroke) => {
-        const layer = healLayer;
-        if (!layer) throw Error("Select a Healing layer.");
+        const layer = selectedHealLayer();
+        if (!layer) return false;
         const [x, y] = stroke.points[0];
         const size = document.resources.get(
           document.scene.getState().layers[0].source,

@@ -8,7 +8,7 @@ import { addLayer } from "@/features/layers/edits";
 import { ImageHistogram } from "./histogram";
 import { createLayer } from "./layers";
 
-/** Histogram above, the mode's controls in the middle, the layer stack below. */
+/** Histogram above, the mode's controls in the middle, the layer stack below once there is a document. */
 export function EditorSidebar({
   children,
   inert,
@@ -31,7 +31,7 @@ export function EditorSidebar({
     <EditorPanel
       inert={inert}
       header={<ImageHistogram />}
-      footer={<LayersControls onAdd={add} />}
+      footer={!inert && <LayersControls onAdd={add} />}
     >
       {children}
     </EditorPanel>

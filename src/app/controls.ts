@@ -11,8 +11,7 @@ import {
 import { createCameraRawXmpLoader } from "@/app/loaders/camera-raw-xmp";
 import { createImageLoader } from "@/app/loaders/image";
 import { createLoaderRegistry } from "@/app/loaders/registry";
-import { createSceneLoader } from "@/app/loaders/scene";
-import { writeSceneFile } from "@/app/scene-file";
+import { createSceneLoader, writeSceneFile } from "@/app/loaders/scene";
 import type {
   Adjustments,
   BrushStroke,

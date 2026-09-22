@@ -1,7 +1,7 @@
 import { cn } from "cn";
 import { type ReactNode, useMemo, useRef, useState } from "react";
 import { useGpu } from "vgpu-react";
-import { writeSceneFile } from "@/app/scene-file";
+import { writeSceneFile } from "@/app/loaders/scene";
 import { Image } from "@/components/editor/image";
 import { EditorPanel, PanelHeader } from "@/components/editor/panel";
 import { useDocument, useScene } from "@/components/editor/session";

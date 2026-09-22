@@ -37,7 +37,8 @@ test("edit a photo, inspect the preview and histograms, undo changes, and export
   await expect(
     page.getByRole("button", { name: "choose a file" }),
   ).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Layers" })).toBeVisible();
+  // The start screen has no layer stack until a document opens.
+  await expect(page.getByRole("heading", { name: "Layers" })).toHaveCount(0);
   await expect(page.getByRole("tab", { name: "Adjust" })).toBeDisabled();
   await page
     .locator('input[type="file"]')
@@ -60,7 +61,7 @@ test("edit a photo, inspect the preview and histograms, undo changes, and export
 
   await test.step("image adjustments share a single section", async () => {
     await expect(
-      page.getByRole("heading", { name: "Adjustments", exact: true }),
+      page.getByRole("heading", { name: "Image", exact: true }),
     ).toBeVisible();
     await expect(
       page.getByRole("slider", { name: "Clarity", exact: true }),
@@ -499,7 +500,7 @@ test("edit a photo, inspect the preview and histograms, undo changes, and export
     await page.keyboard.press("ArrowLeft");
     await expect(selected).toHaveAccessibleName("Radial gradient");
     await expect(
-      page.getByRole("heading", { name: "Adjustments", exact: true }),
+      page.getByRole("heading", { name: "Image", exact: true }),
     ).toBeVisible();
     await page.keyboard.press("ArrowLeft");
     await page.keyboard.press("ArrowLeft");

@@ -6,7 +6,7 @@ import {
   useState,
 } from "react";
 import { useStore } from "zustand";
-import type { EditorDocument, Scene } from "@/core/document";
+import { type EditorDocument, findLayer, type Scene } from "@/core/document";
 import { createCamera } from "@/hooks/use-pan-zoom";
 
 const Session = createContext<{
@@ -28,6 +28,12 @@ export function useDocument() {
 }
 export function useScene<T>(selector: (scene: Scene) => T) {
   return useStore(useDocument().scene, selector);
+}
+/** The selected layer, following both the scene and the selection. */
+export function useSelectedLayer() {
+  const document = useDocument();
+  const id = useStore(document.selection, (state) => state.layerId);
+  return useStore(document.scene, (scene) => findLayer(scene.layers, id));
 }
 
 /** Preserve document UI state while independent tools mount and unmount. */

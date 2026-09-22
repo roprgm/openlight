@@ -205,14 +205,8 @@ test("Healing paints patches, edits them, and undoes", async ({ page }) => {
     if (layer?.kind !== "heal") throw Error("Healing layer missing");
     const patch = layer.patches.at(-1);
     if (!patch) throw Error("Healing patch missing");
-    return {
-      id: patch.id,
-      y: Math.round(patch.stroke.points[0][1] + patch.offset[1]),
-    };
+    return { id: patch.id };
   });
-  await expect(
-    page.getByRole("textbox", { name: "Source Y", exact: true }),
-  ).toHaveValue(`${manual.y}`);
   expect((await readImage(page, undefined, [[350, 200]])).samples?.[0]).toEqual(
     [128, 128, 128, 255],
   );
@@ -246,10 +240,19 @@ test("Healing paints patches, edits them, and undoes", async ({ page }) => {
       return healing?.kind === "heal" ? healing.patches.length : 0;
     }),
   ).toBe(2);
-  const sourceX = firstPatch
-    .locator("..")
-    .getByRole("textbox", { name: "Source X", exact: true });
-  const beforeDrag = Number(await sourceX.inputValue());
+  const sourceX = () =>
+    page.evaluate((patchId) => {
+      const healing = window.openlight
+        .getState()
+        .scene?.layers.find((item) => item.kind === "heal");
+      const patch =
+        healing?.kind === "heal"
+          ? healing.patches.find((item) => item.id === patchId)
+          : undefined;
+      if (!patch) throw Error("Healing patch missing");
+      return Math.round(patch.stroke.points[0][0] + patch.offset[0]);
+    }, manual.id);
+  const beforeDrag = await sourceX();
   const handle = canvas.locator('[data-heal-source-handle="true"]');
   const handleBounds = await handle.boundingBox();
   if (!handleBounds) throw Error("Healing source handle is unavailable");
@@ -267,10 +270,8 @@ test("Healing paints patches, edits them, and undoes", async ({ page }) => {
     handleBounds.y + handleBounds.height / 2,
   );
   await page.mouse.up();
-  await expect
-    .poll(async () => Number(await sourceX.inputValue()))
-    .not.toBe(beforeDrag);
-  const fixedSource = Number(await sourceX.inputValue());
+  await expect.poll(sourceX).not.toBe(beforeDrag);
+  const fixedSource = await sourceX();
   const beforeDestination = await page.evaluate((patchId) => {
     const healing = window.openlight
       .getState()
@@ -308,7 +309,7 @@ test("Healing paints patches, edits them, and undoes", async ({ page }) => {
       }, manual.id),
     )
     .not.toBe(beforeDestination);
-  await expect(sourceX).toHaveValue(`${fixedSource}`);
+  expect(await sourceX()).toBe(fixedSource);
   await feather.fill("60");
   await feather.press("Enter");
   const opacity = page.getByRole("textbox", {
@@ -349,4 +350,65 @@ test("Healing paints patches, edits them, and undoes", async ({ page }) => {
   await expect(
     page.getByRole("textbox", { name: "Feather", exact: true }),
   ).toHaveValue("50");
+});
+
+test("Healing takes the first stroke after H and finds donors inside a mask", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await page
+    .locator('input[type="file"]')
+    .setInputFiles("tests/fixtures/photo.svg");
+  await expect(
+    page.getByRole("textbox", { name: "Exposure", exact: true }),
+  ).toHaveValue("0.00");
+  const canvas = page.getByRole("region", { name: "Image canvas" });
+  const bounds = await box(canvas);
+  const spot = [bounds.x + bounds.width * 0.3, bounds.y + bounds.height * 0.4];
+  async function healedPatches() {
+    await expect
+      .poll(() =>
+        page.evaluate(() => {
+          const { history } = window.openlight.getState();
+          return "editing" in history && history.editing;
+        }),
+      )
+      .toBe(false);
+    return page.evaluate(() => {
+      const selected = window.openlight.getState().selectedLayerId;
+      const layers = window.openlight.getState().scene?.layers ?? [];
+      const layer = layers
+        .flatMap((layer) => [layer, ...layer.children])
+        .find((layer) => layer.id === selected);
+      return layer?.kind === "heal" ? layer.patches : [];
+    });
+  }
+
+  await page.keyboard.press("h");
+  await page.mouse.click(spot[0], spot[1]);
+  expect(await healedPatches()).toHaveLength(1);
+
+  await page.keyboard.press("Enter");
+  const nested = await page.evaluate(() => {
+    const api = window.openlight;
+    const mask = api.addLayer("mask");
+    api.setLayerMask(mask, {
+      kind: "radial",
+      center: [600, 400],
+      radius: [2000, 2000],
+      angle: 0,
+      feather: 0,
+    });
+    const heal = api.addLayer("heal", { inside: mask });
+    api.selectLayer(heal);
+    return heal;
+  });
+  await page.keyboard.press("h");
+  await page.mouse.click(spot[0], spot[1]);
+  const patches = await healedPatches();
+  expect(
+    await page.evaluate(() => window.openlight.getState().selectedLayerId),
+  ).toBe(nested);
+  expect(patches).toHaveLength(1);
+  expect(patches[0].offset).not.toEqual([0, 0]);
 });

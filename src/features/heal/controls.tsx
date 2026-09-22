@@ -4,9 +4,8 @@ import { HealIcon } from "@/components/icons/heal";
 import { Icon } from "@/components/icons/icon";
 import { Menu } from "@/components/ui/menu";
 import { PanelListItem } from "@/components/ui/panel-list";
-import { ScrubInput } from "@/components/ui/scrub-input";
 import type { HealPatch } from "@/core/document";
-import { deleteHealPatch, duplicateHealPatch, setHealSource } from "./edits";
+import { deleteHealPatch, duplicateHealPatch } from "./edits";
 import { useHealing } from "./mode";
 import { patchThumbnailRegion } from "./model";
 
@@ -68,41 +67,12 @@ function PatchActions({
   );
 }
 
-function SourceFields({
-  layer,
-  patch,
-  limit,
-}: {
-  layer: string;
-  patch: HealPatch;
-  limit: readonly [number, number];
-}) {
-  const document = useDocument();
-  const { selectPatch } = useHealing();
-  const destination = patch.stroke.points[0];
-  return (
-    <div
-      className="flex shrink-0 items-center gap-1"
-      onPointerDownCapture={() => selectPatch(patch.id)}
-    >
-      {(["X", "Y"] as const).map((axis, index) => (
-        <ScrubInput
-          key={axis}
-          aria-label={`Source ${axis}`}
-          label={axis}
-          value={Math.round(destination[index] + patch.offset[index])}
-          min={0}
-          max={limit[index]}
-          variant="text"
-          onChange={(value) => {
-            const offset: [number, number] = [patch.offset[0], patch.offset[1]];
-            offset[index] = Math.round(value - destination[index]);
-            setHealSource(document, layer, patch.id, offset);
-          }}
-        />
-      ))}
-    </div>
-  );
+/** The brush size, and the opacity once lowered; the donor is edited on the canvas. */
+function patchSummary(patch: HealPatch) {
+  const size = `${Math.round(patch.stroke.size)} px`;
+  return patch.opacity < 1
+    ? `${size} · ${Math.round(patch.opacity * 100)}%`
+    : size;
 }
 
 /** Shows the ordered repair stack; selection is shared with the canvas and floating bar. */
@@ -150,8 +120,10 @@ export function HealControls({
                 fallback={<PendingThumbnail />}
               />
               <span className="min-w-0 flex-1 truncate">Patch {index + 1}</span>
+              <span className="shrink-0 text-neutral-500 tabular-nums">
+                {patchSummary(patch)}
+              </span>
             </button>
-            <SourceFields layer={id} patch={patch} limit={source.image.size} />
             <PatchActions
               layer={id}
               patch={patch}

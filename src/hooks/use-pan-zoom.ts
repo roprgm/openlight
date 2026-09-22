@@ -2,6 +2,7 @@ import {
   type PointerEvent,
   useCallback,
   useEffect,
+  useEffectEvent,
   useLayoutEffect,
   useRef,
   useState,
@@ -148,6 +149,31 @@ export function usePanZoom(
 
   useLayoutEffect(() => update((view) => view), [update, viewport]);
 
+  const wheel = useEffectEvent((event: WheelEvent) => {
+    event.preventDefault();
+    const element = ref.current;
+    if (!element) {
+      return;
+    }
+    const { left, top, width, height } = element.getBoundingClientRect();
+    const focal: Point = [
+      event.clientX - left - width / 2,
+      event.clientY - top - height / 2,
+    ];
+    update((view) => {
+      if (event.ctrlKey || event.metaKey) {
+        return zoomAt(
+          view,
+          focal,
+          view.zoom * Math.exp(-event.deltaY / 100),
+          constrain ? 1 : fitZoom.current * 0.1,
+        );
+      }
+      return pan(view, -event.deltaX, -event.deltaY);
+    });
+  });
+
+  // One listener and observer per element; the wheel handler reads the latest content and bounds.
   useLayoutEffect(() => {
     const element = ref.current;
     if (!element) {
@@ -159,31 +185,16 @@ export function usePanZoom(
     measure();
     const observer = new ResizeObserver(measure);
     observer.observe(element);
-    const wheel = (event: WheelEvent) => {
-      event.preventDefault();
-      const { left, top, width, height } = element.getBoundingClientRect();
-      const focal: Point = [
-        event.clientX - left - width / 2,
-        event.clientY - top - height / 2,
-      ];
-      update((view) => {
-        if (event.ctrlKey || event.metaKey) {
-          return zoomAt(
-            view,
-            focal,
-            view.zoom * Math.exp(-event.deltaY / 100),
-            constrain ? 1 : fitZoom.current * 0.1,
-          );
-        }
-        return pan(view, -event.deltaX, -event.deltaY);
-      });
-    };
-    element.addEventListener("wheel", wheel, { passive: false });
+    const controller = new AbortController();
+    element.addEventListener("wheel", wheel, {
+      passive: false,
+      signal: controller.signal,
+    });
     return () => {
       observer.disconnect();
-      element.removeEventListener("wheel", wheel);
+      controller.abort();
     };
-  }, [update, constrain]);
+  }, []);
 
   const release = (event: PointerEvent<HTMLElement>) =>
     pointers.current.delete(event.pointerId);
@@ -200,6 +211,9 @@ export function usePanZoom(
         constrain ? 1 : fitZoom.current * 0.1,
       ),
     );
+  /** An exact zoom may go below fit, as 100% does for a small image on a dense display. */
+  const zoomTo = (zoom: number) =>
+    update((view) => zoomAt(view, [0, 0], zoom, zoom));
   function track(pointerId: number, position: Point, element: Element) {
     if (pointers.current.size === 0) {
       boundedDrag.current = constrain && !panMode;
@@ -272,6 +286,7 @@ export function usePanZoom(
     handlers,
     resetView,
     zoomBy,
+    zoomTo,
     panMode,
     scale: fitScale(content, inset(viewport, padding)) * view.zoom,
   };

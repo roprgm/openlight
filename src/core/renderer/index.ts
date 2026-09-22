@@ -1,5 +1,10 @@
 import type { Gpu, Target, Timer } from "vgpu";
-import type { BrushStroke, Layer, MaskLayer, Scene } from "@/core/document";
+import {
+  type BrushStroke,
+  type MaskLayer,
+  type Scene,
+  walkLayers,
+} from "@/core/document";
 import type { ImageSource, WhiteBalance } from "@/core/image";
 import { createRenderGraph } from "./graph";
 import { createMaskRaster } from "./mask";
@@ -106,16 +111,10 @@ export function createRenderer(
     const active = new Set<string>();
     const developed = raw?.render() ?? source;
     // A mask updates its rasters with those of the masks inside it, which only shape its coverage.
-    function prepare(layer: Layer, parent?: Layer) {
+    for (const { layer, parent } of walkLayers(scene.layers)) {
       if (layer.kind === "mask" && parent?.kind !== "mask") {
         raster.update(layer, developed.size);
       }
-      for (const child of layer.children) {
-        prepare(child, layer);
-      }
-    }
-    for (const layer of scene.layers) {
-      prepare(layer);
     }
     const image =
       factor > 1 ? proxy.render(developed, factor, version) : input(developed);
