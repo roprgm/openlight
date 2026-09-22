@@ -16,9 +16,11 @@ type Drag = {
 /** A dragged value: the destination's first point or the donor offset, changed as one history edit. */
 export type AnchorDrag = {
   from: Point;
-  /** Follows the pointer; no value ends the drag. */
+  /** Previews the value during the drag; no value ends the preview. */
   onDrag: (next?: Point) => void;
   onDrop: (next: Point) => void;
+  /** Regenerates after the drop; the edit commits when it settles. */
+  onRelease: (signal: AbortSignal) => Promise<void>;
 };
 
 const marker = { r: 7, fill: "#3b82f6", stroke: "white", strokeWidth: 2 };
@@ -57,6 +59,7 @@ function DraggedAnchor({
   const mapping = useDocumentMapping();
   const camera = useViewport();
   const current = useRef<Drag | undefined>(undefined);
+  const pending = useRef<AbortController | undefined>(undefined);
   const opened = useRef(false);
   /** A drag inside an open group, such as a finishing stroke, joins it and leaves the group to its opener. */
   function end(commit: boolean) {
@@ -74,9 +77,20 @@ function DraggedAnchor({
     drag.onDrag();
     end(false);
   }
-  useEffect(() => () => end(false), []);
+  useEffect(
+    () => () => {
+      pending.current?.abort();
+      end(false);
+    },
+    [],
+  );
   function start(event: PointerEvent<SVGCircleElement>) {
-    if (event.button !== 0 || !event.isPrimary || camera.panMode) {
+    if (
+      event.button !== 0 ||
+      !event.isPrimary ||
+      camera.panMode ||
+      pending.current
+    ) {
       return;
     }
     const box = camera.ref.current?.getBoundingClientRect();
@@ -119,7 +133,19 @@ function DraggedAnchor({
     }
     drag.onDrop(active.next);
     drag.onDrag();
-    end(true);
+    const controller = new AbortController();
+    pending.current = controller;
+    void drag
+      .onRelease(controller.signal)
+      .then(() => {
+        if (!controller.signal.aborted) end(true);
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) end(false);
+      })
+      .finally(() => {
+        if (pending.current === controller) pending.current = undefined;
+      });
   }
   return (
     <circle
