@@ -108,7 +108,7 @@ export type HealPatch =
   | SmartHealPatch
   | (HealPatchBase & {
       readonly algorithm: "ai";
-      /** A previous patch changed after this generated result was produced. */
+      /** The input changed after generation started, so the result is missing or outdated. */
       readonly stale?: true;
       readonly result?: {
         readonly source: string;

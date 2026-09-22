@@ -68,18 +68,19 @@ export function HealOverlay({
     }
     return layer;
   }
+  function livePatch(layerId: string, patchId: string) {
+    const layer = findLayer(document.scene.getState().layers, layerId);
+    if (layer?.kind !== "heal") return;
+    return layer.patches.find((patch) => patch.id === patchId);
+  }
   async function generateAi(
     layerId: string,
     patchId: string,
     signal: AbortSignal,
-    apply: typeof setAiResult = setAiResult,
+    settle = false,
   ) {
     const scene = document.scene.getState();
-    const layer = findLayer(scene.layers, layerId);
-    const patch =
-      layer?.kind === "heal"
-        ? layer.patches.find((patch) => patch.id === patchId)
-        : undefined;
+    const patch = livePatch(layerId, patchId);
     if (patch?.algorithm !== "ai") return;
     await renderer.update(scene, patchId, false);
     signal.throwIfAborted();
@@ -87,19 +88,29 @@ export function HealOverlay({
     if (!image) throw Error("Heal input is unavailable.");
     const dimensions = document.resources.get(scene.layers[0].source).image
       .size;
-    const generated = await generateMigan(gpu, image, dimensions, patch.stroke);
+    const generated = await generateMigan(
+      gpu,
+      image,
+      dimensions,
+      patch.stroke,
+      signal,
+    );
     signal.throwIfAborted();
-    if (document.scene.getState() !== scene) return;
+    // A stroke edited meanwhile, or moved, regenerates after it commits instead of taking this result.
+    const live = livePatch(layerId, patchId);
+    if (live?.algorithm !== "ai" || (!settle && live.stale)) return;
     const resource = createPixelSource(gpu, generated.result);
     const result = document.resources.add(
       new File([], "AI Remove result"),
       resource,
     );
-    apply(document, layerId, patchId, {
+    const stored = {
       source: result,
       origin: generated.origin,
       extent: generated.extent,
-    });
+    };
+    if (settle) settleAiResult(document, layerId, patchId, stored);
+    else setAiResult(document, layerId, patchId, stored);
   }
   async function regenerateFrom(
     layerId: string,
@@ -117,21 +128,18 @@ export function HealOverlay({
     for (const id of affected) await generateAi(layerId, id, signal);
   }
   const stalePatch = patches.find(
-    (patch) => patch.algorithm === "ai" && patch.stale,
+    (patch) => patch.algorithm === "ai" && (patch.stale || !patch.result),
   )?.id;
   useEffect(() => {
     if (!healLayer || !stalePatch || editing || drawingPatch) return;
     const controller = new AbortController();
     const timeout = window.setTimeout(() => {
       setRegenerationError(undefined);
-      void generateAi(
-        healLayer.id,
-        stalePatch,
-        controller.signal,
-        settleAiResult,
-      ).catch((error: unknown) => {
-        if (!controller.signal.aborted) setRegenerationError(String(error));
-      });
+      void generateAi(healLayer.id, stalePatch, controller.signal, true).catch(
+        (error: unknown) => {
+          if (!controller.signal.aborted) setRegenerationError(String(error));
+        },
+      );
     }, 150);
     return () => {
       window.clearTimeout(timeout);
@@ -172,9 +180,7 @@ export function HealOverlay({
         return;
       }
       const scene = document.scene.getState();
-      const patch = selected().patches.find(
-        (patch) => patch.id === current.patch,
-      );
+      const patch = livePatch(current.layer, current.patch);
       if (!patch) {
         return;
       }
@@ -194,14 +200,8 @@ export function HealOverlay({
       const dimensions = document.resources.get(scene.layers[0].source).image
         .size;
       const offset = await search.find(image, dimensions, patch.stroke);
-      // Undo, selection, or document replacement during readback must not resurrect a patch.
-      if (
-        document.scene.getState() !== scene ||
-        signal.aborted ||
-        !document.history.status.getState().editing
-      ) {
-        return;
-      }
+      // The stroke's group stays open through the search; undo or cancel aborts it and removes the patch.
+      if (signal.aborted || !livePatch(current.layer, current.patch)) return;
       setHealSource(document, current.layer, current.patch, offset);
     } finally {
       setResolvingSource((id) => (id === current?.patch ? undefined : id));

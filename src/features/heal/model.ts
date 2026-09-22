@@ -1,25 +1,18 @@
 import type { BrushStroke, HealPatch } from "@/core/document";
 import type { Point } from "@/core/image/frame";
 
-function invalidateGeneratedResult(patch: HealPatch): HealPatch {
-  switch (patch.algorithm) {
-    case "clone":
-      return patch;
-    case "ai": {
-      if (!patch.result) return patch;
-      return { ...patch, stale: true };
-    }
-  }
-}
-
-/** Invalidates generated patches whose inputs changed during ordered replay. */
+/** Marks generated patches whose input changed during ordered replay, including one still generating. */
 export function invalidateGeneratedResults(
   patches: readonly HealPatch[],
   from: number,
 ) {
   return [
     ...patches.slice(0, from),
-    ...patches.slice(from).map(invalidateGeneratedResult),
+    ...patches
+      .slice(from)
+      .map((patch) =>
+        patch.algorithm === "ai" ? { ...patch, stale: true as const } : patch,
+      ),
   ];
 }
 
@@ -57,34 +50,21 @@ export function validateOffset(offset: Point) {
   }
 }
 
-/** Square neural context around the painted object, clamped to the document. */
+/** Context around the patch: a square when the image allows one, otherwise as much of each axis as fits, so a long stroke keeps its ends and its surroundings. */
 export function miganBounds(stroke: BrushStroke, size: readonly number[]) {
   const bounds = patchBounds(stroke, size);
-  const side = Math.min(
-    Math.min(...size),
-    Math.ceil(Math.max(512, bounds.extent[0] * 2, bounds.extent[1] * 2)),
+  const side = Math.ceil(
+    Math.max(512, bounds.extent[0] * 2, bounds.extent[1] * 2),
   );
-  return {
-    origin: [
-      Math.round(
-        Math.max(
-          0,
-          Math.min(
-            size[0] - side,
-            bounds.origin[0] + bounds.extent[0] / 2 - side / 2,
-          ),
-        ),
-      ),
-      Math.round(
-        Math.max(
-          0,
-          Math.min(
-            size[1] - side,
-            bounds.origin[1] + bounds.extent[1] / 2 - side / 2,
-          ),
-        ),
-      ),
-    ] as Point,
-    extent: [side, side] as Point,
+  const axis = (index: number) => {
+    const extent = Math.min(size[index], Math.max(side, bounds.extent[index]));
+    const centre = bounds.origin[index] + bounds.extent[index] / 2;
+    const origin = Math.round(
+      Math.max(0, Math.min(size[index] - extent, centre - extent / 2)),
+    );
+    return [origin, extent] as const;
   };
+  const [x, width] = axis(0);
+  const [y, height] = axis(1);
+  return { origin: [x, y] as Point, extent: [width, height] as Point };
 }

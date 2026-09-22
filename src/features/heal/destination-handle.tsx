@@ -33,6 +33,14 @@ export function HealDestinationHandle({
   const camera = useViewport();
   const drag = useRef<Drag | undefined>(undefined);
   const pending = useRef<AbortController | undefined>(undefined);
+  const opened = useRef(false);
+  /** A drag inside an open group, such as a finishing stroke, joins it and leaves the group to its opener. */
+  function end(commit: boolean) {
+    if (!opened.current) return;
+    opened.current = false;
+    if (commit) document.history.commit();
+    else document.history.cancel();
+  }
   function point(event: PointerEvent<SVGCircleElement>, box?: DOMRect) {
     return mapping.toDocument(event.clientX, event.clientY, box);
   }
@@ -40,12 +48,12 @@ export function HealDestinationHandle({
     if (!drag.current) return;
     drag.current = undefined;
     onPreview?.();
-    document.history.cancel();
+    end(false);
   }
   useEffect(
     () => () => {
       pending.current?.abort();
-      if (drag.current || pending.current) document.history.cancel();
+      end(false);
     },
     [],
   );
@@ -60,8 +68,7 @@ export function HealDestinationHandle({
     }
     const box = camera.ref.current?.getBoundingClientRect();
     const [x, y] = patch.stroke.points[0];
-    document.history.commit();
-    document.history.begin();
+    opened.current = document.history.begin();
     drag.current = {
       pointer: event.pointerId,
       box,
@@ -99,7 +106,7 @@ export function HealDestinationHandle({
       current.next[1] !== current.destination[1];
     if (!moved) {
       onPreview?.();
-      document.history.cancel();
+      end(false);
       event.currentTarget.releasePointerCapture(event.pointerId);
       return;
     }
@@ -110,17 +117,17 @@ export function HealDestinationHandle({
     event.stopPropagation();
     event.currentTarget.releasePointerCapture(event.pointerId);
     if (!onRelease) {
-      document.history.commit();
+      end(true);
       return;
     }
     const controller = new AbortController();
     pending.current = controller;
     void onRelease(controller.signal)
       .then(() => {
-        if (!controller.signal.aborted) document.history.commit();
+        if (!controller.signal.aborted) end(true);
       })
       .catch(() => {
-        if (!controller.signal.aborted) document.history.cancel();
+        if (!controller.signal.aborted) end(false);
       })
       .finally(() => {
         if (pending.current === controller) pending.current = undefined;
