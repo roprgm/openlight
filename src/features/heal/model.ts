@@ -50,6 +50,22 @@ export function patchBounds(
   return { origin, extent };
 }
 
+/** A square around the patch with a little margin, so a thumbnail keeps the stroke's proportions. */
+export function patchThumbnailRegion(
+  stroke: BrushStroke,
+  size: readonly number[],
+) {
+  const { origin, extent } = patchBounds(stroke, size);
+  const side = Math.max(extent[0], extent[1]) * 1.1;
+  return {
+    origin: [
+      origin[0] + (extent[0] - side) / 2,
+      origin[1] + (extent[1] - side) / 2,
+    ] as Point,
+    extent: [side, side] as Point,
+  };
+}
+
 export function validateOffset(offset: Point) {
   if (offset.length !== 2 || !offset.every(Number.isFinite)) {
     throw Error("A heal source needs two finite source-pixel offsets.");

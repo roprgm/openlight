@@ -1,4 +1,6 @@
+import { CoverageThumbnail } from "@/components/editor/coverage-thumbnail";
 import { useDocument } from "@/components/editor/session";
+import { HealIcon } from "@/components/icons/heal";
 import { Icon } from "@/components/icons/icon";
 import { Menu } from "@/components/ui/menu";
 import { PanelListItem } from "@/components/ui/panel-list";
@@ -6,7 +8,20 @@ import { ScrubInput } from "@/components/ui/scrub-input";
 import type { HealPatch, SmartHealPatch } from "@/core/document";
 import { deleteHealPatch, duplicateHealPatch, setHealSource } from "./edits";
 import { useHealing } from "./mode";
-import { PatchThumbnail } from "./thumbnail";
+import { patchThumbnailRegion } from "./model";
+
+/** A patch still finding its donor or generating has no raster yet. */
+function PendingThumbnail() {
+  return (
+    <span
+      role="img"
+      aria-label="Patch pending"
+      className="grid size-8 shrink-0 place-items-center rounded-sm border border-neutral-600 bg-neutral-950 text-neutral-500"
+    >
+      <HealIcon className="size-4" />
+    </span>
+  );
+}
 
 function PatchActions({
   layer,
@@ -127,10 +142,12 @@ export function HealControls({
               onClick={() => selectPatch(patch.id)}
               className="flex min-w-0 flex-1 items-center gap-2 self-stretch px-2 text-left"
             >
-              <PatchThumbnail
-                stroke={patch.stroke}
-                feather={patch.feather}
-                opacity={patch.opacity}
+              <CoverageThumbnail
+                id={`layer/${id}/${patch.id}`}
+                version={patch}
+                region={patchThumbnailRegion(patch.stroke, source.image.size)}
+                label="Patch shape"
+                fallback={<PendingThumbnail />}
               />
               <span className="min-w-0 flex-1 truncate">Patch {index + 1}</span>
             </button>

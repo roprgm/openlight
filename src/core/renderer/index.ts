@@ -9,6 +9,7 @@ import { createProxy } from "./proxy";
 export { maskInput, mixAdjustment } from "./blend";
 export {
   type Clipping,
+  type CoverageRegion,
   createDisplay,
   type MaskOverlay,
   renderBitmap,

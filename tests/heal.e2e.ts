@@ -341,25 +341,19 @@ test("Healing loads AI on demand, paints Smart clone, and undoes patches", async
       const pixels = context.getImageData(0, 0, canvas.width, canvas.height);
       const sample = (x: number, y: number) =>
         pixels.data[(y * canvas.width + x) * 4];
-      const levels = new Set<number>();
-      for (let y = 2; y < canvas.height - 2; y++) {
-        for (let x = 2; x < canvas.width - 2; x++) levels.add(sample(x, y));
-      }
       return {
         center: sample(
           Math.floor(canvas.width / 2),
           Math.floor(canvas.height / 2),
         ),
         edge: sample(Math.floor(canvas.width / 2), 2),
-        levels: levels.size,
       };
     },
     [...thumbnailBytes],
   );
+  // The thumbnail is the patch's own raster: hard coverage, with feather and opacity left to the blend.
   expect(thumbnailMask.edge).toBeLessThan(20);
-  expect(thumbnailMask.center).toBeGreaterThanOrEqual(120);
-  expect(thumbnailMask.center).toBeLessThanOrEqual(135);
-  expect(thumbnailMask.levels).toBeGreaterThan(12);
+  expect(thumbnailMask.center).toBeGreaterThan(200);
   await page.keyboard.press("Enter");
   await expect(canvas).not.toBeVisible();
   await page.getByRole("tab", { name: "Brush", exact: true }).click();
