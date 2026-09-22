@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useGpu } from "vgpu-react";
 import { BrushCanvas } from "@/components/editor/brush-canvas";
 import { useDocumentMapping } from "@/components/editor/mapping";
@@ -31,10 +31,18 @@ export function HealOverlay({
   const mapping = useDocumentMapping();
   const gpu = useGpu();
   const search = useDisposable(() => createHealSearch(gpu), [gpu]);
-  const { feather, selectedPatch, selectPatch, hoveredPatch } = useHealing();
-  const [source, setSource] = useState<Point>();
+  const {
+    feather,
+    source,
+    setSource,
+    selectedPatch,
+    selectPatch,
+    hoveredPatch,
+  } = useHealing();
   const [drawingPatch, setDrawingPatch] = useState<string>();
   const [resolvingSource, setResolvingSource] = useState<string>();
+  // A manual donor belongs to this visit to the tool.
+  useEffect(() => () => setSource(undefined), [setSource]);
   const selectedHealLayer = useToolLayer({
     accepts: isHealLayer,
     create: onCreate,
@@ -169,16 +177,6 @@ export function HealOverlay({
             stroke="white"
           />
         </svg>
-      )}
-      {source && (
-        <button
-          type="button"
-          onPointerDown={(event) => event.stopPropagation()}
-          onClick={() => setSource(undefined)}
-          className="absolute right-3 bottom-3 rounded-full bg-neutral-800/80 px-3 py-1.5 text-white"
-        >
-          Automatic source
-        </button>
       )}
     </BrushCanvas>
   );

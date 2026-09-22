@@ -1002,6 +1002,18 @@ test("edit a photo, inspect the preview and histograms, undo changes, and export
     await quality.fill("95");
     await quality.press("Enter");
     const large = await save("photo.jpg");
+    // The estimate encodes what Save writes, so it matches the file within its rounding.
+    const estimate = panel.getByText(/^[\d.,]+\s*(kB|MB)$/);
+    await expect
+      .poll(async () => {
+        const text = (await estimate.textContent()) ?? "";
+        const unit = text.includes("MB") ? 1e6 : 1e3;
+        return Math.abs(
+          Number(text.replace(/[^\d.]/g, "")) * unit - large.length,
+        );
+      })
+      .toBeLessThan(Math.max(1000, large.length * 0.01));
+    expect(large.length).toBeGreaterThan(small.length);
     for (const bytes of [small, large]) {
       const actual = await readImage(page, bytes);
       expect(actual.size).toEqual([1200, 800]);

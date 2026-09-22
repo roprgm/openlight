@@ -8,7 +8,13 @@ import { useHealing } from "./mode";
 export function HealOptions() {
   const document = useDocument();
   const { settings, maxSize, setPreview, update } = useBrushTool();
-  const { feather: nextFeather, setFeather, selectedPatch } = useHealing();
+  const {
+    feather: nextFeather,
+    setFeather,
+    source,
+    setSource,
+    selectedPatch,
+  } = useHealing();
   const layer = useSelectedLayer();
   const selected =
     layer?.kind === "heal"
@@ -61,6 +67,16 @@ export function HealOptions() {
           variant={variant}
           onChange={(value) => changePatch({ opacity: value / 100 })}
         />
+      )}
+      {source && (
+        <button
+          type="button"
+          title="Search for each stroke's donor again (Alt-click sets one)"
+          onClick={() => setSource(undefined)}
+          className="h-7 rounded-full px-2.5 text-neutral-400 hover:bg-white/10 hover:text-neutral-100 pointer-coarse:h-9"
+        >
+          Automatic source
+        </button>
       )}
     </>
   );
