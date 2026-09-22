@@ -7,7 +7,7 @@
       "!.cache",
       "!.claude",
       "!public/vendor",
-      "!src/features/heal/vendor"
+      "!src/features/heal/ai/vendor"
     ]
   },
   "formatter": {

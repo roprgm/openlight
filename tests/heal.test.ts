@@ -12,6 +12,7 @@ import {
 import { createImageSource } from "@/core/image";
 import { imageFrame } from "@/core/image/frame";
 import { strokeDabs } from "@/core/renderer/mask/dabs";
+import { createMiganSession, miganMaskDabs } from "@/features/heal/ai/migan";
 import {
   addHealPatch,
   deleteHealPatch,
@@ -23,7 +24,6 @@ import {
   setHealSource,
   settleAiResult,
 } from "@/features/heal/edits";
-import { createMiganSession, miganMaskDabs } from "@/features/heal/migan";
 import { miganBounds } from "@/features/heal/model";
 import { addLayer, deleteLayer } from "@/features/layers/edits";
 

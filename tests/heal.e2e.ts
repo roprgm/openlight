@@ -40,7 +40,7 @@ test("Healing loads AI on demand, paints Smart clone, and undoes patches", async
   page,
 }) => {
   await page.setViewportSize({ width: 1440, height: 1000 });
-  await page.goto("/");
+  await page.goto("/?experiment=ai-remove");
   await page
     .locator('input[type="file"]')
     .setInputFiles("tests/fixtures/photo.svg");

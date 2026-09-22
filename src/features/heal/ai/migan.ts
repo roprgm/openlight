@@ -3,7 +3,7 @@ import type { BrushStroke } from "@/core/document";
 import type { Point } from "@/core/image/frame";
 import { renderBitmap } from "@/core/renderer";
 import { strokeDabs } from "@/core/renderer/mask/dabs";
-import { miganBounds } from "./model";
+import { miganBounds } from "@/features/heal/model";
 
 const modelPath = "/models/migan-pipeline-v2.onnx";
 const modelResolution = 512;

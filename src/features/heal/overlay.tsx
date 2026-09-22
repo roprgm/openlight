@@ -8,7 +8,6 @@ import { useDocument, useScene } from "@/components/editor/session";
 import { findLayer, type HealAlgorithm } from "@/core/document";
 import type { Point } from "@/core/image/frame";
 import { addHealPatch, extendHealPatch, setHealSource } from "./edits";
-import { createAiGeneration } from "./generation";
 import { useHealing } from "./mode";
 import { findHealPatch } from "./model";
 import { HealPatchHitTarget, HealPatchOutline } from "./outline";
@@ -27,14 +26,8 @@ export function HealOverlay({
   const mapping = useDocumentMapping();
   const gpu = useGpu();
   const search = useMemo(() => createHealSearch(gpu), [gpu]);
-  const {
-    algorithm,
-    feather,
-    selectedPatch,
-    selectPatch,
-    hoveredPatch,
-    migan,
-  } = useHealing();
+  const { algorithm, feather, selectedPatch, selectPatch, hoveredPatch, ai } =
+    useHealing();
   const [source, setSource] = useState<Point>();
   const [drawingPatch, setDrawingPatch] = useState<string>();
   const [resolvingSource, setResolvingSource] = useState<string>();
@@ -58,19 +51,21 @@ export function HealOverlay({
       }
     | undefined
   >(undefined);
-  const ai = useMemo(
-    () => createAiGeneration(document, renderer, gpu, migan),
-    [document, renderer, gpu, migan],
+  const generation = useMemo(
+    () => ai?.createGeneration(document, renderer, gpu, ai.migan),
+    [ai, document, renderer, gpu],
   );
   const stalePatch = patches.find(
     (patch) => patch.algorithm === "ai" && (patch.stale || !patch.result),
   )?.id;
   useEffect(() => {
-    if (!healLayer || !stalePatch || editing || drawingPatch) return;
+    if (!generation || !healLayer || !stalePatch || editing || drawingPatch) {
+      return;
+    }
     const controller = new AbortController();
     const timeout = window.setTimeout(() => {
       setRegenerationError(undefined);
-      void ai
+      void generation
         .generate(healLayer.id, stalePatch, controller.signal, true)
         .catch((error: unknown) => {
           if (!controller.signal.aborted) setRegenerationError(String(error));
@@ -80,7 +75,7 @@ export function HealOverlay({
       window.clearTimeout(timeout);
       controller.abort();
     };
-  }, [healLayer, stalePatch, editing, drawingPatch]);
+  }, [generation, healLayer, stalePatch, editing, drawingPatch]);
   useEffect(() => {
     const layer = findLayer(
       document.scene.getState().layers,
@@ -120,7 +115,7 @@ export function HealOverlay({
         return;
       }
       if (current.algorithm === "ai") {
-        await ai.generate(current.layer, current.patch, signal);
+        await generation?.generate(current.layer, current.patch, signal);
         return;
       }
       await renderer.update(scene, current.patch, true);
@@ -211,7 +206,11 @@ export function HealOverlay({
                       patch.id !== resolvingSource
                     }
                     onMove={(signal) =>
-                      ai.regenerateFrom(healLayer.id, patch.id, signal)
+                      generation?.regenerateFrom(
+                        healLayer.id,
+                        patch.id,
+                        signal,
+                      ) ?? Promise.resolve()
                     }
                     interactive={
                       patch.id === selectedPatch && patch.id !== drawingPatch

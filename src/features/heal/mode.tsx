@@ -9,8 +9,15 @@ import {
 } from "react";
 import { useGpu } from "vgpu-react";
 import type { HealAlgorithm } from "@/core/document";
-import { HealLoadingDialog, type Loading } from "./loading-dialog";
-import { createMiganRuntime, type MiganRuntime } from "./migan";
+import type * as AiRemove from "./ai";
+
+/** The AI Remove capability the app composes in when its experiment is on; Smart clone alone otherwise. */
+export type AiRemoveModule = typeof AiRemove;
+
+type Ai = {
+  migan: AiRemove.MiganRuntime;
+  createGeneration: AiRemoveModule["createAiGeneration"];
+};
 
 const HealingContext = createContext<{
   algorithm: HealAlgorithm;
@@ -22,42 +29,26 @@ const HealingContext = createContext<{
   hoveredPatch?: string;
   hoverPatch: (id?: string) => void;
   /** One prepared session serves every patch while the editor stays open. */
-  migan: MiganRuntime;
+  ai?: Ai;
 } | null>(null);
 
 /** Owns the tool's next-stroke settings, patch selection, and the AI runtime for the editor's lifetime. */
 export function HealingProvider({
   children,
   onEdit,
+  ai,
 }: {
   children: ReactNode;
   onEdit?: () => void;
+  ai?: AiRemoveModule;
 }) {
   const gpu = useGpu();
-  const migan = useMemo(() => createMiganRuntime(gpu), [gpu]);
-  useEffect(() => () => migan.dispose(), [migan]);
+  const migan = useMemo(() => ai?.createMiganRuntime(gpu), [ai, gpu]);
+  useEffect(() => () => migan?.dispose(), [migan]);
   const [algorithm, setAlgorithm] = useState<HealAlgorithm>("clone");
   const [feather, setFeather] = useState(0.1);
   const [selectedPatch, setSelectedPatch] = useState<string>();
   const [hoveredPatch, setHoveredPatch] = useState<string>();
-  const [loading, setLoading] = useState<Loading>({ kind: "idle" });
-  const [attempt, setAttempt] = useState(0);
-  useEffect(() => {
-    if (algorithm !== "ai" || migan.ready) return;
-    const controller = new AbortController();
-    setLoading({ kind: "loading", message: "Loading the local AI runtime…" });
-    void migan
-      .prepare(controller.signal, (message) =>
-        setLoading({ kind: "loading", message }),
-      )
-      .then(() => setLoading({ kind: "ready" }))
-      .catch((error: unknown) => {
-        if (!controller.signal.aborted) {
-          setLoading({ kind: "error", message: String(error) });
-        }
-      });
-    return () => controller.abort();
-  }, [algorithm, attempt, migan]);
   const selectPatch = useCallback(
     (id?: string) => {
       setSelectedPatch(id);
@@ -76,21 +67,17 @@ export function HealingProvider({
         selectPatch,
         hoveredPatch,
         hoverPatch: setHoveredPatch,
-        migan,
+        ai:
+          ai && migan
+            ? { migan, createGeneration: ai.createAiGeneration }
+            : undefined,
       }}
     >
       {children}
-      {algorithm === "ai" && !migan.ready && loading.kind !== "ready" && (
-        <HealLoadingDialog
-          loading={loading}
-          onCancel={() => {
-            setAlgorithm("clone");
-            setLoading({ kind: "idle" });
-          }}
-          onRetry={() => {
-            setLoading({ kind: "idle" });
-            setAttempt((value) => value + 1);
-          }}
+      {ai && migan && algorithm === "ai" && (
+        <ai.AiRemoveLoading
+          migan={migan}
+          onCancel={() => setAlgorithm("clone")}
         />
       )}
     </HealingContext>

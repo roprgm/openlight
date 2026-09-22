@@ -2,9 +2,9 @@ import type { Gpu } from "vgpu";
 import type { useRenderer } from "@/components/editor/pipeline";
 import type { EditorDocument } from "@/core/document";
 import { createPixelSource } from "@/core/image";
-import { setAiResult, settleAiResult } from "./edits";
+import { setAiResult, settleAiResult } from "@/features/heal/edits";
+import { findHealPatch } from "@/features/heal/model";
 import type { MiganRuntime } from "./migan";
-import { findHealPatch } from "./model";
 
 type Renderer = ReturnType<typeof useRenderer>;
 

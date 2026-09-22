@@ -1,4 +1,5 @@
-import type { ReactNode } from "react";
+import { type ReactNode, useEffect, useState } from "react";
+import { experiments } from "@/app/experiments";
 import type { Workspace } from "@/app/workspace";
 import { BrushProvider } from "@/components/editor/brush-tool";
 import { RendererProvider } from "@/components/editor/pipeline";
@@ -6,7 +7,7 @@ import { DocumentProvider, useDocument } from "@/components/editor/session";
 import Button from "@/components/ui/button";
 import type { Mask } from "@/core/document";
 import { findLayer, locateLayer } from "@/core/document";
-import { HealingProvider } from "@/features/heal/mode";
+import { type AiRemoveModule, HealingProvider } from "@/features/heal/mode";
 import { addLayer } from "@/features/layers/edits";
 import { MaskToolProvider, type Nesting } from "@/features/layers/mask-tool";
 import { useShortcuts } from "@/hooks/use-shortcuts";
@@ -119,11 +120,29 @@ function MaskTools({ children }: { children: ReactNode }) {
   );
 }
 
+/** Loads AI Remove only for its experiment, so the runtime never enters the default bundle. */
+function useAiRemove() {
+  const [ai, setAi] = useState<AiRemoveModule>();
+  useEffect(() => {
+    if (!experiments().has("ai-remove")) return;
+    let active = true;
+    void import("@/features/heal/ai").then((module) => {
+      if (active) setAi(module);
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
+  return ai;
+}
+
 /** Connects feature-owned patch selection to the application-owned tool rail. */
 function HealingTools({ children }: { children: ReactNode }) {
   const { setTool } = useTool();
+  const ai = useAiRemove();
   return (
     <HealingProvider
+      ai={ai}
       onEdit={() => {
         const healing = tools.find((tool) => tool.id === "heal");
         if (healing) setTool(healing);

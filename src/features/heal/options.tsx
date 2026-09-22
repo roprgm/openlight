@@ -21,6 +21,7 @@ export function HealOptions() {
     feather: nextFeather,
     setFeather,
     selectedPatch,
+    ai,
   } = useHealing();
   const layer = useScene((scene) =>
     findLayer(scene.layers, document.selection.getState().layerId),
@@ -39,13 +40,15 @@ export function HealOptions() {
   }
   return (
     <>
-      <Select
-        aria-label="Healing algorithm"
-        variant="pill"
-        value={algorithm}
-        options={algorithms}
-        onChange={setAlgorithm}
-      />
+      {ai && (
+        <Select
+          aria-label="Healing algorithm"
+          variant="pill"
+          value={algorithm}
+          options={algorithms}
+          onChange={setAlgorithm}
+        />
+      )}
       <Slider
         label="Size"
         min={1}
