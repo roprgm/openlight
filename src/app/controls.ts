@@ -24,7 +24,7 @@ import type {
   Vignette,
 } from "@/core/document";
 import type { WhiteBalance } from "@/core/image";
-import decode from "@/core/image/decode";
+import { decode } from "@/core/image/decode";
 import type { ImageFrame, Point } from "@/core/image/frame";
 import { setAdjustments, setExposure } from "@/features/adjustments/edits";
 import { defaultAdjustments } from "@/features/adjustments/model";

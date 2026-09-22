@@ -3,7 +3,7 @@ import { openScene, snapshotScene } from "@/app/scene-file";
 import type { Workspace } from "@/app/workspace";
 import type { EditorDocument } from "@/core/document";
 import type { ImageSource } from "@/core/image";
-import decode from "@/core/image/decode";
+import { decode } from "@/core/image/decode";
 import { readZip, writeZip } from "@/lib/zip";
 import type { FileLoader } from "./registry";
 

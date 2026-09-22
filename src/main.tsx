@@ -4,7 +4,7 @@ import { Component, type ReactNode } from "react";
 import { createRoot } from "react-dom/client";
 import { GpuProvider } from "vgpu-react";
 
-import App from "@/app";
+import { App } from "@/app";
 import { TextLink } from "@/components/ui/text-link";
 import "./index.css";
 

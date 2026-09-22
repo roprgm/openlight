@@ -1,5 +1,4 @@
-import { useCallback, useEffect, useMemo } from "react";
-import { useGpu } from "vgpu-react";
+import { useCallback } from "react";
 import { useStore } from "zustand";
 import { PanelHeader } from "@/components/editor/panel";
 import { useRenderer } from "@/components/editor/pipeline";
@@ -13,7 +12,6 @@ import { DetailsControls } from "@/features/details/controls";
 import { FillControls } from "@/features/fill/controls";
 import { HealControls } from "@/features/heal/controls";
 import { Histogram } from "@/features/histogram";
-import { createHistogram } from "@/features/histogram/histogram";
 import { setToneCurve } from "@/features/tone-curves/edits";
 import { ToneCurves } from "@/features/tone-curves/tone-curves";
 import { VignetteControls } from "@/features/vignette/controls";
@@ -23,14 +21,10 @@ import { useEditGesture } from "@/hooks/use-edit-gesture";
 const curveHistogramColors = ["#a3a3a3"] as const;
 
 function CurveInputHistogram({ id }: { id: string }) {
-  const gpu = useGpu();
   const renderer = useRenderer();
-  const histogram = useMemo(() => createHistogram(gpu), [gpu]);
   const image = useCallback(() => renderer.inputImage(id), [renderer, id]);
-  useEffect(() => () => histogram.dispose(), [histogram]);
   return (
     <Histogram
-      histogram={histogram}
       image={image}
       subscribe={renderer.subscribe}
       colors={curveHistogramColors}

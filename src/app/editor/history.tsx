@@ -1,7 +1,7 @@
 import { useStore } from "zustand";
 import { useDocument } from "@/components/editor/session";
 import { Icon } from "@/components/icons/icon";
-import Button from "@/components/ui/button";
+import { Button } from "@/components/ui/button";
 import { useShortcuts } from "@/hooks/use-shortcuts";
 
 export function HistoryControls() {

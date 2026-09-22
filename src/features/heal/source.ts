@@ -6,7 +6,7 @@ import { patchBounds } from "./model";
 import shader from "./source.wgsl";
 
 /** Boundary matching on a thumbnail. The painted interior never contributes to the score. */
-export function matchSource(
+function matchSource(
   pixels: Float32Array,
   size: readonly number[],
   dimensions: readonly number[],

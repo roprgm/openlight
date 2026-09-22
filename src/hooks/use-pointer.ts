@@ -4,7 +4,7 @@ type Mode = "none" | "hover" | "drag";
 type Pointer = { x: number; y: number; mode: Mode };
 
 /** Where the mouse or a dragged file last was, as fractions of the viewport. */
-export default function usePointer() {
+export function usePointer() {
   const pointer = useRef<Pointer>({ x: 0, y: 0, mode: "none" });
 
   useEffect(() => {

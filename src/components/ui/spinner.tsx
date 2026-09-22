@@ -1,10 +1,7 @@
 import { cn } from "cn";
 import type { ComponentProps } from "react";
 
-export default function Spinner({
-  className,
-  ...props
-}: ComponentProps<"div">) {
+export function Spinner({ className, ...props }: ComponentProps<"div">) {
   return (
     <div
       aria-label="Loading"

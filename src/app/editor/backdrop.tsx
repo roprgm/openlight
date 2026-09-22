@@ -1,7 +1,7 @@
 import { useRef } from "react";
 import { clock } from "vgpu";
 import { Canvas, useCanvas, useFrameLoop, useGpu, useShader } from "vgpu-react";
-import usePointer from "@/hooks/use-pointer";
+import { usePointer } from "@/hooks/use-pointer";
 import shader from "./backdrop.wgsl";
 
 const strength = { none: 0, hover: 0.05, drag: 1 };
@@ -31,7 +31,7 @@ function Glow() {
   return null;
 }
 
-export default function Backdrop() {
+export function Backdrop() {
   return (
     <Canvas className="absolute inset-0 -z-10 size-full" dpr={[1, 2]}>
       <Glow />

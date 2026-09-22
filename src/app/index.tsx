@@ -1,13 +1,13 @@
 import { useStore } from "zustand";
 import { DraftNotice } from "@/app/draft/notice";
-import Editor from "@/app/editor";
+import { Editor } from "@/app/editor";
 import { useWorkspace } from "@/app/workspace/use-workspace";
 import { useFileDrop } from "@/hooks/use-file-drop";
 
 /** Visiting /demo opens a bundled photo instead of the empty state. */
 const startup = location.pathname === "/demo" ? "/images/demo.jpg" : undefined;
 
-export default function App() {
+export function App() {
   const { workspace, controls, drafts } = useWorkspace(startup);
   useFileDrop(controls.openFiles);
   const state = useStore(workspace.state);

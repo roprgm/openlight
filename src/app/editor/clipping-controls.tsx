@@ -1,6 +1,6 @@
 import { useStore } from "zustand";
 import { useDocument } from "@/components/editor/session";
-import Button from "@/components/ui/button";
+import { Button } from "@/components/ui/button";
 
 export function ClippingControls() {
   const { preview } = useDocument();
