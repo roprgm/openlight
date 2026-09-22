@@ -35,7 +35,7 @@ function OpenImage({ onOpen }: OpenProps) {
         choose a file
       </button>
       <input
-        accept={accept}
+        accept={`${accept},.openlight`}
         hidden
         multiple
         onChange={(event) => {

@@ -6,6 +6,8 @@ import {
 import { createCameraRawXmpLoader } from "@/app/loaders/camera-raw-xmp";
 import { createImageLoader } from "@/app/loaders/image";
 import { createLoaderRegistry } from "@/app/loaders/registry";
+import { createSceneLoader } from "@/app/loaders/scene";
+import { exportScene } from "@/app/scene-package";
 import type {
   Adjustments,
   BrushStroke,
@@ -59,9 +61,10 @@ import type { Workspace } from "./workspace";
 /** Imperative commands bound to an explicit workspace, usable without React. */
 export function createControls(gpu: Gpu, workspace: Workspace) {
   const image = createImageLoader(gpu, workspace);
+  const scene = createSceneLoader(gpu, workspace);
   const xmp = createCameraRawXmpLoader(workspace);
   const files = createLoaderRegistry(
-    [xmp, image],
+    [xmp, scene, image],
     () => workspace.state.getState().status === "ready",
   );
 
@@ -69,6 +72,7 @@ export function createControls(gpu: Gpu, workspace: Workspace) {
     openFiles: files.openFiles,
     openFile: (file: File) => files.openFiles([file]),
     loadImage: (file: File) => files.loadFile(image, file),
+    loadScene: (file: File) => files.loadFile(scene, file),
     loadUrl: image.loadUrl,
     importXmp: (file: File) => files.loadFile(xmp, file),
     setDetails(change: Partial<Details>, id?: string) {
@@ -151,6 +155,7 @@ export function createControls(gpu: Gpu, workspace: Workspace) {
     redo: () => workspace.getDocument().history.redo(),
     exportImage: (options?: ExportOptions) =>
       exportImage(gpu, workspace.getDocument(), options),
+    exportScene: () => exportScene(workspace.getDocument()),
     getState() {
       const { file, document } = workspace.state.getState();
       const scene = document?.scene.getState();

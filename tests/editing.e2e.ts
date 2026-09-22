@@ -978,7 +978,9 @@ test("edit a photo, inspect the preview and histograms, undo changes, and export
     const quality = panel.getByRole("textbox", { name: "Quality" });
     async function save(name: string) {
       const pending = page.waitForEvent("download");
-      await panel.getByRole("button", { name: "Save image" }).click();
+      await panel
+        .getByRole("button", { name: /^Save (png|jpeg|webp) image$/ })
+        .click();
       const download = await pending;
       expect(download.suggestedFilename()).toBe(name);
       const path = await download.path();
@@ -987,12 +989,18 @@ test("edit a photo, inspect the preview and histograms, undo changes, and export
     }
     const format = panel.getByRole("combobox", { name: "Format" });
     await choose(page, format, "PNG");
+    await expect(
+      panel.getByRole("button", { name: "Save png image" }),
+    ).toBeVisible();
     await expect(panel.getByRole("textbox", { name: "Width" })).toHaveValue(
       "1200",
     );
     await expect(panel.getByText(/kB|MB/)).toBeVisible();
     expect(await readImage(page, await save("photo.png"))).toEqual(expected);
     await choose(page, format, "JPEG");
+    await expect(
+      panel.getByRole("button", { name: "Save jpeg image" }),
+    ).toBeVisible();
     await expect(format).toContainText("JPEG");
     await quality.fill("20");
     await quality.press("Enter");

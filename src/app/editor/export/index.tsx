@@ -1,6 +1,7 @@
 import { cn } from "cn";
 import { type ReactNode, useMemo, useRef, useState } from "react";
 import { useGpu } from "vgpu-react";
+import { exportScene } from "@/app/scene-package";
 import { Image } from "@/components/editor/image";
 import { EditorPanel, PanelHeader } from "@/components/editor/panel";
 import { useDocument, useScene } from "@/components/editor/session";
@@ -157,6 +158,15 @@ function LoadingOverlay() {
   );
 }
 
+function download(file: File) {
+  const url = URL.createObjectURL(file);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = file.name;
+  link.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
 /** Shows the encoded file on the canvas; a spinner marks results from earlier settings as loading. */
 export function ExportMode({ onClose }: { onClose: () => void }) {
   const gpu = useGpu();
@@ -168,6 +178,7 @@ export function ExportMode({ onClose }: { onClose: () => void }) {
   const [longEdge, setLongEdge] = useState(maxEdge);
   const [error, setError] = useState("");
   const exporting = useRef(false);
+  const savingScene = useRef(false);
   // A crop after choosing a size keeps the choice within the new document.
   const edge = Math.min(longEdge, maxEdge);
   const options = { format: format.id, quality, longEdge: edge };
@@ -182,18 +193,26 @@ export function ExportMode({ onClose }: { onClose: () => void }) {
     setError("");
     try {
       const file = await exportImage(gpu, editorDocument, options);
-      const url = URL.createObjectURL(file);
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = file.name;
-      link.click();
-      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      download(file);
     } catch (error) {
       setError(
         error instanceof Error ? error.message : "Couldn't export image.",
       );
     } finally {
       exporting.current = false;
+    }
+  };
+  const saveScene = async () => {
+    if (savingScene.current) return;
+    savingScene.current = true;
+    setError("");
+    try {
+      const file = await exportScene(editorDocument);
+      download(file);
+    } catch (error) {
+      setError(error instanceof Error ? error.message : "Couldn't save scene.");
+    } finally {
+      savingScene.current = false;
     }
   };
   return (
@@ -233,7 +252,10 @@ export function ExportMode({ onClose }: { onClose: () => void }) {
             </span>
           </SizeFields>
           <Button className="w-full py-2" onClick={save}>
-            Save image
+            Save {format.id} image
+          </Button>
+          <Button className="w-full py-2" onClick={saveScene}>
+            Save editable scene
           </Button>
           {error && (
             <p className="text-red-400" role="alert">

@@ -25,9 +25,10 @@ These methods accept browser `File` objects and return `Promise<void>`. Await th
 
 | Method | Behavior |
 | --- | --- |
-| `openFile(file)` | Opens one image or imports one Camera Raw XMP file. |
-| `openFiles(files)` | Opens the first recognized image, then imports recognized XMP files in order. Unsupported files are ignored. |
+| `openFile(file)` | Opens one image or editable scene, or imports one Camera Raw XMP file. |
+| `openFiles(files)` | Opens the first recognized image or editable scene, then imports recognized XMP files in order. Unsupported files are ignored. |
 | `loadImage(file)` | Loads a file as an image, replacing the current document and its history. |
+| `loadScene(file)` | Loads an `.openlight` scene package, replacing the current document and its history. |
 | `loadUrl(url)` | Fetches an image from a same-origin URL and loads it. |
 | `importXmp(file)` | Applies supported Camera Raw adjustments as one undoable edit. |
 
@@ -143,6 +144,8 @@ try {
 | `longEdge` | Longest output side in pixels, from 1 to the document's longest side | The document size |
 
 The image renders at the document dimensions and downsamples to `longEdge` with high-quality smoothing. Invalid values throw, as does a format the browser cannot encode.
+
+`exportScene()` returns `Promise<File>` containing the complete editable scene and the original image file in a versioned `.openlight` ZIP package. It does not start a download. Opening the package restores the scene with fresh undo history. See the [scene package format](docs/scene-package.md).
 
 ## State
 
