@@ -90,8 +90,9 @@ export function CanvasToolbar({ children }: { children?: ReactNode }) {
       ref={bar}
       aria-label="Layer options"
       {...gesture}
-      // No wrapping, so running out of room overflows, which is what the steps above measure.
-      className="absolute top-3 left-3 flex min-w-0 max-w-[calc(100%-1.5rem)] items-center gap-x-2.5 overflow-hidden whitespace-nowrap rounded-full bg-neutral-800/80 p-1 pr-2 backdrop-blur-sm"
+      // No wrapping, so running out of room overflows, which is what the steps above measure. A button or
+      // group first nests its corners 4px in; a text label first, such as a slider's, needs 8px more.
+      className="absolute top-3 left-3 flex min-w-0 max-w-[calc(100%-1.5rem)] items-center gap-x-2.5 overflow-hidden whitespace-nowrap rounded-full bg-neutral-800/80 p-1 pr-2 backdrop-blur-sm [&>:first-child:not(button,fieldset)]:ml-2"
     >
       <Density value={step === 0 ? "full" : "compact"}>
         {inlineTool}
