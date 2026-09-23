@@ -286,8 +286,9 @@ test("Healing paints patches, edits them, and undoes", async ({ page }) => {
     handleBounds.x + handleBounds.width / 2 + 30,
     handleBounds.y + handleBounds.height / 2,
   );
-  await page.mouse.up();
+  // The repair follows the donor while it is dragged, not only once it drops.
   await expect.poll(sourceX).not.toBe(beforeDrag);
+  await page.mouse.up();
   const fixedSource = await sourceX();
   const beforeDestination = await page.evaluate((patchId) => {
     const healing = window.openlight
