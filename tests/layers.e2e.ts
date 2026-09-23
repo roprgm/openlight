@@ -65,7 +65,7 @@ test("draw a mask, edit its child effects, reorder layers and undo", async ({
   ).toHaveValue("0.00");
   await test.step("Details is an optional effect, separate from image adjustments", async () => {
     await expect(
-      page.getByRole("heading", { name: "Adjustments", exact: true }),
+      page.getByRole("heading", { name: "Image", exact: true }),
     ).toBeVisible();
     await expect(
       page.getByRole("textbox", { name: "Clarity", exact: true }),
@@ -363,7 +363,7 @@ test("draw a mask, edit its child effects, reorder layers and undo", async ({
     ).toBeVisible();
     const panel = page.getByRole("region", { name: "Editor controls" });
     await expect(
-      panel.getByRole("heading", { name: "Adjustments", exact: true }),
+      panel.getByRole("heading", { name: "Radial Gradient", exact: true }),
     ).toBeVisible();
     await expect(
       panel.getByRole("textbox", { name: "Feather", exact: true }),
@@ -416,11 +416,17 @@ test("draw a mask, edit its child effects, reorder layers and undo", async ({
       .first()
       .click();
     await page.getByRole("button", { name: "Zoom in", exact: true }).click();
-    const zoom = page.getByTitle("Fit to view");
+    const zoom = page.getByRole("button", { name: /^\d+%$/ });
     const percent = await zoom.innerText();
     await page.getByLabel("Move gradient", { exact: true }).dblclick();
     await expect(zoom).toHaveText(percent);
     await zoom.click();
+    // At fit the percentage zooms to one image pixel per device pixel, then fits again.
+    await expect(zoom).toHaveAttribute("title", "Zoom to 100%");
+    await zoom.click();
+    await expect(zoom).toHaveText("100%");
+    await zoom.click();
+    await expect(zoom).toHaveAttribute("title", "Zoom to 100%");
     await page.setViewportSize({ width: 390, height: 844 });
     await page.getByRole("button", { name: "photo.svg", exact: true }).click();
     await page.keyboard.press("r");

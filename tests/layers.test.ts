@@ -124,8 +124,9 @@ test("nested layers compose in order, move atomically, and duplicate with indepe
       "exposure",
       "vignette",
     ]);
-    const ids = walkLayers(document.scene.getState().layers).map(
-      (layer) => layer.id,
+    const ids = Array.from(
+      walkLayers(document.scene.getState().layers),
+      ({ layer }) => layer.id,
     );
     expect(new Set(ids).size).toBe(ids.length);
     moveLayer(document, exposure, 1);
@@ -180,7 +181,14 @@ test("nested layers compose in order, move atomically, and duplicate with indepe
     document.history.undo();
     expect(document.scene.getState()).toBe(unchanged);
     document.selectLayer(exposure);
+    await renderer.update(document.scene.getState());
+    const retained = renderer.inspect().effects;
     deleteLayer(document, mask);
+    // A deleted layer's passes, and those of its children, leave with it; its duplicate keeps its own.
+    await renderer.update(document.scene.getState());
+    const { effects, passes } = renderer.inspect();
+    expect(effects).toBeLessThan(retained);
+    expect(effects).toBe(passes.length);
     expect(document.selection.getState().layerId).toBe("base");
     expect(
       findLayer(document.scene.getState().layers, exposure),

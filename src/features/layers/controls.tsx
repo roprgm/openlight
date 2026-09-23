@@ -1,10 +1,4 @@
-import {
-  type ComponentProps,
-  memo,
-  useCallback,
-  useEffect,
-  useState,
-} from "react";
+import { memo, useCallback, useEffect, useState } from "react";
 import { useStore } from "zustand";
 import { PanelHeader } from "@/components/editor/panel";
 import { useDocument, useScene } from "@/components/editor/session";
@@ -27,6 +21,7 @@ import {
 import { useShortcuts } from "@/hooks/use-shortcuts";
 import { layerDrop } from "./drop";
 import { deleteLayer, moveLayer, setLayer } from "./edits";
+import { LayerName } from "./layer-name";
 import { useMaskTool } from "./mask-tool";
 import { LayerActions, MaskNesting } from "./menu";
 import { ImageThumbnail, MaskThumbnail } from "./thumbnails";
@@ -90,63 +85,6 @@ function LayerThumbnail({ layer }: { layer: Layer }) {
     <span className="grid size-8 shrink-0 place-items-center rounded border border-black/50 bg-neutral-950/40 text-neutral-400">
       <EffectIcon kind={layer.kind} />
     </span>
-  );
-}
-
-function LayerName({
-  layer,
-  onSelect,
-  dragHandle,
-}: {
-  layer: Layer;
-  onSelect: () => void;
-  dragHandle: ComponentProps<"button">;
-}) {
-  const document = useDocument();
-  const [renaming, setRenaming] = useState(false);
-  if (renaming) {
-    return (
-      <input
-        aria-label="Layer name"
-        ref={(input) => input?.select()}
-        defaultValue={layer.name}
-        className="min-w-0 flex-1 rounded border border-neutral-500 bg-neutral-900 px-1 text-neutral-100 outline-none"
-        onKeyDown={(event) => {
-          if (event.key === "Enter") {
-            event.currentTarget.blur();
-          }
-          if (event.key === "Escape") {
-            event.currentTarget.value = layer.name;
-            event.currentTarget.blur();
-          }
-        }}
-        onBlur={(event) => {
-          const name = event.currentTarget.value.trim();
-          if (name && name !== layer.name) {
-            setLayer(document, layer.id, { name });
-          }
-          setRenaming(false);
-        }}
-      />
-    );
-  }
-  function rename() {
-    if (layer.kind !== "image") {
-      setRenaming(true);
-    }
-  }
-  return (
-    <button
-      {...dragHandle}
-      type="button"
-      aria-label={layer.name}
-      title={layer.name}
-      onClick={onSelect}
-      onDoubleClick={rename}
-      className="min-w-0 flex-1 self-stretch truncate text-left touch-manipulation cursor-grab active:cursor-grabbing"
-    >
-      {layer.name}
-    </button>
   );
 }
 

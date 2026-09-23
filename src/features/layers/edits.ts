@@ -120,12 +120,14 @@ export function addLayer(
   placement?: LayerPlacement,
 ) {
   const scene = document.scene.getState();
-  const existing = new Set(walkLayers(scene.layers).map((item) => item.id));
+  const existing = new Set(
+    Array.from(walkLayers(scene.layers), (item) => item.layer.id),
+  );
   for (const item of walkLayers([layer])) {
-    if (existing.has(item.id)) {
+    if (existing.has(item.layer.id)) {
       throw Error("Layer IDs must be unique.");
     }
-    existing.add(item.id);
+    existing.add(item.layer.id);
   }
   const { parentId, index } = placementIndex(scene, placement);
   const next = changeChildren(scene, parentId, (layers) =>

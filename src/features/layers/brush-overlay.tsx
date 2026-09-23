@@ -1,10 +1,15 @@
-import { useEffect, useRef } from "react";
+import { useRef } from "react";
 import { BrushCanvas } from "@/components/editor/brush-canvas";
 import { useBrushTool } from "@/components/editor/brush-tool";
 import { useDocument } from "@/components/editor/session";
-import { findLayer } from "@/core/document";
+import { useToolLayer } from "@/components/editor/tool-layer";
+import type { Layer, MaskLayer } from "@/core/document";
 import { extendStroke, paintStroke } from "./edits";
 import { useMaskTool } from "./mask-tool";
+
+function isBrushMask(layer: Layer): layer is MaskLayer {
+  return layer.kind === "mask" && layer.mask.kind === "brush";
+}
 
 /** Keeps a brush mask selected; an untouched new mask disappears on leaving. */
 export function BrushOverlay() {
@@ -12,44 +17,20 @@ export function BrushOverlay() {
   const tool = useMaskTool();
   const brush = useBrushTool();
   const painting = useRef<string | undefined>(undefined);
-  function selectedBrush() {
-    const layer = findLayer(
-      document.scene.getState().layers,
-      document.selection.getState().layerId,
-    );
-    return layer?.kind === "mask" && layer.mask.kind === "brush"
-      ? layer.id
-      : undefined;
-  }
-  useEffect(() => {
+  const selectedBrush = useToolLayer({
+    accepts: isBrushMask,
+    create: () => tool.create({ kind: "brush", strokes: [] }),
+    leave: () => tool.edit(),
     // A chosen nesting starts a new brush even over a selected one.
-    const before =
-      tool.pending?.shape === "brush" || !selectedBrush()
-        ? document.scene.getState()
-        : undefined;
-    if (before) {
-      tool.create({ kind: "brush", strokes: [] });
-    }
-    const unsubscribe = document.selection.subscribe(() => {
-      if (!selectedBrush()) {
-        tool.edit();
-      }
-    });
-    return () => {
-      unsubscribe();
-      // The new mask leaves with the tool unless anything happened after its creation.
-      if (before) {
-        document.history.drop(before);
-      }
-    };
-  }, []);
+    fresh: tool.pending?.shape === "brush",
+  });
   return (
     <BrushCanvas
       label="Brush canvas"
       hint="Drag to paint · Alt erases · [ ] resize · Enter when done"
       erase={brush.erase}
       onStart={(stroke) => {
-        const id = selectedBrush();
+        const id = selectedBrush()?.id;
         if (!id) return false;
         painting.current = id;
         paintStroke(document, id, stroke);

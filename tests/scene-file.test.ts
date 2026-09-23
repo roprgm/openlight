@@ -2,7 +2,7 @@ import { expect, test } from "bun:test";
 import { init, target } from "vgpu/mock";
 import { createControls } from "@/app/controls";
 import { createImageLayer } from "@/app/editor/layers";
-import { openSceneFile } from "@/app/scene-file";
+import { openSceneFile } from "@/app/loaders/scene";
 import { createWorkspace } from "@/app/workspace";
 import { createDocument, createResources } from "@/core/document";
 import { createImageSource, type WhiteBalance } from "@/core/image";

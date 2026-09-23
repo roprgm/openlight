@@ -1,28 +1,27 @@
 import type { EditorDocument } from "./index";
 import type { Layer, MaskLayer, ProcessingLayer, Scene } from "./scene";
 
-export function walkLayers(layers: readonly Layer[]): Layer[] {
-  return layers.flatMap((layer) => [layer, ...walkLayers(layer.children)]);
-}
-
 type LayerLocation = {
   layer: Layer;
   siblings: readonly Layer[];
   parent?: Layer;
 };
 
-export function locateLayer(
+/** Every layer with its position, parents before their children. */
+export function* walkLayers(
   layers: readonly Layer[],
-  id: string,
   parent?: Layer,
-): LayerLocation | undefined {
+): Generator<LayerLocation> {
   for (const layer of layers) {
-    if (layer.id === id) {
-      return { layer, siblings: layers, parent };
-    }
-    const child = locateLayer(layer.children, id, layer);
-    if (child) {
-      return child;
+    yield { layer, siblings: layers, parent };
+    yield* walkLayers(layer.children, layer);
+  }
+}
+
+export function locateLayer(layers: readonly Layer[], id: string) {
+  for (const location of walkLayers(layers)) {
+    if (location.layer.id === id) {
+      return location;
     }
   }
   return undefined;

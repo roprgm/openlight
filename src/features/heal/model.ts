@@ -1,9 +1,14 @@
-import type { BrushStroke, HealPatch, Scene } from "@/core/document";
+import {
+  type BrushStroke,
+  findLayer,
+  type HealPatch,
+  type Scene,
+} from "@/core/document";
 import { validateStroke } from "@/core/document/brush";
 import type { Point } from "@/core/image/frame";
 
 export function findHealPatch(scene: Scene, layerId: string, patchId: string) {
-  const layer = scene.layers.find((layer) => layer.id === layerId);
+  const layer = findLayer(scene.layers, layerId);
   if (layer?.kind !== "heal") return;
   return layer.patches.find((patch) => patch.id === patchId);
 }

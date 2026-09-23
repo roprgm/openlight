@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef } from "react";
 import { type Gpu, target } from "vgpu";
 import { useGpu } from "vgpu-react";
-import { sceneExtension } from "@/app/scene-file";
+import { sceneExtension } from "@/app/loaders/scene";
 import type { Workspace } from "@/app/workspace";
 import { RendererProvider } from "@/components/editor/pipeline";
 import { DocumentProvider } from "@/components/editor/session";
@@ -135,11 +135,7 @@ export function EmptyEditor({
   useEffect(() => () => document.dispose(), [document]);
   return (
     <DocumentProvider value={document}>
-      <RendererProvider
-        createRenderer={(rendererGpu, source) =>
-          createEditorRenderer(rendererGpu, source)
-        }
-      >
+      <RendererProvider createRenderer={createEditorRenderer}>
         <MaskToolProvider onCreate={() => {}}>
           <EditorHeader file={state.file} />
           <div className="flex min-h-0 flex-1 flex-col md:flex-row">
