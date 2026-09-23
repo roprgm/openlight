@@ -1,25 +1,25 @@
-import { useEffect, useMemo, useRef } from "react";
+import { useRef } from "react";
 import { type Gpu, target } from "vgpu";
 import { useGpu } from "vgpu-react";
 import { sceneExtension } from "@/app/loaders/scene";
 import type { Workspace } from "@/app/workspace";
 import { RendererProvider } from "@/components/editor/pipeline";
 import { DocumentProvider } from "@/components/editor/session";
-import Button from "@/components/ui/button";
+import { Button } from "@/components/ui/button";
 import { Notice } from "@/components/ui/notice";
-import Spinner from "@/components/ui/spinner";
+import { Spinner } from "@/components/ui/spinner";
 import { TextLink } from "@/components/ui/text-link";
 import { createDocument, createResources } from "@/core/document";
 import { createImageSource } from "@/core/image";
 import { accept } from "@/core/image/decode";
 import { imageFrame } from "@/core/image/frame";
 import { MaskToolProvider } from "@/features/layers/mask-tool";
-import { AdjustPanel } from "./adjust";
-import Backdrop from "./backdrop";
+import { useDisposable } from "@/hooks/use-disposable";
+import { Backdrop } from "./backdrop";
 import { EditorHeader } from "./header";
 import { createImageLayer } from "./layers";
 import { createEditorRenderer } from "./renderer";
-import { EditorSidebar } from "./sidebar";
+import { PlaceholderSidebar } from "./sidebar";
 import { ToolTabList } from "./tool-rail";
 import { tools } from "./tools";
 
@@ -131,8 +131,7 @@ export function EmptyEditor({
   draft,
 }: { state: EmptyState; draft?: Recovery } & OpenProps) {
   const gpu = useGpu();
-  const document = useMemo(() => createEmptyDocument(gpu), [gpu]);
-  useEffect(() => () => document.dispose(), [document]);
+  const document = useDisposable(() => createEmptyDocument(gpu), [gpu]);
   return (
     <DocumentProvider value={document}>
       <RendererProvider createRenderer={createEditorRenderer}>
@@ -145,9 +144,7 @@ export function EmptyEditor({
               <Status state={state} onOpen={onOpen} />
               {draft && <RecoverDraft {...draft} />}
             </div>
-            <EditorSidebar inert>
-              <AdjustPanel />
-            </EditorSidebar>
+            <PlaceholderSidebar />
           </div>
         </MaskToolProvider>
       </RendererProvider>

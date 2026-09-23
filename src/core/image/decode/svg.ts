@@ -1,7 +1,7 @@
 const fallbackSize = 1024;
 
 /** Rasterizes through an <img>, since SVGs without intrinsic size can't go straight to a bitmap. */
-export default async function decodeSvg(file: Blob) {
+export async function decodeSvg(file: Blob) {
   const image = new Image();
   image.src = URL.createObjectURL(file);
   await image.decode();

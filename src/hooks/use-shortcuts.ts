@@ -1,4 +1,5 @@
 import { useEffect, useEffectEvent } from "react";
+import { isTyping, typingFields } from "@/lib/dom";
 
 /** View-scoped keyboard actions. Text fields opt in explicitly. */
 export function useShortcuts(
@@ -11,19 +12,14 @@ export function useShortcuts(
     if ((event.repeat && !modifier) || event.isComposing || event.altKey) {
       return;
     }
-    const target = event.target;
-    if (window.document.querySelector(":popover-open")) {
+    // An open menu, select, or popover owns the keyboard.
+    if (window.document.querySelector("[data-surface][data-open]")) {
       return;
     }
-    const typing =
-      'input:not([type="range"]), textarea, select, dialog, [role="dialog"]';
     // Enter on a focused button or link is its activation, not a shortcut.
-    const owned = event.key === "Enter" ? `${typing}, button, a` : typing;
-    if (
-      !inputs &&
-      target instanceof HTMLElement &&
-      (target.isContentEditable || target.closest(owned))
-    ) {
+    const owned =
+      event.key === "Enter" ? `${typingFields}, button, a` : typingFields;
+    if (!inputs && isTyping(event.target, owned)) {
       return;
     }
     const action = actions[`${modifier}${shift}${event.key.toLowerCase()}`];

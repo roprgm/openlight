@@ -4,8 +4,9 @@ import { Component, type ReactNode } from "react";
 import { createRoot } from "react-dom/client";
 import { GpuProvider } from "vgpu-react";
 
-import App from "@/app";
+import { App } from "@/app";
 import { TextLink } from "@/components/ui/text-link";
+import { TooltipProvider } from "@/components/ui/tooltip";
 import "./index.css";
 
 /** GPU initialization throws during render; without WebGPU the page would otherwise stay blank. */
@@ -45,7 +46,9 @@ if (root) {
     <>
       <GpuBoundary>
         <GpuProvider>
-          <App />
+          <TooltipProvider>
+            <App />
+          </TooltipProvider>
         </GpuProvider>
       </GpuBoundary>
       <Analytics />

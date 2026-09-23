@@ -2,7 +2,7 @@ import type { Gpu } from "vgpu";
 import { createImageLayer } from "@/app/editor/layers";
 import type { Workspace } from "@/app/workspace";
 import { createDocument, createResources } from "@/core/document";
-import decode, { canDecode } from "@/core/image/decode";
+import { canDecode, decode } from "@/core/image/decode";
 import { imageFrame } from "@/core/image/frame";
 
 async function loadDocument(gpu: Gpu, file: File) {

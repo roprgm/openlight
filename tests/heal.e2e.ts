@@ -182,6 +182,8 @@ test("Healing paints patches, edits them, and undoes", async ({ page }) => {
     bounds.y + bounds.height / 2 + 160 * scale,
   );
   await page.keyboard.up("Alt");
+  const automatic = toolbar.getByRole("button", { name: "Automatic source" });
+  await expect(automatic).toBeVisible();
   const targetX = bounds.x + bounds.width / 2 - 250 * scale;
   const targetY = bounds.y + bounds.height / 2 - 200 * scale;
   await page.mouse.move(targetX, targetY);
@@ -210,6 +212,9 @@ test("Healing paints patches, edits them, and undoes", async ({ page }) => {
   expect((await readImage(page, undefined, [[350, 200]])).samples?.[0]).toEqual(
     [128, 128, 128, 255],
   );
+  // Automatic source drops the manual donor, so the next patch searches for its own.
+  await automatic.click();
+  await expect(automatic).toHaveCount(0);
   await page.mouse.click(
     bounds.x + bounds.width / 2 + 250 * scale,
     bounds.y + bounds.height / 2 + 200 * scale,
@@ -222,6 +227,18 @@ test("Healing paints patches, edits them, and undoes", async ({ page }) => {
       return healing?.kind === "heal" && !editing ? healing.patches.length : 0;
     })
     .toBe(2);
+  const donors = await page.evaluate(() => {
+    const healing = window.openlight
+      .getState()
+      .scene?.layers.find((item) => item.kind === "heal");
+    return healing?.kind === "heal"
+      ? healing.patches.map(({ stroke, offset }) => [
+          Math.round(stroke.points[0][0] + offset[0]),
+          Math.round(stroke.points[0][1] + offset[1]),
+        ])
+      : [];
+  });
+  expect(donors[1]).not.toEqual(donors[0]);
   const firstPatch = patchList.getByRole("button", { name: "Select patch 1" });
   await firstPatch.hover();
   await expect(canvas.locator(`[data-heal-patch="${manual.id}"]`)).toHaveCount(

@@ -1,49 +1,44 @@
-import { cn } from "cn";
-import type { KeyboardEventHandler, ReactNode } from "react";
+import type { ComponentProps, ReactNode } from "react";
 import { CloseIcon } from "@/components/icons/close";
-import Button from "@/components/ui/button";
-import ResizablePanel from "@/components/ui/resizable-panel";
+import { IconButton } from "@/components/ui/button";
+import { ResizablePanel } from "@/components/ui/resizable-panel";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useEditorSession } from "./session";
 
-/** The resizable side panel: a fixed header, scrolling controls, and a fixed footer. */
+/**
+ * The resizable side panel. Its sections stack in the order written, with a divider between each;
+ * give one a PanelBody to scroll. An inert panel shows its contents dimmed and unresponsive.
+ */
 export function EditorPanel({
-  header,
-  children,
-  footer,
   inert,
-  onKeyDown,
-}: {
-  header?: ReactNode;
-  children: ReactNode;
-  footer?: ReactNode;
-  /** Contents shown but unresponsive, as when the document is a placeholder; the panel still scrolls. */
-  inert?: boolean;
-  onKeyDown?: KeyboardEventHandler<HTMLElement>;
-}) {
+  children,
+  ...props
+}: ComponentProps<"aside">) {
   const { width, onWidthChange } = useEditorSession();
   return (
-    <ResizablePanel
-      width={width}
-      onWidthChange={onWidthChange}
-      className={cn("flex min-h-0 flex-col", inert && "opacity-50")}
-      onKeyDown={onKeyDown}
-    >
-      <div inert={inert} className="contents">
-        {header}
-      </div>
-      <ScrollArea
-        fade
-        className="flex-1"
-        role="region"
-        aria-label="Editor controls"
+    <ResizablePanel width={width} onWidthChange={onWidthChange} {...props}>
+      <div
+        inert={inert}
+        data-inert={inert}
+        className="flex h-full min-h-0 flex-col divide-y divide-black data-[inert=true]:opacity-50"
       >
-        <div inert={inert}>{children}</div>
-      </ScrollArea>
-      <div inert={inert} className="contents">
-        {footer}
+        {children}
       </div>
     </ResizablePanel>
+  );
+}
+
+/** The panel section that takes the remaining height and scrolls. */
+export function PanelBody({ children }: { children: ReactNode }) {
+  return (
+    <ScrollArea
+      fade
+      className="flex-1"
+      role="region"
+      aria-label="Editor controls"
+    >
+      {children}
+    </ScrollArea>
   );
 }
 
@@ -62,15 +57,9 @@ export function PanelHeader({
       <h2 className="flex-1 font-medium text-neutral-200">{title}</h2>
       {children}
       {onClose && (
-        <Button
-          variant="ghost"
-          size="icon"
-          aria-label="Close"
-          title="Close (Esc)"
-          onClick={onClose}
-        >
+        <IconButton label="Close" shortcut="Esc" onClick={onClose}>
           <CloseIcon className="size-4" />
-        </Button>
+        </IconButton>
       )}
     </div>
   );

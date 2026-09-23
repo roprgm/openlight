@@ -110,10 +110,11 @@ export function createRenderer(
     }
     const active = new Set<string>();
     const developed = raw?.render() ?? source;
-    // A mask updates its rasters with those of the masks inside it, which only shape its coverage.
+    // Every mask updates once, bypassed or not, so a hidden mask keeps its cache; child masks only shape their parent's coverage.
+    const coverage = new Map<string, RenderInput | undefined>();
     for (const { layer, parent } of walkLayers(scene.layers)) {
       if (layer.kind === "mask" && parent?.kind !== "mask") {
-        raster.update(layer, developed.size);
+        coverage.set(layer.id, raster.update(layer, developed.size));
       }
     }
     const image =
@@ -121,7 +122,7 @@ export function createRenderer(
     const images = compose(image, scene, {
       inputId,
       retain: (id) => active.add(id),
-      coverage: (layer) => raster.update(layer, developed.size),
+      coverage: (layer) => coverage.get(layer.id),
       brush: (id, strokes) => raster.brush(id, strokes, developed.size),
     });
     for (const id of instances) {

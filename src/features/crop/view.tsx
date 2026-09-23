@@ -1,15 +1,17 @@
 import { useState } from "react";
 import { Image } from "@/components/editor/image";
-import { EditorPanel, PanelHeader } from "@/components/editor/panel";
+import { EditorPanel, PanelBody, PanelHeader } from "@/components/editor/panel";
 import { useDocument, useEditorSession } from "@/components/editor/session";
-import { EditorViewport } from "@/components/editor/viewport";
+import { EditorViewport, ViewportStage } from "@/components/editor/viewport";
 import { FlipIcon } from "@/components/icons/flip";
 import { RotateIcon } from "@/components/icons/rotate";
-import Button from "@/components/ui/button";
+import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
+import { Tooltip } from "@/components/ui/tooltip";
 import { imageFrame, type Point } from "@/core/image/frame";
 import { useShortcuts } from "@/hooks/use-shortcuts";
+import { applyCrop } from "./edits";
 import { fitRatio, flip, rotate, turn } from "./geometry";
 import { CropOverlay } from "./overlay";
 
@@ -41,8 +43,7 @@ export function CropEditor({ onClose }: { onClose: () => void }) {
     fitView();
   }
   function apply() {
-    document.history.commit();
-    document.edit({ ...document.scene.getState(), frame });
+    applyCrop(document, frame);
     fitView();
     onClose();
   }
@@ -92,16 +93,17 @@ export function CropEditor({ onClose }: { onClose: () => void }) {
   return (
     <>
       <EditorViewport size={reference} constrain={false}>
-        <Image image="fullImage" geometry={frame} />
-        <CropOverlay
-          frame={frame}
-          source={source}
-          ratio={ratio}
-          onChange={setFrame}
-        />
+        <ViewportStage>
+          <Image image="fullImage" geometry={frame} />
+          <CropOverlay
+            frame={frame}
+            source={source}
+            ratio={ratio}
+            onChange={setFrame}
+          />
+        </ViewportStage>
       </EditorViewport>
       <EditorPanel
-        header={<PanelHeader title="Crop" onClose={onClose} />}
         onKeyDown={(event) => {
           // Enter on a panel button is its click; the crop handles still apply.
           if (
@@ -112,73 +114,72 @@ export function CropEditor({ onClose }: { onClose: () => void }) {
             event.stopPropagation();
           }
         }}
-        footer={
-          <div className="border-t border-black p-3">
-            <Button className="w-full py-2" onClick={apply}>
-              Apply crop
-            </Button>
-          </div>
-        }
       >
-        <section aria-label="Crop tool" className="space-y-5 p-4">
-          <div className="flex items-center justify-between text-neutral-400">
-            Aspect ratio
-            <Select
-              aria-label="Aspect ratio"
-              value={ratio === null ? "free" : `${ratio}`}
-              options={ratioOptions}
-              className="w-24"
-              onChange={changeRatio}
-            />
-          </div>
-          <section
-            aria-label="Rotate and flip image"
-            className="grid grid-cols-4 items-center gap-2"
-          >
-            <h3 className="col-span-3 text-neutral-400">Rotate & flip</h3>
-            <Button
-              variant="ghost"
-              className="justify-self-end px-2 py-1"
-              onClick={reset}
+        <PanelHeader title="Crop" onClose={onClose} />
+        <PanelBody>
+          <section aria-label="Crop tool" className="space-y-5 p-4">
+            <div className="flex items-center justify-between text-neutral-400">
+              Aspect ratio
+              <Select
+                aria-label="Aspect ratio"
+                value={ratio === null ? "free" : `${ratio}`}
+                options={ratioOptions}
+                className="w-24"
+                onChange={changeRatio}
+              />
+            </div>
+            <section
+              aria-label="Rotate and flip image"
+              className="grid grid-cols-4 items-center gap-2"
             >
-              Reset
-            </Button>
-
-            {actions.map((action) => {
-              const Icon = "turn" in action ? RotateIcon : FlipIcon;
-
-              return (
-                <Button
-                  key={action.label}
-                  variant="ghost"
-                  aria-label={action.label}
-                  title={action.label}
-                  className="flex h-9 items-center justify-center gap-1 rounded-md px-1"
-                  onClick={() => applyAction(action)}
-                >
-                  <Icon style={{ transform: action.transform }} />
-                  {"turn" in action && <span>90°</span>}
-                </Button>
-              );
-            })}
+              <h3 className="col-span-3 text-neutral-400">Rotate & flip</h3>
+              <Button
+                variant="ghost"
+                className="justify-self-end px-2 py-1"
+                onClick={reset}
+              >
+                Reset
+              </Button>
+              {actions.map((action) => {
+                const Icon = "turn" in action ? RotateIcon : FlipIcon;
+                return (
+                  <Tooltip key={action.label} content={action.label}>
+                    <Button
+                      variant="ghost"
+                      aria-label={action.label}
+                      className="flex h-9 items-center justify-center gap-1 rounded-md px-1"
+                      onClick={() => applyAction(action)}
+                    >
+                      <Icon style={{ transform: action.transform }} />
+                      {"turn" in action && <span>90°</span>}
+                    </Button>
+                  </Tooltip>
+                );
+              })}
+            </section>
+            <Slider
+              label="Rotation"
+              min={-45}
+              max={45}
+              step={0.1}
+              value={frame.angle}
+              defaultValue={0}
+              onChange={(angle) => setFrame(rotate(frame, angle, source))}
+            />
+            <p className="text-neutral-500">
+              Drag edges or corners to crop, inside to move, outside to rotate.
+              Space + drag to pan; Ctrl/⌘ + scroll to zoom.
+            </p>
+            <p className="tabular-nums text-neutral-400">
+              {frame.size.map(Math.round).join(" × ")} px
+            </p>
           </section>
-          <Slider
-            label="Rotation"
-            min={-45}
-            max={45}
-            step={0.1}
-            value={frame.angle}
-            defaultValue={0}
-            onChange={(angle) => setFrame(rotate(frame, angle, source))}
-          />
-          <p className="text-neutral-500">
-            Drag edges or corners to crop, inside to move, outside to rotate.
-            Space + drag to pan; Ctrl/⌘ + scroll to zoom.
-          </p>
-          <p className="tabular-nums text-neutral-400">
-            {frame.size.map(Math.round).join(" × ")} px
-          </p>
-        </section>
+        </PanelBody>
+        <div className="p-3">
+          <Button className="w-full py-2" onClick={apply}>
+            Apply crop
+          </Button>
+        </div>
       </EditorPanel>
     </>
   );

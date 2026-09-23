@@ -9,7 +9,7 @@ type ResizablePanelProps = ComponentProps<"aside"> & {
 };
 
 /** Bottom panel on mobile; right-side panel with a draggable left edge on desktop. */
-export default function ResizablePanel({
+export function ResizablePanel({
   width = 320,
   onWidthChange,
   min = 240,

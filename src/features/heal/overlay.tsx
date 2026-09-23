@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useGpu } from "vgpu-react";
 import { BrushCanvas } from "@/components/editor/brush-canvas";
 import { useDocumentMapping } from "@/components/editor/mapping";
@@ -7,6 +7,7 @@ import { useDocument, useSelectedLayer } from "@/components/editor/session";
 import { useToolLayer } from "@/components/editor/tool-layer";
 import type { Layer } from "@/core/document";
 import type { Point } from "@/core/image/frame";
+import { useDisposable } from "@/hooks/use-disposable";
 import { addHealPatch, extendHealPatch, setHealSource } from "./edits";
 import { useHealing } from "./mode";
 import { dabTouchesImage, findHealPatch } from "./model";
@@ -29,11 +30,19 @@ export function HealOverlay({
   const renderer = useRenderer();
   const mapping = useDocumentMapping();
   const gpu = useGpu();
-  const search = useMemo(() => createHealSearch(gpu), [gpu]);
-  const { feather, selectedPatch, selectPatch, hoveredPatch } = useHealing();
-  const [source, setSource] = useState<Point>();
+  const search = useDisposable(() => createHealSearch(gpu), [gpu]);
+  const {
+    feather,
+    source,
+    setSource,
+    selectedPatch,
+    selectPatch,
+    hoveredPatch,
+  } = useHealing();
   const [drawingPatch, setDrawingPatch] = useState<string>();
   const [resolvingSource, setResolvingSource] = useState<string>();
+  // A manual donor belongs to this visit to the tool.
+  useEffect(() => () => setSource(undefined), [setSource]);
   const selectedHealLayer = useToolLayer({
     accepts: isHealLayer,
     create: onCreate,
@@ -49,7 +58,6 @@ export function HealOverlay({
   const pending = useRef<
     { layer: string; patch: string; automatic: boolean } | undefined
   >(undefined);
-  useEffect(() => () => search.dispose(), [search]);
   async function complete(signal: AbortSignal) {
     const current = pending.current;
     try {
@@ -169,16 +177,6 @@ export function HealOverlay({
             stroke="white"
           />
         </svg>
-      )}
-      {source && (
-        <button
-          type="button"
-          onPointerDown={(event) => event.stopPropagation()}
-          onClick={() => setSource(undefined)}
-          className="absolute right-3 bottom-3 rounded-full bg-neutral-800/80 px-3 py-1.5 text-white"
-        >
-          Automatic source
-        </button>
       )}
     </BrushCanvas>
   );

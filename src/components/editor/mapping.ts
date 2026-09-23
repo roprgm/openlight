@@ -13,10 +13,7 @@ export function useDocumentMapping() {
       /** Source pixels per viewport pixel along the frame's axes. */
       pixelsPerViewportPixel: Math.abs(frame.scale[0]) / scale,
       /** The document position under client coordinates, given the viewport bounds. */
-      toDocument(clientX: number, clientY: number, box?: DOMRect): Point {
-        if (!box) {
-          return frame.center;
-        }
+      toDocument(clientX: number, clientY: number, box: DOMRect): Point {
         const offset = sourceOffset(
           frame,
           (clientX - box.left - box.width / 2 - view.pan[0]) / scale,

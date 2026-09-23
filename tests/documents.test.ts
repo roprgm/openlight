@@ -6,9 +6,10 @@ import { createDocument, createResources } from "@/core/document";
 import { createImageSource } from "@/core/image";
 import { imageFrame } from "@/core/image/frame";
 import { setAdjustments } from "@/features/adjustments/edits";
-import { validateDetails } from "@/features/details/model";
+import { detailsChange } from "@/features/details/edits";
 import { defaultCurve } from "@/features/tone-curves/curve";
 import { setToneCurve } from "@/features/tone-curves/edits";
+import { parse } from "@/lib/parse";
 
 function document() {
   return createDocument({
@@ -55,7 +56,9 @@ test("documents edit independently without React, retain bounded history, and re
     { sharpenRadius: 3.1 },
     { sharpenRadius: NaN },
   ]) {
-    expect(() => validateDetails(change)).toThrow("Invalid detail adjustment");
+    expect(() =>
+      parse(detailsChange, change, "Invalid detail adjustment"),
+    ).toThrow("Invalid detail adjustment");
   }
 
   setAdjustments(first, { exposure: 1 });

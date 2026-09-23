@@ -1,23 +1,24 @@
-import { memo, useCallback, useEffect, useState } from "react";
+import {
+  type ComponentType,
+  memo,
+  useCallback,
+  useEffect,
+  useState,
+} from "react";
 import { useStore } from "zustand";
 import { PanelHeader } from "@/components/editor/panel";
 import { useDocument, useScene } from "@/components/editor/session";
-import { HealIcon } from "@/components/icons/heal";
-import { Icon } from "@/components/icons/icon";
-import { Menu } from "@/components/ui/menu";
+import { Icon, type IconProps } from "@/components/icons/icon";
+import { Menu, MenuItem } from "@/components/ui/menu";
 import { PanelListItem } from "@/components/ui/panel-list";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Tooltip } from "@/components/ui/tooltip";
 import {
   TreeDrag,
   type TreeDrop,
   useTreeDragItem,
 } from "@/components/ui/tree-drag";
-import {
-  type EffectLayer,
-  findLayer,
-  type Layer,
-  type ProcessingLayer,
-} from "@/core/document";
+import { type EffectLayer, findLayer, type Layer } from "@/core/document";
 import { useShortcuts } from "@/hooks/use-shortcuts";
 import { layerDrop } from "./drop";
 import { deleteLayer, moveLayer, setLayer } from "./edits";
@@ -26,45 +27,22 @@ import { useMaskTool } from "./mask-tool";
 import { LayerActions, MaskNesting } from "./menu";
 import { ImageThumbnail, MaskThumbnail } from "./thumbnails";
 
-type EffectKind = Exclude<ProcessingLayer["kind"], "mask" | "fill">;
+/** How the stack shows and offers each effect kind; the app supplies them so this feature names no other. */
+export type EffectKind = {
+  readonly kind: EffectLayer["kind"];
+  readonly label: string;
+  readonly Icon?: ComponentType<IconProps>;
+  /** Offered in the Add menu; tools create the others. */
+  readonly addable: boolean;
+};
 
-/** Each effect's mark in the layer stack; a new effect kind must name one. */
-function EffectIcon({ kind }: { kind: EffectKind }) {
-  switch (kind) {
-    case "heal":
-      return <HealIcon className="size-4" />;
-    case "color-mixer":
-      return (
-        <Icon className="size-4">
-          <circle cx="9" cy="9" r="5" />
-          <circle cx="15" cy="9" r="5" />
-          <circle cx="12" cy="15" r="5" />
-        </Icon>
-      );
-    case "details":
-      return (
-        <Icon className="size-4">
-          <path d="m4 18 8-14 8 14H4Zm8-8v6" />
-        </Icon>
-      );
-    case "vignette":
-      return (
-        <Icon className="size-4">
-          <circle cx="12" cy="12" r="8" />
-          <circle cx="12" cy="12" r="3" />
-        </Icon>
-      );
-    case "exposure":
-      return (
-        <Icon className="size-4">
-          <circle cx="12" cy="12" r="8" />
-          <path d="M12 4a8 8 0 0 1 0 16Z" fill="currentColor" stroke="none" />
-        </Icon>
-      );
-  }
-}
-
-function LayerThumbnail({ layer }: { layer: Layer }) {
+function LayerThumbnail({
+  layer,
+  effects,
+}: {
+  layer: Layer;
+  effects: readonly EffectKind[];
+}) {
   if (layer.kind === "image") {
     return <ImageThumbnail />;
   }
@@ -81,9 +59,10 @@ function LayerThumbnail({ layer }: { layer: Layer }) {
       />
     );
   }
+  const Icon = effects.find(({ kind }) => kind === layer.kind)?.Icon;
   return (
     <span className="grid size-8 shrink-0 place-items-center rounded border border-black/50 bg-neutral-950/40 text-neutral-400">
-      <EffectIcon kind={layer.kind} />
+      {Icon && <Icon className="size-4" />}
     </span>
   );
 }
@@ -93,11 +72,13 @@ const LayerRow = memo(function LayerRow({
   layer,
   parent,
   depth,
+  effects,
   onSelect,
 }: {
   layer: Layer;
   parent?: Layer;
   depth: number;
+  effects: readonly EffectKind[];
   onSelect: (id: string) => void;
 }) {
   const document = useDocument();
@@ -133,30 +114,35 @@ const LayerRow = memo(function LayerRow({
         style={{ paddingLeft: depth * 12 }}
         className="pr-1 data-[dragging=true]:opacity-40 data-[drop=inside]:ring-1 data-[drop=inside]:ring-blue-400 data-[drop=inside]:ring-inset data-[drop=before]:before:absolute data-[drop=before]:before:inset-x-0 data-[drop=before]:before:-top-px data-[drop=before]:before:border-t-2 data-[drop=before]:before:border-blue-400 data-[drop=after]:after:absolute data-[drop=after]:after:inset-x-0 data-[drop=after]:after:-bottom-px data-[drop=after]:after:border-b-2 data-[drop=after]:after:border-blue-400"
       >
-        <button
-          type="button"
-          aria-label={`Show ${layer.name}`}
-          aria-pressed={visible}
+        <Tooltip
+          content={visible ? "Hide layer" : "Show layer"}
           disabled={isImage}
-          onClick={() => {
-            if (!isImage) {
-              setLayer(document, layer.id, { visible: !visible });
-            }
-          }}
-          className="grid h-full w-8 shrink-0 place-items-center text-neutral-400 hover:text-neutral-100 disabled:text-neutral-600 aria-[pressed=false]:text-neutral-600 pointer-coarse:w-11"
         >
-          <Icon className="size-3.5">
-            <path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Z" />
-            <circle cx="12" cy="12" r="3" />
-          </Icon>
-        </button>
+          <button
+            type="button"
+            aria-label={`Show ${layer.name}`}
+            aria-pressed={visible}
+            disabled={isImage}
+            onClick={() => {
+              if (!isImage) {
+                setLayer(document, layer.id, { visible: !visible });
+              }
+            }}
+            className="grid h-full w-8 shrink-0 place-items-center text-neutral-400 hover:text-neutral-100 disabled:text-neutral-600 aria-[pressed=false]:text-neutral-600 pointer-coarse:w-11"
+          >
+            <Icon className="size-3.5">
+              <path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Z" />
+              <circle cx="12" cy="12" r="3" />
+            </Icon>
+          </button>
+        </Tooltip>
         <button
           type="button"
           aria-label={`Select ${layer.name}`}
           onClick={() => onSelect(layer.id)}
           className="mr-2 shrink-0"
         >
-          <LayerThumbnail layer={layer} />
+          <LayerThumbnail layer={layer} effects={effects} />
         </button>
         <LayerName
           layer={layer}
@@ -164,12 +150,17 @@ const LayerRow = memo(function LayerRow({
           dragHandle={dragHandle}
         />
         {isSubmask && (
-          <span
-            title={layer.operation}
-            className="grid size-6 shrink-0 place-items-center text-neutral-500"
+          <Tooltip
+            content={
+              maskSign === "+"
+                ? `Adds to ${parent?.name}`
+                : `Subtracts from ${parent?.name}`
+            }
           >
-            {maskSign}
-          </span>
+            <span className="grid size-6 shrink-0 place-items-center text-neutral-500">
+              {maskSign}
+            </span>
+          </Tooltip>
         )}
         {layer.children.length > 0 && (
           <button
@@ -185,15 +176,14 @@ const LayerRow = memo(function LayerRow({
           </button>
         )}
         {layer.kind === "image" && (
-          <span
-            title="Base image is locked"
-            className="grid size-7 shrink-0 place-items-center text-neutral-500"
-          >
-            <Icon className="size-3.5">
-              <rect x="6" y="10" width="12" height="10" rx="2" />
-              <path d="M8 10V7a4 4 0 0 1 8 0v3" />
-            </Icon>
-          </span>
+          <Tooltip content="The base image stays at the bottom">
+            <span className="grid size-7 shrink-0 place-items-center text-neutral-500">
+              <Icon className="size-3.5">
+                <rect x="6" y="10" width="12" height="10" rx="2" />
+                <path d="M8 10V7a4 4 0 0 1 8 0v3" />
+              </Icon>
+            </span>
+          </Tooltip>
         )}
         {layer.kind === "mask" && !parent && <MaskNesting layer={layer} />}
         {layer.kind !== "image" && (
@@ -209,6 +199,7 @@ const LayerRow = memo(function LayerRow({
               layer={child}
               parent={layer}
               depth={depth + 1}
+              effects={effects}
               onSelect={onSelect}
             />
           ))}
@@ -217,8 +208,10 @@ const LayerRow = memo(function LayerRow({
 });
 
 export function LayersControls({
+  effects,
   onAdd,
 }: {
+  effects: readonly EffectKind[];
   onAdd: (kind: EffectLayer["kind"]) => void;
 }) {
   const document = useDocument();
@@ -252,7 +245,7 @@ export function LayersControls({
   return (
     <section
       aria-label="Layers"
-      className="grid max-h-1/2 min-h-36 shrink-0 grid-rows-[auto_minmax(0,1fr)] border-t border-black bg-panel"
+      className="grid max-h-1/2 min-h-36 shrink-0 grid-rows-[auto_minmax(0,1fr)] bg-panel"
     >
       <PanelHeader title="Layers">
         <Menu
@@ -263,21 +256,13 @@ export function LayersControls({
             </Icon>
           }
         >
-          <button type="submit" onClick={() => onAdd("details")}>
-            Details
-          </button>
-          <button type="submit" onClick={() => onAdd("exposure")}>
-            Exposure
-          </button>
-          <button type="submit" onClick={() => onAdd("color-mixer")}>
-            Color Mixer
-          </button>
-          <button type="submit" onClick={() => onAdd("vignette")}>
-            Vignette
-          </button>
-          <button type="submit" onClick={() => onAdd("fill")}>
-            Color
-          </button>
+          {effects
+            .filter(({ addable }) => addable)
+            .map(({ kind, label }) => (
+              <MenuItem key={kind} onClick={() => onAdd(kind)}>
+                {label}
+              </MenuItem>
+            ))}
         </Menu>
       </PanelHeader>
       <ScrollArea fade>
@@ -293,6 +278,7 @@ export function LayersControls({
               key={layer.id}
               layer={layer}
               depth={0}
+              effects={effects}
               onSelect={select}
             />
           ))}

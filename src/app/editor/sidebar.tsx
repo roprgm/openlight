@@ -1,21 +1,15 @@
-import type { ReactNode } from "react";
-import { EditorPanel } from "@/components/editor/panel";
+import { EditorPanel, PanelBody } from "@/components/editor/panel";
 import { useDocument } from "@/components/editor/session";
 import type { EffectLayer } from "@/core/document";
 import { findLayer } from "@/core/document";
 import { LayersControls } from "@/features/layers/controls";
 import { addLayer } from "@/features/layers/edits";
+import { AdjustPanel } from "./adjust";
 import { ImageHistogram } from "./histogram";
-import { createLayer } from "./layers";
+import { createLayer, effectKinds } from "./layers";
 
-/** Histogram above, the mode's controls in the middle, the layer stack below once there is a document. */
-export function EditorSidebar({
-  children,
-  inert,
-}: {
-  children: ReactNode;
-  inert?: boolean;
-}) {
+/** The layer stack with the effects the app offers; a new effect goes inside a selected root mask or above the selection. */
+function EditorLayers() {
   const document = useDocument();
   function add(kind: EffectLayer["kind"]) {
     const scene = document.scene.getState();
@@ -27,13 +21,30 @@ export function EditorSidebar({
         : { above: selected };
     addLayer(document, createLayer(kind), placement);
   }
+  return <LayersControls effects={effectKinds} onAdd={add} />;
+}
+
+/** The editing sidebar, top to bottom; reorder the sections here. */
+export function EditorSidebar() {
   return (
-    <EditorPanel
-      inert={inert}
-      header={<ImageHistogram />}
-      footer={!inert && <LayersControls onAdd={add} />}
-    >
-      {children}
+    <EditorPanel>
+      <ImageHistogram />
+      <EditorLayers />
+      <PanelBody>
+        <AdjustPanel />
+      </PanelBody>
+    </EditorPanel>
+  );
+}
+
+/** Before a document opens, the sidebar shows default controls, dimmed, without a layer stack. */
+export function PlaceholderSidebar() {
+  return (
+    <EditorPanel inert>
+      <ImageHistogram />
+      <PanelBody>
+        <AdjustPanel />
+      </PanelBody>
     </EditorPanel>
   );
 }

@@ -9,7 +9,9 @@ import {
 import type { BrushStroke, StrokePoint } from "@/core/document";
 import type { Point } from "@/core/image/frame";
 import { useShortcuts } from "@/hooks/use-shortcuts";
+import { blurActive } from "@/lib/dom";
 import { useBrushTool } from "./brush-tool";
+import { CanvasHint } from "./canvas-hint";
 import { useDocumentMapping } from "./mapping";
 import { useDocument } from "./session";
 import { useViewport } from "./viewport";
@@ -20,7 +22,7 @@ type Stroke = {
   /** The last screen position, handed to the viewport when a second finger turns the stroke into a pinch. */
   client: Point;
   /** The viewport bounds measured once; pointer capture keeps them valid for the drag. */
-  box: DOMRect | undefined;
+  box: DOMRect;
   pending: StrokePoint[];
   frame?: number;
 };
@@ -72,7 +74,7 @@ export function BrushCanvas({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
   const gradient = useId();
-  function point(event: PointerLike, box: DOMRect | undefined): StrokePoint {
+  function point(event: PointerLike, box: DOMRect): StrokePoint {
     const [x, y] = mapping.toDocument(event.clientX, event.clientY, box);
     return [x, y, event.pointerType === "pen" ? event.pressure : 1];
   }
@@ -181,10 +183,10 @@ export function BrushCanvas({
     if (event.button !== 0 || !event.isPrimary || camera.panMode) {
       return;
     }
-    if (busy) {
+    const box = camera.ref.current?.getBoundingClientRect();
+    if (busy || !box) {
       return;
     }
-    const box = camera.ref.current?.getBoundingClientRect();
     const first = point(event, box);
     if (event.altKey && onPickSource) {
       onPickSource([first[0], first[1]]);
@@ -216,9 +218,7 @@ export function BrushCanvas({
     event.preventDefault();
     event.stopPropagation();
     event.currentTarget.setPointerCapture(event.pointerId);
-    if (window.document.activeElement instanceof HTMLElement) {
-      window.document.activeElement.blur();
-    }
+    blurActive();
   }
   function move(event: PointerEvent<HTMLDivElement>) {
     const bounds = event.currentTarget.getBoundingClientRect();
@@ -315,11 +315,7 @@ export function BrushCanvas({
           />
         </svg>
       )}
-      {status && (
-        <p className="pointer-events-none absolute bottom-3 left-3 rounded-full bg-neutral-800/80 px-3 py-1.5 text-white backdrop-blur-sm">
-          {status}
-        </p>
-      )}
+      {status && <CanvasHint>{status}</CanvasHint>}
     </div>
   );
 }

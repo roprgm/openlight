@@ -10,10 +10,9 @@ import {
 
 import { useStore } from "zustand";
 import { createStore } from "zustand/vanilla";
+import type { Point } from "@/core/image/frame";
 import type { View } from "@/core/renderer";
-
-type Size = readonly [number, number, ...unknown[]];
-type Point = readonly [number, number];
+import { isTyping } from "@/lib/dom";
 
 const fit: View = { zoom: 1, pan: [0, 0] };
 export const createCamera = () => createStore<View>(() => fit);
@@ -45,7 +44,7 @@ function zoomAt(view: View, focal: Point, zoom: number, minimum = 1): View {
   };
 }
 
-export function fitScale(content: Size, viewport: Size) {
+export function fitScale(content: Point, viewport: Point) {
   return Math.min(
     viewport[0] / content[0],
     viewport[1] / content[1],
@@ -54,7 +53,7 @@ export function fitScale(content: Size, viewport: Size) {
 }
 
 /** Axes smaller than the viewport stay centered; larger ones cannot pan past their edge. */
-function clamp(view: View, content: Size, viewport: Size): View {
+function clamp(view: View, content: Point, viewport: Point): View {
   const scale = fitScale(content, viewport) * view.zoom;
   const axis = (i: 0 | 1) => {
     const room = Math.max(0, (content[i] * scale - viewport[i]) / 2);
@@ -66,7 +65,7 @@ function clamp(view: View, content: Size, viewport: Size): View {
   };
 }
 
-function inset(size: Size, padding: number): Point {
+function inset(size: Point, padding: number): Point {
   return [
     Math.max(0, size[0] - padding * 2),
     Math.max(0, size[1] - padding * 2),
@@ -80,7 +79,7 @@ function inset(size: Size, padding: number): Point {
  */
 export function usePanZoom(
   state: Camera,
-  content: Size,
+  content: Point,
   { constrain = true, padding = 0 } = {},
 ) {
   const ref = useRef<HTMLDivElement>(null);
@@ -103,14 +102,7 @@ export function usePanZoom(
       ) {
         return;
       }
-      const target = event.target;
-      if (
-        target instanceof HTMLElement &&
-        (target.isContentEditable ||
-          target.closest(
-            'input:not([type="range"]), textarea, select, dialog, [role="dialog"]',
-          ))
-      ) {
+      if (isTyping(event.target)) {
         return;
       }
       event.preventDefault();
@@ -135,7 +127,7 @@ export function usePanZoom(
     (next: (view: View) => View, bounded = constrain) => {
       const element = ref.current;
       if (element) {
-        const viewport: Size = [element.clientWidth, element.clientHeight];
+        const viewport: Point = [element.clientWidth, element.clientHeight];
         state.setState((view) => {
           const result = next(view);
           return bounded

@@ -1,17 +1,14 @@
-import { createRawDecoder, type RawDecoder } from "raw-webgpu";
+import { createRawDecoder } from "raw-webgpu";
 import { type Gpu, type Target, target } from "vgpu";
 import { createImageSource } from "@/core/image";
+import { weakMemo } from "@/lib/weak-memo";
 
-const decoders = new WeakMap<Gpu, RawDecoder>();
+/** One decoder per GPU, released with its device. */
+const decoder = weakMemo((gpu: Gpu) => createRawDecoder(gpu.gpu));
 
 /** Adapts package-owned sensor sources to OpenLight's document and renderer lifetimes. */
 export async function decodeRaw(gpu: Gpu, file: File) {
-  let decoder = decoders.get(gpu);
-  if (!decoder) {
-    decoder = createRawDecoder(gpu.gpu);
-    decoders.set(gpu, decoder);
-  }
-  const source = await decoder.load(file);
+  const source = await decoder(gpu).load(file);
   let original: Target | undefined;
   try {
     original = target(gpu, { size: source.size, format: "rgba16float" });

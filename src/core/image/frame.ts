@@ -1,3 +1,6 @@
+import { z } from "zod/mini";
+import { parse, point } from "@/lib/parse";
+
 export type Point = readonly [number, number];
 export type ImageFrame = {
   center: Point;
@@ -28,23 +31,21 @@ export function frameValues(frame: ImageFrame) {
   ];
 }
 
-export function validateFrame(frame: ImageFrame) {
-  if (
-    !frame ||
-    ![frame.center, frame.size, frame.scale].every(
-      (point) =>
-        Array.isArray(point) &&
-        point.length === 2 &&
-        Number.isFinite(point[0]) &&
-        Number.isFinite(point[1]),
-    ) ||
-    !Number.isFinite(frame.rotation) ||
-    !Number.isFinite(frame.angle) ||
-    frame.size.some((value) => value < 1) ||
-    frame.scale.some((value) => value === 0)
-  ) {
-    throw new Error("Invalid image frame.");
-  }
+const nonzero = z
+  .number()
+  .check(z.refine((value) => value !== 0, "Scale is zero"));
+const side = z.number().check(z.minimum(1));
+
+export const frameSchema = z.object({
+  center: point,
+  size: z.tuple([side, side]),
+  rotation: z.number(),
+  angle: z.number(),
+  scale: z.tuple([nonzero, nonzero]),
+});
+
+export function validateFrame(frame: unknown): ImageFrame {
+  return parse(frameSchema, frame, "Invalid image frame");
 }
 
 export function sourceOffset(frame: ImageFrame, x: number, y: number): Point {

@@ -2,6 +2,7 @@ import { useId, useState } from "react";
 import { useDocument } from "@/components/editor/session";
 import { ScrubInput } from "@/components/ui/scrub-input";
 import { Tab, TabList } from "@/components/ui/tabs";
+import { Tooltip } from "@/components/ui/tooltip";
 import { VerticalSlider } from "@/components/ui/vertical-slider";
 import type { ColorMixer } from "@/core/document";
 import { setColorMixer } from "./edits";
@@ -34,30 +35,29 @@ function ColorSlider({
   const change = (value: number) =>
     setColorMixer(document, color.id, { [channel]: value }, layerId);
   return (
-    <div
-      className="flex min-w-0 flex-col items-center gap-1"
-      title={color.label}
-    >
-      <ScrubInput
-        aria-label={`${label} value`}
-        className="w-full leading-4 [&>span]:px-0 [&_input]:text-center [&_input]:tracking-tight"
-        variant="text"
-        value={value}
-        onChange={change}
-        min={-100}
-        max={100}
-      />
-      <VerticalSlider
-        label={label}
-        value={value}
-        onChange={change}
-        min={-100}
-        max={100}
-        defaultValue={0}
-        stops={gradient(color.hue, channel)}
-        color={`hsl(${color.hue} 65% 55%)`}
-      />
-    </div>
+    <Tooltip content={color.label}>
+      <div className="flex min-w-0 flex-col items-center gap-1">
+        <ScrubInput
+          aria-label={`${label} value`}
+          className="w-full leading-4 [&>span]:px-0 [&_input]:text-center [&_input]:tracking-tight"
+          variant="text"
+          value={value}
+          onChange={change}
+          min={-100}
+          max={100}
+        />
+        <VerticalSlider
+          label={label}
+          value={value}
+          onChange={change}
+          min={-100}
+          max={100}
+          defaultValue={0}
+          stops={gradient(color.hue, channel)}
+          color={`hsl(${color.hue} 65% 55%)`}
+        />
+      </div>
+    </Tooltip>
   );
 }
 

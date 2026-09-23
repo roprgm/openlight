@@ -1,6 +1,5 @@
 import {
   type Buffer,
-  type Effect,
   effect,
   type Frame,
   frame,
@@ -22,6 +21,7 @@ import {
   gradientParams,
   modifierData,
 } from "@/core/renderer/blend";
+import { weakMemo } from "@/lib/weak-memo";
 import coverageShader from "./coverage.wgsl";
 import shader from "./image.wgsl";
 
@@ -125,8 +125,9 @@ export function createDisplay(gpu: Gpu) {
   });
 }
 
-const displays = new WeakMap<Gpu, ReturnType<typeof createDisplay>>();
-const previews = new WeakMap<Gpu, Effect>();
+/** Off-screen drawing keeps one display and one coverage pass per GPU, released with its device. */
+const bitmapDisplay = weakMemo((gpu: Gpu) => createDisplay(gpu));
+const coveragePreview = weakMemo((gpu: Gpu) => effect(gpu, coverageShader));
 
 export type CoverageRegion = { origin: Point; extent: Point };
 
@@ -137,11 +138,7 @@ export async function renderCoverage(
   size: Point,
   region: CoverageRegion = { origin: [0, 0], extent: coverage.size },
 ) {
-  let preview = previews.get(gpu);
-  if (!preview) {
-    preview = effect(gpu, coverageShader);
-    previews.set(gpu, preview);
-  }
+  const preview = coveragePreview(gpu);
   const canvas = new OffscreenCanvas(size[0], size[1]);
   const output = surface(gpu, canvas, { size, dpr: 1 });
   try {
@@ -163,11 +160,7 @@ export async function renderCoverage(
 
 /** Draws an image into an off-screen canvas of `size` and takes its pixels; one display serves each GPU. */
 export async function renderBitmap(gpu: Gpu, image: Target, size: Point) {
-  let display = displays.get(gpu);
-  if (!display) {
-    display = createDisplay(gpu);
-    displays.set(gpu, display);
-  }
+  const display = bitmapDisplay(gpu);
   const canvas = new OffscreenCanvas(size[0], size[1]);
   const output = surface(gpu, canvas, { size, dpr: 1 });
   try {

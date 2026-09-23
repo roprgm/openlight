@@ -6,7 +6,7 @@ import type { Point } from "@/core/image/frame";
 
 type Drag = {
   pointer: number;
-  box?: DOMRect;
+  box: DOMRect;
   start: Point;
   /** The value when the drag began; a live edit changes the rendered value under the pointer. */
   from: Point;
@@ -65,7 +65,7 @@ function DraggedAnchor({
     if (commit) document.history.commit();
     else document.history.cancel();
   }
-  function point(event: PointerEvent<SVGCircleElement>, box?: DOMRect) {
+  function point(event: PointerEvent<SVGCircleElement>, box: DOMRect) {
     return mapping.toDocument(event.clientX, event.clientY, box);
   }
   function cancel() {
@@ -76,10 +76,10 @@ function DraggedAnchor({
   }
   useEffect(() => () => end(false), []);
   function start(event: PointerEvent<SVGCircleElement>) {
-    if (event.button !== 0 || !event.isPrimary || camera.panMode) {
+    const box = camera.ref.current?.getBoundingClientRect();
+    if (event.button !== 0 || !event.isPrimary || camera.panMode || !box) {
       return;
     }
-    const box = camera.ref.current?.getBoundingClientRect();
     opened.current = document.history.begin();
     current.current = {
       pointer: event.pointerId,

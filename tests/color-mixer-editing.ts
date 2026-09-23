@@ -7,8 +7,7 @@ export async function colorMixerEditing(page: Page) {
   await test.step("color mixer switches channels, groups vertical drags, exports selected colors and resets", async () => {
     await page.getByRole("button", { name: "Add effect", exact: true }).click();
     await page
-      .locator("[popover]:popover-open")
-      .getByRole("button", { name: "Color Mixer", exact: true })
+      .getByRole("menuitem", { name: "Color Mixer", exact: true })
       .click();
     const before = (await state()).history.undoCount;
     const hue = page.getByRole("slider", { name: "Blue hue", exact: true });

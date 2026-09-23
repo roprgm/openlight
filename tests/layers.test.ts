@@ -12,13 +12,13 @@ import {
 } from "@/core/document";
 import { createImageSource } from "@/core/image";
 import { imageFrame } from "@/core/image/frame";
+import { setExposure } from "@/features/adjustments/edits";
 import { layerDrop } from "@/features/layers/drop";
 import {
   addLayer,
   deleteLayer,
   duplicateLayer,
   moveLayer,
-  setExposure,
   setLayer,
   setLayerMask,
 } from "@/features/layers/edits";

@@ -3,32 +3,28 @@ import {
   type EditorDocument,
   editLayer,
 } from "@/core/document";
+import { parse } from "@/lib/parse";
 import {
   channels,
   colors,
   defaultMixer,
   type MixerChange,
   type MixerColor,
-  validMixerValue,
+  mixerChange,
+  mixerColor,
 } from "./model";
 
-export function changeColorMixer(
+function changeColorMixer(
   current: ColorMixer,
   color: MixerColor,
   change: MixerChange,
 ) {
-  const index = colors.findIndex(({ id }) => id === color);
-  if (index < 0) {
-    throw new Error(`Invalid color range: ${color}.`);
-  }
-  for (const [name, value] of Object.entries(change)) {
-    if (!channels.some(({ id }) => id === name) || !validMixerValue(value)) {
-      throw new Error(`Invalid color mixer adjustment: ${name}.`);
-    }
-  }
+  const selected = parse(mixerColor, color, "Invalid color range");
+  const index = colors.findIndex(({ id }) => id === selected);
+  const values = parse(mixerChange, change, "Invalid color mixer adjustment");
   const next = { ...current };
   for (const { id } of channels) {
-    const value = change[id];
+    const value = values[id];
     if (value !== undefined && value !== current[id][index]) {
       next[id] = current[id].with(index, value);
     }

@@ -9,10 +9,7 @@ test("a color layer paints the image or a brush stroke with Photoshop blends", a
   const state = () => page.evaluate(() => window.openlight.getState());
   async function addColor() {
     await page.getByRole("button", { name: "Add effect", exact: true }).click();
-    await page
-      .locator("[popover]:popover-open")
-      .getByRole("button", { name: "Color", exact: true })
-      .click();
+    await page.getByRole("menuitem", { name: "Color", exact: true }).click();
   }
   await page.goto("/");
   await page

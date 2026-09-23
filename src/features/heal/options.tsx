@@ -1,14 +1,22 @@
 import { useBrushTool } from "@/components/editor/brush-tool";
 import { useDocument, useSelectedLayer } from "@/components/editor/session";
 import { barSlider, useBarDensity } from "@/components/editor/toolbar-density";
+import { Chip } from "@/components/ui/chip";
 import { Slider } from "@/components/ui/slider";
+import { Tooltip } from "@/components/ui/tooltip";
 import { setHealPatch } from "./edits";
 import { useHealing } from "./mode";
 
 export function HealOptions() {
   const document = useDocument();
   const { settings, maxSize, setPreview, update } = useBrushTool();
-  const { feather: nextFeather, setFeather, selectedPatch } = useHealing();
+  const {
+    feather: nextFeather,
+    setFeather,
+    source,
+    setSource,
+    selectedPatch,
+  } = useHealing();
   const layer = useSelectedLayer();
   const selected =
     layer?.kind === "heal"
@@ -61,6 +69,11 @@ export function HealOptions() {
           variant={variant}
           onChange={(value) => changePatch({ opacity: value / 100 })}
         />
+      )}
+      {source && (
+        <Tooltip content="Find each stroke's donor again; Alt-click sets one">
+          <Chip onClick={() => setSource(undefined)}>Automatic source</Chip>
+        </Tooltip>
       )}
     </>
   );

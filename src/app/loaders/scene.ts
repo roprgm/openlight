@@ -3,8 +3,7 @@ import { openScene, snapshotScene } from "@/app/scene-file";
 import type { Workspace } from "@/app/workspace";
 import type { EditorDocument } from "@/core/document";
 import type { ImageSource } from "@/core/image";
-import decode from "@/core/image/decode";
-import { readZip, writeZip } from "@/lib/zip";
+import { decode } from "@/core/image/decode";
 import type { FileLoader } from "./registry";
 
 export const sceneExtension = ".openlight";
@@ -19,6 +18,7 @@ export function isSceneFile(file: File) {
 /** The document as a ZIP archive: a deflated `scene.json` and each source's bytes at `sources/<id>`. */
 export async function writeSceneFile(document: EditorDocument) {
   const { json, files } = snapshotScene(document);
+  const { writeZip } = await import("@/lib/zip");
   const archive = await writeZip([
     {
       name: "scene.json",
@@ -36,6 +36,7 @@ export async function openSceneFile(
   file: Blob,
   decode: (file: File) => Promise<ImageSource>,
 ) {
+  const { readZip } = await import("@/lib/zip");
   const entries = await readZip(file, inflateLimit);
   const json = entries.get("scene.json");
   if (!json) {

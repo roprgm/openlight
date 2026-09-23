@@ -3,14 +3,14 @@ import { type ReactNode, useMemo, useRef, useState } from "react";
 import { useGpu } from "vgpu-react";
 import { writeSceneFile } from "@/app/loaders/scene";
 import { Image } from "@/components/editor/image";
-import { EditorPanel, PanelHeader } from "@/components/editor/panel";
+import { EditorPanel, PanelBody, PanelHeader } from "@/components/editor/panel";
 import { useDocument, useScene } from "@/components/editor/session";
-import { EditorViewport } from "@/components/editor/viewport";
-import Button from "@/components/ui/button";
+import { EditorViewport, ViewportStage } from "@/components/editor/viewport";
+import { Button } from "@/components/ui/button";
 import { ScrubInput } from "@/components/ui/scrub-input";
 import { Select } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
-import Spinner from "@/components/ui/spinner";
+import { Spinner } from "@/components/ui/spinner";
 import type { Point } from "@/core/image/frame";
 import { useShortcuts } from "@/hooks/use-shortcuts";
 import { type ExportFormat, exportImage, exportSize } from "./export-image";
@@ -240,47 +240,53 @@ export function ExportMode({ onClose }: { onClose: () => void }) {
   };
   return (
     <>
-      <EditorViewport
-        size={encoded?.image.size ?? output}
-        overlay={pending && <LoadingOverlay />}
-      >
-        {encoded && <Image image={encoded.image} />}
+      <EditorViewport size={encoded?.image.size ?? output}>
+        <ViewportStage>
+          {encoded && <Image image={encoded.image} />}
+        </ViewportStage>
+        {pending && <LoadingOverlay />}
       </EditorViewport>
-      <EditorPanel header={<PanelHeader title="Export" onClose={onClose} />}>
-        <section aria-label="Image export" className="flex flex-col gap-5 p-4">
-          <FormatSelect value={format} onChange={setFormat} />
-          {format.lossy && (
-            <Slider
-              label="Quality"
-              value={quality}
-              onChange={setQuality}
-              min={1}
-              max={100}
-              defaultValue={80}
-            />
-          )}
-          <SizeFields size={size} longEdge={edge} onChange={setLongEdge}>
-            <span>File size</span>
-            <span
-              className={cn(
-                "col-span-2 flex items-center justify-end gap-1.5 text-neutral-100 tabular-nums",
-                pending && "text-neutral-500",
-              )}
-            >
-              {encoded ? formatBytes(encoded.bytes) : "…"}
-              {pending && <Spinner className="size-3" />}
-            </span>
-          </SizeFields>
-          <Button className="w-full py-2" onClick={save}>
-            Save image
-          </Button>
-          {error && (
-            <p className="text-red-400" role="alert">
-              {error}
-            </p>
-          )}
-        </section>
-        <SaveScene />
+      <EditorPanel>
+        <PanelHeader title="Export" onClose={onClose} />
+        <PanelBody>
+          <section
+            aria-label="Image export"
+            className="flex flex-col gap-5 p-4"
+          >
+            <FormatSelect value={format} onChange={setFormat} />
+            {format.lossy && (
+              <Slider
+                label="Quality"
+                value={quality}
+                onChange={setQuality}
+                min={1}
+                max={100}
+                defaultValue={80}
+              />
+            )}
+            <SizeFields size={size} longEdge={edge} onChange={setLongEdge}>
+              <span>File size</span>
+              <span
+                className={cn(
+                  "col-span-2 flex items-center justify-end gap-1.5 text-neutral-100 tabular-nums",
+                  pending && "text-neutral-500",
+                )}
+              >
+                {encoded ? formatBytes(encoded.bytes) : "…"}
+                {pending && <Spinner className="size-3" />}
+              </span>
+            </SizeFields>
+            <Button className="w-full py-2" onClick={save}>
+              Save image
+            </Button>
+            {error && (
+              <p className="text-red-400" role="alert">
+                {error}
+              </p>
+            )}
+          </section>
+          <SaveScene />
+        </PanelBody>
       </EditorPanel>
     </>
   );

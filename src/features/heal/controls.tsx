@@ -2,7 +2,7 @@ import { CoverageThumbnail } from "@/components/editor/coverage-thumbnail";
 import { useDocument } from "@/components/editor/session";
 import { HealIcon } from "@/components/icons/heal";
 import { Icon } from "@/components/icons/icon";
-import { Menu } from "@/components/ui/menu";
+import { Menu, MenuItem } from "@/components/ui/menu";
 import { PanelListItem } from "@/components/ui/panel-list";
 import type { HealPatch } from "@/core/document";
 import { deleteHealPatch, duplicateHealPatch } from "./edits";
@@ -46,23 +46,21 @@ function PatchActions({
         </Icon>
       }
     >
-      <button
-        type="submit"
+      <MenuItem
         onClick={() =>
           selectPatch(duplicateHealPatch(document, layer, patch.id))
         }
       >
         Duplicate
-      </button>
-      <button
-        type="submit"
+      </MenuItem>
+      <MenuItem
         onClick={() => {
           deleteHealPatch(document, layer, patch.id);
           selectPatch(next);
         }}
       >
         Delete
-      </button>
+      </MenuItem>
     </Menu>
   );
 }

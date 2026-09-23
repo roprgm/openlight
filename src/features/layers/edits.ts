@@ -13,43 +13,9 @@ import {
   updateLayer,
   walkLayers,
 } from "@/core/document";
-import { validateStroke, validPoints } from "@/core/document/brush";
-
-export function validateMask(mask: Mask) {
-  if (mask.kind === "brush") {
-    if (!Array.isArray(mask.strokes)) {
-      throw Error("A brush mask needs a list of strokes.");
-    }
-    mask.strokes.forEach(validateStroke);
-    return;
-  }
-  if (mask.kind === "radial") {
-    if (
-      mask.center.length !== 2 ||
-      mask.radius.length !== 2 ||
-      ![...mask.center, ...mask.radius, mask.angle, mask.feather].every(
-        Number.isFinite,
-      ) ||
-      mask.radius.some((value) => value <= 0) ||
-      mask.feather < 0 ||
-      mask.feather > 1
-    ) {
-      throw Error(
-        "A radial gradient needs positive radii, finite geometry, and feather from 0 to 1.",
-      );
-    }
-    return;
-  }
-  if (
-    mask.kind !== "linear" ||
-    mask.start.length !== 2 ||
-    mask.end.length !== 2 ||
-    ![...mask.start, ...mask.end].every(Number.isFinite) ||
-    (mask.start[0] === mask.end[0] && mask.start[1] === mask.end[1])
-  ) {
-    throw Error("A gradient needs two distinct finite points.");
-  }
-}
+import { strokePoints, strokeSchema } from "@/core/document/brush";
+import { change, parse } from "@/lib/parse";
+import { layerSettings, maskOperation, maskSchema } from "./model";
 
 function processingLayer(document: EditorDocument, id: string) {
   const layer = findLayer(document.scene.getState().layers, id);
@@ -140,63 +106,25 @@ export function addLayer(
   return layer.id;
 }
 
-type LayerSettings = Pick<ProcessingLayer, "visible" | "opacity" | "name">;
-
-export function validateLayerSettings(change: Partial<LayerSettings>) {
-  if (
-    Object.keys(change).some(
-      (key) => !["visible", "opacity", "name"].includes(key),
-    ) ||
-    Object.values(change).some((value) => value === undefined) ||
-    (change.opacity !== undefined &&
-      (!Number.isFinite(change.opacity) ||
-        change.opacity < 0 ||
-        change.opacity > 1)) ||
-    (change.visible !== undefined && typeof change.visible !== "boolean") ||
-    (change.name !== undefined &&
-      (typeof change.name !== "string" || !change.name.trim()))
-  ) {
-    throw Error("Invalid layer settings.");
-  }
-}
+const settingsChange = change(layerSettings);
 
 export function setLayer(
   document: EditorDocument,
   id: string,
-  change: Partial<LayerSettings>,
+  values: Partial<Pick<ProcessingLayer, "visible" | "opacity" | "name">>,
 ) {
-  validateLayerSettings(change);
+  const settings = parse(settingsChange, values, "Invalid layer settings");
   processingLayer(document, id);
-  editLayer(document, id, (layer) => ({ ...layer, ...change }));
-}
-
-export function validateExposure(exposure: number) {
-  if (!Number.isFinite(exposure) || Math.abs(exposure) > 5) {
-    throw Error("Exposure must be between -5 and 5 EV.");
-  }
-}
-
-export function setExposure(
-  document: EditorDocument,
-  id: string,
-  exposure: number,
-) {
-  validateExposure(exposure);
-  editLayer(document, id, (layer) => {
-    if (layer.kind !== "exposure") {
-      throw Error("Select an exposure layer.");
-    }
-    return { ...layer, exposure };
-  });
+  editLayer(document, id, (layer) => ({ ...layer, ...settings }));
 }
 
 export function setLayerMask(document: EditorDocument, id: string, mask: Mask) {
-  validateMask(mask);
+  const next = parse(maskSchema, mask, "Invalid mask");
   editLayer(document, id, (layer) => {
     if (layer.kind !== "mask") {
       throw Error("Select a mask layer.");
     }
-    return { ...layer, mask: structuredClone(mask) };
+    return { ...layer, mask: next };
   });
 }
 
@@ -213,12 +141,12 @@ export function paintStroke(
   id: string,
   stroke: BrushStroke,
 ) {
-  validateStroke(stroke);
+  const painted = parse(strokeSchema, stroke, "Invalid stroke");
   editLayer(document, id, (item) => {
     const { layer, strokes } = brushLayer(item);
     return {
       ...layer,
-      mask: { kind: "brush", strokes: [...strokes, structuredClone(stroke)] },
+      mask: { kind: "brush", strokes: [...strokes, painted] },
     };
   });
 }
@@ -229,18 +157,14 @@ export function extendStroke(
   id: string,
   points: readonly StrokePoint[],
 ) {
-  if (!validPoints(points)) {
-    throw Error(
-      "Stroke points need finite coordinates and pressure from 0 to 1.",
-    );
-  }
+  const added = parse(strokePoints, points, "Invalid stroke points");
   editLayer(document, id, (item) => {
     const { layer, strokes } = brushLayer(item);
     const last = strokes.at(-1);
     if (!last) {
       throw Error("Start a stroke before extending it.");
     }
-    const stroke = { ...last, points: [...last.points, ...points] };
+    const stroke = { ...last, points: [...last.points, ...added] };
     return {
       ...layer,
       mask: { kind: "brush", strokes: [...strokes.slice(0, -1), stroke] },
@@ -248,23 +172,17 @@ export function extendStroke(
   });
 }
 
-export function validateMaskOperation(operation: MaskLayer["operation"]) {
-  if (operation !== "add" && operation !== "subtract") {
-    throw Error("Choose Add or Subtract for a mask.");
-  }
-}
-
 export function setMaskOperation(
   document: EditorDocument,
   id: string,
   operation: MaskLayer["operation"],
 ) {
-  validateMaskOperation(operation);
+  const next = parse(maskOperation, operation, "Invalid mask operation");
   editLayer(document, id, (layer) => {
     if (layer.kind !== "mask") {
       throw Error("Select a mask layer.");
     }
-    return { ...layer, operation };
+    return { ...layer, operation: next };
   });
 }
 

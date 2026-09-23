@@ -7,7 +7,7 @@ import {
   useBarDensity,
 } from "@/components/editor/toolbar-density";
 import { Icon } from "@/components/icons/icon";
-import { Menu } from "@/components/ui/menu";
+import { Popover } from "@/components/ui/popover";
 import { Slider } from "@/components/ui/slider";
 import { findLayer, type ProcessingLayer } from "@/core/document";
 import { useEditGesture } from "@/hooks/use-edit-gesture";
@@ -96,8 +96,7 @@ export function CanvasToolbar({ children }: { children?: ReactNode }) {
         {inlineLayer && <LayerOptions layer={layer} />}
       </Density>
       {(menuTool || menuLayer) && (
-        <Menu
-          variant="pill"
+        <Popover
           label="More options"
           icon={
             <Icon className="size-4">
@@ -115,7 +114,7 @@ export function CanvasToolbar({ children }: { children?: ReactNode }) {
               {menuLayer && <LayerOptions layer={layer} />}
             </div>
           </Density>
-        </Menu>
+        </Popover>
       )}
     </fieldset>
   );
