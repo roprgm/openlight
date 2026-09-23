@@ -93,6 +93,9 @@ function FormatSelect({
 }
 
 /** Width, height, and scale edit one long edge; extra rows share the grid. */
+const pixels = (value: number) => `${value}px`;
+const percent = (value: number) => `${value}%`;
+
 function SizeFields({
   size,
   longEdge,
@@ -111,40 +114,38 @@ function SizeFields({
   const scaleTo = (fraction: number) =>
     onChange(Math.max(1, Math.round(maxEdge * fraction)));
   return (
-    <div className="grid grid-cols-[auto_1fr_1.5rem] items-center gap-x-3 gap-y-2 text-neutral-400">
+    // Units follow their digits, as in a slider; the values' 4px padding reaches past the file size's edge.
+    <div className="grid grid-cols-[auto_1fr] items-center gap-x-3 gap-y-2 text-neutral-400">
       <span>Width</span>
-      <div className="justify-self-end">
-        <ScrubInput
-          aria-label="Width"
-          value={width}
-          min={1}
-          max={fullWidth}
-          onChange={(value) => scaleTo(value / fullWidth)}
-        />
-      </div>
-      <span className="text-neutral-500">px</span>
+      <ScrubInput
+        aria-label="Width"
+        value={width}
+        min={1}
+        max={fullWidth}
+        format={pixels}
+        className="-mr-1 justify-self-end"
+        onChange={(value) => scaleTo(value / fullWidth)}
+      />
       <span>Height</span>
-      <div className="justify-self-end">
-        <ScrubInput
-          aria-label="Height"
-          value={height}
-          min={1}
-          max={fullHeight}
-          onChange={(value) => scaleTo(value / fullHeight)}
-        />
-      </div>
-      <span className="text-neutral-500">px</span>
+      <ScrubInput
+        aria-label="Height"
+        value={height}
+        min={1}
+        max={fullHeight}
+        format={pixels}
+        className="-mr-1 justify-self-end"
+        onChange={(value) => scaleTo(value / fullHeight)}
+      />
       <span>Scale</span>
-      <div className="justify-self-end">
-        <ScrubInput
-          aria-label="Scale"
-          value={scale}
-          min={1}
-          max={100}
-          onChange={(value) => scaleTo(value / 100)}
-        />
-      </div>
-      <span className="text-neutral-500">%</span>
+      <ScrubInput
+        aria-label="Scale"
+        value={scale}
+        min={1}
+        max={100}
+        format={percent}
+        className="-mr-1 justify-self-end"
+        onChange={(value) => scaleTo(value / 100)}
+      />
       {children}
     </div>
   );
@@ -267,7 +268,7 @@ export function ExportMode({ onClose }: { onClose: () => void }) {
               <span>File size</span>
               <span
                 className={cn(
-                  "col-span-2 flex items-center justify-end gap-1.5 text-neutral-100 tabular-nums",
+                  "flex items-center justify-end gap-1.5 text-neutral-100 tabular-nums",
                   pending && "text-neutral-500",
                 )}
               >
