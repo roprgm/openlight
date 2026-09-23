@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { useStore } from "zustand";
 import { useDocument } from "@/components/editor/session";
-import { Button } from "@/components/ui/button";
+import { IconButton } from "@/components/ui/button";
 import type { Preview } from "@/core/document";
 import { isTyping } from "@/lib/dom";
 
@@ -50,12 +50,10 @@ export function ComparisonControl() {
     };
   }, [preview]);
   return (
-    <Button
-      variant="ghost"
-      size="icon"
-      aria-label="Compare before and after"
+    <IconButton
+      label="Compare before and after"
+      shortcut="Hold \"
       aria-pressed={comparison !== "edited"}
-      title="Compare before and after (hold backslash for original)"
       className="aria-pressed:bg-neutral-700 aria-pressed:text-neutral-100"
       onClick={() =>
         preview.setState({
@@ -73,6 +71,6 @@ export function ComparisonControl() {
       >
         <path d="M10 2v16M7 5H3v10h4M13 5h4v10h-4" />
       </svg>
-    </Button>
+    </IconButton>
   );
 }

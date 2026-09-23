@@ -27,10 +27,7 @@ test("draw a mask, edit its child effects, reorder layers and undo", async ({
     await page
       .getByRole("button", { name: `${name} actions`, exact: true })
       .click();
-    await page
-      .locator("[popover]:popover-open")
-      .getByRole("button", { name: command, exact: true })
-      .click();
+    await page.getByRole("menuitem", { name: command, exact: true }).click();
   }
   async function dragLayer(name: string, target: string, fraction: number) {
     const from = await box(
@@ -71,10 +68,7 @@ test("draw a mask, edit its child effects, reorder layers and undo", async ({
       page.getByRole("textbox", { name: "Clarity", exact: true }),
     ).toHaveCount(0);
     await page.getByRole("button", { name: "Add effect", exact: true }).click();
-    await page
-      .locator("[popover]:popover-open")
-      .getByRole("button", { name: "Details", exact: true })
-      .click();
+    await page.getByRole("menuitem", { name: "Details", exact: true }).click();
     await setField("Clarity", "-100");
     expect((await readImage(page)).corner[0]).toBeGreaterThan(0);
     await page.getByRole("button", { name: "Undo", exact: true }).click();
@@ -243,8 +237,7 @@ test("draw a mask, edit its child effects, reorder layers and undo", async ({
       .getByRole("button", { name: "Subtract from Sky", exact: true })
       .click();
     await page
-      .locator("[popover]:popover-open")
-      .getByRole("button", { name: "Linear gradient", exact: true })
+      .getByRole("menuitem", { name: "Linear gradient", exact: true })
       .click();
     await drag(page, from, to);
     expect((await samples(page))[0]).toEqual(original[0]);
@@ -264,13 +257,11 @@ test("draw a mask, edit its child effects, reorder layers and undo", async ({
   await test.step("child effects can leave the mask, reorder and return through undo", async () => {
     const masked = await samples(page);
     await page.getByRole("button", { name: "Add effect", exact: true }).click();
+    await expect(page.getByRole("menu")).toBeVisible();
     await page.keyboard.press("Escape");
-    await expect(page.locator("[popover]:popover-open")).toHaveCount(0);
+    await expect(page.getByRole("menu")).toHaveCount(0);
     await page.getByRole("button", { name: "Add effect", exact: true }).click();
-    await page
-      .locator("[popover]:popover-open")
-      .getByRole("button", { name: "Vignette", exact: true })
-      .click();
+    await page.getByRole("menuitem", { name: "Vignette", exact: true }).click();
     expect(
       (await state()).scene?.layers[1].children.map((layer) => layer.kind),
     ).toEqual(["vignette"]);
@@ -395,8 +386,7 @@ test("draw a mask, edit its child effects, reorder layers and undo", async ({
       })
       .click();
     await page
-      .locator("[popover]:popover-open")
-      .getByRole("button", { name: "Radial gradient", exact: true })
+      .getByRole("menuitem", { name: "Radial gradient", exact: true })
       .click();
     await drag(page, origin, [
       origin[0] + 220 * scale,
@@ -422,11 +412,14 @@ test("draw a mask, edit its child effects, reorder layers and undo", async ({
     await expect(zoom).toHaveText(percent);
     await zoom.click();
     // At fit the percentage zooms to one image pixel per device pixel, then fits again.
-    await expect(zoom).toHaveAttribute("title", "Zoom to 100%");
+    const fitted = await zoom.innerText();
+    await page.mouse.move(0, 0);
+    await zoom.hover();
+    await expect(page.getByText("Zoom to 100%", { exact: true })).toBeVisible();
     await zoom.click();
     await expect(zoom).toHaveText("100%");
     await zoom.click();
-    await expect(zoom).toHaveAttribute("title", "Zoom to 100%");
+    await expect(zoom).toHaveText(fitted);
     await page.setViewportSize({ width: 390, height: 844 });
     await page.getByRole("button", { name: "photo.svg", exact: true }).click();
     await page.keyboard.press("r");

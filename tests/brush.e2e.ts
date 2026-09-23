@@ -212,10 +212,7 @@ test("paint a brush mask, adjust it in the sidebar, erase, and undo", async ({
         exact: true,
       })
       .click();
-    await page
-      .locator("[popover]:popover-open")
-      .getByRole("button", { name: "Brush", exact: true })
-      .click();
+    await page.getByRole("menuitem", { name: "Brush", exact: true }).click();
     await expect(
       page.getByRole("tab", { name: "Brush", exact: true }),
     ).toHaveAttribute("aria-selected", "true");

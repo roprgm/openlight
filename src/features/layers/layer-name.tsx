@@ -1,5 +1,6 @@
 import { type ComponentProps, useState } from "react";
 import { useDocument } from "@/components/editor/session";
+import { Tooltip } from "@/components/ui/tooltip";
 import type { Layer } from "@/core/document";
 import { setLayer } from "./edits";
 
@@ -15,6 +16,7 @@ export function LayerName({
 }) {
   const document = useDocument();
   const [renaming, setRenaming] = useState(false);
+  const [truncated, setTruncated] = useState(false);
   if (renaming) {
     return (
       <input
@@ -46,17 +48,24 @@ export function LayerName({
       setRenaming(true);
     }
   }
+  // Only a name cut short needs its tooltip.
   return (
-    <button
-      {...dragHandle}
-      type="button"
-      aria-label={layer.name}
-      title={layer.name}
-      onClick={onSelect}
-      onDoubleClick={rename}
-      className="min-w-0 flex-1 self-stretch truncate text-left touch-manipulation cursor-grab active:cursor-grabbing"
-    >
-      {layer.name}
-    </button>
+    <Tooltip content={layer.name} disabled={!truncated}>
+      <button
+        {...dragHandle}
+        type="button"
+        aria-label={layer.name}
+        onClick={onSelect}
+        onDoubleClick={rename}
+        onPointerEnter={(event) =>
+          setTruncated(
+            event.currentTarget.scrollWidth > event.currentTarget.clientWidth,
+          )
+        }
+        className="min-w-0 flex-1 self-stretch truncate text-left touch-manipulation cursor-grab active:cursor-grabbing"
+      >
+        {layer.name}
+      </button>
+    </Tooltip>
   );
 }

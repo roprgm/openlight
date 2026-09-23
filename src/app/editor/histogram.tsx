@@ -9,7 +9,7 @@ export function ImageHistogram() {
   return (
     <section
       aria-label="Image histogram"
-      className="group relative shrink-0 border-b border-black bg-neutral-900 max-md:absolute max-md:bottom-full max-md:left-3 max-md:z-10 max-md:mb-3 max-md:h-14 max-md:w-44 max-md:overflow-hidden max-md:border-0 max-md:bg-neutral-800/80 max-md:backdrop-blur-sm"
+      className="group relative shrink-0 bg-neutral-900 max-md:absolute max-md:bottom-full max-md:left-3 max-md:z-10 max-md:mb-3 max-md:h-14 max-md:w-44 max-md:overflow-hidden max-md:border-0 max-md:bg-neutral-800/80 max-md:backdrop-blur-sm"
     >
       <ClippingControls />
       <Histogram

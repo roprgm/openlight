@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { Tooltip } from "@/components/ui/tooltip";
 
 /** Identity on the left, document actions on the right; present in every editor state. */
 export function EditorHeader({
@@ -15,9 +16,9 @@ export function EditorHeader({
         <span className="font-medium text-neutral-200">OpenLight</span>
       </span>
       {file && (
-        <span className="min-w-0 truncate text-neutral-500" title={file}>
-          {file}
-        </span>
+        <Tooltip content={file}>
+          <span className="min-w-0 truncate text-neutral-500">{file}</span>
+        </Tooltip>
       )}
       <div className="ml-auto flex items-center gap-1">{children}</div>
     </header>

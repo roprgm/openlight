@@ -15,12 +15,11 @@ import { accept } from "@/core/image/decode";
 import { imageFrame } from "@/core/image/frame";
 import { MaskToolProvider } from "@/features/layers/mask-tool";
 import { useDisposable } from "@/hooks/use-disposable";
-import { AdjustPanel } from "./adjust";
 import { Backdrop } from "./backdrop";
 import { EditorHeader } from "./header";
 import { createImageLayer } from "./layers";
 import { createEditorRenderer } from "./renderer";
-import { EditorSidebar } from "./sidebar";
+import { PlaceholderSidebar } from "./sidebar";
 import { ToolTabList } from "./tool-rail";
 import { tools } from "./tools";
 
@@ -145,9 +144,7 @@ export function EmptyEditor({
               <Status state={state} onOpen={onOpen} />
               {draft && <RecoverDraft {...draft} />}
             </div>
-            <EditorSidebar inert>
-              <AdjustPanel />
-            </EditorSidebar>
+            <PlaceholderSidebar />
           </div>
         </MaskToolProvider>
       </RendererProvider>

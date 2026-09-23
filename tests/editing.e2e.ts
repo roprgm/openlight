@@ -311,10 +311,7 @@ test("edit a photo, inspect the preview and histograms, undo changes, and export
 
   await test.step("clarity changes local contrast and histogram, then undoes and resets", async () => {
     await page.getByRole("button", { name: "Add effect", exact: true }).click();
-    await page
-      .locator("[popover]:popover-open")
-      .getByRole("button", { name: "Details", exact: true })
-      .click();
+    await page.getByRole("menuitem", { name: "Details", exact: true }).click();
     const field = page.getByRole("textbox", { name: "Clarity", exact: true });
     const slider = page.getByRole("slider", { name: "Clarity", exact: true });
     await field.fill("100");

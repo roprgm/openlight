@@ -1,23 +1,31 @@
 import type { ReactNode } from "react";
 import type { Workspace } from "@/app/workspace";
 import { BrushProvider } from "@/components/editor/brush-tool";
+import { Image } from "@/components/editor/image";
 import { RendererProvider } from "@/components/editor/pipeline";
-import { DocumentProvider, useDocument } from "@/components/editor/session";
+import {
+  DocumentProvider,
+  useDocument,
+  useScene,
+} from "@/components/editor/session";
+import { EditorViewport, ViewportStage } from "@/components/editor/viewport";
 import { Button } from "@/components/ui/button";
+import { Tooltip } from "@/components/ui/tooltip";
 import type { Mask } from "@/core/document";
 import { findLayer, locateLayer } from "@/core/document";
 import { HealingProvider } from "@/features/heal/mode";
 import { addLayer } from "@/features/layers/edits";
 import { MaskToolProvider, type Nesting } from "@/features/layers/mask-tool";
+import { CanvasToolbar } from "@/features/layers/toolbar";
 import { useShortcuts } from "@/hooks/use-shortcuts";
 import { blurActive } from "@/lib/dom";
-import { AdjustPanel } from "./adjust";
-import { EditorCanvas } from "./canvas";
 import { ComparisonControl } from "./comparison-control";
+import { ComparisonDivider } from "./comparison-divider";
 import { EmptyEditor, type Recovery } from "./empty";
 import { EditorHeader } from "./header";
 import { HistoryControls } from "./history";
 import { createMask } from "./layers";
+import { MaskOverlaySync } from "./mask-overlay";
 import { createEditorRenderer } from "./renderer";
 import { EditorSidebar } from "./sidebar";
 import { ToolRail } from "./tool-rail";
@@ -27,6 +35,7 @@ import { exportTool, ToolProvider, tools, useTool } from "./tools";
 function ToolView() {
   const { tool, setTool } = useTool();
   const document = useDocument();
+  const size = useScene((scene) => scene.frame.size);
   // Enter and Escape leave one level: shape tools return to Adjust, where the selection climbs to the image.
   function up() {
     const layers = document.scene.getState().layers;
@@ -47,13 +56,16 @@ function ToolView() {
   }
   return (
     <>
-      <EditorCanvas
-        tools={"Canvas" in tool ? <tool.Canvas key={tool.id} /> : undefined}
-        options={"Options" in tool ? <tool.Options /> : undefined}
-      />
-      <EditorSidebar>
-        <AdjustPanel />
-      </EditorSidebar>
+      <EditorViewport size={size}>
+        <ViewportStage>
+          <Image original="originalImage" />
+          {"Canvas" in tool && <tool.Canvas key={tool.id} />}
+        </ViewportStage>
+        <ComparisonDivider />
+        <CanvasToolbar>{"Options" in tool && <tool.Options />}</CanvasToolbar>
+        <MaskOverlaySync />
+      </EditorViewport>
+      <EditorSidebar />
     </>
   );
 }
@@ -62,14 +74,15 @@ function ExportButton() {
   const { tool, setTool } = useTool();
   const exporting = tool === exportTool;
   return (
-    <Button
-      aria-pressed={exporting}
-      title="Export (E)"
-      className="ml-1 aria-pressed:bg-neutral-600"
-      onClick={() => setTool(exporting ? tools[0] : exportTool)}
-    >
-      Export
-    </Button>
+    <Tooltip content="Export the photo or save a scene" shortcut="E">
+      <Button
+        aria-pressed={exporting}
+        className="ml-1 aria-pressed:bg-neutral-600"
+        onClick={() => setTool(exporting ? tools[0] : exportTool)}
+      >
+        Export
+      </Button>
+    </Tooltip>
   );
 }
 

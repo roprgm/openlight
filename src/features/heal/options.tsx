@@ -1,7 +1,9 @@
 import { useBrushTool } from "@/components/editor/brush-tool";
 import { useDocument, useSelectedLayer } from "@/components/editor/session";
 import { barSlider, useBarDensity } from "@/components/editor/toolbar-density";
+import { Chip } from "@/components/ui/chip";
 import { Slider } from "@/components/ui/slider";
+import { Tooltip } from "@/components/ui/tooltip";
 import { setHealPatch } from "./edits";
 import { useHealing } from "./mode";
 
@@ -69,14 +71,9 @@ export function HealOptions() {
         />
       )}
       {source && (
-        <button
-          type="button"
-          title="Search for each stroke's donor again (Alt-click sets one)"
-          onClick={() => setSource(undefined)}
-          className="h-7 rounded-full px-2.5 text-neutral-400 hover:bg-white/10 hover:text-neutral-100 pointer-coarse:h-9"
-        >
-          Automatic source
-        </button>
+        <Tooltip content="Find each stroke's donor again; Alt-click sets one">
+          <Chip onClick={() => setSource(undefined)}>Automatic source</Chip>
+        </Tooltip>
       )}
     </>
   );

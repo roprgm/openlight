@@ -1,3 +1,4 @@
+import { type DBSchema, type IDBPDatabase, openDB } from "idb";
 import { z } from "zod/mini";
 import { openScene, snapshotScene } from "@/app/scene-file";
 import type { EditorDocument } from "@/core/document";
@@ -42,41 +43,28 @@ export async function openDraft(
   return openScene(readRecord(record).scene, files, decode);
 }
 
-/** Resolves once every request issued in the transaction has run, so callers read results from the requests. */
-function complete(transaction: IDBTransaction) {
-  return new Promise<void>((resolve, reject) => {
-    transaction.oncomplete = () => resolve();
-    transaction.onerror = () => reject(transaction.error);
-    transaction.onabort = () =>
-      reject(transaction.error ?? Error("Draft storage was interrupted."));
-  });
+interface DraftDatabase extends DBSchema {
+  draft: { key: "latest"; value: unknown };
+  sources: { key: string; value: Blob };
 }
 
 /**
  * One draft in IndexedDB: the record under a single key, and source files keyed by source ID.
  * Operations run one at a time in call order, so a discard never races a save.
- * Requests are issued from the transaction's own callbacks, never after an await, so it can't auto-commit early.
  */
-export function createDraftStore(
-  factory: IDBFactory | undefined = globalThis.indexedDB,
-  name = "openlight",
-) {
-  let database: Promise<IDBDatabase> | undefined;
+export function createDraftStore(name = "openlight") {
+  let database: Promise<IDBPDatabase<DraftDatabase>> | undefined;
   let queue = Promise.resolve();
 
   function connect() {
-    if (!factory) {
+    if (!globalThis.indexedDB) {
       return Promise.reject(Error("IndexedDB is unavailable."));
     }
-    database ??= new Promise<IDBDatabase>((resolve, reject) => {
-      const opening = factory.open(name, 1);
-      opening.onupgradeneeded = () => {
-        opening.result.createObjectStore("draft");
-        opening.result.createObjectStore("sources");
-      };
-      opening.onsuccess = () => resolve(opening.result);
-      opening.onerror = () => reject(opening.error);
-      opening.onblocked = () => reject(Error("Draft storage is blocked."));
+    database ??= openDB<DraftDatabase>(name, 1, {
+      upgrade(database) {
+        database.createObjectStore("draft");
+        database.createObjectStore("sources");
+      },
     }).catch((error) => {
       database = undefined;
       throw error;
@@ -84,7 +72,7 @@ export function createDraftStore(
     return database;
   }
 
-  function run<T>(task: (database: IDBDatabase) => Promise<T>) {
+  function run<T>(task: (database: IDBPDatabase<DraftDatabase>) => Promise<T>) {
     const result = queue.then(async () => task(await connect()));
     queue = result.then(
       () => {},
@@ -101,56 +89,45 @@ export function createDraftStore(
           ["draft", "sources"],
           "readwrite",
         );
-        transaction.objectStore("draft").put(record, "latest");
         const sources = transaction.objectStore("sources");
-        const stored = sources.getAllKeys();
-        stored.onsuccess = () => {
-          for (const [id, file] of files) {
-            if (!stored.result.includes(id)) {
-              sources.put(file, id);
-            }
-          }
-          for (const id of stored.result) {
-            if (typeof id === "string" && !files.has(id)) {
-              sources.delete(id);
-            }
-          }
-        };
-        await complete(transaction);
+        const stored = await sources.getAllKeys();
+        await Promise.all([
+          transaction.objectStore("draft").put(record, "latest"),
+          ...[...files]
+            .filter(([id]) => !stored.includes(id))
+            .map(([id, file]) => sources.put(file, id)),
+          ...stored
+            .filter((id) => !files.has(id))
+            .map((id) => sources.delete(id)),
+          transaction.done,
+        ]);
       });
     },
     /** The draft's display name, without reading its source files. */
     peek() {
       return run(async (database) => {
-        const transaction = database.transaction("draft");
-        const record: IDBRequest<unknown> = transaction
-          .objectStore("draft")
-          .get("latest");
-        await complete(transaction);
-        return record.result && { name: readRecord(record.result).name };
+        const record = await database.get("draft", "latest");
+        return record && { name: readRecord(record).name };
       });
     },
     /** The record with every stored source file; a save leaves only the files the draft uses. */
     read() {
       return run(async (database): Promise<Draft | undefined> => {
         const transaction = database.transaction(["draft", "sources"]);
-        const record: IDBRequest<unknown> = transaction
-          .objectStore("draft")
-          .get("latest");
         const sources = transaction.objectStore("sources");
-        const ids = sources.getAllKeys();
-        const blobs: IDBRequest<Blob[]> = sources.getAll();
-        await complete(transaction);
-        if (!record.result) {
+        const [record, ids, blobs] = await Promise.all([
+          transaction.objectStore("draft").get("latest"),
+          sources.getAllKeys(),
+          sources.getAll(),
+          transaction.done,
+        ]);
+        if (!record) {
           return undefined;
         }
-        const files = new Map<string, Blob>();
-        ids.result.forEach((id, index) => {
-          if (typeof id === "string") {
-            files.set(id, blobs.result[index]);
-          }
-        });
-        return { record: readRecord(record.result), files };
+        return {
+          record: readRecord(record),
+          files: new Map(ids.map((id, index) => [id, blobs[index]])),
+        };
       });
     },
     discard() {
@@ -159,9 +136,11 @@ export function createDraftStore(
           ["draft", "sources"],
           "readwrite",
         );
-        transaction.objectStore("draft").clear();
-        transaction.objectStore("sources").clear();
-        await complete(transaction);
+        await Promise.all([
+          transaction.objectStore("draft").clear(),
+          transaction.objectStore("sources").clear(),
+          transaction.done,
+        ]);
       });
     },
   };

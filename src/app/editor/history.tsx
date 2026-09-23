@@ -1,7 +1,7 @@
 import { useStore } from "zustand";
 import { useDocument } from "@/components/editor/session";
 import { Icon } from "@/components/icons/icon";
-import { Button } from "@/components/ui/button";
+import { IconButton } from "@/components/ui/button";
 import { useShortcuts } from "@/hooks/use-shortcuts";
 
 export function HistoryControls() {
@@ -15,32 +15,26 @@ export function HistoryControls() {
   });
   return (
     <fieldset aria-label="History" className="flex items-center gap-0.5">
-      <Button
-        variant="ghost"
-        size="icon"
-        className="disabled:pointer-events-none disabled:opacity-25"
-        aria-label="Undo"
-        title="Undo (Ctrl/⌘ Z)"
+      <IconButton
+        label="Undo"
+        shortcut="Mod Z"
         disabled={!undoCount}
         onClick={history.undo}
       >
         <Icon viewBox="0 0 20 20" className="size-4">
           <path d="m7 4-4 4 4 4M3 8h8a5 5 0 0 1 0 10" />
         </Icon>
-      </Button>
-      <Button
-        variant="ghost"
-        size="icon"
-        className="disabled:pointer-events-none disabled:opacity-25"
-        aria-label="Redo"
-        title="Redo (Ctrl/⌘ Shift Z)"
+      </IconButton>
+      <IconButton
+        label="Redo"
+        shortcut="Mod Shift Z"
         disabled={!redoCount}
         onClick={history.redo}
       >
         <Icon viewBox="0 0 20 20" className="size-4">
           <path d="m13 4 4 4-4 4m4-4H9a5 5 0 0 0 0 10" />
         </Icon>
-      </Button>
+      </IconButton>
     </fieldset>
   );
 }
