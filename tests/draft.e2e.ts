@@ -110,10 +110,13 @@ test("without IndexedDB a notice suggests scene files and editing still works", 
   await page
     .locator('input[type="file"]')
     .setInputFiles("tests/fixtures/photo.svg");
+  const exposure = page.getByRole("textbox", { name: "Exposure", exact: true });
+  await expect(exposure).toBeEnabled();
+  await expect
+    .poll(() => page.evaluate(() => window.openlight.getState().documentId))
+    .toBeDefined();
   await page.evaluate(() => window.openlight.setAdjustments({ exposure: 1 }));
-  await expect(
-    page.getByRole("textbox", { name: "Exposure", exact: true }),
-  ).toHaveValue("1.00");
+  await expect(exposure).toHaveValue("1.00");
   await notice.getByRole("button", { name: "Dismiss" }).click();
   await expect(notice).toHaveCount(0);
   // The autosave after that edit fails the same way without bringing the notice back.
