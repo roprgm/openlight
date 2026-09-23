@@ -123,7 +123,7 @@ export function CropEditor({ onClose }: { onClose: () => void }) {
                 aria-label="Aspect ratio"
                 value={ratio === null ? "free" : `${ratio}`}
                 items={ratioOptions}
-                className="w-24"
+                className="h-7 w-24"
                 onValueChange={(value) => value !== null && changeRatio(value)}
               />
             </div>

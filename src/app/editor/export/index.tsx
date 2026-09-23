@@ -80,7 +80,7 @@ function FormatSelect({
             value: format.id,
             label: format.label,
           }))}
-          className="w-28"
+          className="h-7 w-28"
           onValueChange={(id) => {
             const format = formats.find((format) => format.id === id);
             if (format) onChange(format);
