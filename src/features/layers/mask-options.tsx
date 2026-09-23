@@ -1,30 +1,22 @@
-import { Chip } from "@roprgm/ui/chip";
 import { Select } from "@roprgm/ui/select";
 import { Slider } from "@roprgm/ui/slider";
-import { Tooltip } from "@roprgm/ui/tooltip";
-import { useStore } from "zustand";
 import { useDocument, useScene } from "@/components/editor/session";
 import { barSlider, useBarDensity } from "@/components/editor/toolbar-density";
 import { locateLayer, type MaskLayer } from "@/core/document";
-import { useShortcuts } from "@/hooks/use-shortcuts";
 import { setLayerMask, setMaskOperation } from "./edits";
-import { useMaskTool } from "./mask-tool";
 
-/** The selected mask's options in the canvas bar: its overlay, a radial feather, and a child's operation. */
+/** The selected mask's options in the canvas bar: a radial feather and a child's operation. Its overlay toggles in the stack. */
 export function MaskOptions({ layer }: { layer: MaskLayer }) {
   const document = useDocument();
-  const tool = useMaskTool();
   const density = useBarDensity();
   const parent = useScene(
     (scene) => locateLayer(scene.layers, layer.id)?.parent,
   );
-  // The button reports what the canvas shows, whether by choice or by default.
-  const shown = useStore(
-    document.preview,
-    (preview) => preview.maskOverlay !== undefined,
-  );
-  const toggleOverlay = () => tool.showOverlay(!shown);
-  useShortcuts({ o: toggleOverlay });
+  const radial = layer.mask.kind === "radial";
+  const child = parent?.kind === "mask";
+  if (!radial && !child) {
+    return null;
+  }
   return (
     <>
       {density !== "menu" && (
@@ -33,11 +25,6 @@ export function MaskOptions({ layer }: { layer: MaskLayer }) {
           className="h-4 w-px border-0 bg-white/15"
         />
       )}
-      <Tooltip content="Show the mask overlay" shortcut="O">
-        <Chip aria-pressed={shown} onClick={toggleOverlay}>
-          Overlay
-        </Chip>
-      </Tooltip>
       {layer.mask.kind === "radial" && (
         <Slider
           label="Feather"
@@ -58,7 +45,7 @@ export function MaskOptions({ layer }: { layer: MaskLayer }) {
           }}
         />
       )}
-      {parent?.kind === "mask" && (
+      {child && (
         <Select
           variant="pill"
           aria-label="Mask operation"

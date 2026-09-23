@@ -62,7 +62,7 @@ test("draw a mask, edit its child effects, reorder layers and undo", async ({
   ).toHaveValue("0.00");
   await test.step("Details is an optional effect, separate from image adjustments", async () => {
     await expect(
-      page.getByRole("heading", { name: "Image", exact: true }),
+      page.getByRole("heading", { name: "Adjustments", exact: true }),
     ).toBeVisible();
     await expect(
       page.getByRole("textbox", { name: "Clarity", exact: true }),
@@ -234,7 +234,10 @@ test("draw a mask, edit its child effects, reorder layers and undo", async ({
   await test.step("a subtracting child changes coverage and Add restores the masked region", async () => {
     const masked = await samples(page);
     await page
-      .getByRole("button", { name: "Subtract from Sky", exact: true })
+      .getByRole("button", { name: "Sky actions", exact: true })
+      .click();
+    await page
+      .getByRole("menuitem", { name: "Subtract from mask", exact: true })
       .click();
     await page
       .getByRole("menuitem", { name: "Linear gradient", exact: true })
@@ -354,7 +357,7 @@ test("draw a mask, edit its child effects, reorder layers and undo", async ({
     ).toBeVisible();
     const panel = page.getByRole("region", { name: "Editor controls" });
     await expect(
-      panel.getByRole("heading", { name: "Radial Gradient", exact: true }),
+      panel.getByRole("heading", { name: "Mask adjustments", exact: true }),
     ).toBeVisible();
     await expect(
       panel.getByRole("textbox", { name: "Feather", exact: true }),
@@ -380,10 +383,10 @@ test("draw a mask, edit its child effects, reorder layers and undo", async ({
     ).toBe(true);
     await page.keyboard.press("ControlOrMeta+z");
     await page
-      .getByRole("button", {
-        name: "Subtract from Radial Gradient",
-        exact: true,
-      })
+      .getByRole("button", { name: "Radial Gradient actions", exact: true })
+      .click();
+    await page
+      .getByRole("menuitem", { name: "Subtract from mask", exact: true })
       .click();
     await page
       .getByRole("menuitem", { name: "Radial gradient", exact: true })

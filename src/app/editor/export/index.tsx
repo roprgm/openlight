@@ -247,8 +247,7 @@ export function ExportMode({ onClose }: { onClose: () => void }) {
         {pending && <LoadingOverlay />}
       </EditorViewport>
       <EditorPanel>
-        <PanelHeader title="Export" onClose={onClose} />
-        <PanelBody>
+        <PanelBody header={<PanelHeader title="Export" onClose={onClose} />}>
           <section
             aria-label="Image export"
             className="flex flex-col gap-5 p-4"

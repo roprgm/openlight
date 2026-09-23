@@ -37,7 +37,6 @@ type PointerLike = {
 /** Shared pressure-aware brush input and cursor. The caller owns the scene edit. */
 export function BrushCanvas({
   label,
-  hint,
   erase,
   feather,
   onStart,
@@ -49,7 +48,6 @@ export function BrushCanvas({
   children,
 }: {
   label: string;
-  hint?: string;
   erase: boolean;
   /** Overrides the shared brush feather for tools that own their stroke softness. */
   feather?: number;
@@ -253,7 +251,7 @@ export function BrushCanvas({
   const radius = brush.settings.size / 2 / mapping.pixelsPerViewportPixel;
   const color = erase ? "black" : "white";
   const dash = erase ? "4 3" : undefined;
-  const status = error ?? (busy ? "Finishing stroke…" : hint);
+  const status = error ?? (busy ? "Finishing stroke…" : undefined);
   const cursor = pointerVisible || brush.preview ? pointer : null;
   return (
     <div

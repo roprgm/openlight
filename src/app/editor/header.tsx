@@ -10,7 +10,7 @@ export function EditorHeader({
   children?: ReactNode;
 }) {
   return (
-    <header className="flex h-11 shrink-0 items-center gap-3 border-black border-b bg-surface px-3">
+    <header className="flex h-11 shrink-0 items-center gap-3 border-black border-b layer-panel px-3">
       <span className="flex items-center gap-2">
         <img src="/logo.svg" alt="" className="size-5" />
         <span className="font-medium text-neutral-200">OpenLight</span>

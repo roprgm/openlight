@@ -61,7 +61,7 @@ test("edit a photo, inspect the preview and histograms, undo changes, and export
 
   await test.step("image adjustments share a single section", async () => {
     await expect(
-      page.getByRole("heading", { name: "Image", exact: true }),
+      page.getByRole("heading", { name: "Adjustments", exact: true }),
     ).toBeVisible();
     await expect(
       page.getByRole("slider", { name: "Clarity", exact: true }),
@@ -376,7 +376,7 @@ test("edit a photo, inspect the preview and histograms, undo changes, and export
     );
     const bounds = await graph.boundingBox();
     if (!bounds) throw new Error("Curve graph is missing.");
-    expect((await box(graph.locator(".."))).height).toBe(200);
+    expect((await box(graph.locator(".."))).height).toBe(180);
     await drag(
       page,
       [bounds.x + bounds.width / 2, bounds.y + bounds.height / 2],
@@ -497,7 +497,7 @@ test("edit a photo, inspect the preview and histograms, undo changes, and export
     await page.keyboard.press("ArrowLeft");
     await expect(selected).toHaveAccessibleName("Radial gradient");
     await expect(
-      page.getByRole("heading", { name: "Image", exact: true }),
+      page.getByRole("heading", { name: "Adjustments", exact: true }),
     ).toBeVisible();
     await page.keyboard.press("ArrowLeft");
     await page.keyboard.press("ArrowLeft");

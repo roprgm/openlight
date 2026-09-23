@@ -1,6 +1,5 @@
 import { type PointerEvent, useEffect, useRef, useState } from "react";
 import { useStore } from "zustand";
-import { CanvasHint } from "@/components/editor/canvas-hint";
 import { useDocumentMapping } from "@/components/editor/mapping";
 import { useDocument, useScene } from "@/components/editor/session";
 import { useViewport } from "@/components/editor/viewport";
@@ -209,10 +208,6 @@ export function GradientOverlay({ shape }: { shape: Gradient["kind"] }) {
           extent={Math.hypot(...camera.viewport)}
         />
       )}
-      <CanvasHint>
-        Drag to draw · Shift constrains · Alt subtracts from the selected mask ·
-        Enter when done
-      </CanvasHint>
     </div>
   );
 }

@@ -115,8 +115,7 @@ export function CropEditor({ onClose }: { onClose: () => void }) {
           }
         }}
       >
-        <PanelHeader title="Crop" onClose={onClose} />
-        <PanelBody>
+        <PanelBody header={<PanelHeader title="Crop" onClose={onClose} />}>
           <section aria-label="Crop tool" className="space-y-5 p-4">
             <div className="flex items-center justify-between text-neutral-400">
               Aspect ratio

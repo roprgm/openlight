@@ -14,20 +14,28 @@ export function WhiteBalanceControls() {
   const limits = whiteBalanceLimits(asShot);
   return (
     <>
-      <button
-        type="button"
-        className="cursor-pointer self-end text-neutral-400 hover:text-neutral-100"
-        onClick={() => setWhiteBalance(document)}
-      >
-        As Shot
-      </button>
-      <Slider
-        label="Temperature (K)"
-        value={balance.temperature}
-        {...limits.temperature}
-        defaultValue={asShot.temperature}
-        onChange={(temperature) => setWhiteBalance(document, { temperature })}
-      />
+      <div className="relative">
+        <Slider
+          label="Temperature (K)"
+          value={balance.temperature}
+          {...limits.temperature}
+          defaultValue={asShot.temperature}
+          onChange={(temperature) => setWhiteBalance(document, { temperature })}
+        />
+        {/* The slider's label row again, its text hidden, so As Shot follows the label without a row of its own. */}
+        <div className="pointer-events-none absolute inset-x-0 top-0 flex items-center gap-2 py-0.5">
+          <span aria-hidden className="invisible">
+            Temperature (K)
+          </span>
+          <button
+            type="button"
+            className="pointer-events-auto cursor-pointer text-faint hover:text-foreground"
+            onClick={() => setWhiteBalance(document)}
+          >
+            As Shot
+          </button>
+        </div>
+      </div>
       <Slider
         label="Tint"
         value={balance.tint}

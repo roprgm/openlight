@@ -40,6 +40,12 @@ function LayerActionItems({
   }
   return (
     <>
+      {layer.kind === "mask" && !parent && (
+        <>
+          <NestingItems layer={layer} />
+          <MenuSeparator />
+        </>
+      )}
       <MenuItem
         disabled={index === siblings.length - 1}
         onClick={() => moveLayer(document, layer.id, index + 1, parent?.id)}
@@ -84,30 +90,16 @@ const shapes = [
   ["brush", "Brush"],
 ] as const;
 const nestings = [
-  ["add", "Add to", "M12 8.5v7M8.5 12h7"],
-  ["subtract", "Subtract from", "M8.5 12h7"],
+  ["add", "Add to mask"],
+  ["subtract", "Subtract from mask"],
 ] as const;
 
 /** Chooses the shape of the next mask and nests it inside this one, adding or subtracting coverage. */
-export function MaskNesting({ layer }: { layer: MaskLayer }) {
+function NestingItems({ layer }: { layer: MaskLayer }) {
   const document = useDocument();
   const tool = useMaskTool();
-  return nestings.map(([operation, verb, glyph]) => (
-    <Menu
-      key={operation}
-      trigger={
-        <IconButton
-          label={`${verb} ${layer.name}`}
-          size="icon-sm"
-          className="pointer-coarse:size-10"
-        >
-          <Icon className="size-4">
-            <circle cx="12" cy="12" r="8" />
-            <path d={glyph} />
-          </Icon>
-        </IconButton>
-      }
-    >
+  return nestings.map(([operation, label]) => (
+    <Submenu key={operation} label={label}>
       {shapes.map(([shape, name]) => (
         <MenuItem
           key={shape}
@@ -119,7 +111,7 @@ export function MaskNesting({ layer }: { layer: MaskLayer }) {
           {name}
         </MenuItem>
       ))}
-    </Menu>
+    </Submenu>
   ));
 }
 

@@ -6,6 +6,7 @@ import { Tooltip } from "@roprgm/ui/tooltip";
 import {
   type ComponentType,
   memo,
+  type ReactNode,
   useCallback,
   useEffect,
   useState,
@@ -25,7 +26,7 @@ import { layerDrop } from "./drop";
 import { deleteLayer, moveLayer, setLayer } from "./edits";
 import { LayerName } from "./layer-name";
 import { useMaskTool } from "./mask-tool";
-import { LayerActions, MaskNesting } from "./menu";
+import { LayerActions } from "./menu";
 import { ImageThumbnail, MaskThumbnail } from "./thumbnails";
 
 /** How the stack shows and offers each effect kind; the app supplies them so this feature names no other. */
@@ -186,7 +187,6 @@ const LayerRow = memo(function LayerRow({
             </span>
           </Tooltip>
         )}
-        {layer.kind === "mask" && !parent && <MaskNesting layer={layer} />}
         {layer.kind !== "image" && (
           <LayerActions layer={layer} onSelect={onSelect} />
         )}
@@ -207,6 +207,31 @@ const LayerRow = memo(function LayerRow({
     </>
   );
 });
+
+/**
+ * The layers section: a fixed header over a list that scrolls. It holds three rows before it grows.
+ * The list reaches a pixel into the section's divider, so a last row that touches the bottom shares
+ * that line instead of doubling it.
+ */
+export function LayersSection({
+  actions,
+  children,
+}: {
+  actions?: ReactNode;
+  children?: ReactNode;
+}) {
+  return (
+    <section
+      aria-label="Layers"
+      className="grid max-h-1/2 min-h-41 shrink-0 grid-rows-[auto_minmax(0,1fr)] layer-panel"
+    >
+      <PanelHeader title="Layers">{actions}</PanelHeader>
+      <ScrollArea fade className="-mb-px">
+        {children}
+      </ScrollArea>
+    </section>
+  );
+}
 
 export function LayersControls({
   effects,
@@ -244,11 +269,8 @@ export function LayersControls({
   }
 
   return (
-    <section
-      aria-label="Layers"
-      className="grid max-h-1/2 min-h-36 shrink-0 grid-rows-[auto_minmax(0,1fr)] bg-surface"
-    >
-      <PanelHeader title="Layers">
+    <LayersSection
+      actions={
         <Menu
           trigger={
             <IconButton
@@ -270,26 +292,25 @@ export function LayersControls({
               </MenuItem>
             ))}
         </Menu>
-      </PanelHeader>
-      <ScrollArea fade>
-        <TreeDrag
-          canDrop={(target) =>
-            Boolean(layerDrop(document.scene.getState(), target))
-          }
-          onDrop={drop}
-          label={(id) => findLayer(layers, id)?.name ?? id}
-        >
-          {layers.toReversed().map((layer) => (
-            <LayerRow
-              key={layer.id}
-              layer={layer}
-              depth={0}
-              effects={effects}
-              onSelect={select}
-            />
-          ))}
-        </TreeDrag>
-      </ScrollArea>
-    </section>
+      }
+    >
+      <TreeDrag
+        canDrop={(target) =>
+          Boolean(layerDrop(document.scene.getState(), target))
+        }
+        onDrop={drop}
+        label={(id) => findLayer(layers, id)?.name ?? id}
+      >
+        {layers.toReversed().map((layer) => (
+          <LayerRow
+            key={layer.id}
+            layer={layer}
+            depth={0}
+            effects={effects}
+            onSelect={select}
+          />
+        ))}
+      </TreeDrag>
+    </LayersSection>
   );
 }

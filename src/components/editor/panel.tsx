@@ -22,18 +22,29 @@ export function EditorPanel({ inert, ...props }: ComponentProps<"aside">) {
       // Inert content is already hidden from assistive technology; say so for tools that read ARIA only.
       aria-hidden={inert}
       data-inert={inert}
-      className="h-[45%] divide-black max-md:w-full! max-md:border-black max-md:border-t md:h-auto data-[inert=true]:*:opacity-50"
+      // A black edge parts it from the canvas: along the top as a bottom sheet, on the left beside it.
+      className="layer-panel h-[45%] divide-black border-black max-md:w-full! max-md:border-t md:h-auto md:border-l data-[inert=true]:*:opacity-50"
       {...props}
     />
   );
 }
 
-/** The panel section that takes the remaining height and scrolls. */
-export function PanelBody({ children }: { children: ReactNode }) {
+/** The section that takes the remaining height: its header stays put while the rest scrolls. */
+export function PanelBody({
+  header,
+  children,
+}: {
+  header: ReactNode;
+  children: ReactNode;
+}) {
   return (
-    <Body role="region" aria-label="Editor controls">
-      {children}
-    </Body>
+    <section
+      aria-label="Editor controls"
+      className="flex min-h-0 flex-1 flex-col"
+    >
+      {header}
+      <Body>{children}</Body>
+    </section>
   );
 }
 

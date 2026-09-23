@@ -29,7 +29,10 @@ const MaskTool = createContext<{
   ) => void;
   /** Adds the mask where `nesting` says, else where a pending choice says, else on top. */
   create: (mask: Mask, nesting?: Nesting) => void;
-  /** The choice for the selected mask's overlay; auto shows it while the mask changes nothing yet. */
+  /**
+   * The choice for the selected mask's overlay; auto shows it while the mask changes nothing yet.
+   * It holds across selections, so a mask chosen next shows or hides it the same way.
+   */
   overlay: OverlayChoice;
   showOverlay: (shown: boolean) => void;
   /** A gradient being drawn, not yet in the scene, tinted like a mask. */
@@ -63,13 +66,9 @@ export function MaskToolProvider({
   const [overlay, setOverlay] = useState<OverlayChoice>("auto");
   const draft = useMemo(() => createStore<Gradient | null>(() => null), []);
   const document = useDocument();
-  // A nesting and an overlay choice belong to the selection that made them.
+  // A nesting belongs to the selection that chose it.
   useEffect(
-    () =>
-      document.selection.subscribe(() => {
-        setPending(null);
-        setOverlay("auto");
-      }),
+    () => document.selection.subscribe(() => setPending(null)),
     [document],
   );
   return (

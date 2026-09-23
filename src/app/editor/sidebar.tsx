@@ -1,8 +1,8 @@
-import { EditorPanel, PanelBody } from "@/components/editor/panel";
+import { EditorPanel } from "@/components/editor/panel";
 import { useDocument } from "@/components/editor/session";
 import type { EffectLayer } from "@/core/document";
 import { findLayer } from "@/core/document";
-import { LayersControls } from "@/features/layers/controls";
+import { LayersControls, LayersSection } from "@/features/layers/controls";
 import { addLayer } from "@/features/layers/edits";
 import { AdjustPanel } from "./adjust";
 import { ImageHistogram } from "./histogram";
@@ -30,21 +30,18 @@ export function EditorSidebar() {
     <EditorPanel>
       <ImageHistogram />
       <EditorLayers />
-      <PanelBody>
-        <AdjustPanel />
-      </PanelBody>
+      <AdjustPanel />
     </EditorPanel>
   );
 }
 
-/** Before a document opens, the sidebar shows default controls, dimmed, without a layer stack. */
+/** Before a document opens, the sidebar shows the same sections, dimmed, with an empty layer stack. */
 export function PlaceholderSidebar() {
   return (
     <EditorPanel inert>
       <ImageHistogram />
-      <PanelBody>
-        <AdjustPanel />
-      </PanelBody>
+      <LayersSection />
+      <AdjustPanel />
     </EditorPanel>
   );
 }
