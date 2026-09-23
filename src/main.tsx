@@ -1,12 +1,11 @@
+import { TooltipProvider } from "@roprgm/ui/tooltip";
 import { Analytics } from "@vercel/analytics/react";
 import { SpeedInsights } from "@vercel/speed-insights/react";
 import { Component, type ReactNode } from "react";
 import { createRoot } from "react-dom/client";
 import { GpuProvider } from "vgpu-react";
-
 import { App } from "@/app";
 import { TextLink } from "@/components/ui/text-link";
-import { TooltipProvider } from "@/components/ui/tooltip";
 import "./index.css";
 
 /** GPU initialization throws during render; without WebGPU the page would otherwise stay blank. */
@@ -46,7 +45,7 @@ if (root) {
     <>
       <GpuBoundary>
         <GpuProvider>
-          <TooltipProvider>
+          <TooltipProvider delay={500}>
             <App />
           </TooltipProvider>
         </GpuProvider>

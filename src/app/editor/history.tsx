@@ -1,7 +1,7 @@
+import { IconButton } from "@roprgm/ui/icon-button";
 import { useStore } from "zustand";
 import { useDocument } from "@/components/editor/session";
 import { Icon } from "@/components/icons/icon";
-import { IconButton } from "@/components/ui/button";
 import { useShortcuts } from "@/hooks/use-shortcuts";
 
 export function HistoryControls() {
@@ -18,6 +18,7 @@ export function HistoryControls() {
       <IconButton
         label="Undo"
         shortcut="Mod Z"
+        size="icon-sm"
         disabled={!undoCount}
         onClick={history.undo}
       >
@@ -28,6 +29,7 @@ export function HistoryControls() {
       <IconButton
         label="Redo"
         shortcut="Mod Shift Z"
+        size="icon-sm"
         disabled={!redoCount}
         onClick={history.redo}
       >

@@ -21,14 +21,14 @@ Image processing runs on your own GPU with WebGPU. Photos never leave your devic
 
 - Draggable effect layers: Details, Exposure, Color Mixer, Vignette, and Color, which paints one color with Photoshop blend modes.
 - Linear and radial masks with their own adjustments and child effects.
-- Add and Subtract submasks to shape a mask's coverage.
+- Add and Subtract submasks, from a mask's actions menu, to shape its coverage.
 
 **Tools**
 
 - Healing paints patches from an automatic or manually positioned donor. Repairs remain editable and each patch builds on the previous result.
-- Brush, linear, and radial gradient tools on the rail draw masks; their options sit in the bar over the image.
+- Brush, linear, and radial gradient tools on the rail draw masks on top of the stack; their options sit in the bar over the image.
 - Brush masks with size, feather, flow, pen pressure, and Alt to erase.
-- The mask overlay shows until a mask changes the image, then the image shows the mask; the Overlay button shows or hides it.
+- The mask overlay shows until a mask changes the image, then the image shows the mask; the overlay button beside the mask's adjustments, or O, shows or hides it for every mask.
 - Edits preview at a reduced resolution while you drag, then render in full.
 
 **Compose**
@@ -61,7 +61,7 @@ bun install
 bun dev
 ```
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for browser setup, validation, benchmarks, and the pull request checklist. `window.openlight` exposes a scripting [API](API.md).
+The shared controls, such as buttons, sliders, menus, and panels, come from [@roprgm/ui](https://ui.roprgm.com). See [CONTRIBUTING.md](CONTRIBUTING.md) for browser setup, validation, benchmarks, and the pull request checklist. `window.openlight` exposes a scripting [API](API.md).
 
 ## License
 

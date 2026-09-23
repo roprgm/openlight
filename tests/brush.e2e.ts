@@ -42,15 +42,15 @@ test("paint a brush mask, adjust it in the sidebar, erase, and undo", async ({
   expect((await state()).scene?.layers).toHaveLength(2);
   // Tool options sit over the canvas; the sidebar keeps the selected layer's adjustments.
   const options = page.getByRole("group", { name: "Layer options" });
-  const overlayButton = options.getByRole("button", {
-    name: "Overlay",
+  const overlayButton = page.getByRole("button", {
+    name: "Mask overlay",
     exact: true,
   });
   await expect(
     options.getByRole("textbox", { name: "Size", exact: true }),
   ).toBeVisible();
   await expect(
-    page.getByRole("heading", { name: "Brush", exact: true }),
+    page.getByRole("heading", { name: "Mask adjustments", exact: true }),
   ).toBeVisible();
   const bounds = await box(canvas);
   const scale = Math.min(bounds.width / 1200, bounds.height / 800, 2);
@@ -207,10 +207,10 @@ test("paint a brush mask, adjust it in the sidebar, erase, and undo", async ({
     const lit = await samples(page);
     expect(lit[1][0]).toBeGreaterThan(original[1][0] + 20);
     await page
-      .getByRole("button", {
-        name: "Subtract from Linear Gradient",
-        exact: true,
-      })
+      .getByRole("button", { name: "Linear Gradient actions", exact: true })
+      .click();
+    await page
+      .getByRole("menuitem", { name: "Subtract from mask", exact: true })
       .click();
     await page.getByRole("menuitem", { name: "Brush", exact: true }).click();
     await expect(

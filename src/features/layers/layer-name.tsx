@@ -1,6 +1,6 @@
+import { Tooltip } from "@roprgm/ui/tooltip";
 import { type ComponentProps, useState } from "react";
 import { useDocument } from "@/components/editor/session";
-import { Tooltip } from "@/components/ui/tooltip";
 import type { Layer } from "@/core/document";
 import { setLayer } from "./edits";
 

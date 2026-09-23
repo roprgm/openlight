@@ -1,8 +1,8 @@
+import { Chip } from "@roprgm/ui/chip";
+import { Slider } from "@roprgm/ui/slider";
+import { Tooltip } from "@roprgm/ui/tooltip";
 import { useBrushTool } from "@/components/editor/brush-tool";
 import { barSlider, useBarDensity } from "@/components/editor/toolbar-density";
-import { Chip, ChipGroup } from "@/components/ui/chip";
-import { Slider } from "@/components/ui/slider";
-import { Tooltip } from "@/components/ui/tooltip";
 
 const modes = [
   ["paint", "Paint", "Add coverage", undefined],
@@ -15,25 +15,28 @@ export function BrushOptions() {
   const variant = barSlider(useBarDensity());
   return (
     <>
-      <ChipGroup aria-label="Brush mode">
+      <fieldset
+        aria-label="Brush mode"
+        className="flex gap-0.5 rounded-full bg-white/5 p-0.5"
+      >
         {modes.map(([mode, label, hint, shortcut]) => (
           <Tooltip key={mode} content={hint} shortcut={shortcut}>
             <Chip
-              size="segment"
               aria-pressed={erase === (mode === "erase")}
+              className="h-6"
               onClick={() => update({ erase: mode === "erase" })}
             >
               {label}
             </Chip>
           </Tooltip>
         ))}
-      </ChipGroup>
+      </fieldset>
       <Slider
         label="Size"
         value={settings.size}
         min={1}
         max={maxSize}
-        unit="px"
+        format={(value) => `${value}px`}
         valueWidth={`${maxSize}`.length}
         variant={variant}
         onEditingChange={setPreview}
@@ -45,7 +48,7 @@ export function BrushOptions() {
         min={0}
         max={100}
         defaultValue={50}
-        unit="%"
+        format={(value) => `${value}%`}
         valueWidth={3}
         variant={variant}
         onEditingChange={setPreview}
@@ -57,7 +60,7 @@ export function BrushOptions() {
         min={1}
         max={100}
         defaultValue={100}
-        unit="%"
+        format={(value) => `${value}%`}
         valueWidth={3}
         variant={variant}
         onChange={(value) => update({ flow: value / 100 })}

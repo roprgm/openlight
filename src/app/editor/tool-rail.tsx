@@ -1,6 +1,6 @@
+import { Tab, TabList } from "@roprgm/ui/tabs";
+import { Tooltip } from "@roprgm/ui/tooltip";
 import { GithubIcon } from "@/components/icons/github";
-import { Tab, TabList } from "@/components/ui/tabs";
-import { Tooltip } from "@/components/ui/tooltip";
 import { useShortcuts } from "@/hooks/use-shortcuts";
 import { type Tool, tools, useTool } from "./tools";
 
@@ -14,7 +14,7 @@ export function ToolTabList({
 }) {
   const editing = tools.filter((entry) => entry.group === "edit");
   return (
-    <div className="flex shrink-0 gap-1 overflow-auto border-black border-b bg-panel p-1.5 md:w-11 md:flex-col md:border-r md:border-b-0">
+    <div className="flex shrink-0 gap-1 overflow-auto border-black border-b layer-panel p-1.5 md:w-11 md:flex-col md:border-r md:border-b-0">
       <TabList aria-label="Tools" className="md:flex-col">
         {editing.map((entry) => (
           <Tooltip

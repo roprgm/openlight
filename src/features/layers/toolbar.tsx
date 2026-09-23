@@ -1,3 +1,6 @@
+import { IconButton } from "@roprgm/ui/icon-button";
+import { Popover } from "@roprgm/ui/popover";
+import { Slider } from "@roprgm/ui/slider";
 import { type ReactNode, useLayoutEffect, useRef, useState } from "react";
 import { useStore } from "zustand";
 import { useDocument, useScene } from "@/components/editor/session";
@@ -7,8 +10,6 @@ import {
   useBarDensity,
 } from "@/components/editor/toolbar-density";
 import { Icon } from "@/components/icons/icon";
-import { Popover } from "@/components/ui/popover";
-import { Slider } from "@/components/ui/slider";
 import { findLayer, type ProcessingLayer } from "@/core/document";
 import { useEditGesture } from "@/hooks/use-edit-gesture";
 import { setLayer } from "./edits";
@@ -25,7 +26,7 @@ function LayerOptions({ layer }: { layer: ProcessingLayer }) {
         min={0}
         max={100}
         defaultValue={100}
-        unit="%"
+        format={(value) => `${value}%`}
         valueWidth={3}
         variant={barSlider(density)}
         onChange={(value) =>
@@ -89,7 +90,8 @@ export function CanvasToolbar({ children }: { children?: ReactNode }) {
       ref={bar}
       aria-label="Layer options"
       {...gesture}
-      className="absolute top-3 left-3 flex min-w-0 max-w-[calc(100%-1.5rem)] items-center gap-x-2.5 overflow-hidden rounded-full bg-neutral-800/80 p-1 pr-2 backdrop-blur-sm"
+      // No wrapping, so running out of room overflows, which is what the steps above measure.
+      className="absolute top-3 left-3 flex min-w-0 max-w-[calc(100%-1.5rem)] items-center gap-x-2.5 overflow-hidden whitespace-nowrap rounded-full bg-neutral-800/80 p-1 pr-2 backdrop-blur-sm"
     >
       <Density value={step === 0 ? "full" : "compact"}>
         {inlineTool}
@@ -97,19 +99,24 @@ export function CanvasToolbar({ children }: { children?: ReactNode }) {
       </Density>
       {(menuTool || menuLayer) && (
         <Popover
-          label="More options"
-          icon={
-            <Icon className="size-4">
-              <path
-                d="M12 5h.01M12 12h.01M12 19h.01"
-                strokeWidth="3"
-                strokeLinecap="round"
-              />
-            </Icon>
+          trigger={
+            <IconButton
+              label="More options"
+              size="icon-sm"
+              className="rounded-full"
+            >
+              <Icon className="size-4">
+                <path
+                  d="M12 5h.01M12 12h.01M12 19h.01"
+                  strokeWidth="3"
+                  strokeLinecap="round"
+                />
+              </Icon>
+            </IconButton>
           }
         >
           <Density value="menu">
-            <div className="flex w-56 flex-col gap-3 p-2">
+            <div className="flex w-56 flex-col gap-3">
               {menuTool}
               {menuLayer && <LayerOptions layer={layer} />}
             </div>

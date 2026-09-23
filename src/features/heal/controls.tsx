@@ -1,9 +1,10 @@
+import { IconButton } from "@roprgm/ui/icon-button";
+import { ListItem } from "@roprgm/ui/list-item";
+import { Menu, MenuItem } from "@roprgm/ui/menu";
 import { CoverageThumbnail } from "@/components/editor/coverage-thumbnail";
 import { useDocument } from "@/components/editor/session";
 import { HealIcon } from "@/components/icons/heal";
 import { Icon } from "@/components/icons/icon";
-import { Menu, MenuItem } from "@/components/ui/menu";
-import { PanelListItem } from "@/components/ui/panel-list";
 import type { HealPatch } from "@/core/document";
 import { deleteHealPatch, duplicateHealPatch } from "./edits";
 import { useHealing } from "./mode";
@@ -35,15 +36,20 @@ function PatchActions({
   const { selectPatch } = useHealing();
   return (
     <Menu
-      label="Patch actions"
-      icon={
-        <Icon className="size-4">
-          <path
-            d="M5 12h.01M12 12h.01M19 12h.01"
-            strokeWidth="3"
-            strokeLinecap="round"
-          />
-        </Icon>
+      trigger={
+        <IconButton
+          label="Patch actions"
+          size="icon-sm"
+          className="pointer-coarse:size-10"
+        >
+          <Icon className="size-4">
+            <path
+              d="M5 12h.01M12 12h.01M19 12h.01"
+              strokeWidth="3"
+              strokeLinecap="round"
+            />
+          </Icon>
+        </IconButton>
       }
     >
       <MenuItem
@@ -97,9 +103,9 @@ export function HealControls({
     <ol aria-label="Healing patches">
       {patches.map((patch, index) => (
         <li key={patch.id}>
-          <PanelListItem
+          <ListItem
             selected={selectedPatch === patch.id}
-            className="pr-1"
+            className="gap-0 pr-1 pl-0 pointer-coarse:h-12"
             onPointerEnter={() => hoverPatch(patch.id)}
             onPointerLeave={() => hoverPatch()}
           >
@@ -127,7 +133,7 @@ export function HealControls({
               patch={patch}
               next={patches[index - 1]?.id ?? patches[index + 1]?.id}
             />
-          </PanelListItem>
+          </ListItem>
         </li>
       ))}
     </ol>

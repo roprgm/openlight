@@ -1,10 +1,16 @@
+import { Slider } from "@roprgm/ui/slider";
 import { useCallback } from "react";
 import { useStore } from "zustand";
-import { PanelHeader } from "@/components/editor/panel";
+import { effectKinds } from "@/app/editor/layers";
+import { PanelBody, PanelHeader } from "@/components/editor/panel";
 import { useRenderer } from "@/components/editor/pipeline";
 import { useDocument, useScene } from "@/components/editor/session";
-import { Slider } from "@/components/ui/slider";
-import { adjustmentTarget, type Layer, type ToneCurve } from "@/core/document";
+import {
+  adjustmentTarget,
+  findLayer,
+  type Layer,
+  type ToneCurve,
+} from "@/core/document";
 import { AdjustmentControls } from "@/features/adjustments/controls";
 import { setExposure } from "@/features/adjustments/edits";
 import { ColorMixerControls } from "@/features/color-mixer/controls";
@@ -12,11 +18,19 @@ import { DetailsControls } from "@/features/details/controls";
 import { FillControls } from "@/features/fill/controls";
 import { HealControls } from "@/features/heal/controls";
 import { Histogram } from "@/features/histogram";
+import { OverlayToggle } from "@/features/layers/overlay-toggle";
 import { setToneCurve } from "@/features/tone-curves/edits";
 import { ToneCurves } from "@/features/tone-curves/tone-curves";
 import { VignetteControls } from "@/features/vignette/controls";
 import { WhiteBalanceControls } from "@/features/white-balance/controls";
 import { useEditGesture } from "@/hooks/use-edit-gesture";
+
+/** Names what the controls edit, not the layer, whose name the stack already shows. */
+function panelTitle(layer: Layer) {
+  if (layer.kind === "image") return "Adjustments";
+  if (layer.kind === "mask") return "Mask adjustments";
+  return effectKinds.find((entry) => entry.kind === layer.kind)?.label;
+}
 
 const curveHistogramColors = ["#a3a3a3"] as const;
 
@@ -109,10 +123,20 @@ export function AdjustPanel() {
   const target = useScene(
     (scene) => adjustmentTarget(scene.layers, selected) ?? scene.layers[0],
   );
+  const mask = useScene(
+    (scene) => findLayer(scene.layers, selected)?.kind === "mask",
+  );
   return (
-    <div {...gesture}>
-      <PanelHeader title={target.kind === "image" ? "Image" : target.name} />
-      <SelectedControls layer={target} />
-    </div>
+    <PanelBody
+      header={
+        <PanelHeader title={panelTitle(target) ?? target.name}>
+          {mask && <OverlayToggle />}
+        </PanelHeader>
+      }
+    >
+      <div {...gesture}>
+        <SelectedControls layer={target} />
+      </div>
+    </PanelBody>
   );
 }

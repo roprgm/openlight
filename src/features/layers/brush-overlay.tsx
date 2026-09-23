@@ -27,7 +27,6 @@ export function BrushOverlay() {
   return (
     <BrushCanvas
       label="Brush canvas"
-      hint="Drag to paint · Alt erases · [ ] resize · Enter when done"
       erase={brush.erase}
       onStart={(stroke) => {
         const id = selectedBrush()?.id;

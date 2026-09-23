@@ -1,3 +1,5 @@
+import { Button } from "@roprgm/ui/button";
+import { Tooltip } from "@roprgm/ui/tooltip";
 import type { ReactNode } from "react";
 import type { Workspace } from "@/app/workspace";
 import { BrushProvider } from "@/components/editor/brush-tool";
@@ -9,10 +11,8 @@ import {
   useScene,
 } from "@/components/editor/session";
 import { EditorViewport, ViewportStage } from "@/components/editor/viewport";
-import { Button } from "@/components/ui/button";
-import { Tooltip } from "@/components/ui/tooltip";
 import type { Mask } from "@/core/document";
-import { findLayer, locateLayer } from "@/core/document";
+import { locateLayer } from "@/core/document";
 import { HealingProvider } from "@/features/heal/mode";
 import { addLayer } from "@/features/layers/edits";
 import { MaskToolProvider, type Nesting } from "@/features/layers/mask-tool";
@@ -77,7 +77,7 @@ function ExportButton() {
     <Tooltip content="Export the photo or save a scene" shortcut="E">
       <Button
         aria-pressed={exporting}
-        className="ml-1 aria-pressed:bg-neutral-600"
+        className="ml-1 h-7 px-4 aria-pressed:bg-raised-hover"
         onClick={() => setTool(exporting ? tools[0] : exportTool)}
       >
         Export
@@ -90,17 +90,14 @@ function ExportButton() {
 function MaskTools({ children }: { children: ReactNode }) {
   const document = useDocument();
   const { setTool } = useTool();
+  // A mask from the rail goes on top of the stack; one chosen from a mask's Add or Subtract menu goes inside it.
   function addMask(mask: Mask, nesting: Nesting) {
-    const scene = document.scene.getState();
-    const selected = document.selection.getState().layerId;
-    // A new top-level mask goes above the selection's root ancestor.
-    const root =
-      scene.layers.find((item) => findLayer([item], selected)) ??
-      scene.layers[0];
-    const placement = nesting.parentId
-      ? { inside: nesting.parentId }
-      : { above: root.id };
-    addLayer(document, createMask(mask, nesting.operation), placement);
+    const layer = createMask(mask, nesting.operation);
+    if (nesting.parentId) {
+      addLayer(document, layer, { inside: nesting.parentId });
+      return;
+    }
+    addLayer(document, layer);
   }
   return (
     <MaskToolProvider

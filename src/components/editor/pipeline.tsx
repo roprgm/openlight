@@ -1,3 +1,4 @@
+import { Notice } from "@roprgm/ui/notice";
 import {
   createContext,
   type ReactNode,
@@ -7,7 +8,6 @@ import {
 } from "react";
 import type { Gpu } from "vgpu";
 import { useGpu } from "vgpu-react";
-import { Notice } from "@/components/ui/notice";
 import { adjustmentTarget } from "@/core/document";
 import type { ImageSource } from "@/core/image";
 import type { createRenderer } from "@/core/renderer";
@@ -28,7 +28,7 @@ export function useRenderer() {
 
 function RendererError({ message }: { message: string }) {
   return (
-    <Notice tone="alert" placement="start">
+    <Notice tone="alert" className="fixed bottom-3 left-3 z-50">
       Renderer error: {message}
     </Notice>
   );

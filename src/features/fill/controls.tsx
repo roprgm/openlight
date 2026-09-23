@@ -1,6 +1,6 @@
+import { Select } from "@roprgm/ui/select";
 import { useEffect, useRef } from "react";
 import { useDocument } from "@/components/editor/session";
-import { Select } from "@/components/ui/select";
 import type { Fill } from "@/core/document";
 import { setFill } from "./edits";
 import { blends } from "./model";
@@ -41,9 +41,9 @@ export function FillControls({ id, fill }: { id: string; fill: Fill }) {
         <Select
           aria-label="Blend"
           value={fill.blend}
-          options={blends.map(([value, label]) => ({ value, label }))}
-          className="w-28"
-          onChange={(blend) => setFill(document, { blend }, id)}
+          items={blends.map(([value, label]) => ({ value, label }))}
+          className="h-7 w-28"
+          onValueChange={(blend) => blend && setFill(document, { blend }, id)}
         />
       </div>
     </section>

@@ -1,7 +1,7 @@
+import { IconButton } from "@roprgm/ui/icon-button";
 import { useEffect } from "react";
 import { useStore } from "zustand";
 import { useDocument } from "@/components/editor/session";
-import { IconButton } from "@/components/ui/button";
 import type { Preview } from "@/core/document";
 import { isTyping } from "@/lib/dom";
 
@@ -53,6 +53,7 @@ export function ComparisonControl() {
     <IconButton
       label="Compare before and after"
       shortcut="Hold \"
+      size="icon-sm"
       aria-pressed={comparison !== "edited"}
       className="aria-pressed:bg-neutral-700 aria-pressed:text-neutral-100"
       onClick={() =>

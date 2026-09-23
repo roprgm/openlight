@@ -1,5 +1,5 @@
+import { Slider } from "@roprgm/ui/slider";
 import { useDocument } from "@/components/editor/session";
-import { Slider } from "@/components/ui/slider";
 import type { Details } from "@/core/document";
 import { setDetails } from "./edits";
 import { defaultDetails, detailLimits } from "./model";

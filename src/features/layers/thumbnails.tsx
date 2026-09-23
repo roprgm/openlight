@@ -1,9 +1,9 @@
+import { Tooltip } from "@roprgm/ui/tooltip";
 import { useEffect, useId, useRef, useState } from "react";
 import { useGpu } from "vgpu-react";
 import { CoverageThumbnail } from "@/components/editor/coverage-thumbnail";
 import { useDocument, useScene } from "@/components/editor/session";
 import { Icon } from "@/components/icons/icon";
-import { Tooltip } from "@/components/ui/tooltip";
 import type { MaskLayer } from "@/core/document";
 import { renderBitmap } from "@/core/renderer";
 import { MaskFill } from "./mask-fill";

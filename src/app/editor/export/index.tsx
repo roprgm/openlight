@@ -1,3 +1,8 @@
+import { Button } from "@roprgm/ui/button";
+import { ScrubInput } from "@roprgm/ui/scrub-input";
+import { Select } from "@roprgm/ui/select";
+import { Slider } from "@roprgm/ui/slider";
+import { Spinner } from "@roprgm/ui/spinner";
 import { cn } from "cn";
 import { type ReactNode, useMemo, useRef, useState } from "react";
 import { useGpu } from "vgpu-react";
@@ -6,11 +11,6 @@ import { Image } from "@/components/editor/image";
 import { EditorPanel, PanelBody, PanelHeader } from "@/components/editor/panel";
 import { useDocument, useScene } from "@/components/editor/session";
 import { EditorViewport, ViewportStage } from "@/components/editor/viewport";
-import { Button } from "@/components/ui/button";
-import { ScrubInput } from "@/components/ui/scrub-input";
-import { Select } from "@/components/ui/select";
-import { Slider } from "@/components/ui/slider";
-import { Spinner } from "@/components/ui/spinner";
 import type { Point } from "@/core/image/frame";
 import { useShortcuts } from "@/hooks/use-shortcuts";
 import { type ExportFormat, exportImage, exportSize } from "./export-image";
@@ -76,12 +76,12 @@ function FormatSelect({
         <Select
           aria-label="Format"
           value={value.id}
-          options={formats.map((format) => ({
+          items={formats.map((format) => ({
             value: format.id,
             label: format.label,
           }))}
-          className="w-28"
-          onChange={(id) => {
+          className="h-7 w-28"
+          onValueChange={(id) => {
             const format = formats.find((format) => format.id === id);
             if (format) onChange(format);
           }}
@@ -93,6 +93,9 @@ function FormatSelect({
 }
 
 /** Width, height, and scale edit one long edge; extra rows share the grid. */
+const pixels = (value: number) => `${value}px`;
+const percent = (value: number) => `${value}%`;
+
 function SizeFields({
   size,
   longEdge,
@@ -111,40 +114,38 @@ function SizeFields({
   const scaleTo = (fraction: number) =>
     onChange(Math.max(1, Math.round(maxEdge * fraction)));
   return (
-    <div className="grid grid-cols-[auto_1fr_1.5rem] items-center gap-x-3 gap-y-2 text-neutral-400">
+    // Units follow their digits, as in a slider; the values' 4px padding reaches past the file size's edge.
+    <div className="grid grid-cols-[auto_1fr] items-center gap-x-3 gap-y-2 text-neutral-400">
       <span>Width</span>
-      <div className="justify-self-end">
-        <ScrubInput
-          aria-label="Width"
-          value={width}
-          min={1}
-          max={fullWidth}
-          onChange={(value) => scaleTo(value / fullWidth)}
-        />
-      </div>
-      <span className="text-neutral-500">px</span>
+      <ScrubInput
+        aria-label="Width"
+        value={width}
+        min={1}
+        max={fullWidth}
+        format={pixels}
+        className="-mr-1 justify-self-end"
+        onChange={(value) => scaleTo(value / fullWidth)}
+      />
       <span>Height</span>
-      <div className="justify-self-end">
-        <ScrubInput
-          aria-label="Height"
-          value={height}
-          min={1}
-          max={fullHeight}
-          onChange={(value) => scaleTo(value / fullHeight)}
-        />
-      </div>
-      <span className="text-neutral-500">px</span>
+      <ScrubInput
+        aria-label="Height"
+        value={height}
+        min={1}
+        max={fullHeight}
+        format={pixels}
+        className="-mr-1 justify-self-end"
+        onChange={(value) => scaleTo(value / fullHeight)}
+      />
       <span>Scale</span>
-      <div className="justify-self-end">
-        <ScrubInput
-          aria-label="Scale"
-          value={scale}
-          min={1}
-          max={100}
-          onChange={(value) => scaleTo(value / 100)}
-        />
-      </div>
-      <span className="text-neutral-500">%</span>
+      <ScrubInput
+        aria-label="Scale"
+        value={scale}
+        min={1}
+        max={100}
+        format={percent}
+        className="-mr-1 justify-self-end"
+        onChange={(value) => scaleTo(value / 100)}
+      />
       {children}
     </div>
   );
@@ -185,7 +186,7 @@ function SaveScene() {
       <p className="text-neutral-500">
         Saves the photo and every edit in one file. Open it to continue editing.
       </p>
-      <Button className="w-full py-2" onClick={save}>
+      <Button className="w-full" onClick={save}>
         Save scene
       </Button>
       {error && (
@@ -247,8 +248,7 @@ export function ExportMode({ onClose }: { onClose: () => void }) {
         {pending && <LoadingOverlay />}
       </EditorViewport>
       <EditorPanel>
-        <PanelHeader title="Export" onClose={onClose} />
-        <PanelBody>
+        <PanelBody header={<PanelHeader title="Export" onClose={onClose} />}>
           <section
             aria-label="Image export"
             className="flex flex-col gap-5 p-4"
@@ -268,7 +268,7 @@ export function ExportMode({ onClose }: { onClose: () => void }) {
               <span>File size</span>
               <span
                 className={cn(
-                  "col-span-2 flex items-center justify-end gap-1.5 text-neutral-100 tabular-nums",
+                  "flex items-center justify-end gap-1.5 text-neutral-100 tabular-nums",
                   pending && "text-neutral-500",
                 )}
               >
@@ -276,7 +276,7 @@ export function ExportMode({ onClose }: { onClose: () => void }) {
                 {pending && <Spinner className="size-3" />}
               </span>
             </SizeFields>
-            <Button className="w-full py-2" onClick={save}>
+            <Button className="w-full" onClick={save}>
               Save image
             </Button>
             {error && (
