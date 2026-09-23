@@ -1,10 +1,12 @@
 import { useBrushTool } from "@/components/editor/brush-tool";
 import { barSlider, useBarDensity } from "@/components/editor/toolbar-density";
+import { Chip, ChipGroup } from "@/components/ui/chip";
 import { Slider } from "@/components/ui/slider";
+import { Tooltip } from "@/components/ui/tooltip";
 
 const modes = [
-  ["paint", "Paint", "Add coverage"],
-  ["erase", "Erase", "Remove coverage (Alt while painting)"],
+  ["paint", "Paint", "Add coverage", undefined],
+  ["erase", "Erase", "Remove coverage", "Hold Alt"],
 ] as const;
 
 /** The next stroke's mode, size, edge, and flow, in the bar over the canvas. Alt shows on the Erase chip. */
@@ -13,23 +15,19 @@ export function BrushOptions() {
   const variant = barSlider(useBarDensity());
   return (
     <>
-      <fieldset
-        aria-label="Brush mode"
-        className="flex gap-0.5 rounded-full bg-white/5 p-0.5"
-      >
-        {modes.map(([mode, label, title]) => (
-          <button
-            key={mode}
-            type="button"
-            aria-pressed={erase === (mode === "erase")}
-            title={title}
-            onClick={() => update({ erase: mode === "erase" })}
-            className="h-6 rounded-full px-2.5 text-neutral-400 hover:bg-white/10 hover:text-neutral-100 aria-pressed:bg-white/15 aria-pressed:text-neutral-100 pointer-coarse:h-8"
-          >
-            {label}
-          </button>
+      <ChipGroup aria-label="Brush mode">
+        {modes.map(([mode, label, hint, shortcut]) => (
+          <Tooltip key={mode} content={hint} shortcut={shortcut}>
+            <Chip
+              size="segment"
+              aria-pressed={erase === (mode === "erase")}
+              onClick={() => update({ erase: mode === "erase" })}
+            >
+              {label}
+            </Chip>
+          </Tooltip>
         ))}
-      </fieldset>
+      </ChipGroup>
       <Slider
         label="Size"
         value={settings.size}

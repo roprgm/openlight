@@ -3,6 +3,7 @@ import { useGpu } from "vgpu-react";
 import { CoverageThumbnail } from "@/components/editor/coverage-thumbnail";
 import { useDocument, useScene } from "@/components/editor/session";
 import { Icon } from "@/components/icons/icon";
+import { Tooltip } from "@/components/ui/tooltip";
 import type { MaskLayer } from "@/core/document";
 import { renderBitmap } from "@/core/renderer";
 import { MaskFill } from "./mask-fill";
@@ -44,14 +45,15 @@ export function ImageThumbnail() {
     };
   }, [gpu, source]);
   return (
-    <canvas
-      ref={canvas}
-      width={64}
-      height={64}
-      aria-label="Original image thumbnail"
-      title={error ?? "Original image"}
-      className={frame}
-    />
+    <Tooltip content={error ?? "Original image"}>
+      <canvas
+        ref={canvas}
+        width={64}
+        height={64}
+        aria-label="Original image thumbnail"
+        className={frame}
+      />
+    </Tooltip>
   );
 }
 

@@ -1,8 +1,10 @@
 import { useStore } from "zustand";
 import { useDocument, useScene } from "@/components/editor/session";
 import { barSlider, useBarDensity } from "@/components/editor/toolbar-density";
+import { Chip } from "@/components/ui/chip";
 import { Select } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
+import { Tooltip } from "@/components/ui/tooltip";
 import { locateLayer, type MaskLayer } from "@/core/document";
 import { useShortcuts } from "@/hooks/use-shortcuts";
 import { setLayerMask, setMaskOperation } from "./edits";
@@ -31,15 +33,11 @@ export function MaskOptions({ layer }: { layer: MaskLayer }) {
           className="h-4 w-px border-0 bg-white/15"
         />
       )}
-      <button
-        type="button"
-        aria-pressed={shown}
-        title="Show the mask overlay (O)"
-        onClick={toggleOverlay}
-        className="h-7 rounded-full px-2.5 text-neutral-400 hover:bg-white/10 hover:text-neutral-100 aria-pressed:bg-white/15 aria-pressed:text-neutral-100 pointer-coarse:h-9"
-      >
-        Overlay
-      </button>
+      <Tooltip content="Show the mask overlay" shortcut="O">
+        <Chip aria-pressed={shown} onClick={toggleOverlay}>
+          Overlay
+        </Chip>
+      </Tooltip>
       {layer.mask.kind === "radial" && (
         <Slider
           label="Feather"
@@ -64,7 +62,7 @@ export function MaskOptions({ layer }: { layer: MaskLayer }) {
         <Select
           variant="pill"
           aria-label="Mask operation"
-          title="Combine with the parent mask"
+          tooltip="Combine with the parent mask"
           value={layer.operation}
           options={[
             { value: "add", label: "Add" },

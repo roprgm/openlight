@@ -1,13 +1,35 @@
 # Interface design system
 
-OpenLight uses a small set of shared UI primitives so the editor reads as one application across tools and panels.
+OpenLight uses a small set of shared UI primitives so the editor reads as one application across tools and panels. They live in `src/components/ui`; floating parts are built on [Base UI](https://base-ui.com), which owns positioning, focus, dismissal, keyboard navigation, and ARIA.
+
+| Component | Use |
+| --- | --- |
+| `Button`, `IconButton` | Actions. `IconButton` is a ghost icon button whose `label` names it and shows as its tooltip, with an optional `shortcut`. |
+| `Chip`, `ChipGroup` | Pill buttons in the bar over the canvas; `aria-pressed` shows a toggle on, and a group is segmented. |
+| `Tooltip` | A hint on hover or focus for any control, with an optional shortcut written as `Mod Z` (⌘ or Ctrl). |
+| `Menu`, `MenuItem`, `MenuSeparator`, `Submenu` | Commands such as Duplicate, Move, or Delete. |
+| `Select` | A choice that replaces a current value, with `field` or `pill` trigger. |
+| `Popover` | Settings that open beside a pill, such as bar controls that no longer fit. |
+| `Surface` | The elevated panel under every menu, select, and popover; popup parts render as one. |
 
 ## Selection and menus
 
-- Use `Select` for a choice that replaces a current value. Its trigger may use the panel `field` style or floating-toolbar `pill` style; its options always open on the shared elevated surface.
-- Use `Menu` for commands such as Duplicate, Move, or Delete. `Menu` and `Select` both use `MenuSurface`, which owns the anchored popover, border, background, shadow, item hover, dismissal, and keyboard navigation.
+- Use `Menu` for commands and `Popover` for settings; a menu's arrow keys and typeahead would fight sliders and fields inside it. Menu items close the menu when chosen, and nested choices use a `Submenu` rather than a control inside the menu.
+- Use `Select` for a choice that replaces a current value. Its options check the selected one.
 - Do not render a native HTML `select` in product UI. Specialized browser pickers such as file and color inputs are allowed when the browser owns behavior OpenLight does not reproduce.
-- Put a check beside the selected option. Keep command menus unselected unless the command itself represents a persistent state.
+- While a surface is open it owns the keyboard: editor shortcuts pause until it closes.
+
+## Tooltips
+
+- Every icon-only control has a tooltip; use `IconButton` or wrap the control in `Tooltip`. Do not use the native `title` attribute.
+- A tooltip names the control in a few words and adds the shortcut beside it; longer guidance belongs in the panel or a canvas hint.
+- A tooltip is not the accessible name. Keep `aria-label` on icon-only controls; `IconButton` sets it from `label`.
+- Text that may be cut short, such as a layer name, shows its tooltip only when truncated.
+
+## Panels
+
+- `EditorPanel` stacks its sections in the order written with a divider between each; `PanelBody` is the section that scrolls, and `PanelHeader` titles a section. The editing sidebar's order is the JSX in `app/editor/sidebar.tsx`.
+- `EditorViewport` is the canvas region: a `ViewportStage` inside it pans and zooms with the image, and other children float over it without panning.
 
 ## Panel collections
 

@@ -2,7 +2,7 @@ import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "cn";
 import type { ComponentProps, ReactNode } from "react";
 import { CloseIcon } from "@/components/icons/close";
-import { Button } from "./button";
+import { IconButton } from "./button";
 
 const notice = cva(
   "bottom-3 z-50 flex max-w-sm items-start gap-2 rounded-lg border border-black/60 bg-neutral-800 py-2 pl-3 shadow-float",
@@ -61,15 +61,9 @@ export function Notice({
         {actions && <div className="flex gap-2">{actions}</div>}
       </div>
       {onDismiss && (
-        <Button
-          variant="ghost"
-          size="icon"
-          aria-label="Dismiss"
-          className="mr-1"
-          onClick={onDismiss}
-        >
+        <IconButton label="Dismiss" className="mr-1" onClick={onDismiss}>
           <CloseIcon />
-        </Button>
+        </IconButton>
       )}
     </div>
   );

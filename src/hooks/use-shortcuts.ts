@@ -12,7 +12,8 @@ export function useShortcuts(
     if ((event.repeat && !modifier) || event.isComposing || event.altKey) {
       return;
     }
-    if (window.document.querySelector(":popover-open")) {
+    // An open menu, select, or popover owns the keyboard.
+    if (window.document.querySelector("[data-surface][data-open]")) {
       return;
     }
     // Enter on a focused button or link is its activation, not a shortcut.

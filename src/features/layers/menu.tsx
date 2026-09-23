@@ -1,7 +1,6 @@
 import { useDocument, useScene } from "@/components/editor/session";
 import { Icon } from "@/components/icons/icon";
-import { Menu } from "@/components/ui/menu";
-import { Select } from "@/components/ui/select";
+import { Menu, MenuItem, MenuSeparator, Submenu } from "@/components/ui/menu";
 import {
   findLayer,
   locateLayer,
@@ -40,60 +39,40 @@ function LayerActionItems({
   }
   return (
     <>
-      <button
-        type="submit"
+      <MenuItem
         disabled={index === siblings.length - 1}
         onClick={() => moveLayer(document, layer.id, index + 1, parent?.id)}
       >
         Move up
-      </button>
-      <button
-        type="submit"
+      </MenuItem>
+      <MenuItem
         disabled={index === bottom}
         onClick={() => moveLayer(document, layer.id, index - 1, parent?.id)}
       >
         Move down
-      </button>
-      {parent && (
-        <button type="submit" onClick={moveOut}>
-          Move out
-        </button>
-      )}
+      </MenuItem>
+      {parent && <MenuItem onClick={moveOut}>Move out</MenuItem>}
       {containers.length > 0 && (
-        <div className="flex items-center justify-between gap-3 px-2.5 py-1.5">
-          Move into
-          <Select
-            aria-label={`Move ${layer.name} into`}
-            placeholder="Choose layer"
-            options={containers.map((item) => ({
-              value: item.id,
-              label: item.name,
-            }))}
-            className="max-w-32"
-            onChange={(id) => {
-              const target = findLayer(layers, id);
-              if (target) {
-                moveLayer(
-                  document,
-                  layer.id,
-                  target.children.length,
-                  target.id,
-                );
+        <Submenu label="Move into">
+          {containers.map((target) => (
+            <MenuItem
+              key={target.id}
+              onClick={() =>
+                moveLayer(document, layer.id, target.children.length, target.id)
               }
-            }}
-          />
-        </div>
+            >
+              {target.name}
+            </MenuItem>
+          ))}
+        </Submenu>
       )}
-      <div className="my-1 border-t border-white/10" />
-      <button
-        type="submit"
-        onClick={() => onSelect(duplicateLayer(document, layer.id))}
-      >
+      <MenuSeparator />
+      <MenuItem onClick={() => onSelect(duplicateLayer(document, layer.id))}>
         Duplicate
-      </button>
-      <button type="submit" onClick={() => deleteLayer(document, layer.id)}>
+      </MenuItem>
+      <MenuItem onClick={() => deleteLayer(document, layer.id)}>
         Delete
-      </button>
+      </MenuItem>
     </>
   );
 }
@@ -124,16 +103,15 @@ export function MaskNesting({ layer }: { layer: MaskLayer }) {
       }
     >
       {shapes.map(([shape, name]) => (
-        <button
+        <MenuItem
           key={shape}
-          type="submit"
           onClick={() => {
             document.selectLayer(layer.id);
             tool.add(layer.id, operation, shape);
           }}
         >
           {name}
-        </button>
+        </MenuItem>
       ))}
     </Menu>
   ));
