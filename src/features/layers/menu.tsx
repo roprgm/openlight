@@ -1,4 +1,4 @@
-import { IconButton } from "@roprgm/ui/button";
+import { IconButton } from "@roprgm/ui/icon-button";
 import { Menu, MenuItem, MenuSeparator, Submenu } from "@roprgm/ui/menu";
 import { useDocument, useScene } from "@/components/editor/session";
 import { Icon } from "@/components/icons/icon";

@@ -1,4 +1,5 @@
-import { Button, IconButton } from "@roprgm/ui/button";
+import { Button } from "@roprgm/ui/button";
+import { IconButton } from "@roprgm/ui/icon-button";
 import { Tooltip } from "@roprgm/ui/tooltip";
 import { createContext, type ReactNode, useContext } from "react";
 import { Canvas } from "vgpu-react";

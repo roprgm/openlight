@@ -1,4 +1,4 @@
-import { IconButton } from "@roprgm/ui/button";
+import { IconButton } from "@roprgm/ui/icon-button";
 import { useStore } from "zustand";
 import { useDocument } from "@/components/editor/session";
 import { Icon } from "@/components/icons/icon";

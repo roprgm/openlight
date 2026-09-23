@@ -1,4 +1,4 @@
-import { IconButton } from "@roprgm/ui/button";
+import { IconButton } from "@roprgm/ui/icon-button";
 import { Popover } from "@roprgm/ui/popover";
 import { Slider } from "@roprgm/ui/slider";
 import { type ReactNode, useLayoutEffect, useRef, useState } from "react";

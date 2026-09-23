@@ -1,4 +1,4 @@
-import { IconButton } from "@roprgm/ui/button";
+import { IconButton } from "@roprgm/ui/icon-button";
 import { ListItem } from "@roprgm/ui/list-item";
 import { Menu, MenuItem } from "@roprgm/ui/menu";
 import { CoverageThumbnail } from "@/components/editor/coverage-thumbnail";
