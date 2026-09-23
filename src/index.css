@@ -1,9 +1,8 @@
 @import "tailwindcss";
-/* Shadows, focus ring, text shadow, and the `thumb:` variant that the shared components use. */
+/* Color tokens, shadows, focus ring, text shadow, and the `thumb:` variant that the shared components use. */
 @import "@roprgm/ui/theme.css";
 
 @theme {
-  --color-panel: var(--color-neutral-800);
   --font-sans: "Geist Variable", system-ui, sans-serif;
 }
 
@@ -29,7 +28,7 @@
     font-family: var(--font-sans);
     font-size: var(--text-xs);
     line-height: var(--text-xs--line-height);
-    color: var(--color-neutral-100);
+    color: var(--color-foreground);
     background: var(--color-neutral-900);
   }
 }

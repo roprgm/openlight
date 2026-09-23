@@ -14,7 +14,7 @@ export function ToolTabList({
 }) {
   const editing = tools.filter((entry) => entry.group === "edit");
   return (
-    <div className="flex shrink-0 gap-1 overflow-auto border-black border-b bg-panel p-1.5 md:w-11 md:flex-col md:border-r md:border-b-0">
+    <div className="flex shrink-0 gap-1 overflow-auto border-black border-b bg-surface p-1.5 md:w-11 md:flex-col md:border-r md:border-b-0">
       <TabList aria-label="Tools" className="md:flex-col">
         {editing.map((entry) => (
           <Tooltip

@@ -246,7 +246,7 @@ export function LayersControls({
   return (
     <section
       aria-label="Layers"
-      className="grid max-h-1/2 min-h-36 shrink-0 grid-rows-[auto_minmax(0,1fr)] bg-panel"
+      className="grid max-h-1/2 min-h-36 shrink-0 grid-rows-[auto_minmax(0,1fr)] bg-surface"
     >
       <PanelHeader title="Layers">
         <Menu
