@@ -1,3 +1,7 @@
+import { Button } from "@roprgm/ui/button";
+import { Select } from "@roprgm/ui/select";
+import { Slider } from "@roprgm/ui/slider";
+import { Tooltip } from "@roprgm/ui/tooltip";
 import { useState } from "react";
 import { Image } from "@/components/editor/image";
 import { EditorPanel, PanelBody, PanelHeader } from "@/components/editor/panel";
@@ -5,10 +9,6 @@ import { useDocument, useEditorSession } from "@/components/editor/session";
 import { EditorViewport, ViewportStage } from "@/components/editor/viewport";
 import { FlipIcon } from "@/components/icons/flip";
 import { RotateIcon } from "@/components/icons/rotate";
-import { Button } from "@/components/ui/button";
-import { Select } from "@/components/ui/select";
-import { Slider } from "@/components/ui/slider";
-import { Tooltip } from "@/components/ui/tooltip";
 import { imageFrame, type Point } from "@/core/image/frame";
 import { useShortcuts } from "@/hooks/use-shortcuts";
 import { applyCrop } from "./edits";
@@ -123,9 +123,9 @@ export function CropEditor({ onClose }: { onClose: () => void }) {
               <Select
                 aria-label="Aspect ratio"
                 value={ratio === null ? "free" : `${ratio}`}
-                options={ratioOptions}
+                items={ratioOptions}
                 className="w-24"
-                onChange={changeRatio}
+                onValueChange={(value) => value !== null && changeRatio(value)}
               />
             </div>
             <section
@@ -135,7 +135,7 @@ export function CropEditor({ onClose }: { onClose: () => void }) {
               <h3 className="col-span-3 text-neutral-400">Rotate & flip</h3>
               <Button
                 variant="ghost"
-                className="justify-self-end px-2 py-1"
+                className="h-6 justify-self-end px-2"
                 onClick={reset}
               >
                 Reset
@@ -176,7 +176,7 @@ export function CropEditor({ onClose }: { onClose: () => void }) {
           </section>
         </PanelBody>
         <div className="p-3">
-          <Button className="w-full py-2" onClick={apply}>
+          <Button className="w-full" onClick={apply}>
             Apply crop
           </Button>
         </div>

@@ -1,6 +1,7 @@
+import { IconButton } from "@roprgm/ui/button";
+import { Menu, MenuItem, MenuSeparator, Submenu } from "@roprgm/ui/menu";
 import { useDocument, useScene } from "@/components/editor/session";
 import { Icon } from "@/components/icons/icon";
-import { Menu, MenuItem, MenuSeparator, Submenu } from "@/components/ui/menu";
 import {
   findLayer,
   locateLayer,
@@ -94,12 +95,17 @@ export function MaskNesting({ layer }: { layer: MaskLayer }) {
   return nestings.map(([operation, verb, glyph]) => (
     <Menu
       key={operation}
-      label={`${verb} ${layer.name}`}
-      icon={
-        <Icon className="size-4">
-          <circle cx="12" cy="12" r="8" />
-          <path d={glyph} />
-        </Icon>
+      trigger={
+        <IconButton
+          label={`${verb} ${layer.name}`}
+          size="icon-sm"
+          className="pointer-coarse:size-10"
+        >
+          <Icon className="size-4">
+            <circle cx="12" cy="12" r="8" />
+            <path d={glyph} />
+          </Icon>
+        </IconButton>
       }
     >
       {shapes.map(([shape, name]) => (
@@ -123,15 +129,20 @@ export function LayerActions(props: {
 }) {
   return (
     <Menu
-      label={`${props.layer.name} actions`}
-      icon={
-        <Icon className="size-4">
-          <path
-            d="M5 12h.01M12 12h.01M19 12h.01"
-            strokeWidth="3"
-            strokeLinecap="round"
-          />
-        </Icon>
+      trigger={
+        <IconButton
+          label={`${props.layer.name} actions`}
+          size="icon-sm"
+          className="pointer-coarse:size-10"
+        >
+          <Icon className="size-4">
+            <path
+              d="M5 12h.01M12 12h.01M19 12h.01"
+              strokeWidth="3"
+              strokeLinecap="round"
+            />
+          </Icon>
+        </IconButton>
       }
     >
       <LayerActionItems {...props} />

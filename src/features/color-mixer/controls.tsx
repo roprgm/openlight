@@ -1,9 +1,9 @@
+import { ScrubInput } from "@roprgm/ui/scrub-input";
+import { Tab, TabList } from "@roprgm/ui/tabs";
+import { Tooltip } from "@roprgm/ui/tooltip";
+import { VerticalSlider } from "@roprgm/ui/vertical-slider";
 import { useId, useState } from "react";
 import { useDocument } from "@/components/editor/session";
-import { ScrubInput } from "@/components/ui/scrub-input";
-import { Tab, TabList } from "@/components/ui/tabs";
-import { Tooltip } from "@/components/ui/tooltip";
-import { VerticalSlider } from "@/components/ui/vertical-slider";
 import type { ColorMixer } from "@/core/document";
 import { setColorMixer } from "./edits";
 import { channels, colors, type MixerChannel } from "./model";
@@ -39,9 +39,9 @@ function ColorSlider({
       <div className="flex min-w-0 flex-col items-center gap-1">
         <ScrubInput
           aria-label={`${label} value`}
-          className="w-full leading-4 [&>span]:px-0 [&_input]:text-center [&_input]:tracking-tight"
-          variant="text"
+          className="w-full justify-center px-0 tracking-tight"
           value={value}
+          defaultValue={0}
           onChange={change}
           min={-100}
           max={100}
@@ -74,7 +74,7 @@ export function ColorMixerControls({
     <section className="p-3">
       <TabList
         aria-label="Color Mixer adjustment"
-        className="mb-3 gap-0.5 rounded-md bg-neutral-900 p-0.5 shadow-groove"
+        className="mb-3 gap-0.5 rounded-md bg-neutral-900 p-0.5 shadow-sunken"
       >
         {channels.map(({ id: value, label }) => (
           <Tab
@@ -83,7 +83,7 @@ export function ColorMixerControls({
             aria-controls={`${id}-sliders`}
             selected={channel === value}
             onClick={() => setChannel(value)}
-            className="min-w-0 flex-1 rounded px-1 py-1.5"
+            className="h-7 min-w-0 flex-1 rounded-sm px-1"
           >
             {label}
           </Tab>

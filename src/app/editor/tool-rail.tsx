@@ -1,6 +1,6 @@
+import { Tab, TabList } from "@roprgm/ui/tabs";
+import { Tooltip } from "@roprgm/ui/tooltip";
 import { GithubIcon } from "@/components/icons/github";
-import { Tab, TabList } from "@/components/ui/tabs";
-import { Tooltip } from "@/components/ui/tooltip";
 import { useShortcuts } from "@/hooks/use-shortcuts";
 import { type Tool, tools, useTool } from "./tools";
 

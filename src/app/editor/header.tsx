@@ -1,5 +1,5 @@
+import { Tooltip } from "@roprgm/ui/tooltip";
 import type { ReactNode } from "react";
-import { Tooltip } from "@/components/ui/tooltip";
 
 /** Identity on the left, document actions on the right; present in every editor state. */
 export function EditorHeader({

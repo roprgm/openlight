@@ -1,5 +1,5 @@
+import { Slider } from "@roprgm/ui/slider";
 import { useDocument, useScene } from "@/components/editor/session";
-import { Slider } from "@/components/ui/slider";
 import { setWhiteBalance, whiteBalanceLimits } from "./edits";
 
 export function WhiteBalanceControls() {

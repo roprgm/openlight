@@ -1,5 +1,5 @@
+import { Slider } from "@roprgm/ui/slider";
 import { useDocument } from "@/components/editor/session";
-import { Slider } from "@/components/ui/slider";
 import type { Vignette } from "@/core/document";
 import { setVignette } from "./edits";
 import { defaultVignette } from "./model";

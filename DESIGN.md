@@ -1,16 +1,16 @@
 # Interface design system
 
-OpenLight uses a small set of shared UI primitives so the editor reads as one application across tools and panels. They live in `src/components/ui`; floating parts are built on [Base UI](https://base-ui.com), which owns positioning, focus, dismissal, keyboard navigation, and ARIA.
+OpenLight uses a small set of shared UI primitives so the editor reads as one application across tools and panels. They come from [`@roprgm/ui`](https://ui.roprgm.com), imported per component as `@roprgm/ui/<name>`, with its theme imported in `src/index.css`; floating parts are built on [Base UI](https://base-ui.com), which owns positioning, focus, dismissal, keyboard navigation, and ARIA. `src/components/ui` keeps only what the library does not provide yet: `TextLink` and `TreeDrag`.
 
 | Component | Use |
 | --- | --- |
-| `Button`, `IconButton` | Actions. `IconButton` is a ghost icon button whose `label` names it and shows as its tooltip, with an optional `shortcut`. |
-| `Chip`, `ChipGroup` | Pill buttons in the bar over the canvas; `aria-pressed` shows a toggle on, and a group is segmented. |
+| `Button`, `IconButton` | Actions. `IconButton` is a ghost icon button whose `label` names it and shows as its tooltip, with an optional `shortcut`; use `size="icon-sm"` in headers, rows, and bars. |
+| `Chip` | Pill buttons in the bar over the canvas; `aria-pressed` shows a toggle on. A segmented group is a `fieldset` of chips. |
 | `Tooltip` | A hint on hover or focus for any control, with an optional shortcut written as `Mod Z` (⌘ or Ctrl). |
-| `Menu`, `MenuItem`, `MenuSeparator`, `Submenu` | Commands such as Duplicate, Move, or Delete. |
+| `Menu`, `MenuItem`, `MenuSeparator`, `Submenu` | Commands such as Duplicate, Move, or Delete, opened from a `trigger` such as an `IconButton`. |
 | `Select` | A choice that replaces a current value, with `field` or `pill` trigger. |
-| `Popover` | Settings that open beside a pill, such as bar controls that no longer fit. |
-| `Surface` | The elevated panel under every menu, select, and popover; popup parts render as one. |
+| `Popover` | Settings that open beside a `trigger`, such as bar controls that no longer fit. |
+| `Slider`, `ScrubInput`, `VerticalSlider` | Numbers. A `Slider` is `panel`, `toolbar`, or `compact`; `format` writes the value and whatever follows its digits reads as the unit. |
 
 ## Selection and menus
 
@@ -33,7 +33,7 @@ OpenLight uses a small set of shared UI primitives so the editor reads as one ap
 
 ## Panel collections
 
-- Use `PanelListItem` for selectable rows in editor panels. It owns row height, divider, hover, muted, and selected states.
+- Use `ListItem` for selectable rows in editor panels. It owns row height, divider, hover, muted, and selected states.
 - A row may compose its own thumbnail, label, compact fields, and action menu. Keep those feature-specific parts with the feature.
 - Keep lists flush with the panel edges. Put empty-state copy inside the panel padding rather than padding every populated row.
 
@@ -42,10 +42,10 @@ OpenLight uses a small set of shared UI primitives so the editor reads as one ap
 - Use shared components for repeated interaction and surface behavior. Keep feature-specific composition in the feature.
 - Use Tailwind tokens already present in the shared primitive for color, borders, shadows, focus, and pointer-coarse sizing. A caller chooses a documented variant instead of recreating the surface.
 - Anchor viewport-corner controls and messages 12 px from both edges. Tool overlays cover the full viewport; the camera preserves a 24 px margin around fitted content without shrinking that coordinate space.
-- Use `Notice` for a message floating over the viewport that must not block editing, such as a storage failure or an offer to recover a draft. Choose its `tone` (status or alert, which sets the ARIA role), `placement`, and `anchor` (the window, or the editor viewport it renders inside); pass `actions` for buttons under the message and `onDismiss` when the user may close it.
+- Use `Notice` for a message floating over the viewport that must not block editing, such as a storage failure or an offer to recover a draft. Choose its `tone` (status or alert, which sets the ARIA role) and position it with classes, `fixed` over the window or `absolute` inside the editor viewport; pass `actions` for buttons under the message and `onDismiss` when the user may close it.
 - Use `TextLink` for an underlined link inside running text. It renders an anchor with `href` and a button otherwise; the `muted` variant stays in the sentence's color for secondary actions such as Forget.
-- Use `ScrubInput` for numbers that primarily read as inline text and secondarily accept typing. Inline variants hug the current digits and unit, keep their label close, and show only a subtly rounded background while text editing is active. Reserve the persistent bordered `box` variant for form fields that need explicit input chrome.
-- Give toolbar slider values an explicit minimum character width when their expected range changes digit count. Set it at the call site from the useful range: percentages reserve three tabular characters, while brush size uses the actual maximum's digit count. Do not guess a global maximum.
+- Use `ScrubInput` for numbers that read as inline text, drag sideways, and accept typing. It hugs its digits and unit and shows a subtly rounded background only while text editing is active.
+- Give toolbar slider values an explicit minimum character width (`valueWidth`) when their expected range changes digit count. It counts digits, with the unit after them: percentages reserve three tabular characters, while brush size uses the actual maximum's digit count. Do not guess a global maximum.
 - Text uses the global body size. Express hierarchy with weight and color.
 
 ## Editor tools

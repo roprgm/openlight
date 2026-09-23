@@ -1,5 +1,5 @@
+import { Button } from "@roprgm/ui/button";
 import type { ReactNode } from "react";
-import { Button } from "@/components/ui/button";
 import type { ToneCurve } from "@/core/document";
 import { defaultCurve } from "./curve";
 import { Graph } from "./graph";
@@ -18,14 +18,14 @@ export function ToneCurves({ points, onChange, children }: ToneCurvesProps) {
         <Button
           variant="ghost"
           aria-label="Reset curve"
-          className="px-2 py-1"
+          className="h-6 px-2"
           onClick={() => onChange(defaultCurve)}
         >
           Reset
         </Button>
       </div>
       <div className="px-0.5">
-        <div className="relative aspect-square max-h-60 w-full rounded border border-black bg-neutral-900 shadow-groove md:max-h-50">
+        <div className="relative aspect-square max-h-60 w-full rounded border border-black bg-neutral-900 shadow-sunken md:max-h-50">
           {children}
           <Graph onChange={onChange} points={points} />
         </div>

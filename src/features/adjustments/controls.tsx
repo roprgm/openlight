@@ -1,6 +1,6 @@
+import { Slider } from "@roprgm/ui/slider";
 import type { ReactNode } from "react";
 import { useDocument } from "@/components/editor/session";
-import { Slider } from "@/components/ui/slider";
 import type { Adjustments } from "@/core/document";
 import { setAdjustments } from "./edits";
 import { adjustmentLimits, defaultAdjustments } from "./model";

@@ -1,3 +1,6 @@
+import { Button } from "@roprgm/ui/button";
+import { Notice } from "@roprgm/ui/notice";
+import { Spinner } from "@roprgm/ui/spinner";
 import { useRef } from "react";
 import { type Gpu, target } from "vgpu";
 import { useGpu } from "vgpu-react";
@@ -5,9 +8,6 @@ import { sceneExtension } from "@/app/loaders/scene";
 import type { Workspace } from "@/app/workspace";
 import { RendererProvider } from "@/components/editor/pipeline";
 import { DocumentProvider } from "@/components/editor/session";
-import { Button } from "@/components/ui/button";
-import { Notice } from "@/components/ui/notice";
-import { Spinner } from "@/components/ui/spinner";
 import { TextLink } from "@/components/ui/text-link";
 import { createDocument, createResources } from "@/core/document";
 import { createImageSource } from "@/core/image";
@@ -64,8 +64,7 @@ export type Recovery = {
 function RecoverDraft({ onRecover, onForget }: Recovery) {
   return (
     <Notice
-      anchor="viewport"
-      placement="start"
+      className="absolute bottom-3 left-3 z-50"
       actions={
         <>
           <Button onClick={onRecover}>Recover</Button>
@@ -82,7 +81,7 @@ function RecoverDraft({ onRecover, onForget }: Recovery) {
 
 function Status({ state, onOpen }: { state: EmptyState } & OpenProps) {
   if (state.status === "loading") {
-    return <Spinner />;
+    return <Spinner className="size-5" />;
   }
   if (state.status === "error") {
     return (

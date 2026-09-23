@@ -1,3 +1,8 @@
+import { Button } from "@roprgm/ui/button";
+import { ScrubInput } from "@roprgm/ui/scrub-input";
+import { Select } from "@roprgm/ui/select";
+import { Slider } from "@roprgm/ui/slider";
+import { Spinner } from "@roprgm/ui/spinner";
 import { cn } from "cn";
 import { type ReactNode, useMemo, useRef, useState } from "react";
 import { useGpu } from "vgpu-react";
@@ -6,11 +11,6 @@ import { Image } from "@/components/editor/image";
 import { EditorPanel, PanelBody, PanelHeader } from "@/components/editor/panel";
 import { useDocument, useScene } from "@/components/editor/session";
 import { EditorViewport, ViewportStage } from "@/components/editor/viewport";
-import { Button } from "@/components/ui/button";
-import { ScrubInput } from "@/components/ui/scrub-input";
-import { Select } from "@/components/ui/select";
-import { Slider } from "@/components/ui/slider";
-import { Spinner } from "@/components/ui/spinner";
 import type { Point } from "@/core/image/frame";
 import { useShortcuts } from "@/hooks/use-shortcuts";
 import { type ExportFormat, exportImage, exportSize } from "./export-image";
@@ -76,12 +76,12 @@ function FormatSelect({
         <Select
           aria-label="Format"
           value={value.id}
-          options={formats.map((format) => ({
+          items={formats.map((format) => ({
             value: format.id,
             label: format.label,
           }))}
           className="w-28"
-          onChange={(id) => {
+          onValueChange={(id) => {
             const format = formats.find((format) => format.id === id);
             if (format) onChange(format);
           }}
@@ -185,7 +185,7 @@ function SaveScene() {
       <p className="text-neutral-500">
         Saves the photo and every edit in one file. Open it to continue editing.
       </p>
-      <Button className="w-full py-2" onClick={save}>
+      <Button className="w-full" onClick={save}>
         Save scene
       </Button>
       {error && (
@@ -276,7 +276,7 @@ export function ExportMode({ onClose }: { onClose: () => void }) {
                 {pending && <Spinner className="size-3" />}
               </span>
             </SizeFields>
-            <Button className="w-full py-2" onClick={save}>
+            <Button className="w-full" onClick={save}>
               Save image
             </Button>
             {error && (

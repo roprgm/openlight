@@ -1,3 +1,8 @@
+import { IconButton } from "@roprgm/ui/button";
+import { ListItem } from "@roprgm/ui/list-item";
+import { Menu, MenuItem } from "@roprgm/ui/menu";
+import { ScrollArea } from "@roprgm/ui/scroll-area";
+import { Tooltip } from "@roprgm/ui/tooltip";
 import {
   type ComponentType,
   memo,
@@ -9,10 +14,6 @@ import { useStore } from "zustand";
 import { PanelHeader } from "@/components/editor/panel";
 import { useDocument, useScene } from "@/components/editor/session";
 import { Icon, type IconProps } from "@/components/icons/icon";
-import { Menu, MenuItem } from "@/components/ui/menu";
-import { PanelListItem } from "@/components/ui/panel-list";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { Tooltip } from "@/components/ui/tooltip";
 import {
   TreeDrag,
   type TreeDrop,
@@ -104,7 +105,7 @@ const LayerRow = memo(function LayerRow({
   const expandLabel = `${expanded ? "Collapse" : "Expand"} ${layer.name}`;
   return (
     <>
-      <PanelListItem
+      <ListItem
         ref={drag.ref}
         data-drop={drag.drop}
         data-dragging={drag.dragging}
@@ -112,7 +113,7 @@ const LayerRow = memo(function LayerRow({
         selected={selected === layer.id}
         muted={!visible}
         style={{ paddingLeft: depth * 12 }}
-        className="pr-1 data-[dragging=true]:opacity-40 data-[drop=inside]:ring-1 data-[drop=inside]:ring-blue-400 data-[drop=inside]:ring-inset data-[drop=before]:before:absolute data-[drop=before]:before:inset-x-0 data-[drop=before]:before:-top-px data-[drop=before]:before:border-t-2 data-[drop=before]:before:border-blue-400 data-[drop=after]:after:absolute data-[drop=after]:after:inset-x-0 data-[drop=after]:after:-bottom-px data-[drop=after]:after:border-b-2 data-[drop=after]:after:border-blue-400"
+        className="gap-0 pr-1 pointer-coarse:h-12 data-[dragging=true]:opacity-40 data-[drop=inside]:ring-1 data-[drop=inside]:ring-blue-400 data-[drop=inside]:ring-inset data-[drop=before]:before:absolute data-[drop=before]:before:inset-x-0 data-[drop=before]:before:-top-px data-[drop=before]:before:border-t-2 data-[drop=before]:before:border-blue-400 data-[drop=after]:after:absolute data-[drop=after]:after:inset-x-0 data-[drop=after]:after:-bottom-px data-[drop=after]:after:border-b-2 data-[drop=after]:after:border-blue-400"
       >
         <Tooltip
           content={visible ? "Hide layer" : "Show layer"}
@@ -189,7 +190,7 @@ const LayerRow = memo(function LayerRow({
         {layer.kind !== "image" && (
           <LayerActions layer={layer} onSelect={onSelect} />
         )}
-      </PanelListItem>
+      </ListItem>
       {expanded &&
         layer.children
           .toReversed()
@@ -249,11 +250,16 @@ export function LayersControls({
     >
       <PanelHeader title="Layers">
         <Menu
-          label="Add effect"
-          icon={
-            <Icon className="size-4">
-              <path d="M12 4v16M4 12h16" />
-            </Icon>
+          trigger={
+            <IconButton
+              label="Add effect"
+              size="icon-sm"
+              className="pointer-coarse:size-10"
+            >
+              <Icon className="size-4">
+                <path d="M12 4v16M4 12h16" />
+              </Icon>
+            </IconButton>
           }
         >
           {effects

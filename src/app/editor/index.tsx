@@ -1,3 +1,5 @@
+import { Button } from "@roprgm/ui/button";
+import { Tooltip } from "@roprgm/ui/tooltip";
 import type { ReactNode } from "react";
 import type { Workspace } from "@/app/workspace";
 import { BrushProvider } from "@/components/editor/brush-tool";
@@ -9,8 +11,6 @@ import {
   useScene,
 } from "@/components/editor/session";
 import { EditorViewport, ViewportStage } from "@/components/editor/viewport";
-import { Button } from "@/components/ui/button";
-import { Tooltip } from "@/components/ui/tooltip";
 import type { Mask } from "@/core/document";
 import { findLayer, locateLayer } from "@/core/document";
 import { HealingProvider } from "@/features/heal/mode";

@@ -1,9 +1,9 @@
+import { Chip } from "@roprgm/ui/chip";
+import { Slider } from "@roprgm/ui/slider";
+import { Tooltip } from "@roprgm/ui/tooltip";
 import { useBrushTool } from "@/components/editor/brush-tool";
 import { useDocument, useSelectedLayer } from "@/components/editor/session";
 import { barSlider, useBarDensity } from "@/components/editor/toolbar-density";
-import { Chip } from "@/components/ui/chip";
-import { Slider } from "@/components/ui/slider";
-import { Tooltip } from "@/components/ui/tooltip";
 import { setHealPatch } from "./edits";
 import { useHealing } from "./mode";
 
@@ -36,7 +36,7 @@ export function HealOptions() {
         label="Size"
         min={1}
         max={maxSize}
-        unit="px"
+        format={(value) => `${value}px`}
         valueWidth={`${maxSize}`.length}
         variant={variant}
         value={size}
@@ -48,7 +48,7 @@ export function HealOptions() {
         value={feather * 100}
         min={0}
         max={100}
-        unit="%"
+        format={(value) => `${value}%`}
         valueWidth={3}
         variant={variant}
         onEditingChange={setPreview}
@@ -64,7 +64,7 @@ export function HealOptions() {
           value={selected.opacity * 100}
           min={0}
           max={100}
-          unit="%"
+          format={(value) => `${value}%`}
           valueWidth={3}
           variant={variant}
           onChange={(value) => changePatch({ opacity: value / 100 })}

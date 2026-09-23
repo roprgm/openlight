@@ -1,6 +1,6 @@
+import { IconButton } from "@roprgm/ui/button";
 import { useStore } from "zustand";
 import { useDocument } from "@/components/editor/session";
-import { IconButton } from "@/components/ui/button";
 
 export function ClippingControls() {
   const { preview } = useDocument();

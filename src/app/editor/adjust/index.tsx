@@ -1,9 +1,9 @@
+import { Slider } from "@roprgm/ui/slider";
 import { useCallback } from "react";
 import { useStore } from "zustand";
 import { PanelHeader } from "@/components/editor/panel";
 import { useRenderer } from "@/components/editor/pipeline";
 import { useDocument, useScene } from "@/components/editor/session";
-import { Slider } from "@/components/ui/slider";
 import { adjustmentTarget, type Layer, type ToneCurve } from "@/core/document";
 import { AdjustmentControls } from "@/features/adjustments/controls";
 import { setExposure } from "@/features/adjustments/edits";

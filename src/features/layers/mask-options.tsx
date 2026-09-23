@@ -1,10 +1,10 @@
+import { Chip } from "@roprgm/ui/chip";
+import { Select } from "@roprgm/ui/select";
+import { Slider } from "@roprgm/ui/slider";
+import { Tooltip } from "@roprgm/ui/tooltip";
 import { useStore } from "zustand";
 import { useDocument, useScene } from "@/components/editor/session";
 import { barSlider, useBarDensity } from "@/components/editor/toolbar-density";
-import { Chip } from "@/components/ui/chip";
-import { Select } from "@/components/ui/select";
-import { Slider } from "@/components/ui/slider";
-import { Tooltip } from "@/components/ui/tooltip";
 import { locateLayer, type MaskLayer } from "@/core/document";
 import { useShortcuts } from "@/hooks/use-shortcuts";
 import { setLayerMask, setMaskOperation } from "./edits";
@@ -45,7 +45,7 @@ export function MaskOptions({ layer }: { layer: MaskLayer }) {
           min={0}
           max={100}
           defaultValue={50}
-          unit="%"
+          format={(value) => `${value}%`}
           valueWidth={3}
           variant={barSlider(density)}
           onChange={(value) => {
@@ -64,12 +64,12 @@ export function MaskOptions({ layer }: { layer: MaskLayer }) {
           aria-label="Mask operation"
           tooltip="Combine with the parent mask"
           value={layer.operation}
-          options={[
+          items={[
             { value: "add", label: "Add" },
             { value: "subtract", label: "Subtract" },
           ]}
-          onChange={(operation) =>
-            setMaskOperation(document, layer.id, operation)
+          onValueChange={(operation) =>
+            operation && setMaskOperation(document, layer.id, operation)
           }
         />
       )}
