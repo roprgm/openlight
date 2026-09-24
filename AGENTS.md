@@ -48,4 +48,4 @@ Tests follow what a person would verify: open an image, use a tool, undo, export
 
 - When a change alters the structure [ARCHITECTURE.md](ARCHITECTURE.md) describes, confirm it with the user and update that file in the same change.
 - Before a substantial change's PR is ready, review it as [REVIEW.md](REVIEW.md) describes; after a small one, offer a review instead.
-- Keep PR descriptions short with the [template](.github/pull_request_template.md). Attach screenshots and other generated output to the PR; do not commit them.
+- Keep PR descriptions short with the [template](.github/pull_request_template.md). Include [screenshots](REVIEW.md#screenshots) for new features and substantial UI changes. Generated output goes to the PR, never into the repository.

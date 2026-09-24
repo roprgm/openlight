@@ -13,12 +13,16 @@ Read what changed: the diff against the base and what it was meant to do. Then f
 | Change | Check |
 | --- | --- |
 | Documentation | Links and the references it describes. |
-| Layout, styling, copy | Look at the affected screens at the widths they change; attach a screenshot, before and after for existing UI. |
+| Layout, styling, copy | Look at the affected screens at the widths they change. |
 | Document, edits, history, loaders | The Bun tests covering them. |
 | Processing, shaders, rendering | The browser tests of that feature, e.g. `bun run test:browser tests/vignette.e2e.ts`; before/after measurements when GPU work changes ([PERFORMANCE.md](PERFORMANCE.md)). |
 | Shared primitives in `core/` or `components/` | The browser tests of the workflows that use them. |
 
 Run the whole browser suite only when a change cuts across the editor. A failure that also happens on the base is not the change's; report it as a gap.
+
+## Screenshots
+
+New features and substantial UI or design changes show the affected interface in the PR description: before and after for changed UI, the new states for new UI, with the same fixture and viewport on both sides. For a smaller visible change, ask whether screenshots are wanted. Upload images to GitHub as PR attachments; never commit them.
 
 ## Read the diff
 
