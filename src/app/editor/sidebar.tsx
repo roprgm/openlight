@@ -39,7 +39,6 @@ export function EditorSidebar() {
 export function PlaceholderSidebar() {
   return (
     <EditorPanel inert>
-      <ImageHistogram />
       <LayersSection />
       <AdjustPanel />
     </EditorPanel>
