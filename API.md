@@ -92,8 +92,6 @@ A linear gradient has full coverage at `start`, zero at `end`; its points must b
 
 A brush mask is a list of strokes. Each stroke has `mode` (`"paint"` or `"erase"`), `size` (diameter in source pixels), `feather` and `flow` (0–1), and `points`, each `[x, y, pressure]` in source pixels with pressure 0–1. Dabs land every quarter diameter along the points; a paint stroke adds `flow × pressure` of the remaining coverage under each dab, and an erase stroke removes that share of the existing coverage. The renderer rasterizes strokes into a cached coverage texture at source resolution and only stamps new points, so appending to the last stroke is cheap and undo replays the rest. A brush inside another mask keeps its own coverage, paint and erase strokes alike, which the mask adds or subtracts scaled by the brush layer's opacity. A mask with no painted coverage and nothing added to it is bypassed.
 
-Editor behavior for the rail, canvas bar, overlays, and Healing is described in [DESIGN.md](DESIGN.md#editor-tools).
-
 ## History
 
 Each content change creates an undo step unless a group is open. No-op edits add no history. Preview changes stay outside history. Groups do not nest. While a group is open, the preview renders a reduced proxy of the image at the display's scale; committing or cancelling renders the full image again.

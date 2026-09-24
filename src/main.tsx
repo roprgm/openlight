@@ -50,8 +50,13 @@ if (root) {
           </TooltipProvider>
         </GpuProvider>
       </GpuBoundary>
-      <Analytics />
-      <SpeedInsights />
+      {/* Their scripts load from Vercel's CDN; development and tests stay offline. */}
+      {import.meta.env.PROD && (
+        <>
+          <Analytics />
+          <SpeedInsights />
+        </>
+      )}
     </>,
   );
 }

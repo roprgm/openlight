@@ -1,78 +1,51 @@
 # OpenLight
 
-Build a professional photo editor with little, readable code. Vite, React, vgpu, Bun, and Biome.
+A professional photo editor with little, readable code: Vite, React, [vgpu](https://vgpu.sh) on WebGPU, Bun, and Biome.
 
-Write committed code, comments, documentation, and UI text in English. Use [CONTEXT.md](CONTEXT.md) for domain terms. [CONTRIBUTING.md](CONTRIBUTING.md#development) covers setup; [API.md](API.md) documents browser commands; [REVIEW.md](REVIEW.md) guides reviews.
+[ARCHITECTURE.md](ARCHITECTURE.md) maps the code and its layer rules; start there to find what a request touches. [CONTEXT.md](CONTEXT.md) names domain terms, [DESIGN.md](DESIGN.md) covers UI patterns, [REVIEW.md](REVIEW.md) covers reviewing and verifying a change, and [API.md](API.md) documents `window.openlight`.
 
-## Simplicity
+## Setup
 
-- Give each module, function, and component one coherent responsibility. Entry points compose; resource owners manage their own lifecycles.
-- Judge simplicity across the whole change, including callers, cleanup, tests, helpers, scripts, and documentation. Remove unnecessary work rather than compressing syntax or adding forwarding helpers. Keep cohesive work together; use no arbitrary line-count limits.
-- Start with direct functions and library calls. Add abstractions, dependencies, validation, scheduling, or caching for a current requirement. Prefer a few repeated lines over coupling unrelated behavior.
-- Extract a component when a region owns distinct state, refs, or behavior. Keep helpers local unless they have a separate responsibility or a real shared use. Define functions above their consumers.
-- Keep control flow linear: guard clauses, braces, and `const` by default. Avoid nested ternaries and dense logic in JSX; use early returns or components for meaningful branches.
-- Model actual states with precise types and explicit dependencies. Keep one source of truth; avoid casts and permissive types that conceal mismatches. Validate external input at its boundary and preserve useful errors.
-- Prefer named exports and imports. Use a default export when an integration requires or clearly benefits from it.
+```sh
+bun install
+bun dev
+bunx --no-install playwright install chromium
+```
 
-## Layers and ownership
+The last command installs the Chromium build that the project's Playwright version expects; it is needed once per Playwright version for browser tests and scripted screenshots. `bun run test:browser` starts Vite itself and runs WebGPU on SwiftShader; reuse the launch flags in [playwright.config.ts](playwright.config.ts) for any other scripted browser.
 
-| Layer | Owns |
+| Command | Checks |
 | --- | --- |
-| 0 — `lib/` | Low-level code independent of OpenLight: math and utilities that could be standalone libraries. Keep it here when maintaining the small implementation is cheaper than a dependency, or when it is a candidate for extraction. |
-| 1 — shared primitives | `core/` owns document, image, and renderer infrastructure without React. Reusable `components/` and `hooks/` provide UI primitives and React bindings above it. |
-| 2 — `features/` | Removable product capabilities. A feature owns its processing, shaders, parameters, commands, components, and hooks as needed. Most product behavior belongs here. |
-| 3 — `app/` | Application shell, user entry points, and explicit composition of features and shared primitives. |
+| `bun run check` | Format and lint; writes fixes. |
+| `bun run build` | Types and production build. |
+| `bun run test` | Bun tests with `vgpu/mock`; seconds. |
+| `bun run test:browser [file]` | Chromium tests with real pixels; minutes for the whole suite. |
 
-Dependencies between layers point downward. Features do not import each other; `app/` connects them. Shared primitives must not import concrete features. Being reusable within OpenLight or independent of React does not qualify code for `lib/`.
+Run the first three on code changes; CI runs them too. Run browser tests for what a change can affect, as [REVIEW.md](REVIEW.md#verify) describes.
 
-`core/document` owns the serializable scene contract, history, and document resources; features own their defaults, validation, edits, and processing. `core/image` owns image sources, decoding, geometry, and the working color space. `core/renderer` exposes node composition, execution, transforms, and display through its module entry point. Keep module internals private unless a caller needs them; do not add an application-wide barrel.
+## Conventions
 
-Keep ordinary feature changes in the feature, its tests, and explicit app composition. Change shared primitives when a concrete requirement needs a new capability. Features need neither identical file layouts nor a universal plugin interface. Keep the histogram in its feature.
+- Everything committed is in English: code, comments, docs, UI text, commit messages, and PRs, even when the conversation is in another language.
+- File names use kebab-case. Prefer named exports; use `@/` across folders and relative imports within one.
+- Files read from small to large: define a function above the functions that use it.
+- Comment only what the code cannot say.
+- Keep Tailwind classes inline and use `cva` for variants. Text has one size; express hierarchy with color and weight.
 
-`src/` holds entrypoints, ambient types, and global styles. Use `@/` across folders and relative imports within a folder. `src/main.tsx` mounts the runtime and providers. `app/editor/tools.tsx` composes the rail: a tool brings a `Canvas` overlay and optional `Options` for the bar over the image while the sidebar always shows the selected layer's controls; a `View` supplies its own viewport. The mask overlay has one writer, `app/editor/mask-overlay.tsx`, which derives it from the selection.
+## Quality
 
-## Engine and React
+- Code quality comes first and technical debt is not accepted: no workarounds, dead code, or TODOs in place of a fix. When the right fix is larger than the request, say so instead of patching around it.
+- Find where the behavior lives and change it there, with the fewest lines that solve it well. Add no tests, helpers, abstractions, or docs the request does not need.
+- Give each module, component, and function one responsibility. Start with direct functions and library calls; prefer a few repeated lines over coupling unrelated behavior.
+- Drive behavior from the state that causes it, such as props or document state, never from incidental DOM structure, selectors, or timing.
+- Keep control flow linear with guard clauses and `const`. Avoid nested ternaries and dense logic in JSX.
+- Use precise types and one source of truth; avoid casts. Validate external input at its boundary and keep useful errors.
 
-Keep document edits and rendering callable without React, a mounted UI, or an implicit active document. Pass workspace, document, and GPU dependencies explicitly. Feature processing must be importable without its React panel; keep browser input and display adapters outside processing.
+## Tests
 
-Each document owns a vanilla Zustand scene store, history, and image resources. Scenes contain immutable, serializable content and image-source IDs; files and GPU resources stay outside history. The workspace owns document replacement and loading state.
+Tests follow what a person would verify: open an image, use a tool, undo, export, and check the output. Add or extend one when a change adds or alters such a workflow or its processing, or fixes a regression. Core algorithms such as render order and resource reuse may have focused unit tests. Layout, styling, and copy changes are checked by looking at the app, not by tests. Tests run offline: the browser fixture fails any request beyond the dev server.
 
-UI controls and browser commands call the same imperative edits. History groups changes without knowing loaders or tools: a slider or curve gesture is one edit; cancellation restores the previous scene. Preview settings and navigation stay outside content history.
+## Finishing
 
-React composes controls and mounts engine outputs. The engine owns GPU resources, rendering, and derived data such as histogram bins; frame data stays outside React state and props. Hooks and providers connect stable instances to mounting and cleanup. Every resource owner disposes what it creates.
-
-## Styling
-
-Follow [DESIGN.md](DESIGN.md) for shared interaction and surface patterns. Keep Tailwind classes inline. Reuse presentation through components or repeat classes, whichever is simpler; do not share class-string constants across files. Use `cva` for variants and `src/index.css` for app-global tokens such as shadows and typography. Text has one size, set on `body` in `src/index.css`; express hierarchy with color and weight, not size.
-
-## GPU invariants
-
-- Use `vgpu-react` for React bindings and `vgpu` for GPU operations. Create pipelines once per engine instance and reuse them.
-- Processing uses the [render node contract](PERFORMANCE.md#instrumentation). Features declare passes and inputs; the graph owns intermediate textures and timing. Connect nodes in app composition, keeping the engine independent of concrete features.
-- Keep `.wgsl` beside its owner. The Vite loader and ambient types are configured.
-- The working space is linear Rec.2020 in `rgba16float`. Decoders convert into it; display converts out. Processing outputs preserve the input format and primaries unless the operation explicitly converts them.
-- The adjustment shader's parameters use UI units. Its fitted constants are calibration data; preserve them when reorganizing code.
-- Layers process the source in stack order; the image layer's adjustments and tone curve run last, on the composite, so a local exposure sees the light a global exposure would compress.
-- Strokes are scene content; the renderer owns their rasterized coverage as a cache and stamps only appended dabs. Open history groups render a reduced proxy; every render image carries `scale`, its source pixels per texel, and shaders that take document coordinates or radii must apply it.
-- Preserve HDR headroom through exposure, curves, and vibrance. Exposure clips negatives and applies one luminance gain to all channels. `display()` in `core/image/color.wgsl` maps out-of-gamut colors toward their luminance.
-- TIFF and camera RAW use `raw-webgpu`. OpenLight adapts package resources to document ownership; codec implementation and coverage belong to the package.
-
-## Tests and completion
-
-For routine feature changes, prefer one short integration scenario that follows how a user would verify the change. For editing changes, load a suitable fixture, apply the operation, check the result, change a parameter, and undo. Reuse existing fixtures, helpers, and editing steps. Add cases for distinct failure modes or regressions; avoid repeating coverage of shared controls and history for each feature.
-
-Check meaningful output using a few representative samples, expected relationships, and tolerances. Assert rendered results when processing changes; state changes alone do not prove the effect works. Detailed numerical references and exhaustive parameter matrices need a concrete accuracy requirement or regression.
-
-Core algorithms also merit focused unit tests, especially rendering order, branch/merge connections, and resource reuse. Use Bun and real application modules with `vgpu/mock` for engine orchestration; the mock does not execute shaders. Use Playwright for rendered pixels, DOM interaction, and real format fixtures. Maintain the semantic [control API](API.md) for local, CI, and remote use. Wait for observable results; avoid production completion tracking added only for tests.
-
-For code changes, run `bun run check`, `bun run build`, `bun run test`, and `bun run test:browser` before a commit. Browser setup and focused commands are in [CONTRIBUTING.md](CONTRIBUTING.md#validation). For documentation-only changes, check the diff and affected references.
-
-Prepare evidence during implementation and include it in the initial PR description, using the [PR template](.github/pull_request_template.md). Lead with the problem and resulting behavior. Keep prose short and use compact comparison tables. Generated screenshots, logs, reports, and benchmark samples belong in ignored output directories and PR/CI attachments, not in Git. Commit test fixtures when maintained tests need them. Omit work logs and repeated explanations.
-
-Every code PR includes actual application screenshots or rendered output demonstrating the result. UI additions or changes require screenshots of the affected interface in context, with the new or changed controls visible for visual approval; rendered output alone is insufficient. Show before/after for changes to existing UI or image output, representative states for new UI, and the affected workflow for nonvisual code changes. Compare the same fixture under matching conditions and state what varies. Embed accessible images in the description, name the fixture and settings, and verify the published links. Documentation-only changes may mark visual evidence not applicable.
-
-Use image-quality metrics for a concrete quality claim or regression; ordinary correctness can use representative output checks. State metric units and limits, and do not generalize from synthetic fixtures to real photos. Keep quality results separate from rendering timings.
-
-Assess performance on every code change; changes affecting GPU work require reproducible before/after evidence under [PERFORMANCE.md](PERFORMANCE.md). Report unavailable checks and measurements as verification gaps.
-
-Update existing documentation for changed contracts or shared workflows; a feature does not need a separate guide. Link rules instead of duplicating them. Keep setup instructions portable; host-specific paths and workarounds stay outside the repository. Describe existing APIs accurately and label unimplemented designs explicitly.
+- When a change alters the structure [ARCHITECTURE.md](ARCHITECTURE.md) describes, confirm it with the user and update that file in the same change.
+- Before a substantial change's PR is ready, review it as [REVIEW.md](REVIEW.md) describes; after a small one, offer a review instead.
+- Keep PR descriptions short with the [template](.github/pull_request_template.md). Include [screenshots](REVIEW.md#screenshots) for new features and substantial UI changes. Generated output goes to the PR, never into the repository.

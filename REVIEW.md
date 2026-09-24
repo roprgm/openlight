@@ -1,20 +1,38 @@
-# Code review
+# Review
 
-Use [AGENTS.md](AGENTS.md) for architecture and coding rules. Review the complete path from user action through edits, processing, and resource cleanup. Code should be a small, readable example of how the application works.
+A review checks a change before its PR is ready: substantial changes get one, and anyone can ask for one. Code should stay a small, readable example of how the application works; [AGENTS.md](AGENTS.md) and [ARCHITECTURE.md](ARCHITECTURE.md) hold the rules.
 
-## Review questions
+## Scope
 
-- **Ownership:** Does each module have one responsibility? Does feature behavior stay with its feature? Is shared code independent of its consumers? `lib/` must meet the layer-0 definition, not merely have multiple callers.
-- **Simplicity:** Does the whole change justify its code, including tests, helpers, scripts, and documentation? Could direct functions or a few repeated lines replace configuration, forwarding layers, or speculative extension points?
-- **State and boundaries:** Is each fact stored once? Are inputs and dependencies explicit, invalid states represented clearly, and external data validated at its boundary? Do errors retain enough context to fix them?
-- **Behavior and lifetime:** Do edits, grouping, cancellation, and undo work together? Can asynchronous work outlive or overwrite its document? Does each owner release resources, subscriptions, and pending work correctly?
-- **Tests:** Would a short, representative workflow fail if the changed behavior broke? Do extra cases protect distinct risks? Follow the [testing guidance](AGENTS.md#tests-and-completion).
-- **Evidence:** Can reviewers assess every new or changed UI from actual screenshots with the affected controls visible? Rendered output does not replace UI screenshots. Does the PR include [rendering measurements](PERFORMANCE.md) when GPU work changes? Check reported limitations as well as passing results.
+Read what changed: the diff against the base and what it was meant to do. Then follow the changed code to the user actions that reach it. That set is what the review verifies; workflows the change cannot reach need no check. A sidebar layout change does not call for export tests.
 
-## Findings and tradeoffs
+## Verify
 
-For each finding, name the affected code, the concrete problem or reading burden, and the smallest useful correction. Distinguish necessary changes from optional reorganization. Do not split cohesive code solely to reduce line counts.
+`bun run check`, `bun run build`, and `bun run test` are fast; run them for any code change. Beyond that, pick the cheapest check that would catch a regression in the scope:
 
-Accept a departure from a coding guideline when it demonstrably improves readability, reduces total complexity, or improves performance with evidence. Explain the tradeoff in the PR. Ordinary implementation choices do not require an approval ceremony.
+| Change | Check |
+| --- | --- |
+| Documentation | Links and the references it describes. |
+| Layout, styling, copy | Look at the affected screens at the widths they change. |
+| Document, edits, history, loaders | The Bun tests covering them. |
+| Processing, shaders, rendering | The browser tests of that feature, e.g. `bun run test:browser tests/vignette.e2e.ts`; before/after measurements when GPU work changes ([PERFORMANCE.md](PERFORMANCE.md)). |
+| Shared primitives in `core/` or `components/` | The browser tests of the workflows that use them. |
 
-Report required checks and remaining verification gaps. An image supplements tests; a performance claim needs measurements of the affected workload.
+Run the whole browser suite only when a change cuts across the editor. A failure that also happens on the base is not the change's; report it as a gap.
+
+## Screenshots
+
+New features and substantial UI or design changes show the affected interface in the PR description: before and after for changed UI, the new states for new UI, with the same fixture and viewport on both sides. For a smaller visible change, ask whether screenshots are wanted. Upload images to GitHub as PR attachments; never commit them.
+
+## Read the diff
+
+- **Size:** Does the change match the request? Could it be smaller or live closer to the behavior it changes?
+- **Ownership:** Does each module keep one responsibility and stay in its layer? Does feature behavior stay in its feature?
+- **State:** Is each fact stored once and behavior driven by it rather than by DOM structure or timing? Is external input validated at its boundary?
+- **Lifetime:** Do edits, grouping, cancellation, and undo work together? Can async work outlive its document? Is every resource and subscription released?
+- **Tests:** Would a user workflow test fail if the change broke? Flag tests that protect no workflow or regression.
+- **Architecture:** If the structure changed, was it agreed and is [ARCHITECTURE.md](ARCHITECTURE.md) updated?
+
+## Report
+
+For each finding, name the code, the concrete problem, and the smallest fix; separate required changes from optional ones. List the checks run and any gaps.
