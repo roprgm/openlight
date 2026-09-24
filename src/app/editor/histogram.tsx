@@ -1,15 +1,19 @@
+import { cn } from "cn";
 import { useRenderer } from "@/components/editor/pipeline";
 import { Histogram } from "@/features/histogram";
 import { ClippingControls } from "./clipping-controls";
 
 const colors = ["#f25445", "#6bd175", "#5c8ffa"] as const;
 
-export function ImageHistogram() {
+export function ImageHistogram({ className }: { className?: string }) {
   const renderer = useRenderer();
   return (
     <section
       aria-label="Image histogram"
-      className="group relative shrink-0 bg-neutral-900 max-md:absolute max-md:bottom-full max-md:left-3 max-md:z-10 max-md:mb-3 max-md:h-14 max-md:w-44 max-md:overflow-hidden max-md:border-0 max-md:bg-neutral-800/80 max-md:backdrop-blur-sm"
+      className={cn(
+        "group relative shrink-0 bg-neutral-900 max-md:absolute max-md:bottom-full max-md:left-3 max-md:z-10 max-md:mb-3 max-md:h-14 max-md:w-44 max-md:overflow-hidden max-md:border-0 max-md:bg-neutral-800/80 max-md:backdrop-blur-sm",
+        className,
+      )}
     >
       <ClippingControls />
       <Histogram

@@ -35,11 +35,11 @@ export function EditorSidebar() {
   );
 }
 
-/** Before a document opens, the sidebar shows the same sections, dimmed, with an empty layer stack. */
+/** Before a document opens, the sidebar shows the same sections, dimmed, with an empty layer stack; mobile drops the floating histogram. */
 export function PlaceholderSidebar() {
   return (
     <EditorPanel inert>
-      <ImageHistogram />
+      <ImageHistogram className="max-md:hidden" />
       <LayersSection />
       <AdjustPanel />
     </EditorPanel>
