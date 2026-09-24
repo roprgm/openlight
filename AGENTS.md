@@ -35,7 +35,7 @@ Run the first three on code changes; CI runs them too. Run browser tests for wha
 
 ## Tests
 
-Tests follow what a person would verify: open an image, use a tool, undo, export, and check the output. Add or extend one when a change adds or alters such a workflow or its processing, or fixes a regression. Core algorithms such as render order and resource reuse may have focused unit tests. Layout, styling, and copy changes are checked by looking at the app, not by tests.
+Tests follow what a person would verify: open an image, use a tool, undo, export, and check the output. Add or extend one when a change adds or alters such a workflow or its processing, or fixes a regression. Core algorithms such as render order and resource reuse may have focused unit tests. Layout, styling, and copy changes are checked by looking at the app, not by tests. Tests run offline: the browser fixture fails any request beyond the dev server.
 
 ## Finishing
 
