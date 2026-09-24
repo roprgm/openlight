@@ -40,7 +40,7 @@ Below the `md` breakpoint (768 px) the same components rearrange through `max-md
 | 2 — `features/` | Removable product capabilities: processing, shaders, parameters, edits, and controls. Most product behavior belongs here. |
 | 3 — `app/` | The shell, entry points, and explicit composition of features. |
 
-Dependencies point downward. Features do not import each other; `app/` connects them. Shared primitives do not import features. Use `@/` across folders and relative imports within one. Keep module internals private and add no application-wide barrel.
+Dependencies point downward. Features do not import each other; `app/` connects them. Shared primitives do not import features. Keep module internals private and add no application-wide barrel.
 
 ## Engine and React
 

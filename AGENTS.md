@@ -2,7 +2,7 @@
 
 A professional photo editor with little, readable code: Vite, React, [vgpu](https://vgpu.sh) on WebGPU, Bun, and Biome.
 
-[ARCHITECTURE.md](ARCHITECTURE.md) maps the code and its layer rules; start there to find what a request touches. [CONTEXT.md](CONTEXT.md) names domain terms, [DESIGN.md](DESIGN.md) covers UI patterns, [REVIEW.md](REVIEW.md) covers reviewing and verifying a change, and [API.md](API.md) documents `window.openlight`. Write code, comments, docs, and UI text in English.
+[ARCHITECTURE.md](ARCHITECTURE.md) maps the code and its layer rules; start there to find what a request touches. [CONTEXT.md](CONTEXT.md) names domain terms, [DESIGN.md](DESIGN.md) covers UI patterns, [REVIEW.md](REVIEW.md) covers reviewing and verifying a change, and [API.md](API.md) documents `window.openlight`.
 
 ## Setup
 
@@ -23,15 +23,22 @@ The last command installs the Chromium build that the project's Playwright versi
 
 Run the first three on code changes; CI runs them too. Run browser tests for what a change can affect, as [REVIEW.md](REVIEW.md#verify) describes.
 
-## Code
+## Conventions
 
-- Find where the behavior lives before editing, and change it there. The size of a change follows the request: no tests, helpers, abstractions, or docs it does not need.
+- Everything committed is in English: code, comments, docs, UI text, commit messages, and PRs, even when the conversation is in another language.
+- File names use kebab-case. Prefer named exports; use `@/` across folders and relative imports within one.
+- Files read from small to large: define a function above the functions that use it.
+- Comment only what the code cannot say.
+- Keep Tailwind classes inline and use `cva` for variants. Text has one size; express hierarchy with color and weight.
+
+## Quality
+
+- Code quality comes first and technical debt is not accepted: no workarounds, dead code, or TODOs in place of a fix. When the right fix is larger than the request, say so instead of patching around it.
+- Find where the behavior lives and change it there, with the fewest lines that solve it well. Add no tests, helpers, abstractions, or docs the request does not need.
+- Give each module, component, and function one responsibility. Start with direct functions and library calls; prefer a few repeated lines over coupling unrelated behavior.
 - Drive behavior from the state that causes it, such as props or document state, never from incidental DOM structure, selectors, or timing.
-- Give each module and component one responsibility. Start with direct functions and library calls; prefer a few repeated lines over coupling unrelated behavior.
 - Keep control flow linear with guard clauses and `const`. Avoid nested ternaries and dense logic in JSX.
 - Use precise types and one source of truth; avoid casts. Validate external input at its boundary and keep useful errors.
-- Prefer named exports. Define functions above their consumers. Comment only what the code cannot say.
-- Keep Tailwind classes inline and use `cva` for variants. Text has one size; express hierarchy with color and weight.
 
 ## Tests
 
