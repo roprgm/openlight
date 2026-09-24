@@ -39,7 +39,7 @@ export function EditorSidebar() {
 export function PlaceholderSidebar() {
   return (
     <EditorPanel inert>
-      <ImageHistogram />
+      <ImageHistogram className="max-md:hidden" />
       <LayersSection />
       <AdjustPanel />
     </EditorPanel>
