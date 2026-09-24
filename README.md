@@ -61,7 +61,7 @@ bun install
 bun dev
 ```
 
-The shared controls, such as buttons, sliders, menus, and panels, come from [@roprgm/ui](https://ui.roprgm.com). See [CONTRIBUTING.md](CONTRIBUTING.md) for browser setup, validation, benchmarks, and the pull request checklist. `window.openlight` exposes a scripting [API](API.md).
+The shared controls, such as buttons, sliders, menus, and panels, come from [@roprgm/ui](https://ui.roprgm.com). See [AGENTS.md](AGENTS.md) for browser setup and checks, and [ARCHITECTURE.md](ARCHITECTURE.md) for how the code is organized. `window.openlight` exposes a scripting [API](API.md).
 
 ## License
 
