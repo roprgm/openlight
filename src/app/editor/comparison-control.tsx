@@ -53,7 +53,7 @@ export function ComparisonControl() {
     <IconButton
       label="Compare before and after"
       shortcut="Hold \"
-      size="icon-sm"
+      size="icon"
       aria-pressed={comparison !== "edited"}
       className="aria-pressed:bg-neutral-700 aria-pressed:text-neutral-100"
       onClick={() =>

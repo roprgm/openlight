@@ -124,7 +124,7 @@ export function LayerActions(props: {
       trigger={
         <IconButton
           label={`${props.layer.name} actions`}
-          size="icon-sm"
+          size="icon"
           className="pointer-coarse:size-10"
         >
           <Icon className="size-4">

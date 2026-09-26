@@ -77,7 +77,7 @@ function ExportButton() {
     <Tooltip content="Export the photo or save a scene" shortcut="E">
       <Button
         aria-pressed={exporting}
-        className="ml-1 h-7 px-4 aria-pressed:bg-raised-hover"
+        className="ml-1 px-4 aria-pressed:bg-raised-hover"
         onClick={() => setTool(exporting ? tools[0] : exportTool)}
       >
         Export

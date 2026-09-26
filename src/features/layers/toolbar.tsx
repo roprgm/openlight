@@ -103,7 +103,7 @@ export function CanvasToolbar({ children }: { children?: ReactNode }) {
           trigger={
             <IconButton
               label="More options"
-              size="icon-sm"
+              size="icon"
               className="rounded-full"
             >
               <Icon className="size-4">

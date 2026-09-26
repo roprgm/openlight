@@ -123,7 +123,7 @@ export function CropEditor({ onClose }: { onClose: () => void }) {
                 aria-label="Aspect ratio"
                 value={ratio === null ? "free" : `${ratio}`}
                 items={ratioOptions}
-                className="h-7 w-24"
+                className="w-24"
                 onValueChange={(value) => value !== null && changeRatio(value)}
               />
             </div>
@@ -134,7 +134,8 @@ export function CropEditor({ onClose }: { onClose: () => void }) {
               <h3 className="col-span-3 text-neutral-400">Rotate & flip</h3>
               <Button
                 variant="ghost"
-                className="h-6 justify-self-end px-2"
+                size="sm"
+                className="justify-self-end"
                 onClick={reset}
               >
                 Reset
@@ -175,7 +176,7 @@ export function CropEditor({ onClose }: { onClose: () => void }) {
           </section>
         </PanelBody>
         <div className="p-3">
-          <Button className="w-full" onClick={apply}>
+          <Button size="lg" className="w-full" onClick={apply}>
             Apply crop
           </Button>
         </div>

@@ -22,7 +22,7 @@ export function OverlayToggle() {
     <IconButton
       label="Mask overlay"
       shortcut="O"
-      size="icon-sm"
+      size="icon"
       aria-pressed={shown}
       onClick={toggle}
       className="pointer-coarse:size-10 aria-pressed:bg-pressed aria-pressed:text-foreground"

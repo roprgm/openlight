@@ -18,7 +18,7 @@ export function HistoryControls() {
       <IconButton
         label="Undo"
         shortcut="Mod Z"
-        size="icon-sm"
+        size="icon"
         disabled={!undoCount}
         onClick={history.undo}
       >
@@ -29,7 +29,7 @@ export function HistoryControls() {
       <IconButton
         label="Redo"
         shortcut="Mod Shift Z"
-        size="icon-sm"
+        size="icon"
         disabled={!redoCount}
         onClick={history.redo}
       >

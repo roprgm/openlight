@@ -42,7 +42,7 @@ export function FillControls({ id, fill }: { id: string; fill: Fill }) {
           aria-label="Blend"
           value={fill.blend}
           items={blends.map(([value, label]) => ({ value, label }))}
-          className="h-7 w-28"
+          className="w-28"
           onValueChange={(blend) => blend && setFill(document, { blend }, id)}
         />
       </div>

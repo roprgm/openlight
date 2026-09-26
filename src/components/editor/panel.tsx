@@ -62,12 +62,7 @@ export function PanelHeader({
     <Header title={title} className="border-black/50 border-b">
       {children}
       {onClose && (
-        <IconButton
-          label="Close"
-          shortcut="Esc"
-          size="icon-sm"
-          onClick={onClose}
-        >
+        <IconButton label="Close" shortcut="Esc" size="icon" onClick={onClose}>
           <CloseIcon className="size-4" />
         </IconButton>
       )}
