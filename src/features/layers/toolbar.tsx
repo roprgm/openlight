@@ -54,17 +54,20 @@ export function CanvasToolbar({ children }: { children?: ReactNode }) {
   );
   const bar = useRef<HTMLFieldSetElement>(null);
   const [step, setStep] = useState(0);
+  // The canvas's width, kept so a resize always renders again, even when the bar is already at its
+  // roomiest step, and the overflow below is measured anew.
+  const [width, setWidth] = useState(0);
   const hasLayerOptions = layer.kind !== "image" && layer.kind !== "heal";
   const shown = Boolean(children) || hasLayerOptions;
   const content = `${Boolean(children)}/${layer.kind}/${layer.kind === "mask" ? layer.mask.kind : ""}`;
   // New content or a resized canvas starts again from the roomiest layout.
-  useLayoutEffect(() => setStep(0), [content]);
+  useLayoutEffect(() => setStep(0), [content, width]);
   useLayoutEffect(() => {
     const canvas = bar.current?.parentElement;
     if (!shown || !canvas) {
       return;
     }
-    const observer = new ResizeObserver(() => setStep(0));
+    const observer = new ResizeObserver(() => setWidth(canvas.clientWidth));
     observer.observe(canvas);
     return () => observer.disconnect();
   }, [shown]);
