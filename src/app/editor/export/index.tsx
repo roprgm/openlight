@@ -181,7 +181,7 @@ function SaveScene() {
   return (
     <section
       aria-label="Scene export"
-      className="flex flex-col gap-3 border-black border-t p-4"
+      className="flex flex-col gap-3 border-black border-t p-(--padding)"
     >
       <p className="text-neutral-500">
         Saves the photo and every edit in one file. Open it to continue editing.
@@ -251,7 +251,7 @@ export function ExportMode({ onClose }: { onClose: () => void }) {
         <PanelBody header={<PanelHeader title="Export" onClose={onClose} />}>
           <section
             aria-label="Image export"
-            className="flex flex-col gap-5 p-4"
+            className="flex flex-col gap-5 p-(--padding)"
           >
             <FormatSelect value={format} onChange={setFormat} />
             {format.lossy && (

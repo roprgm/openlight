@@ -116,7 +116,7 @@ export function CropEditor({ onClose }: { onClose: () => void }) {
         }}
       >
         <PanelBody header={<PanelHeader title="Crop" onClose={onClose} />}>
-          <section aria-label="Crop tool" className="space-y-5 p-4">
+          <section aria-label="Crop tool" className="space-y-5 p-(--padding)">
             <div className="flex items-center justify-between text-neutral-400">
               Aspect ratio
               <Select
@@ -175,7 +175,7 @@ export function CropEditor({ onClose }: { onClose: () => void }) {
             </p>
           </section>
         </PanelBody>
-        <div className="p-3">
+        <div className="p-(--padding-optical)">
           <Button size="lg" className="w-full" onClick={apply}>
             Apply crop
           </Button>

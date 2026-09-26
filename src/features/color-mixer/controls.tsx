@@ -71,7 +71,7 @@ export function ColorMixerControls({
   const [channel, setChannel] = useState<MixerChannel>("hue");
   const id = useId();
   return (
-    <section className="p-3">
+    <section className="p-(--padding)">
       <TabList
         aria-label="Color Mixer adjustment"
         variant="segmented"
