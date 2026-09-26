@@ -71,10 +71,11 @@ export function ColorMixerControls({
   const [channel, setChannel] = useState<MixerChannel>("hue");
   const id = useId();
   return (
-    <section className="p-3">
+    <section className="p-(--padding)">
       <TabList
         aria-label="Color Mixer adjustment"
-        className="mb-3 gap-0.5 rounded-md bg-neutral-900 p-0.5 shadow-sunken"
+        variant="segmented"
+        className="mb-3"
       >
         {channels.map(({ id: value, label }) => (
           <Tab
@@ -83,7 +84,7 @@ export function ColorMixerControls({
             aria-controls={`${id}-sliders`}
             selected={channel === value}
             onClick={() => setChannel(value)}
-            className="h-7 min-w-0 flex-1 rounded-sm px-1"
+            className="min-w-0 flex-1 px-1"
           >
             {label}
           </Tab>

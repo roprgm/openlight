@@ -80,7 +80,7 @@ function FormatSelect({
             value: format.id,
             label: format.label,
           }))}
-          className="h-7 w-28"
+          className="w-28"
           onValueChange={(id) => {
             const format = formats.find((format) => format.id === id);
             if (format) onChange(format);
@@ -181,12 +181,12 @@ function SaveScene() {
   return (
     <section
       aria-label="Scene export"
-      className="flex flex-col gap-3 border-black border-t p-4"
+      className="flex flex-col gap-3 border-black border-t p-(--padding)"
     >
       <p className="text-neutral-500">
         Saves the photo and every edit in one file. Open it to continue editing.
       </p>
-      <Button className="w-full" onClick={save}>
+      <Button size="lg" className="w-full" onClick={save}>
         Save scene
       </Button>
       {error && (
@@ -251,7 +251,7 @@ export function ExportMode({ onClose }: { onClose: () => void }) {
         <PanelBody header={<PanelHeader title="Export" onClose={onClose} />}>
           <section
             aria-label="Image export"
-            className="flex flex-col gap-5 p-4"
+            className="flex flex-col gap-5 p-(--padding)"
           >
             <FormatSelect value={format} onChange={setFormat} />
             {format.lossy && (
@@ -276,7 +276,7 @@ export function ExportMode({ onClose }: { onClose: () => void }) {
                 {pending && <Spinner className="size-3" />}
               </span>
             </SizeFields>
-            <Button className="w-full" onClick={save}>
+            <Button size="lg" className="w-full" onClick={save}>
               Save image
             </Button>
             {error && (

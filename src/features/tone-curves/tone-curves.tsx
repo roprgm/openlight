@@ -18,7 +18,7 @@ export function ToneCurves({ points, onChange, children }: ToneCurvesProps) {
         <Button
           variant="ghost"
           aria-label="Reset curve"
-          className="h-6 px-2"
+          size="sm"
           onClick={() => onChange(defaultCurve)}
         >
           Reset

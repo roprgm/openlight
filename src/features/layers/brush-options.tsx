@@ -1,6 +1,7 @@
 import { Chip } from "@roprgm/ui/chip";
 import { Slider } from "@roprgm/ui/slider";
 import { Tooltip } from "@roprgm/ui/tooltip";
+import { cn } from "cn";
 import { useBrushTool } from "@/components/editor/brush-tool";
 import { barSlider, useBarDensity } from "@/components/editor/toolbar-density";
 
@@ -12,7 +13,10 @@ const modes = [
 /** The next stroke's mode, size, edge, and flow, in the bar over the canvas. Alt shows on the Erase chip. */
 export function BrushOptions() {
   const { settings, erase, maxSize, setPreview, update } = useBrushTool();
-  const variant = barSlider(useBarDensity());
+  const density = useBarDensity();
+  const variant = barSlider(density);
+  // In the overflow menu the group spans the column, so the two modes share it evenly.
+  const menu = density === "menu";
   return (
     <>
       <fieldset
@@ -23,7 +27,7 @@ export function BrushOptions() {
           <Tooltip key={mode} content={hint} shortcut={shortcut}>
             <Chip
               aria-pressed={erase === (mode === "erase")}
-              className="h-6"
+              className={cn("h-6", menu && "flex-1 justify-center")}
               onClick={() => update({ erase: mode === "erase" })}
             >
               {label}

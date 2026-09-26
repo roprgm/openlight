@@ -26,7 +26,7 @@ export function ToolTabList({
             <Tab
               selected={entry === selected}
               disabled={!onSelect}
-              size="icon"
+              size="icon-lg"
               aria-label={entry.label}
               onClick={() => onSelect?.(entry)}
             >

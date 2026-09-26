@@ -275,7 +275,7 @@ export function LayersControls({
           trigger={
             <IconButton
               label="Add effect"
-              size="icon-sm"
+              size="icon"
               className="pointer-coarse:size-10"
             >
               <Icon className="size-4">

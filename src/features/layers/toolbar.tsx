@@ -54,17 +54,20 @@ export function CanvasToolbar({ children }: { children?: ReactNode }) {
   );
   const bar = useRef<HTMLFieldSetElement>(null);
   const [step, setStep] = useState(0);
+  // The canvas's width, kept so a resize always renders again, even when the bar is already at its
+  // roomiest step, and the overflow below is measured anew.
+  const [width, setWidth] = useState(0);
   const hasLayerOptions = layer.kind !== "image" && layer.kind !== "heal";
   const shown = Boolean(children) || hasLayerOptions;
   const content = `${Boolean(children)}/${layer.kind}/${layer.kind === "mask" ? layer.mask.kind : ""}`;
   // New content or a resized canvas starts again from the roomiest layout.
-  useLayoutEffect(() => setStep(0), [content]);
+  useLayoutEffect(() => setStep(0), [content, width]);
   useLayoutEffect(() => {
     const canvas = bar.current?.parentElement;
     if (!shown || !canvas) {
       return;
     }
-    const observer = new ResizeObserver(() => setStep(0));
+    const observer = new ResizeObserver(() => setWidth(canvas.clientWidth));
     observer.observe(canvas);
     return () => observer.disconnect();
   }, [shown]);
@@ -91,8 +94,9 @@ export function CanvasToolbar({ children }: { children?: ReactNode }) {
       aria-label="Layer options"
       {...gesture}
       // No wrapping, so running out of room overflows, which is what the steps above measure. A button or
-      // group first nests its corners 4px in; a text label first, such as a slider's, needs 8px more.
-      className="absolute top-3 left-3 flex min-w-0 max-w-[calc(100%-1.5rem)] items-center gap-x-2.5 overflow-hidden whitespace-nowrap rounded-full bg-neutral-800/80 p-1 pr-2 backdrop-blur-sm [&>:first-child:not(button,fieldset)]:ml-2"
+      // group at either end nests its corners 4px in; a text label first, such as a slider's, needs 8px
+      // more, and a slider last 6px more, since a compact slider's value pulls 4px past its cell.
+      className="absolute top-3 left-3 flex min-w-0 max-w-[calc(100%-1.5rem)] items-center gap-x-2.5 overflow-hidden whitespace-nowrap rounded-full bg-neutral-800/80 p-1 backdrop-blur-sm [&>:first-child:not(button,fieldset)]:ml-2 [&>:last-child:not(button,fieldset)]:mr-1.5"
     >
       <Density value={step === 0 ? "full" : "compact"}>
         {inlineTool}
@@ -103,7 +107,7 @@ export function CanvasToolbar({ children }: { children?: ReactNode }) {
           trigger={
             <IconButton
               label="More options"
-              size="icon-sm"
+              size="icon"
               className="rounded-full"
             >
               <Icon className="size-4">

@@ -16,7 +16,7 @@ export function FillControls({ id, fill }: { id: string; fill: Fill }) {
     return () => input?.removeEventListener("change", commit);
   }, [document]);
   return (
-    <section className="flex flex-col gap-3 p-3">
+    <section className="flex flex-col gap-3 p-(--padding)">
       <label className="flex items-center justify-between text-neutral-400">
         Color
         <span className="flex items-center gap-2">
@@ -42,7 +42,7 @@ export function FillControls({ id, fill }: { id: string; fill: Fill }) {
           aria-label="Blend"
           value={fill.blend}
           items={blends.map(([value, label]) => ({ value, label }))}
-          className="h-7 w-28"
+          className="w-28"
           onValueChange={(blend) => blend && setFill(document, { blend }, id)}
         />
       </div>
