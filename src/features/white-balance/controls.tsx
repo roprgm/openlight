@@ -23,7 +23,7 @@ export function WhiteBalanceControls() {
           onChange={(temperature) => setWhiteBalance(document, { temperature })}
         />
         {/* The slider's label row again, its text hidden, so As Shot follows the label without a row of its own. */}
-        <div className="pointer-events-none absolute inset-x-0 top-0 flex items-center gap-2 py-0.5">
+        <div className="pointer-events-none absolute inset-x-0 top-0 z-20 flex items-center gap-2 py-0.5">
           <span aria-hidden className="invisible">
             Temperature (K)
           </span>
