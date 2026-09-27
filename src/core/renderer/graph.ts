@@ -44,9 +44,18 @@ function plan(outputs: readonly RenderImage[]) {
   return { order, uses, live };
 }
 
+const sizeKey = (image: { size: readonly number[]; format: string }) =>
+  `${image.size[0]}x${image.size[1]} ${image.format}`;
+
 /** Owns effects, storage buffers, and transient targets for one renderer. */
 export function createRenderGraph(gpu: Gpu, timer?: Timer) {
   const pool: Target[] = [];
+  /**
+   * How many targets of each size the last two distinct sets of sizes used, most recent first. An
+   * interactive proxy and the full image alternate between two such sets, and keeping both saves
+   * reallocating full-size targets on every gesture, which a phone's GPU memory can't absorb.
+   */
+  let recent: Map<string, number>[] = [];
   const effects = new Map<string, Pass>();
   let passes: string[] = [];
   let disposed = false;
@@ -88,11 +97,7 @@ export function createRenderGraph(gpu: Gpu, timer?: Timer) {
     }
     return pass.effect;
   }
-  function acquire(
-    node: RenderNode,
-    live: ReadonlySet<Target>,
-    written: ReadonlySet<Target>,
-  ) {
+  function acquire(node: RenderNode, live: ReadonlySet<Target>) {
     const exact = pool.find(
       (image) =>
         !live.has(image) &&
@@ -102,15 +107,6 @@ export function createRenderGraph(gpu: Gpu, timer?: Timer) {
     );
     if (exact) {
       return exact;
-    }
-    // Resize only targets not referenced by commands in this frame.
-    const spare = pool.find(
-      (image) =>
-        !live.has(image) && !written.has(image) && image.format === node.format,
-    );
-    if (spare) {
-      spare.resize(node.size);
-      return spare;
     }
     const image = target(gpu, { size: node.size, format: node.format });
     pool.push(image);
@@ -157,7 +153,7 @@ export function createRenderGraph(gpu: Gpu, timer?: Timer) {
               ]),
             ),
           });
-          const output = acquire(node, live, written);
+          const output = acquire(node, live);
           live.add(output);
           written.add(output);
           frame.pass({ target: output, timer: timer?.span(node.name) }, pass);
@@ -171,12 +167,43 @@ export function createRenderGraph(gpu: Gpu, timer?: Timer) {
           }
         }
       });
-      // Avoid retaining old crop sizes or the peak of a previously active effect.
-      for (let i = pool.length - 1; i >= 0; i--) {
-        if (!written.has(pool[i]) && !live.has(pool[i])) {
-          pool[i].color.dispose();
-          pool.splice(i, 1);
+      const used = new Map<string, number>();
+      for (const image of written) {
+        used.set(sizeKey(image), (used.get(sizeKey(image)) ?? 0) + 1);
+      }
+      // Sizes that one set contains of the other are the same mode with more or fewer effects: the new
+      // counts replace the old, so the peak of an effect since turned off is let go.
+      const contains = (a: Map<string, number>, b: Map<string, number>) =>
+        [...b.keys()].every((key) => a.has(key));
+      const sameMode = (counts: Map<string, number>) =>
+        contains(counts, used) || contains(used, counts);
+      recent = [used, ...recent.filter((counts) => !sameMode(counts))].slice(
+        0,
+        2,
+      );
+      // Past these counts, an idle target is an old crop size or an old peak.
+      const kept = new Map<string, number>();
+      for (const image of pool) {
+        if (written.has(image) || live.has(image)) {
+          kept.set(sizeKey(image), (kept.get(sizeKey(image)) ?? 0) + 1);
         }
+      }
+      for (let i = pool.length - 1; i >= 0; i--) {
+        const image = pool[i];
+        if (written.has(image) || live.has(image)) {
+          continue;
+        }
+        const key = sizeKey(image);
+        const allowed = Math.max(
+          ...recent.map((counts) => counts.get(key) ?? 0),
+        );
+        const count = kept.get(key) ?? 0;
+        if (count < allowed) {
+          kept.set(key, count + 1);
+          continue;
+        }
+        image.color.dispose();
+        pool.splice(i, 1);
       }
       passes = order.map((node) => node.name);
       return outputs.map(resolve);
@@ -203,6 +230,7 @@ export function createRenderGraph(gpu: Gpu, timer?: Timer) {
         image.color.dispose();
       }
       pool.length = 0;
+      recent = [];
     },
   };
 }

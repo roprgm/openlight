@@ -97,19 +97,24 @@ test("a shared branch renders once and reuses effects, buffers, and temporary st
     ]);
     expect(calls.createBuffer).toBe(buffers);
     expect(calls.createRenderPipeline).toBe(pipelines);
-    // Bypassing releases scratch storage; a changed output size reuses the remaining target.
+    // Bypassing releases scratch storage.
     expect(graph.render([shared])[0]).toBe(saved);
     expect(graph.inspect().textures).toHaveLength(1);
     expect(() => output.color.view).toThrow("destroyed");
-    const small = merge(
-      { source, base: source },
-      node("shared", shader, {
-        ...options,
-        size: [4, 4],
-      }),
-    );
-    expect(graph.render([small])[0].size).toEqual([4, 4]);
-    expect(graph.inspect().textures).toHaveLength(1);
+    const sized = (size: [number, number]) =>
+      merge(
+        { source, base: source },
+        node("shared", shader, { ...options, size }),
+      );
+    // A proxy size and the full size alternate without reallocating; a third size lets the oldest go.
+    const [proxy] = graph.render([sized([4, 4])]);
+    expect(proxy.size).toEqual([4, 4]);
+    expect(graph.inspect().textures).toHaveLength(2);
+    expect(graph.render([shared])[0]).toBe(saved);
+    expect(graph.render([sized([4, 4])])[0]).toBe(proxy);
+    graph.render([sized([2, 2])]);
+    expect(graph.inspect().textures).toHaveLength(2);
+    expect(() => saved.color.view).toThrow("destroyed");
     // Removing a composition retires its cached effect so its name can be reused.
     graph.release("shared");
     const replacement = merge(

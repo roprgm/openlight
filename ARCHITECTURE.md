@@ -52,6 +52,7 @@ Dependencies point downward. Features do not import each other; `app/` connects 
 ## Rendering
 
 - `core/renderer` defines passes as nodes (`node`, `pipeline`, `split`, `merge`); the graph owns intermediate textures and timing. Features declare passes; `app/editor/renderer.ts` connects them.
+- The graph keeps intermediate textures for the last two sets of sizes it rendered, so interactive proxy renders and full renders alternate without reallocating full-size textures, which a phone's GPU memory cannot absorb gesture after gesture.
 - Use `vgpu` for GPU work and `vgpu-react` for bindings. Create pipelines once per engine and reuse them. Keep `.wgsl` beside its owner.
 - The working space is linear Rec.2020 in `rgba16float`. Decoders convert into it and display converts out; passes preserve format and primaries unless they explicitly convert.
 - Layers process in stack order; the image layer's adjustments and tone curve run last, on the composite.
