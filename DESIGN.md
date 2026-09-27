@@ -32,7 +32,7 @@ OpenLight uses a small set of shared UI primitives so the editor reads as one ap
 - `EditorPanel` stacks its sections in the order written with a divider between each; `PanelBody` is the section that takes the remaining height, with its `header` fixed above the part that scrolls. `PanelHeader` titles a section and rules it off. The layers section keeps room for three rows and shows, empty, before a document opens. The editing sidebar's order is the JSX in `app/editor/sidebar.tsx`.
 - `EditorViewport` is the canvas region: a `ViewportStage` inside it pans and zooms with the image, and other children float over it without panning.
 - A feature describes its numbers once as `Parameter`s, which the sidebar draws as `Slider`s and the dock as `Dial`s. Controls that aren't numbers, such as a curve or a color, are the same component in both.
-- In the dock, `DockControls` puts a centered header, usually `DockChips` choosing a group or mode, over a `DialRow`; while a dial drags, its name and value replace the header. The dock keeps one height across views, so the canvas does not resize. A view whose sidebar panel doesn't suit a phone, such as Crop, passes its own `dock` to `EditorLayout`.
+- In the dock, `DockControls` puts a centered header, usually `DockChips` choosing a group or mode, over a `DialRow`; while a dial drags, its name and value replace the header. The dock takes its view's height: dials keep it low, and a graph such as the curve raises it with a short transition. A view whose sidebar panel doesn't suit a phone, such as Crop, passes its own `dock` to `EditorLayout`.
 
 ## Panel collections
 

@@ -228,6 +228,7 @@ function AdjustmentDials({
   if (group === "curve") {
     return (
       <DockControls
+        tall
         header={header}
         action={
           <>
@@ -346,7 +347,7 @@ function SelectedDials({
     case "heal":
       return (
         <DockControls header={<DockTitle layer={layer} />}>
-          <div className="min-h-0 flex-1 overflow-y-auto">
+          <div className="max-h-48 overflow-y-auto">
             <HealControls id={layer.id} patches={layer.patches} />
           </div>
         </DockControls>

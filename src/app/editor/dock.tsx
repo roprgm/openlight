@@ -94,7 +94,11 @@ export function DockPanel() {
   const { open } = useStack();
   const { tool } = useTool();
   if (open) {
-    return <EditorLayers fill />;
+    return (
+      <div className="flex h-48 min-h-0 flex-col">
+        <EditorLayers fill />
+      </div>
+    );
   }
   if ("Options" in tool) {
     return (

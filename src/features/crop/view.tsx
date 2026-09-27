@@ -163,7 +163,7 @@ export function CropEditor({ onClose }: { onClose: () => void }) {
       >
         <section
           aria-label="Rotate and flip image"
-          className="flex min-h-0 flex-1 items-center justify-center gap-2"
+          className="flex min-h-0 flex-1 items-center justify-center gap-2 pb-3"
         >
           {actions.slice(0, 2).map((action) => (
             <ActionButton

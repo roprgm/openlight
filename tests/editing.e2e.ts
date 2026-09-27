@@ -1101,12 +1101,6 @@ test("edit a photo, inspect the preview and histograms, undo changes, and export
       await undo.tap();
       await expect(exposure).toHaveAttribute("aria-valuetext", "0.00");
       expect((await readImage(mobile)).center).toEqual([128, 128, 128, 255]);
-      // The dock keeps its height between views, so the canvas does not move.
-      await mobile.getByRole("tab", { name: "Layers", exact: true }).tap();
-      await expect(
-        mobile.getByRole("region", { name: "Layers", exact: true }),
-      ).toBeVisible();
-      expect(await box(region)).toEqual(canvas);
     } finally {
       await context.close();
     }

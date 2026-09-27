@@ -1,11 +1,12 @@
 import { Chip } from "@roprgm/ui/chip";
+import { cn } from "cn";
 import { type ReactNode, useState } from "react";
 import { DialRow, formatValue } from "@/components/ui/dial";
 import type { Parameter } from "./parameter";
 
 /**
- * The mobile layout's controls under the canvas, over the frame's tab bar. It keeps one height for
- * every view, so the canvas keeps its size between them. An inert dock dims its contents.
+ * The mobile layout's controls under the canvas, over the frame's tab bar. It takes its view's height,
+ * up to half the editor, where a view that holds more scrolls. An inert dock dims its contents.
  */
 export function EditorDock({
   inert,
@@ -19,7 +20,7 @@ export function EditorDock({
       inert={inert}
       aria-hidden={inert}
       data-inert={inert}
-      className="flex h-48 shrink-0 flex-col border-edge border-t surface-panel *:not-last:shadow-[inset_0_-1px_0_var(--color-edge)] data-[inert=true]:*:opacity-50"
+      className="flex max-h-1/2 shrink-0 flex-col border-edge border-t surface-panel *:not-last:shadow-[inset_0_-1px_0_var(--color-edge)] data-[inert=true]:*:opacity-50"
     >
       {children}
     </div>
@@ -71,22 +72,30 @@ function Readout({ parameter }: { parameter: Parameter }) {
 /**
  * A dock view: a centered header, such as chips, with an optional action at its end, over a row of
  * dials or other content. While a dial drags, its name and value take the header's place, above the finger.
+ * Dials keep the dock low; `tall` raises it for a graph such as the curve, and the change eases.
  */
 export function DockControls({
   header,
   action,
   parameters,
+  tall,
   children,
 }: {
   header?: ReactNode;
   action?: ReactNode;
   parameters?: readonly Parameter[];
+  tall?: boolean;
   children?: ReactNode;
 }) {
   const [scrub, setScrub] = useState<string | null>(null);
   const scrubbed = parameters?.find((parameter) => parameter.id === scrub);
   return (
-    <section className="flex min-h-0 flex-1 flex-col pb-3">
+    <section
+      className={cn(
+        "flex min-h-0 shrink-0 flex-col pb-3 transition-[height] duration-200 ease-out motion-reduce:transition-none",
+        tall ? "h-60" : parameters && "h-36",
+      )}
+    >
       <div className="relative flex h-12 shrink-0 items-center justify-center px-3">
         <div className="flex min-w-0 max-w-full justify-center">
           {scrubbed ? <Readout parameter={scrubbed} /> : header}
