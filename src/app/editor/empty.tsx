@@ -66,7 +66,7 @@ function RecoverDraft({ onRecover, onForget }: Recovery) {
   return (
     <Notice className="absolute bottom-3 left-3 z-50">
       <Section>Your last scene is still here from a previous visit.</Section>
-      <Section className="flex-row gap-1 px-2.5">
+      <Section className="flex-row gap-1.5 px-2.5">
         <Button size="sm" onClick={onRecover}>
           Recover
         </Button>
