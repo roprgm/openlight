@@ -143,8 +143,10 @@ test("edit a photo, inspect the preview and histograms, undo changes, and export
     expect((await state()).history.undoCount).toBe(1);
     await page.getByRole("button", { name: "Undo", exact: true }).click();
     await expect(exposure).toHaveValue("0");
-    const bounds = await exposure.boundingBox();
-    if (!bounds) throw new Error("Exposure slider is missing.");
+    // Base UI keeps the range input inside the thumb, on the bar a person drags.
+    const bounds = await box(
+      exposure.locator('xpath=ancestor::*[@data-slot="slider-track"]'),
+    );
     await drag(
       page,
       [bounds.x + bounds.width / 2, bounds.y + bounds.height / 2],
@@ -159,7 +161,7 @@ test("edit a photo, inspect the preview and histograms, undo changes, and export
     await expect.poll(() => canvas.screenshot()).toEqual(original);
     await page.keyboard.press("ControlOrMeta+Shift+z");
     await expect.poll(() => canvas.screenshot()).not.toEqual(original);
-    await exposure.dblclick();
+    await exposure.locator("..").dblclick();
     await expect(exposure).toHaveValue("0");
     await expect(output).toHaveAttribute("points", histogram ?? "");
     await expect.poll(() => canvas.screenshot()).toEqual(original);
@@ -328,7 +330,7 @@ test("edit a photo, inspect the preview and histograms, undo changes, and export
     await field.press("Enter");
     expect((await readImage(page)).center).toEqual([128, 128, 128, 255]);
     expect((await readImage(page)).corner[0]).toBeGreaterThan(0);
-    await slider.dblclick();
+    await slider.locator("..").dblclick();
     await expect(slider).toHaveValue("0");
     await expect(output).toHaveAttribute("points", histogram ?? "");
   });
@@ -354,6 +356,7 @@ test("edit a photo, inspect the preview and histograms, undo changes, and export
     await amount.press("Enter");
     await page
       .getByRole("slider", { name: "Sharpening", exact: true })
+      .locator("..")
       .dblclick();
     await expect(amount).toHaveValue("0");
   });
@@ -1071,19 +1074,33 @@ test("edit a photo, inspect the preview and histograms, undo changes, and export
         exact: true,
       });
       await exposure.scrollIntoViewIfNeeded();
+      // The bar around each track takes the touch.
       for (const slider of await mobile.getByRole("slider").all()) {
-        const bounds = await box(slider);
+        const bounds = await box(
+          slider
+            .locator('xpath=ancestor::*[@data-slot="slider-track"]')
+            .locator(".."),
+        );
         expect(bounds.width).toBeGreaterThanOrEqual(44);
         expect(bounds.height).toBeGreaterThanOrEqual(44);
-        const track = await box(slider.locator(".."));
+        const track = await box(
+          slider.locator('xpath=ancestor::*[@data-slot="slider-track"]'),
+        );
         expect(track.height).toBe(4);
         expectCentered(bounds, track);
       }
-      const bounds = await box(exposure);
-      await mobile.touchscreen.tap(bounds.x + bounds.width - 2, bounds.y + 16);
+      const bounds = await box(
+        exposure
+          .locator('xpath=ancestor::*[@data-slot="slider-track"]')
+          .locator(".."),
+      );
+      await mobile.touchscreen.tap(
+        bounds.x + bounds.width - 2,
+        bounds.y + bounds.height / 2,
+      );
       await expect(exposure).toHaveValue("5");
       expect((await readImage(mobile)).center).toEqual([255, 255, 255, 255]);
-      await mobile.touchscreen.tap(bounds.x + 2, bounds.y + bounds.height - 3);
+      await mobile.touchscreen.tap(bounds.x + 2, bounds.y + bounds.height / 2);
       await expect(exposure).toHaveValue("-5");
       const undo = mobile.getByRole("button", { name: "Undo", exact: true });
       await undo.tap();

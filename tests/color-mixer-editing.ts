@@ -1,9 +1,12 @@
-import type { Page } from "@playwright/test";
+import type { Locator, Page } from "@playwright/test";
 import { expect, test } from "./fixtures";
 import { box, drag } from "./pointer";
 
 export async function colorMixerEditing(page: Page) {
   const state = () => page.evaluate(() => window.openlight.getState());
+  // Base UI keeps a slider's range input inside its thumb, on the bar a person drags.
+  const bar = (slider: Locator) =>
+    slider.locator('xpath=ancestor::*[@data-slot="slider-track"]');
   await test.step("color mixer switches channels, groups vertical drags, exports selected colors and resets", async () => {
     await page.getByRole("button", { name: "Add effect", exact: true }).click();
     await page
@@ -13,7 +16,7 @@ export async function colorMixerEditing(page: Page) {
     const hue = page.getByRole("slider", { name: "Blue hue", exact: true });
     await hue.scrollIntoViewIfNeeded();
     await expect(hue).toHaveAttribute("aria-orientation", "vertical");
-    const bounds = await box(hue);
+    const bounds = await box(bar(hue));
     expect(bounds.height).toBeGreaterThan(bounds.width * 3);
     await hue.press("ArrowUp");
     await expect(hue).toHaveValue("1");
@@ -32,7 +35,7 @@ export async function colorMixerEditing(page: Page) {
       name: "Blue saturation",
       exact: true,
     });
-    const track = await box(saturation);
+    const track = await box(bar(saturation));
     await drag(
       page,
       [track.x + track.width / 2, track.y + track.height / 2],
@@ -73,7 +76,7 @@ export async function colorMixerEditing(page: Page) {
     ).toHaveValue("0");
     await page.getByRole("tab", { name: "Saturation", exact: true }).click();
     await expect(saturation).toHaveValue("-100");
-    await saturation.dblclick();
+    await saturation.locator("..").dblclick();
     await expect(saturation).toHaveValue("0");
     await page.keyboard.press("ControlOrMeta+z");
     await expect(saturation).toHaveValue("-100");
