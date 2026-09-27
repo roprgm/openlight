@@ -3,6 +3,7 @@ import { ListItem, ListItemAction } from "@roprgm/ui/list-item";
 import { Menu, MenuContent, MenuItem, MenuTrigger } from "@roprgm/ui/menu";
 import { ScrollArea } from "@roprgm/ui/scroll-area";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@roprgm/ui/tooltip";
+import { cn } from "cn";
 import {
   type ComponentType,
   memo,
@@ -225,21 +226,26 @@ const LayerRow = memo(function LayerRow({
 });
 
 /**
- * The layers section: a fixed header over a list that scrolls. It holds three rows before it grows.
- * The list reaches a pixel into the section's divider, so a last row that touches the bottom shares
- * that line instead of doubling it.
+ * The layers section: a fixed header over a list that scrolls. In the sidebar it holds three rows
+ * before it grows; `fill` takes the height it is given instead. The list reaches a pixel into the
+ * section's divider, so a last row that touches the bottom shares that line instead of doubling it.
  */
 export function LayersSection({
   actions,
+  fill,
   children,
 }: {
   actions?: ReactNode;
+  fill?: boolean;
   children?: ReactNode;
 }) {
   return (
     <section
       aria-label="Layers"
-      className="grid max-h-1/2 min-h-41 shrink-0 grid-rows-[auto_minmax(0,1fr)]"
+      className={cn(
+        "grid grid-rows-[auto_minmax(0,1fr)]",
+        fill ? "min-h-0 flex-1" : "max-h-1/2 min-h-41 shrink-0",
+      )}
     >
       <PanelHeader title="Layers">{actions}</PanelHeader>
       <ScrollArea fade>{children}</ScrollArea>
@@ -250,9 +256,11 @@ export function LayersSection({
 export function LayersControls({
   effects,
   onAdd,
+  fill,
 }: {
   effects: readonly EffectKind[];
   onAdd: (kind: EffectLayer["kind"]) => void;
+  fill?: boolean;
 }) {
   const document = useDocument();
   const layers = useScene((scene) => scene.layers);
@@ -284,6 +292,7 @@ export function LayersControls({
 
   return (
     <LayersSection
+      fill={fill}
       actions={
         <Menu>
           <MenuTrigger

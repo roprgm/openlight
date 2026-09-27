@@ -7,6 +7,7 @@ import { type Gpu, target } from "vgpu";
 import { useGpu } from "vgpu-react";
 import { sceneExtension } from "@/app/loaders/scene";
 import type { Workspace } from "@/app/workspace";
+import { EditorFrame, EditorLayout } from "@/components/editor/layout";
 import { RendererProvider } from "@/components/editor/pipeline";
 import { DocumentProvider } from "@/components/editor/session";
 import { TextLink } from "@/components/ui/text-link";
@@ -16,7 +17,9 @@ import { accept } from "@/core/image/decode";
 import { imageFrame } from "@/core/image/frame";
 import { MaskToolProvider } from "@/features/layers/mask-tool";
 import { useDisposable } from "@/hooks/use-disposable";
+import { AdjustDock } from "./adjust";
 import { Backdrop } from "./backdrop";
+import { DockTabList } from "./dock";
 import { EditorHeader } from "./header";
 import { createImageLayer } from "./layers";
 import { createEditorRenderer } from "./renderer";
@@ -122,7 +125,7 @@ function createEmptyDocument(gpu: Gpu) {
   );
 }
 
-/** The editor shell without a document: the light backdrop and workspace status fill the canvas area. */
+/** The editor shell without a document: the light backdrop and workspace status fill the canvas area, beside inert controls. */
 export function EmptyEditor({
   state,
   onOpen,
@@ -135,15 +138,23 @@ export function EmptyEditor({
       <RendererProvider createRenderer={createEditorRenderer}>
         <MaskToolProvider onCreate={() => {}}>
           <EditorHeader file={state.file} />
-          <div className="flex min-h-0 flex-1 flex-col md:flex-row">
-            <ToolTabList selected={tools[0]} />
-            <div className="relative isolate grid min-h-0 min-w-0 flex-1 place-content-center justify-items-center gap-1.5 overflow-hidden bg-[radial-gradient(circle,#292929,#131313_55%)] p-6">
-              <Backdrop />
-              <Status state={state} onOpen={onOpen} />
-              {draft && <RecoverDraft {...draft} />}
-            </div>
-            <PlaceholderSidebar />
-          </div>
+          <EditorFrame
+            rail={<ToolTabList selected={tools[0]} />}
+            tabs={<DockTabList selected={tools[0]} />}
+          >
+            <EditorLayout
+              inert
+              canvas={
+                <div className="relative isolate grid min-h-0 min-w-0 flex-1 place-content-center justify-items-center gap-1.5 overflow-hidden bg-[radial-gradient(circle,#292929,#131313_55%)] p-6">
+                  <Backdrop />
+                  <Status state={state} onOpen={onOpen} />
+                  {draft && <RecoverDraft {...draft} />}
+                </div>
+              }
+              panel={<PlaceholderSidebar />}
+              dock={<AdjustDock />}
+            />
+          </EditorFrame>
         </MaskToolProvider>
       </RendererProvider>
     </DocumentProvider>

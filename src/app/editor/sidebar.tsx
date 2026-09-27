@@ -1,4 +1,3 @@
-import { EditorPanel } from "@/components/editor/panel";
 import { useDocument } from "@/components/editor/session";
 import type { EffectLayer } from "@/core/document";
 import { findLayer } from "@/core/document";
@@ -9,7 +8,7 @@ import { ImageHistogram } from "./histogram";
 import { createLayer, effectKinds } from "./layers";
 
 /** The layer stack with the effects the app offers; a new effect goes inside a selected root mask or above the selection. */
-function EditorLayers() {
+export function EditorLayers({ fill }: { fill?: boolean }) {
   const document = useDocument();
   function add(kind: EffectLayer["kind"]) {
     const scene = document.scene.getState();
@@ -21,27 +20,27 @@ function EditorLayers() {
         : { above: selected };
     addLayer(document, createLayer(kind), placement);
   }
-  return <LayersControls effects={effectKinds} onAdd={add} />;
+  return <LayersControls effects={effectKinds} onAdd={add} fill={fill} />;
 }
 
-/** The editing sidebar, top to bottom; reorder the sections here. */
+/** The editing sidebar's sections, top to bottom; reorder them here. */
 export function EditorSidebar() {
   return (
-    <EditorPanel>
-      <ImageHistogram />
+    <>
+      <ImageHistogram placement="panel" />
       <EditorLayers />
       <AdjustPanel />
-    </EditorPanel>
+    </>
   );
 }
 
-/** Before a document opens, the sidebar shows the same sections, dimmed, with an empty layer stack. */
+/** Before a document opens, the sidebar shows the same sections with an empty layer stack. */
 export function PlaceholderSidebar() {
   return (
-    <EditorPanel inert>
-      <ImageHistogram className="max-md:hidden" />
+    <>
+      <ImageHistogram placement="panel" />
       <LayersSection />
       <AdjustPanel />
-    </EditorPanel>
+    </>
   );
 }

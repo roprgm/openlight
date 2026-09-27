@@ -1,7 +1,8 @@
 import { Slider } from "@roprgm/ui/slider";
 import type { ReactNode } from "react";
+import type { Parameter } from "@/components/editor/parameter";
 import { useDocument } from "@/components/editor/session";
-import type { Adjustments } from "@/core/document";
+import type { Adjustments, EditorDocument } from "@/core/document";
 import { setAdjustments } from "./edits";
 import { adjustmentLimits, defaultAdjustments } from "./model";
 
@@ -17,7 +18,7 @@ const stops: Partial<Record<keyof Adjustments, string[]>> = {
   ],
 };
 
-const tone = [
+export const tone = [
   ["exposure", "Exposure"],
   ["contrast", "Contrast"],
   ["highlights", "Highlights"],
@@ -25,13 +26,32 @@ const tone = [
   ["whites", "Whites"],
   ["blacks", "Blacks"],
 ] as const;
-const color = [
+export const color = [
   ["incrementalTemperature", "Temp"],
   ["incrementalTint", "Tint"],
   ["vibrance", "Vibrance"],
   ["saturation", "Saturation"],
 ] as const;
 type Control = (typeof tone)[number] | (typeof color)[number];
+
+export function adjustmentParameters(
+  document: EditorDocument,
+  id: string,
+  adjustments: Readonly<Adjustments>,
+  controls: readonly Control[],
+): Parameter[] {
+  return controls.map(([name, label]) => ({
+    id: name,
+    label,
+    value: adjustments[name],
+    step: name === "exposure" ? 0.01 : 1,
+    stops: name === "vibrance" ? stops.saturation : stops[name],
+    min: -adjustmentLimits[name],
+    max: adjustmentLimits[name],
+    defaultValue: defaultAdjustments[name],
+    onChange: (value) => setAdjustments(document, { [name]: value }, id),
+  }));
+}
 
 function AdjustmentSliders({
   id,
@@ -43,23 +63,9 @@ function AdjustmentSliders({
   controls: readonly Control[];
 }) {
   const document = useDocument();
-  return controls.map(([name, label]) => {
-    const step = name === "exposure" ? 0.01 : 1;
-    const gradient = name === "vibrance" ? stops.saturation : stops[name];
-    return (
-      <Slider
-        key={name}
-        label={label}
-        value={adjustments[name]}
-        step={step}
-        stops={gradient}
-        min={-adjustmentLimits[name]}
-        max={adjustmentLimits[name]}
-        defaultValue={defaultAdjustments[name]}
-        onChange={(value) => setAdjustments(document, { [name]: value }, id)}
-      />
-    );
-  });
+  return adjustmentParameters(document, id, adjustments, controls).map(
+    ({ id, ...parameter }) => <Slider key={id} {...parameter} />,
+  );
 }
 
 /** The temperature slot replaces the incremental temperature and tint sliders. */

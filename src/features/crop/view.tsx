@@ -2,9 +2,10 @@ import { Button } from "@roprgm/ui/button";
 import { Select } from "@roprgm/ui/select";
 import { Slider } from "@roprgm/ui/slider";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@roprgm/ui/tooltip";
-import { useState } from "react";
+import { type KeyboardEvent, useState } from "react";
 import { Image } from "@/components/editor/image";
-import { EditorPanel, PanelBody, PanelHeader } from "@/components/editor/panel";
+import { EditorLayout } from "@/components/editor/layout";
+import { PanelBody, PanelHeader } from "@/components/editor/panel";
 import { useDocument, useEditorSession } from "@/components/editor/session";
 import { EditorViewport, ViewportStage } from "@/components/editor/viewport";
 import { FlipIcon } from "@/components/icons/flip";
@@ -21,6 +22,17 @@ const actions = [
   { label: "Flip horizontal", flip: 0, transform: "" },
   { label: "Flip vertical", flip: 1, transform: "rotate(90deg)" },
 ] as const;
+
+/** Enter on a panel button is its click; elsewhere it applies the crop. */
+function keepEnter(event: KeyboardEvent) {
+  if (
+    event.key === "Enter" &&
+    event.target instanceof Element &&
+    event.target.closest("button")
+  ) {
+    event.stopPropagation();
+  }
+}
 
 export function CropEditor({ onClose }: { onClose: () => void }) {
   const document = useDocument();
@@ -91,102 +103,101 @@ export function CropEditor({ onClose }: { onClose: () => void }) {
     }
   }
   return (
-    <>
-      <EditorViewport size={reference} constrain={false}>
-        <ViewportStage>
-          <Image image="fullImage" geometry={frame} />
-          <CropOverlay
-            frame={frame}
-            source={source}
-            ratio={ratio}
-            onChange={setFrame}
-          />
-        </ViewportStage>
-      </EditorViewport>
-      <EditorPanel
-        onKeyDown={(event) => {
-          // Enter on a panel button is its click; the crop handles still apply.
-          if (
-            event.key === "Enter" &&
-            event.target instanceof Element &&
-            event.target.closest("button")
-          ) {
-            event.stopPropagation();
-          }
-        }}
-      >
-        <PanelBody header={<PanelHeader title="Crop" onClose={onClose} />}>
-          <section aria-label="Crop tool" className="space-y-5 p-3.5">
-            <div className="flex items-center justify-between text-muted">
-              Aspect ratio
-              <Select
-                raised
-                aria-label="Aspect ratio"
-                value={ratio === null ? "free" : `${ratio}`}
-                items={ratioOptions}
-                className="w-24"
-                onValueChange={(value) => value !== null && changeRatio(value)}
-              />
-            </div>
-            <section
-              aria-label="Rotate and flip image"
-              className="grid grid-cols-4 items-center gap-2"
-            >
-              <h3 className="col-span-3 text-muted">Rotate & flip</h3>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="justify-self-end"
-                onClick={reset}
-              >
-                Reset
-              </Button>
-              {actions.map((action) => {
-                const Icon = "turn" in action ? RotateIcon : FlipIcon;
-                return (
-                  <Tooltip key={action.label}>
-                    <TooltipTrigger
-                      render={
-                        <Button
-                          variant="ghost"
-                          aria-label={action.label}
-                          className="flex h-9 items-center justify-center gap-1 rounded-md px-1"
-                          onClick={() => applyAction(action)}
-                        >
-                          <Icon style={{ transform: action.transform }} />
-                          {"turn" in action && <span>90°</span>}
-                        </Button>
-                      }
-                    />
-                    <TooltipContent>{action.label}</TooltipContent>
-                  </Tooltip>
-                );
-              })}
-            </section>
-            <Slider
-              label="Rotation"
-              min={-45}
-              max={45}
-              step={0.1}
-              value={frame.angle}
-              defaultValue={0}
-              onChange={(angle) => setFrame(rotate(frame, angle, source))}
+    <EditorLayout
+      canvas={
+        <EditorViewport size={reference} constrain={false}>
+          <ViewportStage>
+            <Image image="fullImage" geometry={frame} />
+            <CropOverlay
+              frame={frame}
+              source={source}
+              ratio={ratio}
+              onChange={setFrame}
             />
-            <p className="text-muted">
-              Drag edges or corners to crop, inside to move, outside to rotate.
-              Space + drag to pan; Ctrl/⌘ + scroll to zoom.
-            </p>
-            <p className="tabular-nums text-muted">
-              {frame.size.map(Math.round).join(" × ")} px
-            </p>
-          </section>
-        </PanelBody>
-        <div className="p-3">
-          <Button size="lg" className="w-full" onClick={apply}>
-            Apply crop
-          </Button>
-        </div>
-      </EditorPanel>
-    </>
+          </ViewportStage>
+        </EditorViewport>
+      }
+      panel={
+        <fieldset
+          aria-label="Crop"
+          className="flex min-h-0 min-w-0 flex-1 flex-col *:not-last:shadow-[inset_0_-1px_0_var(--color-edge)]"
+          onKeyDown={keepEnter}
+        >
+          <PanelBody header={<PanelHeader title="Crop" onClose={onClose} />}>
+            <section aria-label="Crop tool" className="space-y-5 p-3.5">
+              <div className="flex items-center justify-between text-muted">
+                Aspect ratio
+                <Select
+                  raised
+                  aria-label="Aspect ratio"
+                  value={ratio === null ? "free" : `${ratio}`}
+                  items={ratioOptions}
+                  className="w-24"
+                  onValueChange={(value) =>
+                    value !== null && changeRatio(value)
+                  }
+                />
+              </div>
+              <section
+                aria-label="Rotate and flip image"
+                className="grid grid-cols-4 items-center gap-2"
+              >
+                <h3 className="col-span-3 text-muted">Rotate & flip</h3>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="justify-self-end"
+                  onClick={reset}
+                >
+                  Reset
+                </Button>
+                {actions.map((action) => {
+                  const Icon = "turn" in action ? RotateIcon : FlipIcon;
+                  return (
+                    <Tooltip key={action.label}>
+                      <TooltipTrigger
+                        render={
+                          <Button
+                            variant="ghost"
+                            aria-label={action.label}
+                            className="flex h-9 items-center justify-center gap-1 rounded-md px-1"
+                            onClick={() => applyAction(action)}
+                          >
+                            <Icon style={{ transform: action.transform }} />
+                            {"turn" in action && <span>90°</span>}
+                          </Button>
+                        }
+                      />
+                      <TooltipContent>{action.label}</TooltipContent>
+                    </Tooltip>
+                  );
+                })}
+              </section>
+              <Slider
+                label="Rotation"
+                min={-45}
+                max={45}
+                step={0.1}
+                value={frame.angle}
+                defaultValue={0}
+                onChange={(angle) => setFrame(rotate(frame, angle, source))}
+              />
+              <p className="text-muted">
+                Drag edges or corners to crop, inside to move, outside to
+                rotate. Space + drag to pan; Ctrl/⌘ + scroll to zoom.
+              </p>
+              <p className="tabular-nums text-muted">
+                {frame.size.map(Math.round).join(" × ")} px
+              </p>
+            </section>
+          </PanelBody>
+          <div className="p-3">
+            <Button size="lg" className="w-full" onClick={apply}>
+              Apply crop
+            </Button>
+          </div>
+        </fieldset>
+      }
+    />
   );
 }

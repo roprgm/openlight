@@ -424,6 +424,7 @@ test("draw a mask, edit its child effects, reorder layers and undo", async ({
     await zoom.click();
     await expect(zoom).toHaveText(fitted);
     await page.setViewportSize({ width: 390, height: 844 });
+    await page.getByRole("tab", { name: "Layers", exact: true }).click();
     await page.getByRole("button", { name: "photo.svg", exact: true }).click();
     await page.keyboard.press("r");
     await expect(overlay).toHaveCSS("cursor", "crosshair");

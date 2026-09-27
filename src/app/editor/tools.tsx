@@ -21,6 +21,7 @@ import { BrushOptions } from "@/features/layers/brush-options";
 import { BrushOverlay } from "@/features/layers/brush-overlay";
 import { addLayer } from "@/features/layers/edits";
 import { GradientOverlay } from "@/features/layers/gradient-overlay";
+import { useShortcuts } from "@/hooks/use-shortcuts";
 import { ExportMode } from "./export";
 import { createLayer } from "./layers";
 
@@ -60,6 +61,7 @@ function HealCanvas() {
 const adjust = {
   id: "adjust",
   label: "Adjust",
+  shortLabel: "Adjust",
   key: "a",
   Icon: AdjustIcon,
   group: "edit",
@@ -68,6 +70,7 @@ const adjust = {
 export const exportTool = {
   id: "export",
   label: "Export",
+  shortLabel: "Export",
   key: "e",
   Icon: ExportIcon,
   group: "output",
@@ -85,6 +88,7 @@ export const tools = [
   {
     id: "brush",
     label: "Brush",
+    shortLabel: "Brush",
     key: "b",
     Icon: BrushIcon,
     group: "edit",
@@ -94,6 +98,7 @@ export const tools = [
   {
     id: "linear",
     label: "Linear gradient",
+    shortLabel: "Linear",
     key: "l",
     Icon: LinearGradientIcon,
     group: "edit",
@@ -102,6 +107,7 @@ export const tools = [
   {
     id: "radial",
     label: "Radial gradient",
+    shortLabel: "Radial",
     key: "r",
     Icon: RadialGradientIcon,
     group: "edit",
@@ -110,6 +116,7 @@ export const tools = [
   {
     id: "heal",
     label: "Healing",
+    shortLabel: "Heal",
     key: "h",
     Icon: HealIcon,
     group: "edit",
@@ -119,6 +126,7 @@ export const tools = [
   {
     id: "crop",
     label: "Crop",
+    shortLabel: "Crop",
     key: "c",
     Icon: CropIcon,
     group: "edit",
@@ -129,7 +137,13 @@ export const tools = [
 
 export type Tool = (typeof tools)[number];
 
+/** Holds the active tool, and each tool's key selects it in either layout. */
 export function ToolProvider({ children }: { children: ReactNode }) {
   const [tool, setTool] = useState<Tool>(adjust);
+  useShortcuts(
+    Object.fromEntries(
+      tools.map((entry) => [entry.key, () => setTool(entry)] as const),
+    ),
+  );
   return <ToolContext value={{ tool, setTool }}>{children}</ToolContext>;
 }

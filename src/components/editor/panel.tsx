@@ -12,8 +12,8 @@ import { CloseIcon } from "@/components/icons/close";
 import { useEditorSession } from "./session";
 
 /**
- * The resizable side panel, a bottom sheet on mobile. Its sections stack in the order written,
- * with a line between each; give one a PanelBody to scroll. An inert panel dims its contents.
+ * The resizable sidebar of the desktop layout. Its sections stack in the order written, with a line
+ * between each; give one a PanelBody to scroll. An inert panel dims its contents.
  */
 export function EditorPanel({
   inert,
@@ -34,9 +34,8 @@ export function EditorPanel({
       // Inert content is already hidden from assistive technology; say so for tools that read ARIA only.
       aria-hidden={inert}
       data-inert={inert}
-      // An edge parts it from the canvas: along the top as a bottom sheet, on the left beside it.
       className={cn(
-        "relative flex h-[45%] min-h-0 w-full shrink-0 flex-col md:w-(--width) border-edge surface-panel max-md:border-t md:h-auto md:border-l data-[inert=true]:*:opacity-50",
+        "relative flex min-h-0 w-(--width) shrink-0 flex-col border-edge border-l surface-panel data-[inert=true]:*:opacity-50",
         className,
       )}
       style={{ "--width": `${width}px` } as CSSProperties}
