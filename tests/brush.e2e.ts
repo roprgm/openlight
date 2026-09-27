@@ -294,8 +294,8 @@ test("a second finger during a touch stroke cancels it and pinches instead", asy
       .locator('input[type="file"]')
       .setInputFiles("tests/fixtures/photo.svg");
     await expect(
-      page.getByRole("textbox", { name: "Exposure", exact: true }),
-    ).toHaveValue("0.00");
+      page.getByRole("slider", { name: "Exposure", exact: true }),
+    ).toHaveAttribute("aria-valuetext", "0.00");
     await page.getByRole("tab", { name: "Brush", exact: true }).click();
     const canvas = page.getByLabel("Brush canvas", { exact: true });
     await expect(canvas).toBeVisible();

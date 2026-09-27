@@ -1,29 +1,56 @@
+import { Button } from "@roprgm/ui/button";
 import { Slider } from "@roprgm/ui/slider";
-import { useCallback } from "react";
+import { type ReactNode, useCallback, useState } from "react";
 import { useStore } from "zustand";
 import { effectKinds } from "@/app/editor/layers";
+import { DockChips, DockControls } from "@/components/editor/dock";
 import { PanelBody, PanelHeader } from "@/components/editor/panel";
+import type { Parameter } from "@/components/editor/parameter";
 import { useRenderer } from "@/components/editor/pipeline";
 import { useDocument, useScene } from "@/components/editor/session";
 import {
   adjustmentTarget,
+  type EditorDocument,
   findLayer,
+  type ImageLayer,
   type Layer,
+  type MaskLayer,
   type ToneCurve,
 } from "@/core/document";
-import { AdjustmentControls } from "@/features/adjustments/controls";
+import {
+  AdjustmentControls,
+  adjustmentParameters,
+  color,
+  tone,
+} from "@/features/adjustments/controls";
 import { setExposure } from "@/features/adjustments/edits";
-import { ColorMixerControls } from "@/features/color-mixer/controls";
-import { DetailsControls } from "@/features/details/controls";
+import {
+  ColorMixerControls,
+  mixerParameters,
+} from "@/features/color-mixer/controls";
+import { channels, type MixerChannel } from "@/features/color-mixer/model";
+import {
+  DetailsControls,
+  detailsParameters,
+} from "@/features/details/controls";
 import { FillControls } from "@/features/fill/controls";
 import { HealControls } from "@/features/heal/controls";
 import { Histogram } from "@/features/histogram";
 import { OverlayToggle } from "@/features/layers/overlay-toggle";
+import { defaultCurve } from "@/features/tone-curves/curve";
 import { setToneCurve } from "@/features/tone-curves/edits";
 import { ToneCurves } from "@/features/tone-curves/tone-curves";
-import { VignetteControls } from "@/features/vignette/controls";
-import { WhiteBalanceControls } from "@/features/white-balance/controls";
+import {
+  VignetteControls,
+  vignetteParameters,
+} from "@/features/vignette/controls";
+import {
+  useWhiteBalanceParameters,
+  WhiteBalanceControls,
+} from "@/features/white-balance/controls";
 import { useEditGesture } from "@/hooks/use-edit-gesture";
+
+type Kind<K extends Layer["kind"]> = Extract<Layer, { kind: K }>;
 
 /** Names what the controls edit, not the layer, whose name the stack already shows. */
 function panelTitle(layer: Layer) {
@@ -50,18 +77,41 @@ function CurveInputHistogram({ id }: { id: string }) {
   );
 }
 
-function LayerCurve({ id, toneCurve }: { id: string; toneCurve: ToneCurve }) {
+function LayerCurve({
+  id,
+  toneCurve,
+  fill,
+}: {
+  id: string;
+  toneCurve: ToneCurve;
+  fill?: boolean;
+}) {
   const document = useDocument();
   return (
-    <div className="px-3.5 pb-3.5">
-      <ToneCurves
-        points={toneCurve}
-        onChange={(points) => setToneCurve(document, points, id)}
-      >
-        <CurveInputHistogram id={id} />
-      </ToneCurves>
-    </div>
+    <ToneCurves
+      points={toneCurve}
+      fill={fill}
+      onChange={(points) => setToneCurve(document, points, id)}
+    >
+      <CurveInputHistogram id={id} />
+    </ToneCurves>
   );
+}
+
+function exposureParameter(
+  document: EditorDocument,
+  layer: Kind<"exposure">,
+): Parameter {
+  return {
+    id: "exposure",
+    label: "Exposure",
+    value: layer.exposure,
+    min: -5,
+    max: 5,
+    step: 0.01,
+    defaultValue: 0,
+    onChange: (value) => setExposure(document, layer.id, value),
+  };
 }
 
 function SelectedControls({ layer }: { layer: Layer }) {
@@ -81,7 +131,9 @@ function SelectedControls({ layer }: { layer: Layer }) {
               )
             }
           />
-          <LayerCurve id={layer.id} toneCurve={layer.toneCurve} />
+          <div className="px-3.5 pb-3.5">
+            <LayerCurve id={layer.id} toneCurve={layer.toneCurve} />
+          </div>
         </>
       );
     case "color-mixer":
@@ -92,33 +144,29 @@ function SelectedControls({ layer }: { layer: Layer }) {
       return <FillControls id={layer.id} fill={layer.fill} />;
     case "heal":
       return <HealControls id={layer.id} patches={layer.patches} />;
-    case "exposure":
+    case "exposure": {
+      const { id, ...parameter } = exposureParameter(document, layer);
       return (
         <section className="p-3.5">
-          <Slider
-            label="Exposure"
-            value={layer.exposure}
-            min={-5}
-            max={5}
-            step={0.01}
-            defaultValue={0}
-            onChange={(value) => setExposure(document, layer.id, value)}
-          />
+          <Slider {...parameter} />
         </section>
       );
+    }
     case "mask":
       return (
         <>
           <AdjustmentControls id={layer.id} adjustments={layer.adjustments} />
-          <LayerCurve id={layer.id} toneCurve={layer.toneCurve} />
+          <div className="px-3.5 pb-3.5">
+            <LayerCurve id={layer.id} toneCurve={layer.toneCurve} />
+          </div>
         </>
       );
   }
 }
 
-export function AdjustPanel() {
+/** The layer the controls edit, the selection or the mask a selected child mask belongs to, and whether a mask is selected. */
+function useAdjustmentTarget() {
   const document = useDocument();
-  const gesture = useEditGesture(document.history);
   const selected = useStore(document.selection, (state) => state.layerId);
   const target = useScene(
     (scene) => adjustmentTarget(scene.layers, selected) ?? scene.layers[0],
@@ -126,6 +174,13 @@ export function AdjustPanel() {
   const mask = useScene(
     (scene) => findLayer(scene.layers, selected)?.kind === "mask",
   );
+  return { target, mask };
+}
+
+export function AdjustPanel() {
+  const document = useDocument();
+  const gesture = useEditGesture(document.history);
+  const { target, mask } = useAdjustmentTarget();
   return (
     <PanelBody
       header={
@@ -138,5 +193,183 @@ export function AdjustPanel() {
         <SelectedControls layer={target} />
       </div>
     </PanelBody>
+  );
+}
+
+const groups = [
+  ["light", "Light"],
+  ["color", "Color"],
+  ["curve", "Curve"],
+] as const;
+type Group = (typeof groups)[number][0];
+
+/** An image or mask in the dock: its tone, color, or curve, one group at a time. */
+function AdjustmentDials({
+  layer,
+  group,
+  onGroupChange,
+  action,
+}: {
+  layer: ImageLayer | MaskLayer;
+  group: Group;
+  onGroupChange: (group: Group) => void;
+  action: ReactNode;
+}) {
+  const document = useDocument();
+  const whiteBalance = useWhiteBalanceParameters();
+  const header = (
+    <DockChips
+      label="Adjustment group"
+      items={groups}
+      value={group}
+      onChange={onGroupChange}
+    />
+  );
+  if (group === "curve") {
+    return (
+      <DockControls
+        tall
+        header={header}
+        action={
+          <>
+            <Button
+              variant="ghost"
+              size="sm"
+              aria-label="Reset curve"
+              onClick={() => setToneCurve(document, defaultCurve, layer.id)}
+            >
+              Reset
+            </Button>
+            {action}
+          </>
+        }
+      >
+        <div className="mx-auto min-h-0 w-full max-w-72 flex-1 px-3.5">
+          <LayerCurve id={layer.id} toneCurve={layer.toneCurve} fill />
+        </div>
+      </DockControls>
+    );
+  }
+  const adjustments = (controls: Parameters<typeof adjustmentParameters>[3]) =>
+    adjustmentParameters(document, layer.id, layer.adjustments, controls);
+  // A RAW image's own white balance takes the place of the incremental temperature and tint.
+  const balance = layer.kind === "image" && whiteBalance;
+  let parameters = adjustments(tone);
+  if (group === "color") {
+    parameters = balance
+      ? [...balance, ...adjustments(color.slice(2))]
+      : adjustments(color);
+  }
+  return (
+    <DockControls header={header} action={action} parameters={parameters} />
+  );
+}
+
+function MixerDials({ layer }: { layer: Kind<"color-mixer"> }) {
+  const document = useDocument();
+  const [channel, setChannel] = useState<MixerChannel>("hue");
+  return (
+    <DockControls
+      header={
+        <DockChips
+          label="Color Mixer adjustment"
+          items={channels.map(({ id, label }) => [id, label] as const)}
+          value={channel}
+          onChange={setChannel}
+        />
+      }
+      parameters={mixerParameters(
+        document,
+        layer.id,
+        layer.colorMixer,
+        channel,
+      )}
+    />
+  );
+}
+
+function DockTitle({ layer }: { layer: Layer }) {
+  return <h2 className="font-medium text-foreground">{panelTitle(layer)}</h2>;
+}
+
+function SelectedDials({
+  layer,
+  mask,
+  group,
+  onGroupChange,
+}: {
+  layer: Layer;
+  mask: boolean;
+  group: Group;
+  onGroupChange: (group: Group) => void;
+}) {
+  const document = useDocument();
+  switch (layer.kind) {
+    case "image":
+    case "mask":
+      return (
+        <AdjustmentDials
+          layer={layer}
+          group={group}
+          onGroupChange={onGroupChange}
+          action={mask && <OverlayToggle />}
+        />
+      );
+    case "color-mixer":
+      return <MixerDials layer={layer} />;
+    case "details":
+      return (
+        <DockControls
+          header={<DockTitle layer={layer} />}
+          parameters={detailsParameters(document, layer.id, layer.details)}
+        />
+      );
+    case "vignette":
+      return (
+        <DockControls
+          header={<DockTitle layer={layer} />}
+          parameters={vignetteParameters(document, layer.id, layer.vignette)}
+        />
+      );
+    case "exposure":
+      return (
+        <DockControls
+          header={<DockTitle layer={layer} />}
+          parameters={[exposureParameter(document, layer)]}
+        />
+      );
+    case "fill":
+      return (
+        <DockControls header={<DockTitle layer={layer} />}>
+          <FillControls id={layer.id} fill={layer.fill} />
+        </DockControls>
+      );
+    case "heal":
+      return (
+        <DockControls header={<DockTitle layer={layer} />}>
+          <div className="max-h-48 overflow-y-auto">
+            <HealControls id={layer.id} patches={layer.patches} />
+          </div>
+        </DockControls>
+      );
+  }
+}
+
+/** The selected layer's controls in the dock: dials where the sidebar has sliders. */
+export function AdjustDock() {
+  const document = useDocument();
+  const gesture = useEditGesture(document.history);
+  const { target, mask } = useAdjustmentTarget();
+  // The group stays as the selection moves between images and masks.
+  const [group, setGroup] = useState<Group>("light");
+  return (
+    <div className="flex min-h-0 flex-1 flex-col" {...gesture}>
+      <SelectedDials
+        layer={target}
+        mask={mask}
+        group={group}
+        onGroupChange={setGroup}
+      />
+    </div>
   );
 }

@@ -1,16 +1,17 @@
 # Interface design system
 
-OpenLight uses a small set of shared UI primitives so the editor reads as one application across tools and panels. They come from [`@roprgm/ui`](https://ui.roprgm.com), imported per component as `@roprgm/ui/<name>`, with its theme imported in `src/index.css`; floating parts are built on [Base UI](https://base-ui.com), which owns positioning, focus, dismissal, keyboard navigation, and ARIA. `src/components/ui` keeps only what the library does not provide yet: `TextLink` and `TreeDrag`.
+OpenLight uses a small set of shared UI primitives so the editor reads as one application across tools and panels. They come from [`@roprgm/ui`](https://ui.roprgm.com), imported per component as `@roprgm/ui/<name>`, with its theme imported in `src/index.css`; floating parts are built on [Base UI](https://base-ui.com), which owns positioning, focus, dismissal, keyboard navigation, and ARIA. `src/components/ui` keeps only what the library does not provide yet: `TextLink`, `TreeDrag`, and `Dial`.
 
 | Component | Use |
 | --- | --- |
 | `Button`, `IconButton` | Actions. `IconButton` is a ghost icon button whose `label` names it and shows as its tooltip, with an optional `shortcut`; use `size="icon-sm"` in headers, rows, and bars. |
-| `Chip` | Pill buttons in the bar over the canvas; `aria-pressed` shows a toggle on. A segmented group is a `fieldset` of chips. |
+| `Chip` | Pill buttons in the bar over the canvas and the dock; `aria-pressed` shows a toggle on. A segmented group is a `fieldset` of chips; `DockChips` is the dock's. |
 | `Tooltip` | A hint on hover or focus for any control: a `TooltipTrigger` renders the control and `TooltipContent` holds the hint, with an optional shortcut written as `Mod Z` (⌘ or Ctrl). |
 | `Menu`, `MenuItem`, `MenuSeparator`, `Submenu` | Commands such as Duplicate, Move, or Delete, in a `MenuContent` opened by a `MenuTrigger` that renders a control such as an `IconButton`; a `Submenu` holds a `SubmenuTrigger` and a `SubmenuContent`. |
 | `Select` | A choice that replaces a current value, with `field` or `pill` trigger. |
 | `Popover` | Settings that open beside a `PopoverTrigger`, such as bar controls that no longer fit; its `PopoverContent` holds `CardSection`s. |
 | `Slider`, `ScrubInput` | Numbers. A `Slider` is `panel`, `toolbar`, or `compact`, or stands upright with `orientation="vertical"`; `format` writes the value and whatever follows its digits reads as the unit. |
+| `Dial`, `DialRow` | Numbers in the mobile dock: a drag anywhere on the dial sets it, right or up to add, and a double tap resets. A `DialRow` never scrolls under a finger: its dials center with a capped gap, and those that don't fit page behind an arrow. |
 
 ## Selection and menus
 
@@ -30,6 +31,8 @@ OpenLight uses a small set of shared UI primitives so the editor reads as one ap
 
 - `EditorPanel` stacks its sections in the order written with a divider between each; `PanelBody` is the section that takes the remaining height, with its `header` fixed above the part that scrolls. `PanelHeader` titles a section and rules it off. The layers section keeps room for three rows and shows, empty, before a document opens. The editing sidebar's order is the JSX in `app/editor/sidebar.tsx`.
 - `EditorViewport` is the canvas region: a `ViewportStage` inside it pans and zooms with the image, and other children float over it without panning.
+- A feature describes its numbers once as `Parameter`s, which the sidebar draws as `Slider`s and the dock as `Dial`s. Controls that aren't numbers, such as a curve or a color, are the same component in both.
+- In the dock, `DockControls` puts a centered header, usually `DockChips` choosing a group or mode, over a `DialRow`; while a dial drags, its name and value replace the header. The dock takes its view's height: dials keep it low, and a graph such as the curve raises it with a short transition. A view whose sidebar panel doesn't suit a phone, such as Crop, passes its own `dock` to `EditorLayout`.
 
 ## Panel collections
 

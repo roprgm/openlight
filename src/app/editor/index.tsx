@@ -4,6 +4,11 @@ import type { ReactNode } from "react";
 import type { Workspace } from "@/app/workspace";
 import { BrushProvider } from "@/components/editor/brush-tool";
 import { Image } from "@/components/editor/image";
+import {
+  EditorFrame,
+  EditorLayout,
+  useDesktopLayout,
+} from "@/components/editor/layout";
 import { RendererProvider } from "@/components/editor/pipeline";
 import {
   DocumentProvider,
@@ -21,8 +26,10 @@ import { useShortcuts } from "@/hooks/use-shortcuts";
 import { blurActive } from "@/lib/dom";
 import { ComparisonControl } from "./comparison-control";
 import { ComparisonDivider } from "./comparison-divider";
+import { DockPanel, DockProvider, DockTabs } from "./dock";
 import { EmptyEditor, type Recovery } from "./empty";
 import { EditorHeader } from "./header";
+import { ImageHistogram } from "./histogram";
 import { HistoryControls } from "./history";
 import { createMask } from "./layers";
 import { MaskOverlaySync } from "./mask-overlay";
@@ -31,9 +38,14 @@ import { EditorSidebar } from "./sidebar";
 import { ToolRail } from "./tool-rail";
 import { exportTool, ToolProvider, tools, useTool } from "./tools";
 
-/** A View replaces the canvas and sidebar; otherwise the tool's Canvas and Options join the shared canvas. */
+/**
+ * A View replaces the canvas and its controls; otherwise the tool's Canvas joins the shared canvas.
+ * Its Options go in the bar over the canvas on desktop and in the dock on mobile, where the output
+ * histogram floats over the canvas instead of heading the sidebar.
+ */
 function ToolView() {
   const { tool, setTool } = useTool();
+  const desktop = useDesktopLayout();
   const document = useDocument();
   const size = useScene((scene) => scene.frame.size);
   // Enter and Escape leave one level: shape tools return to Adjust, where the selection climbs to the image.
@@ -55,18 +67,24 @@ function ToolView() {
     return <tool.View onClose={close} />;
   }
   return (
-    <>
-      <EditorViewport size={size}>
-        <ViewportStage>
-          <Image original="originalImage" />
-          {"Canvas" in tool && <tool.Canvas key={tool.id} />}
-        </ViewportStage>
-        <ComparisonDivider />
-        <CanvasToolbar>{"Options" in tool && <tool.Options />}</CanvasToolbar>
-        <MaskOverlaySync />
-      </EditorViewport>
-      <EditorSidebar />
-    </>
+    <EditorLayout
+      canvas={
+        <EditorViewport size={size}>
+          <ViewportStage>
+            <Image original="originalImage" />
+            {"Canvas" in tool && <tool.Canvas key={tool.id} />}
+          </ViewportStage>
+          <ComparisonDivider />
+          <CanvasToolbar>
+            {desktop && "Options" in tool && <tool.Options />}
+          </CanvasToolbar>
+          {!desktop && <ImageHistogram placement="canvas" />}
+          <MaskOverlaySync />
+        </EditorViewport>
+      }
+      panel={<EditorSidebar />}
+      dock={<DockPanel />}
+    />
   );
 }
 
@@ -152,10 +170,11 @@ function DocumentEditor({ file }: { file: string }) {
               <ComparisonControl />
               <ExportButton />
             </EditorHeader>
-            <div className="flex min-h-0 flex-1 flex-col md:flex-row">
-              <ToolRail />
-              <ToolView />
-            </div>
+            <DockProvider>
+              <EditorFrame rail={<ToolRail />} tabs={<DockTabs />}>
+                <ToolView />
+              </EditorFrame>
+            </DockProvider>
           </BrushProvider>
         </HealingTools>
       </MaskTools>

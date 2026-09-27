@@ -12,15 +12,16 @@ Where the code lives and the rules that keep it in place. Keep this file true: w
 | `app/loaders` | Image, scene file, and Camera Raw XMP loaders. |
 | `app/draft` | The draft autosaved in the browser. |
 | `app/controls.ts` | `window.openlight`, documented in [API.md](API.md). |
-| `app/editor/index.tsx` | The editor with a document: header, tool rail, viewport, sidebar. A tool's `View` replaces viewport and sidebar. |
+| `app/editor/index.tsx` | The editor with a document: header, then a tool's canvas and controls in the layout. A tool's `View` replaces both. |
 | `app/editor/empty.tsx` | The editor before a document opens: welcome or loading status, and the placeholder sidebar. |
 | `app/editor/sidebar.tsx` | Sidebar sections in order: `EditorSidebar` with a document, `PlaceholderSidebar` without one. |
-| `app/editor/tools.tsx`, `tool-rail.tsx` | The rail. A tool brings a `Canvas` overlay, `Options` for the bar over the image, or its own `View`. |
+| `app/editor/tools.tsx`, `tool-rail.tsx` | The tools and the desktop rail. A tool brings a `Canvas` overlay, `Options` for the bar over the image or the dock, or its own `View`. |
+| `app/editor/dock.tsx` | The mobile dock's tabs and what it shows: the layer stack, a tool's options, or the selected layer's dials. |
 | `app/editor/renderer.ts` | Composes feature passes into the preview and export pipelines. |
 | `app/editor/mask-overlay.tsx` | The only writer of the mask overlay, derived from the selection. |
 | `app/editor/layers.ts` | The effect kinds the app offers and their layer factories. |
 | `app/editor/export` | The export view. |
-| `components/editor` | Editor primitives: panel, viewport, document and renderer contexts, brush input. |
+| `components/editor` | Editor primitives: layout, panel, dock, parameters, viewport, document and renderer contexts, brush input. |
 | `components/ui` | What [`@roprgm/ui`](https://ui.roprgm.com) lacks; see [DESIGN.md](DESIGN.md). |
 | `core/document` | Scene contract, layer tree, history, resources. |
 | `core/image` | Image sources, decoding, geometry, color. |
@@ -29,7 +30,13 @@ Where the code lives and the rules that keep it in place. Keep this file true: w
 | `lib` | Utilities independent of OpenLight. |
 | `tests` | `*.test.ts` run in Bun with `vgpu/mock`; `*.e2e.ts` run in Chromium; `fixtures/` holds test images. |
 
-Below the `md` breakpoint (768 px) the same components rearrange through `max-md:` classes: the rail runs along the top and the sidebar becomes a bottom sheet. The output histogram is mounted from the sidebar but floats above that sheet over the image; the placeholder sidebar hides it on mobile.
+## Layouts
+
+`useDesktopLayout` in `components/editor/layout.tsx` is the one switch between two layouts, read from the same media query as Tailwind's `md` (768 px), so a class and the tree change in the same frame. Every view renders an `EditorLayout` with its canvas and controls, inside an `EditorFrame` that outlives the views: rail, canvas, and sidebar in a row on desktop; canvas, dock, and tab bar in a column on mobile. The app supplies the rail and the tab bar to the frame.
+
+- The canvas keeps its place in both layouts, so crossing the breakpoint moves it without mounting it again. The sidebar and the dock swap; neither mounts hidden, since each subscribes to the document and the histogram reads the GPU.
+- Features describe numbers as `Parameter`s drawn as sliders in the sidebar and dials in the dock, and other controls once for both. Composition that differs sits beside its desktop form: `AdjustPanel` and `AdjustDock`, or a tool's `Options` under the `dock` density.
+- State that outlives a layout, such as the tool, selection, camera, and history, lives above `EditorLayout`.
 
 ## Layers
 
@@ -52,6 +59,7 @@ Dependencies point downward. Features do not import each other; `app/` connects 
 ## Rendering
 
 - `core/renderer` defines passes as nodes (`node`, `pipeline`, `split`, `merge`); the graph owns intermediate textures and timing. Features declare passes; `app/editor/renderer.ts` connects them.
+- The graph keeps intermediate textures for the last two sets of sizes it rendered, so interactive proxy renders and full renders alternate without reallocating full-size textures, which a phone's GPU memory cannot absorb gesture after gesture.
 - Use `vgpu` for GPU work and `vgpu-react` for bindings. Create pipelines once per engine and reuse them. Keep `.wgsl` beside its owner.
 - The working space is linear Rec.2020 in `rgba16float`. Decoders convert into it and display converts out; passes preserve format and primaries unless they explicitly convert.
 - Layers process in stack order; the image layer's adjustments and tone curve run last, on the composite.

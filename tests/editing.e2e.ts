@@ -1039,7 +1039,7 @@ test("edit a photo, inspect the preview and histograms, undo changes, and export
     await expect(panel).toBeHidden();
   });
 
-  await test.step("mobile slider targets accept taps above and below the visible track", async () => {
+  await test.step("mobile dials take a finger's drag, and a double tap resets", async () => {
     const context = await browser.newContext({
       viewport: { width: 390, height: 844 },
       isMobile: true,
@@ -1052,16 +1052,11 @@ test("edit a photo, inspect the preview and histograms, undo changes, and export
       await mobile
         .locator('input[type="file"]')
         .setInputFiles("tests/fixtures/photo.svg");
-      const canvas = await box(
-        mobile.getByRole("region", { name: "Image canvas" }),
-      );
+      const region = mobile.getByRole("region", { name: "Image canvas" });
+      const canvas = await box(region);
       const histogram = await box(
         mobile.getByRole("region", { name: "Image histogram" }),
       );
-      const sidebar = mobile.locator("aside");
-      const sidebarBounds = await box(sidebar);
-      const editorBounds = await box(sidebar.locator(".."));
-      expect(sidebarBounds.height / editorBounds.height).toBeCloseTo(0.45, 2);
       expect(histogram.width).toBe(176);
       expect(histogram.height).toBe(56);
       expect(histogram.x).toBeCloseTo(canvas.x + 12, 0);
@@ -1073,47 +1068,39 @@ test("edit a photo, inspect the preview and histograms, undo changes, and export
         name: "Exposure",
         exact: true,
       });
-      await exposure.scrollIntoViewIfNeeded();
-      // The bar around each track takes the touch.
-      for (const slider of await mobile.getByRole("slider").all()) {
-        const bounds = await box(
-          slider
-            .locator('xpath=ancestor::*[@data-slot="slider-track"]')
-            .locator(".."),
-        );
+      // Every dial takes a fingertip.
+      for (const dial of await mobile.getByRole("slider").all()) {
+        const bounds = await box(dial);
         expect(bounds.width).toBeGreaterThanOrEqual(44);
         expect(bounds.height).toBeGreaterThanOrEqual(44);
-        const track = await box(
-          slider.locator('xpath=ancestor::*[@data-slot="slider-track"]'),
-        );
-        expect(track.height).toBe(4);
-        expectCentered(bounds, track);
       }
-      const bounds = await box(
-        exposure
-          .locator('xpath=ancestor::*[@data-slot="slider-track"]')
-          .locator(".."),
-      );
-      await mobile.touchscreen.tap(
-        bounds.x + bounds.width - 2,
-        bounds.y + bounds.height / 2,
-      );
-      await expect(exposure).toHaveValue("5");
-      expect((await readImage(mobile)).center).toEqual([255, 255, 255, 255]);
-      await mobile.touchscreen.tap(bounds.x + 2, bounds.y + bounds.height / 2);
-      await expect(exposure).toHaveValue("-5");
+      const bounds = await box(exposure);
+      const [x, y] = [bounds.x + bounds.width / 2, bounds.y + 20];
+      const touch = await context.newCDPSession(mobile);
+      const send = (type: "touchStart" | "touchMove" | "touchEnd", at = [x]) =>
+        touch.send("Input.dispatchTouchEvent", {
+          type,
+          touchPoints: type === "touchEnd" ? [] : at.map((x) => ({ x, y })),
+        });
+      await send("touchStart");
+      for (let step = 1; step <= 6; step++) {
+        await send("touchMove", [x + step * 10]);
+      }
+      await send("touchEnd");
+      // Sixty pixels sweep a tenth of the range.
+      await expect(exposure).toHaveAttribute("aria-valuetext", "1.00");
+      expect((await readImage(mobile)).center).not.toEqual([
+        128, 128, 128, 255,
+      ]);
+      await mobile.touchscreen.tap(x, y);
+      await mobile.touchscreen.tap(x, y);
+      await expect(exposure).toHaveAttribute("aria-valuetext", "0.00");
       const undo = mobile.getByRole("button", { name: "Undo", exact: true });
       await undo.tap();
-      await expect(exposure).toHaveValue("5");
+      await expect(exposure).toHaveAttribute("aria-valuetext", "1.00");
       await undo.tap();
-      await expect(exposure).toHaveValue("0");
+      await expect(exposure).toHaveAttribute("aria-valuetext", "0.00");
       expect((await readImage(mobile)).center).toEqual([128, 128, 128, 255]);
-      const field = mobile.getByRole("textbox", {
-        name: "Exposure",
-        exact: true,
-      });
-      await field.tap();
-      await expect(field).toBeFocused();
     } finally {
       await context.close();
     }

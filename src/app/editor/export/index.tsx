@@ -8,7 +8,8 @@ import { type ReactNode, useMemo, useRef, useState } from "react";
 import { useGpu } from "vgpu-react";
 import { writeSceneFile } from "@/app/loaders/scene";
 import { Image } from "@/components/editor/image";
-import { EditorPanel, PanelBody, PanelHeader } from "@/components/editor/panel";
+import { EditorLayout } from "@/components/editor/layout";
+import { PanelBody, PanelHeader } from "@/components/editor/panel";
 import { useDocument, useScene } from "@/components/editor/session";
 import { EditorViewport, ViewportStage } from "@/components/editor/viewport";
 import type { Point } from "@/core/image/frame";
@@ -241,14 +242,16 @@ export function ExportMode({ onClose }: { onClose: () => void }) {
     }
   };
   return (
-    <>
-      <EditorViewport size={encoded?.image.size ?? output}>
-        <ViewportStage>
-          {encoded && <Image image={encoded.image} />}
-        </ViewportStage>
-        {pending && <LoadingOverlay />}
-      </EditorViewport>
-      <EditorPanel>
+    <EditorLayout
+      canvas={
+        <EditorViewport size={encoded?.image.size ?? output}>
+          <ViewportStage>
+            {encoded && <Image image={encoded.image} />}
+          </ViewportStage>
+          {pending && <LoadingOverlay />}
+        </EditorViewport>
+      }
+      panel={
         <PanelBody header={<PanelHeader title="Export" onClose={onClose} />}>
           <section
             aria-label="Image export"
@@ -288,7 +291,7 @@ export function ExportMode({ onClose }: { onClose: () => void }) {
           </section>
           <SaveScene />
         </PanelBody>
-      </EditorPanel>
-    </>
+      }
+    />
   );
 }
