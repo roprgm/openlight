@@ -1,6 +1,6 @@
 import { Chip } from "@roprgm/ui/chip";
 import { Slider } from "@roprgm/ui/slider";
-import { Tooltip } from "@roprgm/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@roprgm/ui/tooltip";
 import { useBrushTool } from "@/components/editor/brush-tool";
 import { useDocument, useSelectedLayer } from "@/components/editor/session";
 import { barSlider, useBarDensity } from "@/components/editor/toolbar-density";
@@ -71,8 +71,15 @@ export function HealOptions() {
         />
       )}
       {source && (
-        <Tooltip content="Find each stroke's donor again; Alt-click sets one">
-          <Chip onClick={() => setSource(undefined)}>Automatic source</Chip>
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <Chip onClick={() => setSource(undefined)}>Automatic source</Chip>
+            }
+          />
+          <TooltipContent>
+            Find each stroke's donor again; Alt-click sets one
+          </TooltipContent>
         </Tooltip>
       )}
     </>

@@ -22,7 +22,7 @@ export function MaskOptions({ layer }: { layer: MaskLayer }) {
       {density !== "menu" && (
         <hr
           aria-orientation="vertical"
-          className="h-4 w-px border-0 bg-white/15"
+          className="h-4 w-px border-0 separator"
         />
       )}
       {layer.mask.kind === "radial" && (
@@ -47,6 +47,7 @@ export function MaskOptions({ layer }: { layer: MaskLayer }) {
       )}
       {child && (
         <Select
+          raised
           variant="pill"
           aria-label="Mask operation"
           tooltip="Combine with the parent mask"

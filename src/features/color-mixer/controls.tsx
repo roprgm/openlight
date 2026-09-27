@@ -1,8 +1,8 @@
 import { ScrubInput } from "@roprgm/ui/scrub-input";
-import { Tab, TabList } from "@roprgm/ui/tabs";
-import { Tooltip } from "@roprgm/ui/tooltip";
-import { VerticalSlider } from "@roprgm/ui/vertical-slider";
-import { useId, useState } from "react";
+import { Slider } from "@roprgm/ui/slider";
+import { Tab, TabList, TabPanel, Tabs } from "@roprgm/ui/tabs";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@roprgm/ui/tooltip";
+import { useState } from "react";
 import { useDocument } from "@/components/editor/session";
 import type { ColorMixer } from "@/core/document";
 import { setColorMixer } from "./edits";
@@ -35,28 +35,34 @@ function ColorSlider({
   const change = (value: number) =>
     setColorMixer(document, color.id, { [channel]: value }, layerId);
   return (
-    <Tooltip content={color.label}>
-      <div className="flex min-w-0 flex-col items-center gap-1">
-        <ScrubInput
-          aria-label={`${label} value`}
-          className="w-full justify-center px-0 tracking-tight"
-          value={value}
-          defaultValue={0}
-          onChange={change}
-          min={-100}
-          max={100}
-        />
-        <VerticalSlider
-          label={label}
-          value={value}
-          onChange={change}
-          min={-100}
-          max={100}
-          defaultValue={0}
-          stops={gradient(color.hue, channel)}
-          color={`hsl(${color.hue} 65% 55%)`}
-        />
-      </div>
+    <Tooltip>
+      <TooltipTrigger
+        render={
+          <div className="flex min-w-0 flex-col items-center gap-1">
+            <ScrubInput
+              aria-label={`${label} value`}
+              className="w-full justify-center px-0 tracking-tight"
+              value={value}
+              defaultValue={0}
+              onChange={change}
+              min={-100}
+              max={100}
+            />
+            <Slider
+              orientation="vertical"
+              label={label}
+              value={value}
+              onChange={change}
+              min={-100}
+              max={100}
+              defaultValue={0}
+              stops={gradient(color.hue, channel)}
+              color={`hsl(${color.hue} 65% 55%)`}
+            />
+          </div>
+        }
+      />
+      <TooltipContent>{color.label}</TooltipContent>
     </Tooltip>
   );
 }
@@ -69,33 +75,26 @@ export function ColorMixerControls({
   mixer: ColorMixer;
 }) {
   const [channel, setChannel] = useState<MixerChannel>("hue");
-  const id = useId();
   return (
-    <section className="p-(--padding)">
+    <Tabs
+      value={channel}
+      onValueChange={setChannel}
+      render={<section />}
+      className="p-3.5"
+    >
       <TabList
         aria-label="Color Mixer adjustment"
         variant="segmented"
         className="mb-3"
       >
-        {channels.map(({ id: value, label }) => (
-          <Tab
-            key={value}
-            id={`${id}-${value}`}
-            aria-controls={`${id}-sliders`}
-            selected={channel === value}
-            onClick={() => setChannel(value)}
-            className="min-w-0 flex-1 px-1"
-          >
+        {channels.map(({ id, label }) => (
+          <Tab key={id} value={id} className="min-w-0 flex-1 px-1">
             {label}
           </Tab>
         ))}
       </TabList>
-      <div
-        id={`${id}-sliders`}
-        role="tabpanel"
-        aria-labelledby={`${id}-${channel}`}
-        className="grid grid-cols-8"
-      >
+      {/* One panel shows every channel, so it follows the tab that's selected. */}
+      <TabPanel value={channel} className="grid grid-cols-8">
         {colors.map((color, index) => (
           <ColorSlider
             key={color.id}
@@ -105,7 +104,7 @@ export function ColorMixerControls({
             layerId={layerId}
           />
         ))}
-      </div>
-    </section>
+      </TabPanel>
+    </Tabs>
   );
 }

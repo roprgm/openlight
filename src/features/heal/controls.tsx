@@ -1,6 +1,6 @@
 import { IconButton } from "@roprgm/ui/icon-button";
-import { ListItem } from "@roprgm/ui/list-item";
-import { Menu, MenuItem } from "@roprgm/ui/menu";
+import { ListItem, ListItemAction } from "@roprgm/ui/list-item";
+import { Menu, MenuContent, MenuItem, MenuTrigger } from "@roprgm/ui/menu";
 import { CoverageThumbnail } from "@/components/editor/coverage-thumbnail";
 import { useDocument } from "@/components/editor/session";
 import { HealIcon } from "@/components/icons/heal";
@@ -16,7 +16,7 @@ function PendingThumbnail() {
     <span
       role="img"
       aria-label="Patch pending"
-      className="grid size-8 shrink-0 place-items-center rounded-sm border border-neutral-600 bg-neutral-950 text-neutral-500"
+      className="grid size-8 shrink-0 place-items-center rounded-sm border border-level-8 bg-level-1 text-muted"
     >
       <HealIcon className="size-4" />
     </span>
@@ -35,38 +35,41 @@ function PatchActions({
   const document = useDocument();
   const { selectPatch } = useHealing();
   return (
-    <Menu
-      trigger={
-        <IconButton
-          label="Patch actions"
-          size="icon"
-          className="pointer-coarse:size-10"
-        >
-          <Icon className="size-4">
-            <path
-              d="M5 12h.01M12 12h.01M19 12h.01"
-              strokeWidth="3"
-              strokeLinecap="round"
-            />
-          </Icon>
-        </IconButton>
-      }
-    >
-      <MenuItem
-        onClick={() =>
-          selectPatch(duplicateHealPatch(document, layer, patch.id))
+    <Menu>
+      <MenuTrigger
+        render={
+          <IconButton
+            label="Patch actions"
+            size="icon"
+            className="pointer-coarse:size-10"
+          >
+            <Icon className="size-4">
+              <path
+                d="M5 12h.01M12 12h.01M19 12h.01"
+                strokeWidth="3"
+                strokeLinecap="round"
+              />
+            </Icon>
+          </IconButton>
         }
-      >
-        Duplicate
-      </MenuItem>
-      <MenuItem
-        onClick={() => {
-          deleteHealPatch(document, layer, patch.id);
-          selectPatch(next);
-        }}
-      >
-        Delete
-      </MenuItem>
+      />
+      <MenuContent raised>
+        <MenuItem
+          onClick={() =>
+            selectPatch(duplicateHealPatch(document, layer, patch.id))
+          }
+        >
+          Duplicate
+        </MenuItem>
+        <MenuItem
+          onClick={() => {
+            deleteHealPatch(document, layer, patch.id);
+            selectPatch(next);
+          }}
+        >
+          Delete
+        </MenuItem>
+      </MenuContent>
     </Menu>
   );
 }
@@ -94,7 +97,7 @@ export function HealControls({
   );
   if (!patches.length) {
     return (
-      <p className="p-4 text-center text-neutral-500">
+      <p className="p-4 text-center text-muted">
         Paint over a spot or object to create the first patch.
       </p>
     );
@@ -105,7 +108,7 @@ export function HealControls({
         <li key={patch.id}>
           <ListItem
             selected={selectedPatch === patch.id}
-            className="gap-0 pr-1 pl-0 pointer-coarse:h-12"
+            className="gap-0 pl-0 pointer-coarse:h-12"
             onPointerEnter={() => hoverPatch(patch.id)}
             onPointerLeave={() => hoverPatch()}
           >
@@ -124,15 +127,17 @@ export function HealControls({
                 fallback={<PendingThumbnail />}
               />
               <span className="min-w-0 flex-1 truncate">Patch {index + 1}</span>
-              <span className="shrink-0 text-neutral-500 tabular-nums">
+              <span className="shrink-0 text-muted tabular-nums">
                 {patchSummary(patch)}
               </span>
             </button>
-            <PatchActions
-              layer={id}
-              patch={patch}
-              next={patches[index - 1]?.id ?? patches[index + 1]?.id}
-            />
+            <ListItemAction>
+              <PatchActions
+                layer={id}
+                patch={patch}
+                next={patches[index - 1]?.id ?? patches[index + 1]?.id}
+              />
+            </ListItemAction>
           </ListItem>
         </li>
       ))}

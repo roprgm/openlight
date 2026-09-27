@@ -1,7 +1,7 @@
 import { Button } from "@roprgm/ui/button";
 import { Select } from "@roprgm/ui/select";
 import { Slider } from "@roprgm/ui/slider";
-import { Tooltip } from "@roprgm/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@roprgm/ui/tooltip";
 import { useState } from "react";
 import { Image } from "@/components/editor/image";
 import { EditorPanel, PanelBody, PanelHeader } from "@/components/editor/panel";
@@ -116,10 +116,11 @@ export function CropEditor({ onClose }: { onClose: () => void }) {
         }}
       >
         <PanelBody header={<PanelHeader title="Crop" onClose={onClose} />}>
-          <section aria-label="Crop tool" className="space-y-5 p-(--padding)">
-            <div className="flex items-center justify-between text-neutral-400">
+          <section aria-label="Crop tool" className="space-y-5 p-3.5">
+            <div className="flex items-center justify-between text-muted">
               Aspect ratio
               <Select
+                raised
                 aria-label="Aspect ratio"
                 value={ratio === null ? "free" : `${ratio}`}
                 items={ratioOptions}
@@ -131,7 +132,7 @@ export function CropEditor({ onClose }: { onClose: () => void }) {
               aria-label="Rotate and flip image"
               className="grid grid-cols-4 items-center gap-2"
             >
-              <h3 className="col-span-3 text-neutral-400">Rotate & flip</h3>
+              <h3 className="col-span-3 text-muted">Rotate & flip</h3>
               <Button
                 variant="ghost"
                 size="sm"
@@ -143,16 +144,21 @@ export function CropEditor({ onClose }: { onClose: () => void }) {
               {actions.map((action) => {
                 const Icon = "turn" in action ? RotateIcon : FlipIcon;
                 return (
-                  <Tooltip key={action.label} content={action.label}>
-                    <Button
-                      variant="ghost"
-                      aria-label={action.label}
-                      className="flex h-9 items-center justify-center gap-1 rounded-md px-1"
-                      onClick={() => applyAction(action)}
-                    >
-                      <Icon style={{ transform: action.transform }} />
-                      {"turn" in action && <span>90°</span>}
-                    </Button>
+                  <Tooltip key={action.label}>
+                    <TooltipTrigger
+                      render={
+                        <Button
+                          variant="ghost"
+                          aria-label={action.label}
+                          className="flex h-9 items-center justify-center gap-1 rounded-md px-1"
+                          onClick={() => applyAction(action)}
+                        >
+                          <Icon style={{ transform: action.transform }} />
+                          {"turn" in action && <span>90°</span>}
+                        </Button>
+                      }
+                    />
+                    <TooltipContent>{action.label}</TooltipContent>
                   </Tooltip>
                 );
               })}
@@ -166,16 +172,16 @@ export function CropEditor({ onClose }: { onClose: () => void }) {
               defaultValue={0}
               onChange={(angle) => setFrame(rotate(frame, angle, source))}
             />
-            <p className="text-neutral-500">
+            <p className="text-muted">
               Drag edges or corners to crop, inside to move, outside to rotate.
               Space + drag to pan; Ctrl/⌘ + scroll to zoom.
             </p>
-            <p className="tabular-nums text-neutral-400">
+            <p className="tabular-nums text-muted">
               {frame.size.map(Math.round).join(" × ")} px
             </p>
           </section>
         </PanelBody>
-        <div className="p-(--padding-optical)">
+        <div className="p-3">
           <Button size="lg" className="w-full" onClick={apply}>
             Apply crop
           </Button>

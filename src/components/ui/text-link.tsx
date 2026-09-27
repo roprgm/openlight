@@ -3,15 +3,15 @@ import { cn } from "cn";
 import type { ComponentProps } from "react";
 
 const link = cva(
-  "cursor-pointer underline underline-offset-4 transition-colors focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-neutral-400/80",
+  "cursor-pointer rounded-xs underline underline-offset-4 transition-colors focus-ring",
   {
     variants: {
       /** Default links stand out from their sentence; muted ones stay in its color until hovered. */
       variant: {
         default:
-          "text-neutral-200 decoration-neutral-600 hover:decoration-neutral-200",
+          "text-foreground decoration-disabled hover:decoration-foreground",
         muted:
-          "decoration-neutral-700 hover:text-neutral-300 hover:decoration-neutral-400",
+          "decoration-level-6 hover:text-foreground hover:decoration-muted",
       },
     },
     defaultVariants: { variant: "default" },

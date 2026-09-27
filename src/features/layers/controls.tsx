@@ -1,8 +1,8 @@
 import { IconButton } from "@roprgm/ui/icon-button";
-import { ListItem } from "@roprgm/ui/list-item";
-import { Menu, MenuItem } from "@roprgm/ui/menu";
+import { ListItem, ListItemAction } from "@roprgm/ui/list-item";
+import { Menu, MenuContent, MenuItem, MenuTrigger } from "@roprgm/ui/menu";
 import { ScrollArea } from "@roprgm/ui/scroll-area";
-import { Tooltip } from "@roprgm/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@roprgm/ui/tooltip";
 import {
   type ComponentType,
   memo,
@@ -56,14 +56,14 @@ function LayerThumbnail({
       <span
         role="img"
         aria-label="Color thumbnail"
-        className="block size-8 shrink-0 rounded-sm border border-neutral-600"
+        className="block size-8 shrink-0 rounded-sm border border-level-8"
         style={{ background: layer.fill.color }}
       />
     );
   }
   const Icon = effects.find(({ kind }) => kind === layer.kind)?.Icon;
   return (
-    <span className="grid size-8 shrink-0 place-items-center rounded border border-black/50 bg-neutral-950/40 text-neutral-400">
+    <span className="grid size-8 shrink-0 place-items-center rounded border border-edge/50 bg-level-1/40 text-muted">
       {Icon && <Icon className="size-4" />}
     </span>
   );
@@ -114,29 +114,33 @@ const LayerRow = memo(function LayerRow({
         selected={selected === layer.id}
         muted={!visible}
         style={{ paddingLeft: depth * 12 }}
-        className="gap-0 pr-1 pointer-coarse:h-12 data-[dragging=true]:opacity-40 data-[drop=inside]:ring-1 data-[drop=inside]:ring-blue-400 data-[drop=inside]:ring-inset data-[drop=before]:before:absolute data-[drop=before]:before:inset-x-0 data-[drop=before]:before:-top-px data-[drop=before]:before:border-t-2 data-[drop=before]:before:border-blue-400 data-[drop=after]:after:absolute data-[drop=after]:after:inset-x-0 data-[drop=after]:after:-bottom-px data-[drop=after]:after:border-b-2 data-[drop=after]:after:border-blue-400"
+        className="gap-0 pointer-coarse:h-12 data-[dragging=true]:opacity-40 data-[drop=inside]:ring-1 data-[drop=inside]:ring-primary data-[drop=inside]:ring-inset data-[drop=before]:before:absolute data-[drop=before]:before:inset-x-0 data-[drop=before]:before:-top-px data-[drop=before]:before:border-t-2 data-[drop=before]:before:border-primary data-[drop=after]:after:absolute data-[drop=after]:after:inset-x-0 data-[drop=after]:after:-bottom-px data-[drop=after]:after:border-b-2 data-[drop=after]:after:border-primary"
       >
-        <Tooltip
-          content={visible ? "Hide layer" : "Show layer"}
-          disabled={isImage}
-        >
-          <button
-            type="button"
-            aria-label={`Show ${layer.name}`}
-            aria-pressed={visible}
-            disabled={isImage}
-            onClick={() => {
-              if (!isImage) {
-                setLayer(document, layer.id, { visible: !visible });
-              }
-            }}
-            className="grid h-full w-8 shrink-0 place-items-center text-neutral-400 hover:text-neutral-100 disabled:text-neutral-600 aria-[pressed=false]:text-neutral-600 pointer-coarse:w-11"
-          >
-            <Icon className="size-3.5">
-              <path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Z" />
-              <circle cx="12" cy="12" r="3" />
-            </Icon>
-          </button>
+        <Tooltip disabled={isImage}>
+          <TooltipTrigger
+            render={
+              <button
+                type="button"
+                aria-label={`Show ${layer.name}`}
+                aria-pressed={visible}
+                disabled={isImage}
+                onClick={() => {
+                  if (!isImage) {
+                    setLayer(document, layer.id, { visible: !visible });
+                  }
+                }}
+                className="grid h-full w-8 shrink-0 place-items-center text-muted hover:text-foreground disabled:text-disabled aria-[pressed=false]:text-disabled pointer-coarse:w-11"
+              >
+                <Icon className="size-3.5">
+                  <path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Z" />
+                  <circle cx="12" cy="12" r="3" />
+                </Icon>
+              </button>
+            }
+          />
+          <TooltipContent>
+            {visible ? "Hide layer" : "Show layer"}
+          </TooltipContent>
         </Tooltip>
         <button
           type="button"
@@ -152,16 +156,19 @@ const LayerRow = memo(function LayerRow({
           dragHandle={dragHandle}
         />
         {isSubmask && (
-          <Tooltip
-            content={
-              maskSign === "+"
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <span className="grid size-6 shrink-0 place-items-center text-muted">
+                  {maskSign}
+                </span>
+              }
+            />
+            <TooltipContent>
+              {maskSign === "+"
                 ? `Adds to ${parent?.name}`
-                : `Subtracts from ${parent?.name}`
-            }
-          >
-            <span className="grid size-6 shrink-0 place-items-center text-neutral-500">
-              {maskSign}
-            </span>
+                : `Subtracts from ${parent?.name}`}
+            </TooltipContent>
           </Tooltip>
         )}
         {layer.children.length > 0 && (
@@ -170,26 +177,35 @@ const LayerRow = memo(function LayerRow({
             aria-label={expandLabel}
             aria-expanded={expanded}
             onClick={() => setCollapsed(expanded)}
-            className="grid size-6 shrink-0 place-items-center text-neutral-500 hover:text-neutral-200"
+            className="grid size-6 shrink-0 place-items-center text-muted hover:text-foreground"
           >
             <Icon className="size-3 transition-transform" style={chevronStyle}>
               <path d="m9 5 7 7-7 7" />
             </Icon>
           </button>
         )}
-        {layer.kind === "image" && (
-          <Tooltip content="The base image stays at the bottom">
-            <span className="grid size-7 shrink-0 place-items-center text-neutral-500">
-              <Icon className="size-3.5">
-                <rect x="6" y="10" width="12" height="10" rx="2" />
-                <path d="M8 10V7a4 4 0 0 1 8 0v3" />
-              </Icon>
-            </span>
-          </Tooltip>
-        )}
-        {layer.kind !== "image" && (
-          <LayerActions layer={layer} onSelect={onSelect} />
-        )}
+        <ListItemAction>
+          {isImage && (
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <span className="grid size-7 shrink-0 place-items-center text-muted">
+                    <Icon className="size-3.5">
+                      <rect x="6" y="10" width="12" height="10" rx="2" />
+                      <path d="M8 10V7a4 4 0 0 1 8 0v3" />
+                    </Icon>
+                  </span>
+                }
+              />
+              <TooltipContent>
+                The base image stays at the bottom
+              </TooltipContent>
+            </Tooltip>
+          )}
+          {layer.kind !== "image" && (
+            <LayerActions layer={layer} onSelect={onSelect} />
+          )}
+        </ListItemAction>
       </ListItem>
       {expanded &&
         layer.children
@@ -223,12 +239,10 @@ export function LayersSection({
   return (
     <section
       aria-label="Layers"
-      className="grid max-h-1/2 min-h-41 shrink-0 grid-rows-[auto_minmax(0,1fr)] layer-panel"
+      className="grid max-h-1/2 min-h-41 shrink-0 grid-rows-[auto_minmax(0,1fr)]"
     >
       <PanelHeader title="Layers">{actions}</PanelHeader>
-      <ScrollArea fade className="-mb-px">
-        {children}
-      </ScrollArea>
+      <ScrollArea fade>{children}</ScrollArea>
     </section>
   );
 }
@@ -271,26 +285,29 @@ export function LayersControls({
   return (
     <LayersSection
       actions={
-        <Menu
-          trigger={
-            <IconButton
-              label="Add effect"
-              size="icon"
-              className="pointer-coarse:size-10"
-            >
-              <Icon className="size-4">
-                <path d="M12 4v16M4 12h16" />
-              </Icon>
-            </IconButton>
-          }
-        >
-          {effects
-            .filter(({ addable }) => addable)
-            .map(({ kind, label }) => (
-              <MenuItem key={kind} onClick={() => onAdd(kind)}>
-                {label}
-              </MenuItem>
-            ))}
+        <Menu>
+          <MenuTrigger
+            render={
+              <IconButton
+                label="Add effect"
+                size="icon"
+                className="pointer-coarse:size-10"
+              >
+                <Icon className="size-4">
+                  <path d="M12 4v16M4 12h16" />
+                </Icon>
+              </IconButton>
+            }
+          />
+          <MenuContent raised>
+            {effects
+              .filter(({ addable }) => addable)
+              .map(({ kind, label }) => (
+                <MenuItem key={kind} onClick={() => onAdd(kind)}>
+                  {label}
+                </MenuItem>
+              ))}
+          </MenuContent>
         </Menu>
       }
     >

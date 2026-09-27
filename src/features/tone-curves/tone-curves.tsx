@@ -14,7 +14,7 @@ export function ToneCurves({ points, onChange, children }: ToneCurvesProps) {
   return (
     <section aria-label="Curves" className="space-y-2.5">
       <div className="flex items-center justify-between">
-        <h2 className="text-neutral-400">Curves</h2>
+        <h2 className="text-muted">Curves</h2>
         <Button
           variant="ghost"
           aria-label="Reset curve"
@@ -25,7 +25,7 @@ export function ToneCurves({ points, onChange, children }: ToneCurvesProps) {
         </Button>
       </div>
       <div className="px-0.5">
-        <div className="relative aspect-square max-h-55 w-full rounded border border-black bg-neutral-900 shadow-sunken md:max-h-45">
+        <div className="relative aspect-square max-h-55 w-full rounded bg-field md:max-h-45">
           {children}
           <Graph onChange={onChange} points={points} />
         </div>

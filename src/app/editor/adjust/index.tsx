@@ -53,7 +53,7 @@ function CurveInputHistogram({ id }: { id: string }) {
 function LayerCurve({ id, toneCurve }: { id: string; toneCurve: ToneCurve }) {
   const document = useDocument();
   return (
-    <div className="px-(--padding) pb-(--padding)">
+    <div className="px-3.5 pb-3.5">
       <ToneCurves
         points={toneCurve}
         onChange={(points) => setToneCurve(document, points, id)}
@@ -94,7 +94,7 @@ function SelectedControls({ layer }: { layer: Layer }) {
       return <HealControls id={layer.id} patches={layer.patches} />;
     case "exposure":
       return (
-        <section className="p-(--padding)">
+        <section className="p-3.5">
           <Slider
             label="Exposure"
             value={layer.exposure}

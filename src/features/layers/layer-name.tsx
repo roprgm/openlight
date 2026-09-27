@@ -1,4 +1,4 @@
-import { Tooltip } from "@roprgm/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@roprgm/ui/tooltip";
 import { type ComponentProps, useState } from "react";
 import { useDocument } from "@/components/editor/session";
 import type { Layer } from "@/core/document";
@@ -23,7 +23,7 @@ export function LayerName({
         aria-label="Layer name"
         ref={(input) => input?.select()}
         defaultValue={layer.name}
-        className="min-w-0 flex-1 rounded border border-neutral-500 bg-neutral-900 px-1 text-neutral-100 outline-none"
+        className="min-w-0 flex-1 rounded surface-sunken px-1 text-foreground outline-none"
         onKeyDown={(event) => {
           if (event.key === "Enter") {
             event.currentTarget.blur();
@@ -50,22 +50,28 @@ export function LayerName({
   }
   // Only a name cut short needs its tooltip.
   return (
-    <Tooltip content={layer.name} disabled={!truncated}>
-      <button
-        {...dragHandle}
-        type="button"
-        aria-label={layer.name}
-        onClick={onSelect}
-        onDoubleClick={rename}
-        onPointerEnter={(event) =>
-          setTruncated(
-            event.currentTarget.scrollWidth > event.currentTarget.clientWidth,
-          )
+    <Tooltip disabled={!truncated}>
+      <TooltipTrigger
+        render={
+          <button
+            {...dragHandle}
+            type="button"
+            aria-label={layer.name}
+            onClick={onSelect}
+            onDoubleClick={rename}
+            onPointerEnter={(event) =>
+              setTruncated(
+                event.currentTarget.scrollWidth >
+                  event.currentTarget.clientWidth,
+              )
+            }
+            className="min-w-0 flex-1 self-stretch truncate text-left touch-manipulation cursor-grab active:cursor-grabbing"
+          >
+            {layer.name}
+          </button>
         }
-        className="min-w-0 flex-1 self-stretch truncate text-left touch-manipulation cursor-grab active:cursor-grabbing"
-      >
-        {layer.name}
-      </button>
+      />
+      <TooltipContent>{layer.name}</TooltipContent>
     </Tooltip>
   );
 }

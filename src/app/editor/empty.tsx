@@ -1,5 +1,6 @@
 import { Button } from "@roprgm/ui/button";
 import { Notice } from "@roprgm/ui/notice";
+import { Section } from "@roprgm/ui/section";
 import { Spinner } from "@roprgm/ui/spinner";
 import { useRef } from "react";
 import { type Gpu, target } from "vgpu";
@@ -29,7 +30,7 @@ type OpenProps = { onOpen: (files: File[]) => void };
 function OpenImage({ onOpen }: OpenProps) {
   const input = useRef<HTMLInputElement>(null);
   return (
-    <p className="mt-4 text-neutral-500">
+    <p className="mt-4 text-muted">
       Drop an image here or{" "}
       <TextLink onClick={() => input.current?.click()}>choose a file</TextLink>
       <input
@@ -63,18 +64,16 @@ export type Recovery = {
 /** Offered away from the welcome copy, since returning users see it on every visit. */
 function RecoverDraft({ onRecover, onForget }: Recovery) {
   return (
-    <Notice
-      className="absolute bottom-3 left-3 z-50"
-      actions={
-        <>
-          <Button onClick={onRecover}>Recover</Button>
-          <Button variant="ghost" onClick={onForget}>
-            Forget
-          </Button>
-        </>
-      }
-    >
-      Your last scene is still here from a previous visit.
+    <Notice className="absolute bottom-3 left-3 z-50">
+      <Section>Your last scene is still here from a previous visit.</Section>
+      <Section className="flex-row gap-1.5 px-2.5">
+        <Button size="sm" onClick={onRecover}>
+          Recover
+        </Button>
+        <Button size="sm" variant="ghost" onClick={onForget}>
+          Forget
+        </Button>
+      </Section>
     </Notice>
   );
 }
@@ -86,7 +85,7 @@ function Status({ state, onOpen }: { state: EmptyState } & OpenProps) {
   if (state.status === "error") {
     return (
       <>
-        <p className="max-w-md text-center text-neutral-400">
+        <p className="max-w-md text-center text-muted">
           Couldn't open {state.file}: {state.error}
         </p>
         <OpenImage onOpen={onOpen} />
@@ -103,7 +102,7 @@ function Status({ state, onOpen }: { state: EmptyState } & OpenProps) {
         width="64"
       />
       <h1 className="text-2xl font-bold">OpenLight</h1>
-      <p className="text-neutral-400">Edit photos in your browser.</p>
+      <p className="text-muted">Edit photos in your browser.</p>
       <OpenImage onOpen={onOpen} />
     </>
   );

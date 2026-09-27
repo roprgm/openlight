@@ -354,7 +354,7 @@ test("Healing paints patches, edits them, and undoes", async ({ page }) => {
           Math.floor(canvas.width / 2),
           Math.floor(canvas.height / 2),
         ),
-        edge: sample(Math.floor(canvas.width / 2), 2),
+        edge: sample(Math.floor(canvas.width / 2), 1),
       };
     },
     [...thumbnailBytes],

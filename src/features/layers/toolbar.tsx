@@ -1,5 +1,6 @@
 import { IconButton } from "@roprgm/ui/icon-button";
-import { Popover } from "@roprgm/ui/popover";
+import { Popover, PopoverContent, PopoverTrigger } from "@roprgm/ui/popover";
+import { Section } from "@roprgm/ui/section";
 import { Slider } from "@roprgm/ui/slider";
 import { type ReactNode, useLayoutEffect, useRef, useState } from "react";
 import { useStore } from "zustand";
@@ -96,36 +97,39 @@ export function CanvasToolbar({ children }: { children?: ReactNode }) {
       // No wrapping, so running out of room overflows, which is what the steps above measure. A button or
       // group at either end nests its corners 4px in; a text label first, such as a slider's, needs 8px
       // more, and a slider last 6px more, since a compact slider's value pulls 4px past its cell.
-      className="absolute top-3 left-3 flex min-w-0 max-w-[calc(100%-1.5rem)] items-center gap-x-2.5 overflow-hidden whitespace-nowrap rounded-full bg-neutral-800/80 p-1 backdrop-blur-sm [&>:first-child:not(button,fieldset)]:ml-2 [&>:last-child:not(button,fieldset)]:mr-1.5"
+      className="absolute top-3 left-3 flex min-w-0 max-w-[calc(100%-1.5rem)] items-center gap-x-2.5 overflow-hidden whitespace-nowrap rounded-full surface-panel bg-level-4/80 p-1 backdrop-blur-sm [&>:first-child:not(button,fieldset)]:ml-2 [&>:last-child:not(button,fieldset)]:mr-1.5"
     >
       <Density value={step === 0 ? "full" : "compact"}>
         {inlineTool}
         {inlineLayer && <LayerOptions layer={layer} />}
       </Density>
       {(menuTool || menuLayer) && (
-        <Popover
-          trigger={
-            <IconButton
-              label="More options"
-              size="icon"
-              className="rounded-full"
-            >
-              <Icon className="size-4">
-                <path
-                  d="M12 5h.01M12 12h.01M12 19h.01"
-                  strokeWidth="3"
-                  strokeLinecap="round"
-                />
-              </Icon>
-            </IconButton>
-          }
-        >
-          <Density value="menu">
-            <div className="flex w-56 flex-col gap-3">
-              {menuTool}
-              {menuLayer && <LayerOptions layer={layer} />}
-            </div>
-          </Density>
+        <Popover>
+          <PopoverTrigger
+            render={
+              <IconButton
+                label="More options"
+                size="icon"
+                className="rounded-full"
+              >
+                <Icon className="size-4">
+                  <path
+                    d="M12 5h.01M12 12h.01M12 19h.01"
+                    strokeWidth="3"
+                    strokeLinecap="round"
+                  />
+                </Icon>
+              </IconButton>
+            }
+          />
+          <PopoverContent raised className="w-63">
+            <Density value="menu">
+              <Section>
+                {menuTool}
+                {menuLayer && <LayerOptions layer={layer} />}
+              </Section>
+            </Density>
+          </PopoverContent>
         </Popover>
       )}
     </fieldset>

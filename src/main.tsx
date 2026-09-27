@@ -25,11 +25,11 @@ class GpuBoundary extends Component<
       <main className="grid h-dvh place-content-center justify-items-center gap-3 p-6 text-center">
         <img alt="" className="w-16" height="64" src="/logo.svg" width="64" />
         <h1 className="text-2xl font-bold">OpenLight</h1>
-        <p className="max-w-md text-neutral-400">
+        <p className="max-w-md text-muted">
           OpenLight needs WebGPU, which this browser does not provide. Open it
           in a recent Chrome, Edge, Safari, or Firefox.
         </p>
-        <p className="text-neutral-500">{String(this.state.error)}</p>
+        <p className="text-muted">{String(this.state.error)}</p>
         <TextLink href="https://github.com/roprgm/openlight">
           github.com/roprgm/openlight
         </TextLink>

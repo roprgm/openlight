@@ -1,6 +1,6 @@
 import { Button } from "@roprgm/ui/button";
 import { IconButton } from "@roprgm/ui/icon-button";
-import { Tooltip } from "@roprgm/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@roprgm/ui/tooltip";
 import { createContext, type ReactNode, useContext } from "react";
 import { Canvas } from "vgpu-react";
 import { Icon } from "@/components/icons/icon";
@@ -25,7 +25,7 @@ function ZoomControl() {
   const fitted = view.zoom === 1;
   return (
     <div className="absolute right-3 bottom-3">
-      <div className="flex items-center rounded-full bg-neutral-800/80 p-0.5 backdrop-blur-sm">
+      <div className="flex items-center rounded-full surface-panel bg-level-4/80 p-0.5 backdrop-blur-sm">
         <IconButton
           label="Zoom out"
           side="top"
@@ -36,16 +36,23 @@ function ZoomControl() {
             <path d="M5 10h10" />
           </Icon>
         </IconButton>
-        <Tooltip content={fitted ? "Zoom to 100%" : "Fit to view"} side="top">
-          <Button
-            variant="ghost"
-            className="h-6 min-w-14 rounded-full px-1 text-neutral-200 tabular-nums"
-            onClick={() =>
-              fitted ? zoomTo(1 / (scale * devicePixelRatio)) : resetView()
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <Button
+                variant="ghost"
+                className="h-6 min-w-14 rounded-full px-1 text-foreground tabular-nums"
+                onClick={() =>
+                  fitted ? zoomTo(1 / (scale * devicePixelRatio)) : resetView()
+                }
+              >
+                {percent}%
+              </Button>
             }
-          >
-            {percent}%
-          </Button>
+          />
+          <TooltipContent side="top">
+            {fitted ? "Zoom to 100%" : "Fit to view"}
+          </TooltipContent>
         </Tooltip>
         <IconButton
           label="Zoom in"
