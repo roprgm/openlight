@@ -8,8 +8,7 @@ import type { MaskLayer } from "@/core/document";
 import { renderBitmap } from "@/core/renderer";
 import { MaskFill } from "./mask-fill";
 
-const frame =
-  "size-8 shrink-0 rounded-sm border border-neutral-600 bg-neutral-950";
+const frame = "size-8 shrink-0 rounded-sm border border-level-8 bg-level-1";
 
 /** A small original-image snapshot, rendered once when the source changes. */
 export function ImageThumbnail() {
@@ -73,7 +72,7 @@ export function MaskThumbnail({ layer }: { layer: MaskLayer }) {
       <span
         role="img"
         aria-label="Empty brush thumbnail"
-        className={`grid place-items-center text-neutral-400 ${frame}`}
+        className={`grid place-items-center text-muted ${frame}`}
       >
         <Icon className="size-4">
           <path d="M10 14a3 3 0 0 1-3 3c-1.5 0-3-1-3-1s2-1 2-2.5c0-1.5 1-2.5 2.5-2.5M11 13l7-7a1.4 1.4 0 0 0-2-2l-7 7" />

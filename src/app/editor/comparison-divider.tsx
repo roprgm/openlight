@@ -63,14 +63,14 @@ export function ComparisonDivider() {
         move(positions[event.key]);
       }}
     >
-      <div className="absolute inset-y-0 w-px bg-white/90 shadow-[0_0_3px_#000]" />
-      <span className="absolute right-6 bottom-4 rounded bg-black/50 px-1.5 py-0.5 text-white">
+      <div className="absolute inset-y-0 w-px bg-foreground/90 shadow-[0_0_3px_var(--color-level-1)]" />
+      <span className="absolute right-6 bottom-4 rounded bg-backdrop px-1.5 py-0.5 text-foreground">
         Before
       </span>
-      <span className="absolute bottom-4 left-6 rounded bg-black/50 px-1.5 py-0.5 text-white">
+      <span className="absolute bottom-4 left-6 rounded bg-backdrop px-1.5 py-0.5 text-foreground">
         After
       </span>
-      <span className="relative flex size-7 items-center justify-center rounded-full border border-white/80 bg-neutral-900 text-white shadow-md group-focus-visible:ring-2 group-focus-visible:ring-white">
+      <span className="relative flex size-7 items-center justify-center rounded-full surface-float text-foreground group-focus-visible:ring-2 group-focus-visible:ring-foreground">
         <svg
           aria-hidden="true"
           viewBox="0 0 20 20"

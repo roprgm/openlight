@@ -66,7 +66,7 @@ export function CoverageThumbnail({
       width={64}
       height={64}
       aria-label={label}
-      className="size-8 shrink-0 rounded-sm border border-neutral-600 bg-neutral-950"
+      className="size-8 shrink-0 rounded-sm border border-level-8 bg-level-1"
     />
   );
 }

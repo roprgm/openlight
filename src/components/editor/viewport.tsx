@@ -25,7 +25,7 @@ function ZoomControl() {
   const fitted = view.zoom === 1;
   return (
     <div className="absolute right-3 bottom-3">
-      <div className="flex items-center rounded-full bg-neutral-800/80 p-0.5 backdrop-blur-sm">
+      <div className="flex items-center rounded-full surface-float bg-level-4/80! shadow-none! p-0.5 backdrop-blur-sm">
         <IconButton
           label="Zoom out"
           side="top"
@@ -41,7 +41,7 @@ function ZoomControl() {
             render={
               <Button
                 variant="ghost"
-                className="h-6 min-w-14 rounded-full px-1 text-neutral-200 tabular-nums"
+                className="h-6 min-w-14 rounded-full px-1 text-foreground tabular-nums"
                 onClick={() =>
                   fitted ? zoomTo(1 / (scale * devicePixelRatio)) : resetView()
                 }

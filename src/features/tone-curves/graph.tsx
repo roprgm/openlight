@@ -198,7 +198,7 @@ export function Graph({ points, onChange }: GraphProps) {
       />
       {points.map((point, index) => (
         <circle
-          className="fill-neutral-800 stroke-neutral-200 data-[selected=true]:fill-neutral-100"
+          className="fill-level-4 stroke-foreground data-[selected=true]:fill-foreground"
           cx={point.x * width}
           cy={(1 - point.y) * height}
           data-selected={selected === index}

@@ -4,15 +4,8 @@
 
 @theme {
   --font-sans: "Geist Variable", system-ui, sans-serif;
-}
-
-/* The editor's panels, header, and rail. Controls inside mix their fills from it. */
-@utility layer-panel {
-  --layer: var(--color-neutral-800);
-  --field: color-mix(in srgb, var(--layer), black 35%);
-  --raised: color-mix(in srgb, var(--layer), white 11%);
-  --raised-hover: color-mix(in srgb, var(--layer), white 17%);
-  background-color: var(--layer);
+  /* Around and between the editor's panels, darker than the lines in a list. */
+  --color-edge: oklch(0% 0 0);
 }
 
 /* `optional` never swaps after first paint, so the font can't cause layout shift. */
@@ -38,13 +31,5 @@
     font-size: var(--text-xs);
     line-height: var(--text-xs--line-height);
     color: var(--color-foreground);
-  }
-
-  /* The page is a layer too, so controls on the canvas mix their fills from its color. */
-  :root {
-    --layer: var(--color-neutral-900);
-    --field: color-mix(in srgb, var(--layer), black 35%);
-    --raised: color-mix(in srgb, var(--layer), white 11%);
-    --raised-hover: color-mix(in srgb, var(--layer), white 17%);
   }
 }

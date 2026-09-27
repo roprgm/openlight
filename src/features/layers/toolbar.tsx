@@ -1,6 +1,6 @@
-import { CardSection } from "@roprgm/ui/card";
 import { IconButton } from "@roprgm/ui/icon-button";
 import { Popover, PopoverContent, PopoverTrigger } from "@roprgm/ui/popover";
+import { Section } from "@roprgm/ui/section";
 import { Slider } from "@roprgm/ui/slider";
 import { type ReactNode, useLayoutEffect, useRef, useState } from "react";
 import { useStore } from "zustand";
@@ -97,7 +97,7 @@ export function CanvasToolbar({ children }: { children?: ReactNode }) {
       // No wrapping, so running out of room overflows, which is what the steps above measure. A button or
       // group at either end nests its corners 4px in; a text label first, such as a slider's, needs 8px
       // more, and a slider last 6px more, since a compact slider's value pulls 4px past its cell.
-      className="absolute top-3 left-3 flex min-w-0 max-w-[calc(100%-1.5rem)] items-center gap-x-2.5 overflow-hidden whitespace-nowrap rounded-full bg-neutral-800/80 p-1 backdrop-blur-sm [&>:first-child:not(button,fieldset)]:ml-2 [&>:last-child:not(button,fieldset)]:mr-1.5"
+      className="absolute top-3 left-3 flex min-w-0 max-w-[calc(100%-1.5rem)] items-center gap-x-2.5 overflow-hidden whitespace-nowrap rounded-full surface-float bg-level-4/80! shadow-none! p-1 backdrop-blur-sm [&>:first-child:not(button,fieldset)]:ml-2 [&>:last-child:not(button,fieldset)]:mr-1.5"
     >
       <Density value={step === 0 ? "full" : "compact"}>
         {inlineTool}
@@ -124,10 +124,10 @@ export function CanvasToolbar({ children }: { children?: ReactNode }) {
           />
           <PopoverContent className="w-63">
             <Density value="menu">
-              <CardSection>
+              <Section>
                 {menuTool}
                 {menuLayer && <LayerOptions layer={layer} />}
-              </CardSection>
+              </Section>
             </Density>
           </PopoverContent>
         </Popover>

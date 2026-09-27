@@ -17,7 +17,7 @@ export function ToolTabList({
     <Tabs
       value={selected}
       onValueChange={onSelect}
-      className="flex shrink-0 gap-1 overflow-auto border-black border-b layer-panel p-1.5 md:w-11 md:flex-col md:border-r md:border-b-0"
+      className="flex shrink-0 gap-1 overflow-auto border-edge border-b surface-card shadow-none! p-1.5 md:w-11 md:flex-col md:border-r md:border-b-0"
     >
       <TabList aria-label="Tools" className="md:flex-col">
         {editing.map((entry) => (
@@ -48,7 +48,7 @@ export function ToolTabList({
               target="_blank"
               rel="noreferrer"
               aria-label="OpenLight on GitHub"
-              className="ml-auto grid place-items-center rounded-md p-1.5 text-neutral-500 transition-colors hover:bg-neutral-700/50 hover:text-neutral-100 md:mt-auto md:ml-0"
+              className="ml-auto grid place-items-center rounded-md p-1.5 text-muted transition-colors hover:bg-hover hover:text-foreground md:mt-auto md:ml-0"
             />
           }
         >

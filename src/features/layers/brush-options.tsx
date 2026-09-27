@@ -21,7 +21,7 @@ export function BrushOptions() {
     <>
       <fieldset
         aria-label="Brush mode"
-        className="flex gap-0.5 rounded-full bg-white/5 p-0.5"
+        className="flex gap-0.5 rounded-full bg-hover p-0.5"
       >
         {modes.map(([mode, label, hint, shortcut]) => (
           <Tooltip key={mode}>

@@ -147,7 +147,7 @@ function DocumentEditor({ file }: { file: string }) {
               <HistoryControls />
               <hr
                 aria-orientation="vertical"
-                className="mx-1 h-4 w-px border-0 bg-neutral-600"
+                className="mx-1 h-4 w-px border-0 separator"
               />
               <ComparisonControl />
               <ExportButton />

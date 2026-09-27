@@ -29,7 +29,7 @@ export function WhiteBalanceControls() {
           </span>
           <button
             type="button"
-            className="pointer-events-auto cursor-pointer text-faint hover:text-foreground"
+            className="pointer-events-auto cursor-pointer text-muted hover:text-foreground"
             onClick={() => setWhiteBalance(document)}
           >
             As Shot

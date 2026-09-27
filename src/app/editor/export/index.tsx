@@ -71,7 +71,7 @@ function FormatSelect({
 }) {
   return (
     <div className="space-y-2">
-      <div className="flex items-center justify-between text-neutral-400">
+      <div className="flex items-center justify-between text-muted">
         Format
         <Select
           aria-label="Format"
@@ -87,7 +87,7 @@ function FormatSelect({
           }}
         />
       </div>
-      <p className="text-neutral-500">{value.description}</p>
+      <p className="text-muted">{value.description}</p>
     </div>
   );
 }
@@ -115,7 +115,7 @@ function SizeFields({
     onChange(Math.max(1, Math.round(maxEdge * fraction)));
   return (
     // Units follow their digits, as in a slider; the values' 4px padding reaches past the file size's edge.
-    <div className="grid grid-cols-[auto_1fr] items-center gap-x-3 gap-y-2 text-neutral-400">
+    <div className="grid grid-cols-[auto_1fr] items-center gap-x-3 gap-y-2 text-muted">
       <span>Width</span>
       <ScrubInput
         aria-label="Width"
@@ -181,16 +181,16 @@ function SaveScene() {
   return (
     <section
       aria-label="Scene export"
-      className="flex flex-col gap-3 border-black border-t p-3.5"
+      className="flex flex-col gap-3 p-3.5 shadow-[inset_0_1px_0_var(--color-edge)]"
     >
-      <p className="text-neutral-500">
+      <p className="text-muted">
         Saves the photo and every edit in one file. Open it to continue editing.
       </p>
       <Button size="lg" className="w-full" onClick={save}>
         Save scene
       </Button>
       {error && (
-        <p className="text-red-400" role="alert">
+        <p className="text-danger" role="alert">
           {error}
         </p>
       )}
@@ -201,7 +201,7 @@ function SaveScene() {
 function LoadingOverlay() {
   return (
     <div className="pointer-events-none absolute inset-0 grid place-items-center">
-      <Spinner className="size-8 border-neutral-500 border-t-white" />
+      <Spinner className="size-8" />
     </div>
   );
 }
@@ -268,8 +268,8 @@ export function ExportMode({ onClose }: { onClose: () => void }) {
               <span>File size</span>
               <span
                 className={cn(
-                  "flex items-center justify-end gap-1.5 text-neutral-100 tabular-nums",
-                  pending && "text-neutral-500",
+                  "flex items-center justify-end gap-1.5 text-foreground tabular-nums",
+                  pending && "text-muted",
                 )}
               >
                 {encoded ? formatBytes(encoded.bytes) : "…"}
@@ -280,7 +280,7 @@ export function ExportMode({ onClose }: { onClose: () => void }) {
               Save image
             </Button>
             {error && (
-              <p className="text-red-400" role="alert">
+              <p className="text-danger" role="alert">
                 {error}
               </p>
             )}

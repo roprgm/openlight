@@ -23,7 +23,7 @@ export function LayerName({
         aria-label="Layer name"
         ref={(input) => input?.select()}
         defaultValue={layer.name}
-        className="min-w-0 flex-1 rounded border border-neutral-500 bg-neutral-900 px-1 text-neutral-100 outline-none"
+        className="min-w-0 flex-1 rounded surface-sunken px-1 text-foreground outline-none"
         onKeyDown={(event) => {
           if (event.key === "Enter") {
             event.currentTarget.blur();

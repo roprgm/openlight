@@ -1,5 +1,5 @@
 import { IconButton } from "@roprgm/ui/icon-button";
-import { ListItem } from "@roprgm/ui/list-item";
+import { ListItem, ListItemAction } from "@roprgm/ui/list-item";
 import { Menu, MenuContent, MenuItem, MenuTrigger } from "@roprgm/ui/menu";
 import { CoverageThumbnail } from "@/components/editor/coverage-thumbnail";
 import { useDocument } from "@/components/editor/session";
@@ -16,7 +16,7 @@ function PendingThumbnail() {
     <span
       role="img"
       aria-label="Patch pending"
-      className="grid size-8 shrink-0 place-items-center rounded-sm border border-neutral-600 bg-neutral-950 text-neutral-500"
+      className="grid size-8 shrink-0 place-items-center rounded-sm border border-level-8 bg-level-1 text-muted"
     >
       <HealIcon className="size-4" />
     </span>
@@ -97,7 +97,7 @@ export function HealControls({
   );
   if (!patches.length) {
     return (
-      <p className="p-4 text-center text-neutral-500">
+      <p className="p-4 text-center text-muted">
         Paint over a spot or object to create the first patch.
       </p>
     );
@@ -108,7 +108,7 @@ export function HealControls({
         <li key={patch.id}>
           <ListItem
             selected={selectedPatch === patch.id}
-            className="gap-0 pr-1.5 pl-0 pointer-coarse:h-12"
+            className="gap-0 pl-0 pointer-coarse:h-12"
             onPointerEnter={() => hoverPatch(patch.id)}
             onPointerLeave={() => hoverPatch()}
           >
@@ -127,15 +127,17 @@ export function HealControls({
                 fallback={<PendingThumbnail />}
               />
               <span className="min-w-0 flex-1 truncate">Patch {index + 1}</span>
-              <span className="shrink-0 text-neutral-500 tabular-nums">
+              <span className="shrink-0 text-muted tabular-nums">
                 {patchSummary(patch)}
               </span>
             </button>
-            <PatchActions
-              layer={id}
-              patch={patch}
-              next={patches[index - 1]?.id ?? patches[index + 1]?.id}
-            />
+            <ListItemAction>
+              <PatchActions
+                layer={id}
+                patch={patch}
+                next={patches[index - 1]?.id ?? patches[index + 1]?.id}
+              />
+            </ListItemAction>
           </ListItem>
         </li>
       ))}

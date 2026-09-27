@@ -123,7 +123,7 @@ export function CropOverlay({
         aria-label="Crop selection"
         data-handle="move"
         style={style}
-        className="absolute top-1/2 left-1/2 -translate-1/2 cursor-grab border border-white bg-[linear-gradient(to_right,#fff3_1px,transparent_1px),linear-gradient(to_bottom,#fff3_1px,transparent_1px)] bg-size-[33.333%_33.333%] shadow-[0_0_0_9999px_#0009] active:cursor-grabbing"
+        className="absolute top-1/2 left-1/2 -translate-1/2 cursor-grab border border-foreground bg-[linear-gradient(to_right,#fff3_1px,transparent_1px),linear-gradient(to_bottom,#fff3_1px,transparent_1px)] bg-size-[33.333%_33.333%] shadow-[0_0_0_9999px_#0009] active:cursor-grabbing"
         onKeyDown={(event) => {
           const delta = arrows[event.key];
           if (!delta || !(event.target instanceof HTMLElement)) {
@@ -141,7 +141,7 @@ export function CropOverlay({
         <button
           type="button"
           aria-label="Move crop"
-          className="absolute inset-0 cursor-[inherit] focus-visible:outline-2 focus-visible:outline-white"
+          className="absolute inset-0 cursor-[inherit] focus-visible:outline-2 focus-visible:outline-foreground"
         />
 
         {handles.map(([handle, label, left, top, cursor]) => (
@@ -153,7 +153,7 @@ export function CropOverlay({
             className="group absolute flex size-11 min-h-11 min-w-11 -translate-1/2 items-center justify-center outline-none data-[handle=n]:w-full data-[handle=s]:w-full data-[handle=e]:h-full data-[handle=w]:h-full"
             style={{ left: `${left}%`, top: `${top}%`, cursor }}
           >
-            <span className="pointer-events-none size-2.5 border border-neutral-900 bg-white group-focus-visible:ring-2 group-focus-visible:ring-neutral-400/50" />
+            <span className="pointer-events-none size-2.5 surface-primary group-focus-visible:ring-2 group-focus-visible:ring-focus" />
           </button>
         ))}
       </div>
