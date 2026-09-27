@@ -1,4 +1,4 @@
-import { Tooltip } from "@roprgm/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@roprgm/ui/tooltip";
 import { type ComponentProps, useState } from "react";
 import { useDocument } from "@/components/editor/session";
 import type { Layer } from "@/core/document";
@@ -50,22 +50,28 @@ export function LayerName({
   }
   // Only a name cut short needs its tooltip.
   return (
-    <Tooltip content={layer.name} disabled={!truncated}>
-      <button
-        {...dragHandle}
-        type="button"
-        aria-label={layer.name}
-        onClick={onSelect}
-        onDoubleClick={rename}
-        onPointerEnter={(event) =>
-          setTruncated(
-            event.currentTarget.scrollWidth > event.currentTarget.clientWidth,
-          )
+    <Tooltip disabled={!truncated}>
+      <TooltipTrigger
+        render={
+          <button
+            {...dragHandle}
+            type="button"
+            aria-label={layer.name}
+            onClick={onSelect}
+            onDoubleClick={rename}
+            onPointerEnter={(event) =>
+              setTruncated(
+                event.currentTarget.scrollWidth >
+                  event.currentTarget.clientWidth,
+              )
+            }
+            className="min-w-0 flex-1 self-stretch truncate text-left touch-manipulation cursor-grab active:cursor-grabbing"
+          >
+            {layer.name}
+          </button>
         }
-        className="min-w-0 flex-1 self-stretch truncate text-left touch-manipulation cursor-grab active:cursor-grabbing"
-      >
-        {layer.name}
-      </button>
+      />
+      <TooltipContent>{layer.name}</TooltipContent>
     </Tooltip>
   );
 }

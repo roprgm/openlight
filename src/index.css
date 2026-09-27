@@ -9,6 +9,9 @@
 /* The editor's panels, header, and rail. Controls inside mix their fills from it. */
 @utility layer-panel {
   --layer: var(--color-neutral-800);
+  --field: color-mix(in srgb, var(--layer), black 35%);
+  --raised: color-mix(in srgb, var(--layer), white 11%);
+  --raised-hover: color-mix(in srgb, var(--layer), white 17%);
   background-color: var(--layer);
 }
 
@@ -40,5 +43,8 @@
   /* The page is a layer too, so controls on the canvas mix their fills from its color. */
   :root {
     --layer: var(--color-neutral-900);
+    --field: color-mix(in srgb, var(--layer), black 35%);
+    --raised: color-mix(in srgb, var(--layer), white 11%);
+    --raised-hover: color-mix(in srgb, var(--layer), white 17%);
   }
 }

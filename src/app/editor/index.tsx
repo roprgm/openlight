@@ -1,5 +1,5 @@
 import { Button } from "@roprgm/ui/button";
-import { Tooltip } from "@roprgm/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@roprgm/ui/tooltip";
 import type { ReactNode } from "react";
 import type { Workspace } from "@/app/workspace";
 import { BrushProvider } from "@/components/editor/brush-tool";
@@ -74,14 +74,21 @@ function ExportButton() {
   const { tool, setTool } = useTool();
   const exporting = tool === exportTool;
   return (
-    <Tooltip content="Export the photo or save a scene" shortcut="E">
-      <Button
-        aria-pressed={exporting}
-        className="ml-1 px-4 aria-pressed:bg-raised-hover"
-        onClick={() => setTool(exporting ? tools[0] : exportTool)}
-      >
-        Export
-      </Button>
+    <Tooltip>
+      <TooltipTrigger
+        render={
+          <Button
+            aria-pressed={exporting}
+            className="ml-1 px-4 aria-pressed:bg-raised-hover"
+            onClick={() => setTool(exporting ? tools[0] : exportTool)}
+          >
+            Export
+          </Button>
+        }
+      />
+      <TooltipContent shortcut="E">
+        Export the photo or save a scene
+      </TooltipContent>
     </Tooltip>
   );
 }

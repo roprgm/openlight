@@ -1,7 +1,7 @@
 import { Button } from "@roprgm/ui/button";
 import { Select } from "@roprgm/ui/select";
 import { Slider } from "@roprgm/ui/slider";
-import { Tooltip } from "@roprgm/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@roprgm/ui/tooltip";
 import { useState } from "react";
 import { Image } from "@/components/editor/image";
 import { EditorPanel, PanelBody, PanelHeader } from "@/components/editor/panel";
@@ -116,7 +116,7 @@ export function CropEditor({ onClose }: { onClose: () => void }) {
         }}
       >
         <PanelBody header={<PanelHeader title="Crop" onClose={onClose} />}>
-          <section aria-label="Crop tool" className="space-y-5 p-(--padding)">
+          <section aria-label="Crop tool" className="space-y-5 p-3.5">
             <div className="flex items-center justify-between text-neutral-400">
               Aspect ratio
               <Select
@@ -143,16 +143,21 @@ export function CropEditor({ onClose }: { onClose: () => void }) {
               {actions.map((action) => {
                 const Icon = "turn" in action ? RotateIcon : FlipIcon;
                 return (
-                  <Tooltip key={action.label} content={action.label}>
-                    <Button
-                      variant="ghost"
-                      aria-label={action.label}
-                      className="flex h-9 items-center justify-center gap-1 rounded-md px-1"
-                      onClick={() => applyAction(action)}
-                    >
-                      <Icon style={{ transform: action.transform }} />
-                      {"turn" in action && <span>90°</span>}
-                    </Button>
+                  <Tooltip key={action.label}>
+                    <TooltipTrigger
+                      render={
+                        <Button
+                          variant="ghost"
+                          aria-label={action.label}
+                          className="flex h-9 items-center justify-center gap-1 rounded-md px-1"
+                          onClick={() => applyAction(action)}
+                        >
+                          <Icon style={{ transform: action.transform }} />
+                          {"turn" in action && <span>90°</span>}
+                        </Button>
+                      }
+                    />
+                    <TooltipContent>{action.label}</TooltipContent>
                   </Tooltip>
                 );
               })}
@@ -175,7 +180,7 @@ export function CropEditor({ onClose }: { onClose: () => void }) {
             </p>
           </section>
         </PanelBody>
-        <div className="p-(--padding-optical)">
+        <div className="p-3">
           <Button size="lg" className="w-full" onClick={apply}>
             Apply crop
           </Button>

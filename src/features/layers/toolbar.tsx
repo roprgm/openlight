@@ -1,5 +1,6 @@
+import { CardSection } from "@roprgm/ui/card";
 import { IconButton } from "@roprgm/ui/icon-button";
-import { Popover } from "@roprgm/ui/popover";
+import { Popover, PopoverContent, PopoverTrigger } from "@roprgm/ui/popover";
 import { Slider } from "@roprgm/ui/slider";
 import { type ReactNode, useLayoutEffect, useRef, useState } from "react";
 import { useStore } from "zustand";
@@ -103,29 +104,32 @@ export function CanvasToolbar({ children }: { children?: ReactNode }) {
         {inlineLayer && <LayerOptions layer={layer} />}
       </Density>
       {(menuTool || menuLayer) && (
-        <Popover
-          trigger={
-            <IconButton
-              label="More options"
-              size="icon"
-              className="rounded-full"
-            >
-              <Icon className="size-4">
-                <path
-                  d="M12 5h.01M12 12h.01M12 19h.01"
-                  strokeWidth="3"
-                  strokeLinecap="round"
-                />
-              </Icon>
-            </IconButton>
-          }
-        >
-          <Density value="menu">
-            <div className="flex w-56 flex-col gap-3">
-              {menuTool}
-              {menuLayer && <LayerOptions layer={layer} />}
-            </div>
-          </Density>
+        <Popover>
+          <PopoverTrigger
+            render={
+              <IconButton
+                label="More options"
+                size="icon"
+                className="rounded-full"
+              >
+                <Icon className="size-4">
+                  <path
+                    d="M12 5h.01M12 12h.01M12 19h.01"
+                    strokeWidth="3"
+                    strokeLinecap="round"
+                  />
+                </Icon>
+              </IconButton>
+            }
+          />
+          <PopoverContent className="w-63">
+            <Density value="menu">
+              <CardSection>
+                {menuTool}
+                {menuLayer && <LayerOptions layer={layer} />}
+              </CardSection>
+            </Density>
+          </PopoverContent>
         </Popover>
       )}
     </fieldset>

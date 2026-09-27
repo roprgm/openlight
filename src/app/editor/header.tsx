@@ -1,4 +1,4 @@
-import { Tooltip } from "@roprgm/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@roprgm/ui/tooltip";
 import type { ReactNode } from "react";
 
 /** Identity on the left, document actions on the right; present in every editor state. */
@@ -16,8 +16,13 @@ export function EditorHeader({
         <span className="font-medium text-neutral-200">OpenLight</span>
       </span>
       {file && (
-        <Tooltip content={file}>
-          <span className="min-w-0 truncate text-neutral-500">{file}</span>
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <span className="min-w-0 truncate text-neutral-500">{file}</span>
+            }
+          />
+          <TooltipContent>{file}</TooltipContent>
         </Tooltip>
       )}
       <div className="ml-auto flex items-center gap-1">{children}</div>

@@ -1,5 +1,14 @@
 import { IconButton } from "@roprgm/ui/icon-button";
-import { Menu, MenuItem, MenuSeparator, Submenu } from "@roprgm/ui/menu";
+import {
+  Menu,
+  MenuContent,
+  MenuItem,
+  MenuSeparator,
+  MenuTrigger,
+  Submenu,
+  SubmenuContent,
+  SubmenuTrigger,
+} from "@roprgm/ui/menu";
 import { useDocument, useScene } from "@/components/editor/session";
 import { Icon } from "@/components/icons/icon";
 import {
@@ -60,17 +69,25 @@ function LayerActionItems({
       </MenuItem>
       {parent && <MenuItem onClick={moveOut}>Move out</MenuItem>}
       {containers.length > 0 && (
-        <Submenu label="Move into">
-          {containers.map((target) => (
-            <MenuItem
-              key={target.id}
-              onClick={() =>
-                moveLayer(document, layer.id, target.children.length, target.id)
-              }
-            >
-              {target.name}
-            </MenuItem>
-          ))}
+        <Submenu>
+          <SubmenuTrigger>Move into</SubmenuTrigger>
+          <SubmenuContent>
+            {containers.map((target) => (
+              <MenuItem
+                key={target.id}
+                onClick={() =>
+                  moveLayer(
+                    document,
+                    layer.id,
+                    target.children.length,
+                    target.id,
+                  )
+                }
+              >
+                {target.name}
+              </MenuItem>
+            ))}
+          </SubmenuContent>
         </Submenu>
       )}
       <MenuSeparator />
@@ -99,18 +116,21 @@ function NestingItems({ layer }: { layer: MaskLayer }) {
   const document = useDocument();
   const tool = useMaskTool();
   return nestings.map(([operation, label]) => (
-    <Submenu key={operation} label={label}>
-      {shapes.map(([shape, name]) => (
-        <MenuItem
-          key={shape}
-          onClick={() => {
-            document.selectLayer(layer.id);
-            tool.add(layer.id, operation, shape);
-          }}
-        >
-          {name}
-        </MenuItem>
-      ))}
+    <Submenu key={operation}>
+      <SubmenuTrigger>{label}</SubmenuTrigger>
+      <SubmenuContent>
+        {shapes.map(([shape, name]) => (
+          <MenuItem
+            key={shape}
+            onClick={() => {
+              document.selectLayer(layer.id);
+              tool.add(layer.id, operation, shape);
+            }}
+          >
+            {name}
+          </MenuItem>
+        ))}
+      </SubmenuContent>
     </Submenu>
   ));
 }
@@ -120,24 +140,27 @@ export function LayerActions(props: {
   onSelect: (id: string) => void;
 }) {
   return (
-    <Menu
-      trigger={
-        <IconButton
-          label={`${props.layer.name} actions`}
-          size="icon"
-          className="pointer-coarse:size-10"
-        >
-          <Icon className="size-4">
-            <path
-              d="M5 12h.01M12 12h.01M19 12h.01"
-              strokeWidth="3"
-              strokeLinecap="round"
-            />
-          </Icon>
-        </IconButton>
-      }
-    >
-      <LayerActionItems {...props} />
+    <Menu>
+      <MenuTrigger
+        render={
+          <IconButton
+            label={`${props.layer.name} actions`}
+            size="icon"
+            className="pointer-coarse:size-10"
+          >
+            <Icon className="size-4">
+              <path
+                d="M5 12h.01M12 12h.01M19 12h.01"
+                strokeWidth="3"
+                strokeLinecap="round"
+              />
+            </Icon>
+          </IconButton>
+        }
+      />
+      <MenuContent>
+        <LayerActionItems {...props} />
+      </MenuContent>
     </Menu>
   );
 }

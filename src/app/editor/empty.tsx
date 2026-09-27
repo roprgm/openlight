@@ -1,4 +1,5 @@
 import { Button } from "@roprgm/ui/button";
+import { CardSection } from "@roprgm/ui/card";
 import { Notice } from "@roprgm/ui/notice";
 import { Spinner } from "@roprgm/ui/spinner";
 import { useRef } from "react";
@@ -63,18 +64,16 @@ export type Recovery = {
 /** Offered away from the welcome copy, since returning users see it on every visit. */
 function RecoverDraft({ onRecover, onForget }: Recovery) {
   return (
-    <Notice
-      className="absolute bottom-3 left-3 z-50"
-      actions={
-        <>
-          <Button onClick={onRecover}>Recover</Button>
-          <Button variant="ghost" onClick={onForget}>
-            Forget
-          </Button>
-        </>
-      }
-    >
-      Your last scene is still here from a previous visit.
+    <Notice className="absolute bottom-3 left-3 z-50">
+      <CardSection>
+        Your last scene is still here from a previous visit.
+      </CardSection>
+      <CardSection className="flex-row gap-1 px-2.5">
+        <Button onClick={onRecover}>Recover</Button>
+        <Button variant="ghost" onClick={onForget}>
+          Forget
+        </Button>
+      </CardSection>
     </Notice>
   );
 }

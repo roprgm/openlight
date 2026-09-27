@@ -1,4 +1,4 @@
-import { Tooltip } from "@roprgm/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@roprgm/ui/tooltip";
 import { useEffect, useId, useRef, useState } from "react";
 import { useGpu } from "vgpu-react";
 import { CoverageThumbnail } from "@/components/editor/coverage-thumbnail";
@@ -45,14 +45,19 @@ export function ImageThumbnail() {
     };
   }, [gpu, source]);
   return (
-    <Tooltip content={error ?? "Original image"}>
-      <canvas
-        ref={canvas}
-        width={64}
-        height={64}
-        aria-label="Original image thumbnail"
-        className={frame}
+    <Tooltip>
+      <TooltipTrigger
+        render={
+          <canvas
+            ref={canvas}
+            width={64}
+            height={64}
+            aria-label="Original image thumbnail"
+            className={frame}
+          />
+        }
       />
+      <TooltipContent>{error ?? "Original image"}</TooltipContent>
     </Tooltip>
   );
 }

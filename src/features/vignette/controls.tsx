@@ -13,7 +13,7 @@ export function VignetteControls({
 }) {
   const document = useDocument();
   return (
-    <section className="flex flex-col gap-1.5 p-(--padding)">
+    <section className="flex flex-col gap-1.5 p-3.5">
       <Slider
         label="Intensity"
         value={vignette.intensity}

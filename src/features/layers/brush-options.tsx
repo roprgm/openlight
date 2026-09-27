@@ -1,6 +1,6 @@
 import { Chip } from "@roprgm/ui/chip";
 import { Slider } from "@roprgm/ui/slider";
-import { Tooltip } from "@roprgm/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@roprgm/ui/tooltip";
 import { cn } from "cn";
 import { useBrushTool } from "@/components/editor/brush-tool";
 import { barSlider, useBarDensity } from "@/components/editor/toolbar-density";
@@ -24,14 +24,19 @@ export function BrushOptions() {
         className="flex gap-0.5 rounded-full bg-white/5 p-0.5"
       >
         {modes.map(([mode, label, hint, shortcut]) => (
-          <Tooltip key={mode} content={hint} shortcut={shortcut}>
-            <Chip
-              aria-pressed={erase === (mode === "erase")}
-              className={cn("h-6", menu && "flex-1 justify-center")}
-              onClick={() => update({ erase: mode === "erase" })}
-            >
-              {label}
-            </Chip>
+          <Tooltip key={mode}>
+            <TooltipTrigger
+              render={
+                <Chip
+                  aria-pressed={erase === (mode === "erase")}
+                  className={cn("h-6", menu && "flex-1 justify-center")}
+                  onClick={() => update({ erase: mode === "erase" })}
+                >
+                  {label}
+                </Chip>
+              }
+            />
+            <TooltipContent shortcut={shortcut}>{hint}</TooltipContent>
           </Tooltip>
         ))}
       </fieldset>

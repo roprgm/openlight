@@ -73,7 +73,7 @@ export function AdjustmentControls({
   temperature?: ReactNode;
 }) {
   return (
-    <section className="flex flex-col gap-1.5 p-(--padding)">
+    <section className="flex flex-col gap-1.5 p-3.5">
       <AdjustmentSliders id={id} adjustments={adjustments} controls={tone} />
       {temperature}
       <AdjustmentSliders

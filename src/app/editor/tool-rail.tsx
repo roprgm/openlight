@@ -1,5 +1,5 @@
-import { Tab, TabList } from "@roprgm/ui/tabs";
-import { Tooltip } from "@roprgm/ui/tooltip";
+import { Tab, TabList, Tabs } from "@roprgm/ui/tabs";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@roprgm/ui/tooltip";
 import { GithubIcon } from "@/components/icons/github";
 import { useShortcuts } from "@/hooks/use-shortcuts";
 import { type Tool, tools, useTool } from "./tools";
@@ -14,39 +14,49 @@ export function ToolTabList({
 }) {
   const editing = tools.filter((entry) => entry.group === "edit");
   return (
-    <div className="flex shrink-0 gap-1 overflow-auto border-black border-b layer-panel p-1.5 md:w-11 md:flex-col md:border-r md:border-b-0">
+    <Tabs
+      value={selected}
+      onValueChange={onSelect}
+      className="flex shrink-0 gap-1 overflow-auto border-black border-b layer-panel p-1.5 md:w-11 md:flex-col md:border-r md:border-b-0"
+    >
       <TabList aria-label="Tools" className="md:flex-col">
         {editing.map((entry) => (
-          <Tooltip
-            key={entry.id}
-            content={entry.label}
-            shortcut={entry.key.toUpperCase()}
-            side="right"
-          >
-            <Tab
-              selected={entry === selected}
-              disabled={!onSelect}
-              size="icon-lg"
-              aria-label={entry.label}
-              onClick={() => onSelect?.(entry)}
+          <Tooltip key={entry.id}>
+            <TooltipTrigger
+              render={
+                <Tab
+                  value={entry}
+                  disabled={!onSelect}
+                  size="icon-lg"
+                  aria-label={entry.label}
+                />
+              }
             >
               <entry.Icon className="size-5" />
-            </Tab>
+            </TooltipTrigger>
+            <TooltipContent side="right" shortcut={entry.key.toUpperCase()}>
+              {entry.label}
+            </TooltipContent>
           </Tooltip>
         ))}
       </TabList>
-      <Tooltip content="OpenLight on GitHub" side="right">
-        <a
-          href="https://github.com/roprgm/openlight"
-          target="_blank"
-          rel="noreferrer"
-          aria-label="OpenLight on GitHub"
-          className="ml-auto grid place-items-center rounded-md p-1.5 text-neutral-500 transition-colors hover:bg-neutral-700/50 hover:text-neutral-100 md:mt-auto md:ml-0"
+      <Tooltip>
+        <TooltipTrigger
+          render={
+            <a
+              href="https://github.com/roprgm/openlight"
+              target="_blank"
+              rel="noreferrer"
+              aria-label="OpenLight on GitHub"
+              className="ml-auto grid place-items-center rounded-md p-1.5 text-neutral-500 transition-colors hover:bg-neutral-700/50 hover:text-neutral-100 md:mt-auto md:ml-0"
+            />
+          }
         >
           <GithubIcon className="size-5" />
-        </a>
+        </TooltipTrigger>
+        <TooltipContent side="right">OpenLight on GitHub</TooltipContent>
       </Tooltip>
-    </div>
+    </Tabs>
   );
 }
 

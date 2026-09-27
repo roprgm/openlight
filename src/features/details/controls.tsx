@@ -18,7 +18,7 @@ export function DetailsControls({
     ["sharpenRadius", "Radius", 0.1],
   ] as const;
   return (
-    <section className="flex flex-col gap-1.5 p-(--padding)">
+    <section className="flex flex-col gap-1.5 p-3.5">
       {controls.map(([name, label, step]) => (
         <Slider
           key={name}

@@ -1,6 +1,6 @@
 import { IconButton } from "@roprgm/ui/icon-button";
 import { ListItem } from "@roprgm/ui/list-item";
-import { Menu, MenuItem } from "@roprgm/ui/menu";
+import { Menu, MenuContent, MenuItem, MenuTrigger } from "@roprgm/ui/menu";
 import { CoverageThumbnail } from "@/components/editor/coverage-thumbnail";
 import { useDocument } from "@/components/editor/session";
 import { HealIcon } from "@/components/icons/heal";
@@ -35,38 +35,41 @@ function PatchActions({
   const document = useDocument();
   const { selectPatch } = useHealing();
   return (
-    <Menu
-      trigger={
-        <IconButton
-          label="Patch actions"
-          size="icon"
-          className="pointer-coarse:size-10"
-        >
-          <Icon className="size-4">
-            <path
-              d="M5 12h.01M12 12h.01M19 12h.01"
-              strokeWidth="3"
-              strokeLinecap="round"
-            />
-          </Icon>
-        </IconButton>
-      }
-    >
-      <MenuItem
-        onClick={() =>
-          selectPatch(duplicateHealPatch(document, layer, patch.id))
+    <Menu>
+      <MenuTrigger
+        render={
+          <IconButton
+            label="Patch actions"
+            size="icon"
+            className="pointer-coarse:size-10"
+          >
+            <Icon className="size-4">
+              <path
+                d="M5 12h.01M12 12h.01M19 12h.01"
+                strokeWidth="3"
+                strokeLinecap="round"
+              />
+            </Icon>
+          </IconButton>
         }
-      >
-        Duplicate
-      </MenuItem>
-      <MenuItem
-        onClick={() => {
-          deleteHealPatch(document, layer, patch.id);
-          selectPatch(next);
-        }}
-      >
-        Delete
-      </MenuItem>
+      />
+      <MenuContent>
+        <MenuItem
+          onClick={() =>
+            selectPatch(duplicateHealPatch(document, layer, patch.id))
+          }
+        >
+          Duplicate
+        </MenuItem>
+        <MenuItem
+          onClick={() => {
+            deleteHealPatch(document, layer, patch.id);
+            selectPatch(next);
+          }}
+        >
+          Delete
+        </MenuItem>
+      </MenuContent>
     </Menu>
   );
 }
@@ -105,7 +108,7 @@ export function HealControls({
         <li key={patch.id}>
           <ListItem
             selected={selectedPatch === patch.id}
-            className="gap-0 pr-1 pl-0 pointer-coarse:h-12"
+            className="gap-0 pr-1.5 pl-0 pointer-coarse:h-12"
             onPointerEnter={() => hoverPatch(patch.id)}
             onPointerLeave={() => hoverPatch()}
           >
