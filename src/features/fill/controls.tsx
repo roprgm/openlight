@@ -39,6 +39,7 @@ export function FillControls({ id, fill }: { id: string; fill: Fill }) {
       <div className="flex items-center justify-between text-muted">
         Blend
         <Select
+          raised
           aria-label="Blend"
           value={fill.blend}
           items={blends.map(([value, label]) => ({ value, label }))}

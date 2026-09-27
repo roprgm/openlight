@@ -299,7 +299,7 @@ export function LayersControls({
               </IconButton>
             }
           />
-          <MenuContent>
+          <MenuContent raised>
             {effects
               .filter(({ addable }) => addable)
               .map(({ kind, label }) => (

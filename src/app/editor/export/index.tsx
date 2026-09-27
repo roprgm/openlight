@@ -74,6 +74,7 @@ function FormatSelect({
       <div className="flex items-center justify-between text-muted">
         Format
         <Select
+          raised
           aria-label="Format"
           value={value.id}
           items={formats.map((format) => ({

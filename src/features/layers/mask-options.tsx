@@ -47,6 +47,7 @@ export function MaskOptions({ layer }: { layer: MaskLayer }) {
       )}
       {child && (
         <Select
+          raised
           variant="pill"
           aria-label="Mask operation"
           tooltip="Combine with the parent mask"

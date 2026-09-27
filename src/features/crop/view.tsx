@@ -120,6 +120,7 @@ export function CropEditor({ onClose }: { onClose: () => void }) {
             <div className="flex items-center justify-between text-muted">
               Aspect ratio
               <Select
+                raised
                 aria-label="Aspect ratio"
                 value={ratio === null ? "free" : `${ratio}`}
                 items={ratioOptions}

@@ -53,7 +53,7 @@ function PatchActions({
           </IconButton>
         }
       />
-      <MenuContent>
+      <MenuContent raised>
         <MenuItem
           onClick={() =>
             selectPatch(duplicateHealPatch(document, layer, patch.id))

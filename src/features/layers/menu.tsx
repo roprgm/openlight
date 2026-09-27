@@ -158,7 +158,7 @@ export function LayerActions(props: {
           </IconButton>
         }
       />
-      <MenuContent>
+      <MenuContent raised>
         <LayerActionItems {...props} />
       </MenuContent>
     </Menu>

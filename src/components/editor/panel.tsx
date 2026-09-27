@@ -2,7 +2,12 @@ import { IconButton } from "@roprgm/ui/icon-button";
 import { ScrollArea } from "@roprgm/ui/scroll-area";
 import { Section, SectionAction } from "@roprgm/ui/section";
 import { cn } from "cn";
-import type { ComponentProps, PointerEvent, ReactNode } from "react";
+import type {
+  ComponentProps,
+  CSSProperties,
+  PointerEvent,
+  ReactNode,
+} from "react";
 import { CloseIcon } from "@/components/icons/close";
 import { useEditorSession } from "./session";
 
@@ -31,10 +36,10 @@ export function EditorPanel({
       data-inert={inert}
       // An edge parts it from the canvas: along the top as a bottom sheet, on the left beside it.
       className={cn(
-        "relative flex h-[45%] min-h-0 shrink-0 flex-col border-edge surface-card shadow-none! max-md:w-full! max-md:border-t md:h-auto md:border-l data-[inert=true]:*:opacity-50",
+        "relative flex h-[45%] min-h-0 w-full shrink-0 flex-col md:w-(--width) border-edge surface-panel max-md:border-t md:h-auto md:border-l data-[inert=true]:*:opacity-50",
         className,
       )}
-      style={{ width }}
+      style={{ "--width": `${width}px` } as CSSProperties}
       {...props}
     >
       <div

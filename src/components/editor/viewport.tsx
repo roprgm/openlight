@@ -25,7 +25,7 @@ function ZoomControl() {
   const fitted = view.zoom === 1;
   return (
     <div className="absolute right-3 bottom-3">
-      <div className="flex items-center rounded-full surface-float bg-level-4/80! shadow-none! p-0.5 backdrop-blur-sm">
+      <div className="flex items-center rounded-full surface-panel bg-level-4/80 p-0.5 backdrop-blur-sm">
         <IconButton
           label="Zoom out"
           side="top"
