@@ -69,8 +69,10 @@ function RecoverDraft({ onRecover, onForget }: Recovery) {
         Your last scene is still here from a previous visit.
       </CardSection>
       <CardSection className="flex-row gap-1 px-2.5">
-        <Button onClick={onRecover}>Recover</Button>
-        <Button variant="ghost" onClick={onForget}>
+        <Button size="sm" onClick={onRecover}>
+          Recover
+        </Button>
+        <Button size="sm" variant="ghost" onClick={onForget}>
           Forget
         </Button>
       </CardSection>
