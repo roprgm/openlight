@@ -46,7 +46,7 @@ export function DockTabList({
     <Tabs value={selected} onValueChange={onSelect} className="surface-panel">
       <TabList
         aria-label="Tools"
-        className="gap-0.5 overflow-x-auto px-2 pt-1.5 pb-2 shadow-[inset_0_1px_0_var(--color-edge)] [scrollbar-width:none]"
+        className="gap-0.5 overflow-x-auto px-2 py-1.5 shadow-[inset_0_1px_0_var(--color-edge)] [scrollbar-width:none]"
       >
         <Tab value="layers" disabled={!onSelect} className={tab}>
           <LayersIcon className="size-5" />

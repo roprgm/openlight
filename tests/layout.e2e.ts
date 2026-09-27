@@ -61,6 +61,17 @@ test("edit on a phone and carry the canvas across the breakpoint", async ({
     ).toBeVisible();
   });
 
+  await test.step("a crop is chosen and applied from the dock", async () => {
+    await page.getByRole("tab", { name: "Crop" }).click();
+    await page.getByRole("button", { name: "Square", exact: true }).click();
+    await page.getByRole("button", { name: "Apply", exact: true }).click();
+    const [width, height] = (await state()).frame?.size ?? [];
+    expect(width).toBe(height);
+    await expect(
+      page.getByRole("slider", { name: "Clarity", exact: true }),
+    ).toBeVisible();
+  });
+
   await test.step("tool options move from the canvas bar to the dock", async () => {
     await page.getByRole("tab", { name: "Brush" }).click();
     await expect(

@@ -297,11 +297,7 @@ export function LayersControls({
         <Menu>
           <MenuTrigger
             render={
-              <IconButton
-                label="Add effect"
-                size="icon"
-                className="pointer-coarse:size-10"
-              >
+              <IconButton label="Add effect" size="icon">
                 <Icon className="size-4">
                   <path d="M12 4v16M4 12h16" />
                 </Icon>

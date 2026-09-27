@@ -19,7 +19,7 @@ export function EditorDock({
       inert={inert}
       aria-hidden={inert}
       data-inert={inert}
-      className="flex h-54 shrink-0 flex-col border-edge border-t surface-panel *:not-last:shadow-[inset_0_-1px_0_var(--color-edge)] data-[inert=true]:*:opacity-50"
+      className="flex h-48 shrink-0 flex-col border-edge border-t surface-panel *:not-last:shadow-[inset_0_-1px_0_var(--color-edge)] data-[inert=true]:*:opacity-50"
     >
       {children}
     </div>
@@ -41,10 +41,15 @@ export function DockChips<T extends string>({
   return (
     <fieldset
       aria-label={label}
-      className="flex max-w-full gap-0.5 overflow-x-auto rounded-full bg-field p-0.5 [scrollbar-width:none]"
+      className="flex max-w-full gap-0.5 overflow-fade-x rounded-full bg-field p-0.5"
     >
       {items.map(([id, name]) => (
-        <Chip key={id} aria-pressed={id === value} onClick={() => onChange(id)}>
+        // Two names may share a value, as Original and 3:2 do on a 3:2 photo.
+        <Chip
+          key={name}
+          aria-pressed={id === value}
+          onClick={() => onChange(id)}
+        >
           {name}
         </Chip>
       ))}
@@ -52,18 +57,12 @@ export function DockChips<T extends string>({
   );
 }
 
-function Readout({ parameter, fine }: { parameter: Parameter; fine: boolean }) {
+function Readout({ parameter }: { parameter: Parameter }) {
   return (
-    <p
-      aria-live="polite"
-      className="flex items-baseline gap-2 whitespace-nowrap"
-    >
+    <p className="flex items-baseline gap-2 whitespace-nowrap">
       <span className="text-muted">{parameter.label}</span>
       <span className="font-medium text-foreground tabular-nums">
         {formatValue(parameter.value, parameter.step, parameter.format)}
-      </span>
-      <span className="text-faint">
-        {fine ? "Fine" : "Slide up for fine control"}
       </span>
     </p>
   );
@@ -84,24 +83,27 @@ export function DockControls({
   parameters?: readonly Parameter[];
   children?: ReactNode;
 }) {
-  const [scrub, setScrub] = useState<{ id: string; fine: boolean } | null>(
-    null,
-  );
-  const scrubbed = parameters?.find((parameter) => parameter.id === scrub?.id);
+  const [scrub, setScrub] = useState<string | null>(null);
+  const scrubbed = parameters?.find((parameter) => parameter.id === scrub);
   return (
     <section className="flex min-h-0 flex-1 flex-col pb-3">
-      <div className="grid h-13 shrink-0 grid-cols-[1fr_minmax(0,auto)_1fr] items-center gap-2 px-3">
-        <div className="col-start-2 flex min-w-0 justify-center">
-          {scrub && scrubbed ? (
-            <Readout parameter={scrubbed} fine={scrub.fine} />
-          ) : (
-            header
-          )}
+      <div className="relative flex h-12 shrink-0 items-center justify-center px-3">
+        <div className="flex min-w-0 max-w-full justify-center">
+          {scrubbed ? <Readout parameter={scrubbed} /> : header}
         </div>
-        <div className="flex justify-end">{action}</div>
+        {action && (
+          <div className="absolute inset-y-0 right-3 flex items-center">
+            {action}
+          </div>
+        )}
       </div>
       {parameters ? (
-        <DialRow dials={parameters} onScrub={setScrub} />
+        // A new set of dials starts again from its first page.
+        <DialRow
+          key={parameters.map((parameter) => parameter.id).join()}
+          dials={parameters}
+          onScrub={setScrub}
+        />
       ) : (
         children
       )}

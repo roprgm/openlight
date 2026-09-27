@@ -14,8 +14,8 @@ export type DialProps = {
   onChange: (value: number) => void;
   /** True while a pointer or key is down on it, so a caller can group its changes into one edit. */
   onEditingChange?: (editing: boolean) => void;
-  /** Reports a drag as it goes, and whether it moves at fine speed; null when it ends. */
-  onScrub?: (scrub: { fine: boolean } | null) => void;
+  /** True while a drag moves it, so a caller can show its value away from the finger. */
+  onScrub?: (scrubbing: boolean) => void;
   min: number;
   max: number;
   step?: number;
@@ -30,10 +30,8 @@ export type DialProps = {
 
 const radius = 21;
 const circumference = 2 * Math.PI * radius;
-/** A drag across this many pixels sweeps the whole range; fine speed is a quarter of it. */
+/** A drag across this many pixels sweeps the whole range. */
 const sweep = 600;
-/** How far above where it started a finger moves for fine speed. */
-const fineRise = 44;
 const doubleTap = 300;
 
 const keySteps: Record<string, number> = {
@@ -94,8 +92,8 @@ function Arc({
 }
 
 /**
- * A number set by dragging sideways anywhere on it, for touch. Sliding the finger up while dragging
- * moves it at fine speed; a double tap restores the default, and the arrow keys step it.
+ * A number set by dragging anywhere on it, for touch: right or up adds, left or down takes away.
+ * A double tap restores the default, and the arrow keys step it.
  */
 export function Dial({
   label,
@@ -115,7 +113,6 @@ export function Dial({
     x: number;
     y: number;
     value: number;
-    fine: boolean;
     moved: boolean;
   } | null>(null);
   const lastTap = useRef(Number.NEGATIVE_INFINITY);
@@ -147,35 +144,27 @@ export function Dial({
       x: event.clientX,
       y: event.clientY,
       value,
-      fine: false,
       moved: false,
     };
     setScrubbing(true);
-    onScrub?.({ fine: false });
+    onScrub?.(true);
   }
   function pointerMove(event: PointerEvent<HTMLDivElement>) {
     const current = drag.current;
     if (!current) {
       return;
     }
-    const dx = event.clientX - current.x;
-    const fine = current.y - event.clientY > fineRise;
+    const distance = event.clientX - current.x + current.y - event.clientY;
     current.x = event.clientX;
-    current.moved ||= dx !== 0;
+    current.y = event.clientY;
+    current.moved ||= distance !== 0;
     current.value = Math.min(
       max,
-      Math.max(
-        min,
-        current.value + (dx * (max - min) * (fine ? 0.25 : 1)) / sweep,
-      ),
+      Math.max(min, current.value + (distance * (max - min)) / sweep),
     );
     const next = snap(current.value);
     if (next !== value) {
       onChange(next);
-    }
-    if (fine !== current.fine) {
-      current.fine = fine;
-      onScrub?.({ fine });
     }
   }
   function pointerUp() {
@@ -185,7 +174,7 @@ export function Dial({
     }
     drag.current = null;
     setScrubbing(false);
-    onScrub?.(null);
+    onScrub?.(false);
     onEditingChange?.(false);
   }
   function keyDown(event: KeyboardEvent) {
@@ -217,7 +206,7 @@ export function Dial({
       onKeyDown={keyDown}
       onKeyUp={() => onEditingChange?.(false)}
       onBlur={() => onEditingChange?.(false)}
-      className="group flex cursor-ew-resize touch-none flex-col items-center gap-1.5 rounded-md select-none focus-ring"
+      className="group flex cursor-move touch-none flex-col items-center gap-1.5 rounded-md select-none focus-ring"
     >
       <span
         className={cn(
@@ -248,8 +237,12 @@ export function Dial({
   );
 }
 
-/** Room each dial keeps beyond its circle or label, and the fraction of a dial that peeks in when paged. */
+/**
+ * Room each dial keeps beyond its circle or label, the most of a row's spare width each takes on, and
+ * the fraction of a dial that peeks in when paged.
+ */
 const gaps = { dial: 12, swatch: 8 };
+const maxShare = 28;
 const peek = 0.4;
 const padding = 8;
 
@@ -261,15 +254,17 @@ export type DialItem = DialProps & { id: string };
 
 /**
  * Dials in one row that never scrolls under a finger, so a drag on a dial always moves its value.
- * Each takes its natural width plus a gap and they share what is left; when they don't fit they page,
- * with the next one peeking in under an arrow. Swatch dials sit closer.
+ * Each takes its natural width plus a gap and a share of what is left, up to a limit, and the row
+ * centers what it doesn't fill. When they don't fit they page, with the next one peeking in under
+ * an arrow. Swatch dials sit closer.
  */
 export function DialRow({
   dials,
   onScrub,
 }: {
   dials: readonly DialItem[];
-  onScrub?: (scrub: { id: string; fine: boolean } | null) => void;
+  /** The dial a drag is moving, or null. */
+  onScrub?: (id: string | null) => void;
 }) {
   const row = useRef<HTMLDivElement>(null);
   const cells = useRef(new Map<string, HTMLDivElement>());
@@ -291,7 +286,7 @@ export function DialRow({
       const inner = width - padding * 2;
       const total = natural.reduce((sum, next) => sum + next, 0);
       if (total <= inner) {
-        const share = (inner - total) / order.length;
+        const share = Math.min(maxShare, (inner - total) / order.length);
         setLayout({
           width,
           paged: false,
@@ -356,7 +351,7 @@ export function DialRow({
         <div
           className={cn(
             "flex h-full transition-transform duration-300",
-            !layout?.paged && "px-2",
+            !layout?.paged && "justify-center px-2",
           )}
           style={{ transform: `translateX(${-shift}px)` }}
         >
@@ -375,7 +370,7 @@ export function DialRow({
             >
               <Dial
                 {...dial}
-                onScrub={(scrub) => onScrub?.(scrub && { id, ...scrub })}
+                onScrub={(scrubbing) => onScrub?.(scrubbing ? id : null)}
               />
             </div>
           ))}

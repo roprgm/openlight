@@ -243,7 +243,7 @@ function AdjustmentDials({
           </>
         }
       >
-        <div className="min-h-0 flex-1 px-3.5">
+        <div className="mx-auto min-h-0 w-full max-w-72 flex-1 px-3.5">
           <LayerCurve id={layer.id} toneCurve={layer.toneCurve} fill />
         </div>
       </DockControls>

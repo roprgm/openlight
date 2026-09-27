@@ -3,6 +3,7 @@ import { Select } from "@roprgm/ui/select";
 import { Slider } from "@roprgm/ui/slider";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@roprgm/ui/tooltip";
 import { type KeyboardEvent, useState } from "react";
+import { DockChips, DockControls } from "@/components/editor/dock";
 import { Image } from "@/components/editor/image";
 import { EditorLayout } from "@/components/editor/layout";
 import { PanelBody, PanelHeader } from "@/components/editor/panel";
@@ -10,6 +11,7 @@ import { useDocument, useEditorSession } from "@/components/editor/session";
 import { EditorViewport, ViewportStage } from "@/components/editor/viewport";
 import { FlipIcon } from "@/components/icons/flip";
 import { RotateIcon } from "@/components/icons/rotate";
+import { Dial } from "@/components/ui/dial";
 import { imageFrame, type Point } from "@/core/image/frame";
 import { useShortcuts } from "@/hooks/use-shortcuts";
 import { applyCrop } from "./edits";
@@ -22,6 +24,34 @@ const actions = [
   { label: "Flip horizontal", flip: 0, transform: "" },
   { label: "Flip vertical", flip: 1, transform: "rotate(90deg)" },
 ] as const;
+
+function ActionButton({
+  action,
+  onClick,
+}: {
+  action: (typeof actions)[number];
+  onClick: () => void;
+}) {
+  const Icon = "turn" in action ? RotateIcon : FlipIcon;
+  return (
+    <Tooltip>
+      <TooltipTrigger
+        render={
+          <Button
+            variant="ghost"
+            aria-label={action.label}
+            className="flex h-9 items-center justify-center gap-1 rounded-md px-1"
+            onClick={onClick}
+          >
+            <Icon style={{ transform: action.transform }} />
+            {"turn" in action && <span>90°</span>}
+          </Button>
+        }
+      />
+      <TooltipContent>{action.label}</TooltipContent>
+    </Tooltip>
+  );
+}
 
 /** Enter on a panel button is its click; elsewhere it applies the crop. */
 function keepEnter(event: KeyboardEvent) {
@@ -102,6 +132,72 @@ export function CropEditor({ onClose }: { onClose: () => void }) {
       setFrame(flip(frame, action.flip));
     }
   }
+  const rotation = {
+    label: "Rotation",
+    min: -45,
+    max: 45,
+    step: 0.1,
+    value: frame.angle,
+    defaultValue: 0,
+    onChange: (angle: number) => setFrame(rotate(frame, angle, source)),
+  };
+  const size = `${frame.size.map(Math.round).join(" × ")} px`;
+  // On a phone the ratios are chips, rotation a dial between the turns and flips, and the actions a footer.
+  const dock = (
+    <fieldset
+      aria-label="Crop"
+      className="flex min-h-0 min-w-0 flex-1 flex-col"
+      onKeyDown={keepEnter}
+    >
+      <DockControls
+        header={
+          <DockChips
+            label="Aspect ratio"
+            items={ratioOptions.map(
+              ({ value, label }) => [value, label] as const,
+            )}
+            value={ratio === null ? "free" : `${ratio}`}
+            onChange={changeRatio}
+          />
+        }
+      >
+        <section
+          aria-label="Rotate and flip image"
+          className="flex min-h-0 flex-1 items-center justify-center gap-2"
+        >
+          {actions.slice(0, 2).map((action) => (
+            <ActionButton
+              key={action.label}
+              action={action}
+              onClick={() => applyAction(action)}
+            />
+          ))}
+          <Dial {...rotation} format={(angle) => `${angle}°`} />
+          {actions.slice(2).map((action) => (
+            <ActionButton
+              key={action.label}
+              action={action}
+              onClick={() => applyAction(action)}
+            />
+          ))}
+        </section>
+        <div className="flex items-center gap-1.5 px-2.5">
+          <Button variant="ghost" size="sm" onClick={reset}>
+            Reset
+          </Button>
+          <span className="flex-1 truncate text-center text-muted tabular-nums">
+            {size}
+          </span>
+          <Button variant="ghost" size="sm" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button size="sm" onClick={apply}>
+            Apply
+          </Button>
+        </div>
+      </DockControls>
+    </fieldset>
+  );
   return (
     <EditorLayout
       canvas={
@@ -151,44 +247,20 @@ export function CropEditor({ onClose }: { onClose: () => void }) {
                 >
                   Reset
                 </Button>
-                {actions.map((action) => {
-                  const Icon = "turn" in action ? RotateIcon : FlipIcon;
-                  return (
-                    <Tooltip key={action.label}>
-                      <TooltipTrigger
-                        render={
-                          <Button
-                            variant="ghost"
-                            aria-label={action.label}
-                            className="flex h-9 items-center justify-center gap-1 rounded-md px-1"
-                            onClick={() => applyAction(action)}
-                          >
-                            <Icon style={{ transform: action.transform }} />
-                            {"turn" in action && <span>90°</span>}
-                          </Button>
-                        }
-                      />
-                      <TooltipContent>{action.label}</TooltipContent>
-                    </Tooltip>
-                  );
-                })}
+                {actions.map((action) => (
+                  <ActionButton
+                    key={action.label}
+                    action={action}
+                    onClick={() => applyAction(action)}
+                  />
+                ))}
               </section>
-              <Slider
-                label="Rotation"
-                min={-45}
-                max={45}
-                step={0.1}
-                value={frame.angle}
-                defaultValue={0}
-                onChange={(angle) => setFrame(rotate(frame, angle, source))}
-              />
+              <Slider {...rotation} />
               <p className="text-muted">
                 Drag edges or corners to crop, inside to move, outside to
                 rotate. Space + drag to pan; Ctrl/⌘ + scroll to zoom.
               </p>
-              <p className="tabular-nums text-muted">
-                {frame.size.map(Math.round).join(" × ")} px
-              </p>
+              <p className="tabular-nums text-muted">{size}</p>
             </section>
           </PanelBody>
           <div className="p-3">
@@ -198,6 +270,7 @@ export function CropEditor({ onClose }: { onClose: () => void }) {
           </div>
         </fieldset>
       }
+      dock={dock}
     />
   );
 }
