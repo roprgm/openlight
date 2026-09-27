@@ -189,6 +189,14 @@ export function Graph({ points, onChange }: GraphProps) {
         strokeDasharray="3 4"
         strokeOpacity="0.2"
       />
+      {/* A soft dark edge inside the box, over the histogram and guides and under the curve. */}
+      <foreignObject
+        width={width}
+        height={height}
+        className="pointer-events-none"
+      >
+        <div className="size-full rounded shadow-[inset_0_0_1px_1px_var(--color-edge)] shadow-edge/50" />
+      </foreignObject>
       <polyline
         className="drop-shadow-[0_1px_1px_rgb(0_0_0/0.25)]"
         fill="none"
