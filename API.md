@@ -31,7 +31,7 @@ These methods accept browser `File` objects and return `Promise<void>`. Await th
 | `loadScene(file)` | Opens a scene file as a new document, replacing the current one and its history. |
 | `recoverDraft()` | Opens the stored [draft](#drafts) as a new document, like `loadScene`. Rejects when no draft is stored or storage fails. |
 | `discardDraft()` | Deletes the stored draft and its source files. |
-| `loadUrl(url)` | Fetches an image from a same-origin URL and loads it. |
+| `loadUrl(url)` | Fetches an image and loads it. A URL on another origin must allow CORS; the response's content type identifies an image whose URL has no extension. |
 | `importXmp(file)` | Applies supported Camera Raw adjustments as one undoable edit. |
 
 Loading calls are queued. XMP import is skipped if no document is ready; an invalid XMP import can reject without blocking later loads. Image and scene failures do not reject the loading promise. Without a document open, a failure leaves the workspace in its error state; with one, that document stays open and keeps its history. Either way `getState().failure` names the file and the error, and settings loaded in the same batch are skipped. Check `getState().documentId` or `failure` to confirm success. Loading completion does not guarantee the preview has rendered.
@@ -179,6 +179,7 @@ In browsers with [WebMCP](https://webmachinelearning.github.io/webmcp/), OpenLig
 | Tool | Behavior |
 | --- | --- |
 | `get_state` | Returns the file, source size, frame, layers, comparison, and history; brush strokes and healing patches are counted rather than listed. |
+| `open_image` | Opens the image at an http(s) `url` like `loadUrl`, in place of the open photo, and returns the new state like `get_state`, or why the image could not open. |
 | `set_adjustments`, `set_tone_curve` | Call `setAdjustments` and `setToneCurve`; `layerId` addresses a mask instead of the image. |
 | `set_white_balance`, `set_color_mixer`, `set_details`, `set_vignette` | Call the matching command on the image or the first root effect. |
 | `add_mask` | Adds a mask layer with the given mask on top of the stack as one edit and returns its `layerId`. |
@@ -187,4 +188,4 @@ In browsers with [WebMCP](https://webmachinelearning.github.io/webmcp/), OpenLig
 | `undo`, `redo` | Call the matching command and return the history. |
 | `set_preview` | Sets the preview `comparison`. |
 
-WebMCP passes only JSON, so the tools neither open nor export files: the agent edits the photo the user opened.
+WebMCP passes only JSON, so no tool takes or returns a file. An agent opens a local file, such as an image attached to its chat, by serving it over HTTP with CORS and passing its URL to `open_image`. From a public origin such as openlight.app, Chrome's [Local Network Access](https://developer.chrome.com/blog/local-network-access) asks the user before the page reaches a local address; an automated browser can grant the `local-network-access` permission instead.
