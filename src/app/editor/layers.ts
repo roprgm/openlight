@@ -143,7 +143,7 @@ export function findEffect<K extends EffectLayer["kind"]>(
   );
 }
 
-/** Convenience commands address the first root effect of a kind or create one on top of the stack as one entry. */
+/** Convenience commands address the first root effect of a kind or create one on top of the stack as one entry; returns the layer edited. */
 export function editEffect(
   document: EditorDocument,
   kind: EffectLayer["kind"],
@@ -154,7 +154,7 @@ export function editEffect(
   const existing = id ?? findEffect(scene.layers, kind)?.id;
   if (existing) {
     edit(existing);
-    return;
+    return existing;
   }
   const layer = createLayer(kind);
   const opened = document.history.begin();
@@ -170,4 +170,5 @@ export function editEffect(
     }
     throw error;
   }
+  return layer.id;
 }
