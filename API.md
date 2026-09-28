@@ -171,3 +171,20 @@ On a fresh load the start screen shows a notice in the viewport's corner with **
 `getState()` returns a detached snapshot containing `file`, `failure`, `documentId`, `scene`, `selectedLayerId`, `size`, `frame`, `adjustments`, `whiteBalance`, `details`, `toneCurve`, `colorMixer`, `vignette`, `preview`, and `history`. `scene` contains `frame` and the layer tree. The top-level adjustment, tone-curve, and white-balance values come from `scene.layers[0]`; details, color-mixer, and vignette values describe the first matching root layer from the bottom, or its defaults. `colorMixer` contains eight-value `hue`, `saturation`, and `luminance` arrays in the color order above, defaulting to zero. `whiteBalance` contains absolute temperature/tint for RAW sources and is undefined for other sources. `file` is the open document's filename, or without one the file loading or failed, `failure` is the last file that failed to open and its error until another opens or the notice is dismissed, and `history` contains `undoCount`, `redoCount`, and `editing`, which is true while a group is open.
 
 Without a document, `documentId`, `size`, `frame`, and `preview` are undefined. Adjustments, details, and the tone curve use their defaults, and history counts are zero. Mutating the snapshot does not edit the document.
+
+## WebMCP
+
+In browsers with [WebMCP](https://webmachinelearning.github.io/webmcp/), OpenLight also registers tools on `document.modelContext`, so a browser agent can edit the open photo. Chrome offers WebMCP from version 149 through an origin trial or `chrome://flags/#enable-webmcp-testing`. Tools validate their JSON input against schemas generated from the same models as the commands above, make the same undoable edits, and return errors as text, so the agent can correct its input.
+
+| Tool | Behavior |
+| --- | --- |
+| `get_state` | Returns the file, source size, frame, layers, comparison, and history; brush strokes and healing patches are counted rather than listed. |
+| `set_adjustments`, `set_tone_curve` | Call `setAdjustments` and `setToneCurve`; `layerId` addresses a mask instead of the image. |
+| `set_white_balance`, `set_color_mixer`, `set_details`, `set_vignette` | Call the matching command on the image or the first root effect. |
+| `add_mask` | Adds a mask layer with the given mask on top of the stack as one edit and returns its `layerId`. |
+| `delete_layer` | Calls `deleteLayer`. |
+| `set_crop` | Replaces the frame with the largest centered crop of the source at `aspectRatio`, straightened by −45 to 45 degrees. |
+| `undo`, `redo` | Call the matching command and return the history. |
+| `set_preview` | Sets the preview `comparison`. |
+
+WebMCP passes only JSON, so the tools neither open nor export files: the agent edits the photo the user opened.
