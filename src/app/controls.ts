@@ -55,6 +55,7 @@ import { setToneCurve } from "@/features/tone-curves/edits";
 import { setVignette } from "@/features/vignette/edits";
 import { defaultVignette } from "@/features/vignette/model";
 import { setWhiteBalance } from "@/features/white-balance/edits";
+import { type Command, runCommand } from "./commands";
 import {
   createLayer,
   createMask,
@@ -167,6 +168,8 @@ export function createControls(
     cancelEdit: () => workspace.getDocument().history.cancel(),
     undo: () => workspace.getDocument().history.undo(),
     redo: () => workspace.getDocument().history.redo(),
+    /** Validates and runs a serializable command, returning the layer it edited. */
+    run: (command: Command) => runCommand(workspace, command),
     exportImage: (options?: ExportOptions) =>
       exportImage(gpu, workspace.getDocument(), options),
     exportScene: () => writeSceneFile(workspace.getDocument()),
