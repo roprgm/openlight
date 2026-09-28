@@ -1,4 +1,5 @@
 import { useStore } from "zustand";
+import { Assistant } from "@/app/assistant";
 import { DraftNotice } from "@/app/draft/notice";
 import { Editor } from "@/app/editor";
 import { useWorkspace } from "@/app/workspace/use-workspace";
@@ -24,6 +25,9 @@ export function App() {
         draft={recovery}
       />
       {error && <DraftNotice error={error} onDismiss={drafts.dismiss} />}
+      {state.document && (
+        <Assistant workspace={workspace} controls={controls} />
+      )}
     </>
   );
 }
