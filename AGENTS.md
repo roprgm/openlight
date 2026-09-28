@@ -14,6 +14,8 @@ bunx --no-install playwright install chromium
 
 The last command installs the Chromium build that the project's Playwright version expects; it is needed once per Playwright version for browser tests and scripted screenshots. `bun run test:browser` starts Vite itself and runs WebGPU on SwiftShader; reuse the launch flags in [playwright.config.ts](playwright.config.ts) for any other scripted browser.
 
+The experimental assistant shows only at `/?assistant` and answers through the [Vercel AI Gateway](https://vercel.com/docs/ai-gateway). `bun dev` serves the app alone; to try the assistant, run `vercel dev` with `AI_GATEWAY_API_KEY` in `.env.local`.
+
 | Command | Checks |
 | --- | --- |
 | `bun run check` | Format and lint; writes fixes. |

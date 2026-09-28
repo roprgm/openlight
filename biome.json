@@ -28,5 +28,13 @@
         }
       }
     }
-  }
+  },
+  "overrides": [
+    {
+      "includes": ["api/**"],
+      "linter": {
+        "rules": { "style": { "noRestrictedImports": "off" } }
+      }
+    }
+  ]
 }

@@ -14,6 +14,8 @@ Where the code lives and the rules that keep it in place. Keep this file true: w
 | `app/controls.ts` | `window.openlight`, documented in [API.md](API.md). |
 | `app/commands.ts` | The commands: serializable, validated edits that `run`, WebMCP, and other callers share; see [API.md](API.md#commands). |
 | `app/webmcp.ts` | WebMCP tools for browser agents, one per command; see [API.md](API.md#webmcp). |
+| `app/assistant` | Experimental chat that edits the photo, mounted only at `/?assistant`. `index.tsx` sends a message with a summary of the photo and runs the commands that come back; `jev.ts` asks the Jev evaluation model and turns its answers into commands. |
+| `/api`, at the repository root | Vercel functions: `assistant.ts` answers the chat through `jev.ts`; `vercel dev` serves them locally. |
 | `app/editor/index.tsx` | The editor with a document: header, then a tool's canvas and controls in the layout. A tool's `View` replaces both. |
 | `app/editor/empty.tsx` | The editor before a document opens: welcome or loading status, and the placeholder sidebar. |
 | `app/editor/sidebar.tsx` | Sidebar sections in order: `EditorSidebar` with a document, `PlaceholderSidebar` without one. |
@@ -57,6 +59,11 @@ Dependencies point downward. Features do not import each other; `app/` connects 
 - Each document owns a vanilla Zustand scene store, history, and image resources. Scenes hold immutable, serializable content and image-source IDs; files and GPU resources stay outside history.
 - UI controls, `window.openlight`, and commands call the same edits. A slider or curve gesture is one edit; cancelling restores the previous scene. Preview settings and navigation stay outside history.
 - The engine owns GPU resources, rendering, and derived data such as histogram bins; frame data stays out of React state. Every resource owner disposes what it creates.
+
+## Assistant
+
+- The model, how it is asked, and its key stay on the server. The browser sends a message and a summary of the photo, and receives commands and a message, so another model can answer without changing the client.
+- `protocol.ts` validates both directions. Vercel runs `api/assistant.ts` unbundled in Node, so the modules it reaches import app modules only as types, and its own imports name their `.js` output instead of using `@/`.
 
 ## Rendering
 
