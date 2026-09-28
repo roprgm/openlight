@@ -172,20 +172,37 @@ On a fresh load the start screen shows a notice in the viewport's corner with **
 
 Without a document, `documentId`, `size`, `frame`, and `preview` are undefined. Adjustments, details, and the tone curve use their defaults, and history counts are zero. Mutating the snapshot does not edit the document.
 
+## Commands
+
+`run(command)` validates and runs one command: a plain object with a `type` and that command's fields, as JSON can carry it. It returns `{ layerId }` for the layer the command edited or created, so a caller can select it, and throws on an unknown type or an invalid field. Commands make the same edits as the methods above.
+
+```js
+editor.run({
+  type: "add-mask",
+  mask: { kind: "linear", start: [600, 0], end: [600, 400] },
+  adjustments: { exposure: -1 },
+});
+```
+
+| Command | Fields | Behavior |
+| --- | --- | --- |
+| `set-adjustments` | adjustments, `layerId?` | Like `setAdjustments`. |
+| `set-tone-curve` | `points?`, `layerId?` | Like `setToneCurve`. |
+| `set-white-balance` | `temperature?`, `tint?` | Like `setWhiteBalance` with a change. |
+| `set-color-mixer` | `color`, `hue?`, `saturation?`, `luminance?`, `layerId?` | Like `setColorMixer`. |
+| `set-details` | `clarity?`, `sharpening?`, `sharpenRadius?`, `layerId?` | Like `setDetails`. |
+| `set-vignette` | `intensity?`, `softness?`, `layerId?` | Like `setVignette`. |
+| `add-mask` | `mask`, `adjustments?` | Adds a mask layer with those adjustments on top of the stack as one edit. |
+| `delete-layer` | `layerId` | Like `deleteLayer`. |
+| `set-crop` | `aspectRatio?`, `straighten?` | Replaces the frame with the largest centered crop of the source at `aspectRatio`, width over height, straightened by −45 to 45 degrees. Without either, it removes the crop. |
+| `reset` | none | Removes every layer and returns adjustments, the tone curve, white balance, and the frame to how the photo opened, as one edit. |
+| `undo`, `redo` | none | Like `undo` and `redo`. |
+| `set-preview` | `comparison` | Shows `"edited"`, `"original"`, or `"split"`. |
+
 ## WebMCP
 
-In browsers with [WebMCP](https://webmachinelearning.github.io/webmcp/), OpenLight also registers tools on `document.modelContext`, so a browser agent can edit the open photo. Chrome offers WebMCP from version 149 through an origin trial or `chrome://flags/#enable-webmcp-testing`. Tools validate their JSON input against schemas generated from the same models as the commands above, make the same undoable edits, and return errors as text, so the agent can correct its input.
+In browsers with [WebMCP](https://webmachinelearning.github.io/webmcp/), OpenLight registers every command as a tool on `document.modelContext`, so a browser agent can edit the open photo. Chrome offers WebMCP from version 149 through an origin trial or `chrome://flags/#enable-webmcp-testing`. A tool takes its command's fields, with a JSON Schema generated from the same models, and returns `{ layerId }` or `"Done."`; errors come back as text, so the agent can correct its input.
 
-| Tool | Behavior |
-| --- | --- |
-| `get_state` | Returns the file, source size, frame, layers, comparison, and history; brush strokes and healing patches are counted rather than listed. |
-| `open_image` | Opens the image at an http(s) `url` like `loadUrl`, in place of the open photo, and returns the new state like `get_state`, or why the image could not open. |
-| `set_adjustments`, `set_tone_curve` | Call `setAdjustments` and `setToneCurve`; `layerId` addresses a mask instead of the image. |
-| `set_white_balance`, `set_color_mixer`, `set_details`, `set_vignette` | Call the matching command on the image or the first root effect. |
-| `add_mask` | Adds a mask layer with the given mask on top of the stack as one edit and returns its `layerId`. |
-| `delete_layer` | Calls `deleteLayer`. |
-| `set_crop` | Replaces the frame with the largest centered crop of the source at `aspectRatio`, straightened by −45 to 45 degrees. |
-| `undo`, `redo` | Call the matching command and return the history. |
-| `set_preview` | Sets the preview `comparison`. |
+A read-only `get-state` tool returns the file, source size, frame, layers, comparison, and history, counting brush strokes and healing patches rather than listing them.
 
-WebMCP passes only JSON, so no tool takes or returns a file. An agent opens a local file, such as an image attached to its chat, by serving it over HTTP with CORS and passing its URL to `open_image`. From a public origin such as openlight.app, Chrome's [Local Network Access](https://developer.chrome.com/blog/local-network-access) asks the user before the page reaches a local address; an automated browser can grant the `local-network-access` permission instead.
+WebMCP passes only JSON, so no tool takes or returns a file. `open-image` takes an http(s) `url` instead and opens it like `loadUrl`, in place of the open photo; it returns the new state like `get-state`, or why the image could not open. An agent opens a local file, such as an image attached to its chat, by serving it over HTTP with CORS and passing its URL. From a public origin such as openlight.app, Chrome's [Local Network Access](https://developer.chrome.com/blog/local-network-access) asks the user before the page reaches a local address; an automated browser can grant the `local-network-access` permission instead.
