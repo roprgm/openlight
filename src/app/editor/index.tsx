@@ -33,6 +33,7 @@ import { ImageHistogram } from "./histogram";
 import { HistoryControls } from "./history";
 import { createMask } from "./layers";
 import { MaskOverlaySync } from "./mask-overlay";
+import { OpenButton, OpenStatus } from "./open";
 import { createEditorRenderer } from "./renderer";
 import { EditorSidebar } from "./sidebar";
 import { ToolRail } from "./tool-rail";
@@ -97,7 +98,7 @@ function ExportButton() {
         render={
           <Button
             aria-pressed={exporting}
-            className="ml-1 px-4 aria-pressed:bg-raised-hover"
+            className="ml-1 px-4 aria-pressed:bg-raised-hover pointer-coarse:h-10"
             onClick={() => setTool(exporting ? tools[0] : exportTool)}
           >
             Export
@@ -155,13 +156,29 @@ function HealingTools({ children }: { children: ReactNode }) {
   );
 }
 
-function DocumentEditor({ file }: { file: string }) {
+type ReadyState = Extract<
+  ReturnType<Workspace["state"]["getState"]>,
+  { status: "ready" }
+>;
+
+function DocumentEditor({
+  state,
+  onOpen,
+  onDismissFailure,
+}: {
+  state: ReadyState;
+  onOpen: (files: File[]) => void;
+  onDismissFailure: () => void;
+}) {
   return (
     <ToolProvider>
       <MaskTools>
         <HealingTools>
           <BrushProvider>
-            <EditorHeader file={file}>
+            <EditorHeader
+              file={state.file}
+              open={<OpenButton onOpen={onOpen} />}
+            >
               <HistoryControls />
               <hr
                 aria-orientation="vertical"
@@ -175,6 +192,11 @@ function DocumentEditor({ file }: { file: string }) {
                 <ToolView />
               </EditorFrame>
             </DockProvider>
+            <OpenStatus
+              opening={state.opening}
+              failure={state.failure}
+              onDismiss={onDismissFailure}
+            />
           </BrushProvider>
         </HealingTools>
       </MaskTools>
@@ -185,16 +207,26 @@ function DocumentEditor({ file }: { file: string }) {
 type EditorProps = {
   state: ReturnType<Workspace["state"]["getState"]>;
   onOpen: (files: File[]) => void;
+  onDismissFailure: () => void;
   draft?: Recovery;
 };
-function EditorContent({ state, onOpen, draft }: EditorProps) {
+function EditorContent({
+  state,
+  onOpen,
+  onDismissFailure,
+  draft,
+}: EditorProps) {
   if (state.status !== "ready") {
     return <EmptyEditor state={state} onOpen={onOpen} draft={draft} />;
   }
   return (
     <DocumentProvider key={state.document.id} value={state.document}>
       <RendererProvider createRenderer={createEditorRenderer}>
-        <DocumentEditor file={state.file} />
+        <DocumentEditor
+          state={state}
+          onOpen={onOpen}
+          onDismissFailure={onDismissFailure}
+        />
       </RendererProvider>
     </DocumentProvider>
   );

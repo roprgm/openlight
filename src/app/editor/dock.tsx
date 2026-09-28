@@ -31,7 +31,8 @@ type DockTab = Tool | "layers";
 
 /**
  * The mobile layout's tabs under the dock: Layers, then the rail's tools, each its icon over its
- * name. Without a handler the tabs are inert.
+ * name. Below 23rem the names no longer fit and the tabs keep only their icons; past that, the row
+ * scrolls with a fade. Without a handler the tabs are inert.
  */
 export function DockTabList({
   selected,
@@ -41,16 +42,22 @@ export function DockTabList({
   onSelect?: (tab: DockTab) => void;
 }) {
   const editing = tools.filter((entry) => entry.group === "edit");
-  const tab = "h-13 min-w-12 flex-1 flex-col gap-0.5 px-2";
+  const tab =
+    "h-13 min-w-12 flex-1 flex-col gap-0.5 px-2 @max-[23rem]:min-w-10 @max-[23rem]:px-0";
+  const name = "@max-[23rem]:sr-only";
   return (
-    <Tabs value={selected} onValueChange={onSelect} className="surface-panel">
+    <Tabs
+      value={selected}
+      onValueChange={onSelect}
+      className="@container surface-panel"
+    >
       <TabList
         aria-label="Tools"
-        className="gap-0.5 overflow-x-auto px-2 py-1.5 shadow-[inset_0_1px_0_var(--color-edge)] [scrollbar-width:none]"
+        className="gap-0.5 overflow-fade-x px-2 py-1.5 shadow-[inset_0_1px_0_var(--color-edge)]"
       >
         <Tab value="layers" disabled={!onSelect} className={tab}>
           <LayersIcon className="size-5" />
-          Layers
+          <span className={name}>Layers</span>
         </Tab>
         {editing.map((entry) => (
           <Tab
@@ -61,7 +68,7 @@ export function DockTabList({
             className={tab}
           >
             <entry.Icon className="size-5" />
-            {entry.shortLabel}
+            <span className={name}>{entry.shortLabel}</span>
           </Tab>
         ))}
       </TabList>

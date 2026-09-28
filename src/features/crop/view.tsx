@@ -53,6 +53,30 @@ function ActionButton({
   );
 }
 
+/** Named ratios as width and height, so a quarter turn swaps them into another. */
+const presets = [
+  ["Square", 1, 1],
+  ["4:3", 4, 3],
+  ["3:2", 3, 2],
+  ["16:9", 16, 9],
+  ["4:5", 4, 5],
+  ["9:16", 9, 16],
+  ["3:4", 3, 4],
+  ["2:3", 2, 3],
+  ["5:4", 5, 4],
+] as const;
+type Preset = (typeof presets)[number][0];
+
+/**
+ * What the ratio control holds: the choice, not its number, so Original and 3:2 stay apart on a 3:2
+ * photo. Current is the frame's own ratio when it matches no other.
+ */
+type Choice = "free" | "original" | "current" | Preset;
+
+function preset(choice: Choice) {
+  return presets.find(([name]) => name === choice);
+}
+
 /** Enter on a panel button is its click; elsewhere it applies the crop. */
 function keepEnter(event: KeyboardEvent) {
   if (
@@ -69,19 +93,31 @@ export function CropEditor({ onClose }: { onClose: () => void }) {
   const { camera } = useEditorSession();
   const [frame, setFrame] = useState(() => document.scene.getState().frame);
   const [reference, setReference] = useState(frame.size);
-  const [ratio, setRatio] = useState<number | null>(
-    frame.size[0] / frame.size[1],
-  );
   const sourceId = document.scene.getState().layers[0].source;
   const [width, height] = document.resources.get(sourceId).image.size;
   const source: Point = [width, height];
+  const original =
+    frame.rotation % 180 ? source[1] / source[0] : source[0] / source[1];
+  const [current, setCurrent] = useState(frame.size[0] / frame.size[1]);
+  const [choice, setChoice] = useState<Choice>(() => {
+    if (current === original) return "original";
+    return presets.find(([, w, h]) => w / h === current)?.[0] ?? "current";
+  });
+  function ratioOf(choice: Choice) {
+    if (choice === "free") return null;
+    if (choice === "original") return original;
+    if (choice === "current") return current;
+    const [, w, h] = preset(choice) ?? [];
+    return w && h ? w / h : null;
+  }
+  const ratio = ratioOf(choice);
   function fitView() {
     camera.setState(camera.getInitialState(), true);
   }
   function reset() {
     setFrame(imageFrame(source));
     setReference(source);
-    setRatio(source[0] / source[1]);
+    setChoice("original");
     fitView();
   }
   function apply() {
@@ -90,34 +126,17 @@ export function CropEditor({ onClose }: { onClose: () => void }) {
     onClose();
   }
   useShortcuts({ enter: apply, escape: onClose }, { inputs: true });
-  const original =
-    frame.rotation % 180 ? source[1] / source[0] : source[0] / source[1];
-  const ratios = {
-    Original: original,
-    Square: 1,
-    "4:3": 4 / 3,
-    "3:2": 3 / 2,
-    "16:9": 16 / 9,
-    "4:5": 4 / 5,
-    "9:16": 9 / 16,
-    "3:4": 3 / 4,
-    "2:3": 2 / 3,
-    "5:4": 5 / 4,
-  };
-  const custom = ratio !== null && !Object.values(ratios).includes(ratio);
-  const ratioOptions = [
+  const ratioOptions: { value: Choice; label: string }[] = [
     { value: "free", label: "Free" },
-    ...(custom && ratio !== null
-      ? [{ value: `${ratio}`, label: "Current" }]
+    ...(choice === "current"
+      ? [{ value: "current" as const, label: "Current" }]
       : []),
-    ...Object.entries(ratios).map(([label, value]) => ({
-      value: `${value}`,
-      label,
-    })),
+    { value: "original", label: "Original" },
+    ...presets.map(([name]) => ({ value: name, label: name })),
   ];
-  function changeRatio(value: string) {
-    const ratio = Number(value) || null;
-    setRatio(ratio);
+  function changeRatio(next: Choice) {
+    setChoice(next);
+    const ratio = ratioOf(next);
     if (ratio) {
       setFrame(fitRatio(frame, ratio));
     }
@@ -127,7 +146,16 @@ export function CropEditor({ onClose }: { onClose: () => void }) {
     if ("turn" in action) {
       setFrame(turn(frame, action.turn));
       setReference([reference[1], reference[0]]);
-      setRatio(ratio && 1 / ratio);
+      // Original follows the turned photo by itself; a named ratio swaps its sides, and Current inverts.
+      const named = preset(choice);
+      if (named) {
+        const [, w, h] = named;
+        setChoice(
+          presets.find(([, tw, th]) => tw === h && th === w)?.[0] ?? choice,
+        );
+      } else if (choice === "current") {
+        setCurrent(1 / current);
+      }
     } else {
       setFrame(flip(frame, action.flip));
     }
@@ -156,7 +184,7 @@ export function CropEditor({ onClose }: { onClose: () => void }) {
             items={ratioOptions.map(
               ({ value, label }) => [value, label] as const,
             )}
-            value={ratio === null ? "free" : `${ratio}`}
+            value={choice}
             onChange={changeRatio}
           />
         }
@@ -226,7 +254,7 @@ export function CropEditor({ onClose }: { onClose: () => void }) {
                 <Select
                   raised
                   aria-label="Aspect ratio"
-                  value={ratio === null ? "free" : `${ratio}`}
+                  value={choice}
                   items={ratioOptions}
                   className="w-24"
                   onValueChange={(value) =>

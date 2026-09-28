@@ -8,7 +8,7 @@ Where the code lives and the rules that keep it in place. Keep this file true: w
 | --- | --- |
 | `src/main.tsx` | Mounts the GPU provider and the app. |
 | `app/index.tsx` | The app: workspace, file drop, draft notice. |
-| `app/workspace` | The open document, its replacement, and loading state. |
+| `app/workspace` | The open document, its replacement, and loading state. A replacement loads beside the open document and takes its place only once it opens; a failure leaves the open document in place. |
 | `app/loaders` | Image, scene file, and Camera Raw XMP loaders. |
 | `app/draft` | The draft autosaved in the browser. |
 | `app/controls.ts` | `window.openlight`, documented in [API.md](API.md). |

@@ -34,7 +34,7 @@ These methods accept browser `File` objects and return `Promise<void>`. Await th
 | `loadUrl(url)` | Fetches an image from a same-origin URL and loads it. |
 | `importXmp(file)` | Applies supported Camera Raw adjustments as one undoable edit. |
 
-Loading calls are queued. XMP import is skipped if no document is ready; an invalid XMP import can reject without blocking later loads. Image and scene failures appear in the workspace's error state and do not reject the loading promise. Check `getState().documentId` to confirm success. Loading completion does not guarantee the preview has rendered.
+Loading calls are queued. XMP import is skipped if no document is ready; an invalid XMP import can reject without blocking later loads. Image and scene failures do not reject the loading promise. Without a document open, a failure leaves the workspace in its error state; with one, that document stays open and keeps its history. Either way `getState().failure` names the file and the error, and settings loaded in the same batch are skipped. Check `getState().documentId` or `failure` to confirm success. Loading completion does not guarantee the preview has rendered.
 
 ## Editing
 
@@ -168,6 +168,6 @@ On a fresh load the start screen shows a notice in the viewport's corner with **
 
 ## State
 
-`getState()` returns a detached snapshot containing `file`, `documentId`, `scene`, `selectedLayerId`, `size`, `frame`, `adjustments`, `whiteBalance`, `details`, `toneCurve`, `colorMixer`, `vignette`, `preview`, and `history`. `scene` contains `frame` and the layer tree. The top-level adjustment, tone-curve, and white-balance values come from `scene.layers[0]`; details, color-mixer, and vignette values describe the first matching root layer from the bottom, or its defaults. `colorMixer` contains eight-value `hue`, `saturation`, and `luminance` arrays in the color order above, defaulting to zero. `whiteBalance` contains absolute temperature/tint for RAW sources and is undefined for other sources. `file` is the filename, and `history` contains `undoCount`, `redoCount`, and `editing`, which is true while a group is open.
+`getState()` returns a detached snapshot containing `file`, `failure`, `documentId`, `scene`, `selectedLayerId`, `size`, `frame`, `adjustments`, `whiteBalance`, `details`, `toneCurve`, `colorMixer`, `vignette`, `preview`, and `history`. `scene` contains `frame` and the layer tree. The top-level adjustment, tone-curve, and white-balance values come from `scene.layers[0]`; details, color-mixer, and vignette values describe the first matching root layer from the bottom, or its defaults. `colorMixer` contains eight-value `hue`, `saturation`, and `luminance` arrays in the color order above, defaulting to zero. `whiteBalance` contains absolute temperature/tint for RAW sources and is undefined for other sources. `file` is the open document's filename, or without one the file loading or failed, `failure` is the last file that failed to open and its error until another opens or the notice is dismissed, and `history` contains `undoCount`, `redoCount`, and `editing`, which is true while a group is open.
 
 Without a document, `documentId`, `size`, `frame`, and `preview` are undefined. Adjustments, details, and the tone curve use their defaults, and history counts are zero. Mutating the snapshot does not edit the document.

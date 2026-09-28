@@ -17,7 +17,12 @@ export function App() {
     : undefined;
   return (
     <>
-      <Editor state={state} onOpen={controls.openFiles} draft={recovery} />
+      <Editor
+        state={state}
+        onOpen={controls.openFiles}
+        onDismissFailure={workspace.dismissFailure}
+        draft={recovery}
+      />
       {error && <DraftNotice error={error} onDismiss={drafts.dismiss} />}
     </>
   );

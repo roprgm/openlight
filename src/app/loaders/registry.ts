@@ -1,15 +1,26 @@
-export type FileLoader = {
-  kind: "document" | "settings";
-  accepts: (file: File) => boolean;
-  load: (file: File) => Promise<void>;
-};
+export type FileLoader =
+  | {
+      kind: "document";
+      accepts: (file: File) => boolean;
+      /** Resolves whether the file became the open document. */
+      load: (file: File) => Promise<boolean>;
+    }
+  | {
+      kind: "settings";
+      accepts: (file: File) => boolean;
+      load: (file: File) => Promise<void>;
+    };
 
 type Job = { file: File; loader: FileLoader };
 
+/** Settings apply to the batch's document, so they wait for it and skip a batch whose document failed. */
 async function loadBatch(jobs: Job[], ready: () => boolean) {
   const document = jobs.find(({ loader }) => loader.kind === "document");
-  if (document) {
-    await document.loader.load(document.file);
+  if (
+    document?.loader.kind === "document" &&
+    !(await document.loader.load(document.file))
+  ) {
+    return;
   }
   if (!ready()) {
     return;

@@ -171,11 +171,19 @@ export function createControls(
       exportImage(gpu, workspace.getDocument(), options),
     exportScene: () => writeSceneFile(workspace.getDocument()),
     getState() {
-      const { file, document } = workspace.state.getState();
+      const current = workspace.state.getState();
+      const { file, document } = current;
       const scene = document?.scene.getState();
       const layers = scene?.layers ?? [];
+      let failure: { file: string; error: string } | undefined;
+      if (current.status === "error") {
+        failure = { file: current.file, error: current.error };
+      } else if (current.status === "ready") {
+        failure = current.failure;
+      }
       return structuredClone({
         file,
+        failure,
         preview: document?.preview.getState(),
         documentId: document?.id,
         scene,

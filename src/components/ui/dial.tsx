@@ -16,6 +16,9 @@ export type DialProps = {
   onEditingChange?: (editing: boolean) => void;
   /** True while a drag moves it, so a caller can show its value away from the finger. */
   onScrub?: (scrubbing: boolean) => void;
+  /** A touch that lifts without dragging, such as to pick the dial for typing. */
+  onTap?: () => void;
+  selected?: boolean;
   min: number;
   max: number;
   step?: number;
@@ -32,6 +35,8 @@ const radius = 21;
 const circumference = 2 * Math.PI * radius;
 /** A drag across this many pixels sweeps the whole range. */
 const sweep = 600;
+/** How far a finger moves before a touch becomes a drag, so a tap's jitter changes nothing. */
+const slop = 6;
 const doubleTap = 300;
 
 const keySteps: Record<string, number> = {
@@ -78,7 +83,7 @@ function Arc({
       <circle className="stroke-hover" cx="24" cy="24" r={radius} />
       {length > 0.1 && (
         <circle
-          className="stroke-muted group-data-[scrubbing=true]:stroke-foreground"
+          className="stroke-muted group-data-[scrubbing=true]:stroke-foreground group-data-[selected=true]:stroke-foreground"
           cx="24"
           cy="24"
           r={radius}
@@ -101,6 +106,8 @@ export function Dial({
   onChange,
   onEditingChange,
   onScrub,
+  onTap,
+  selected,
   min,
   max,
   step = 1,
@@ -110,6 +117,8 @@ export function Dial({
   color,
 }: DialProps) {
   const drag = useRef<{
+    startX: number;
+    startY: number;
     x: number;
     y: number;
     value: number;
@@ -141,6 +150,8 @@ export function Dial({
     }
     lastTap.current = event.timeStamp;
     drag.current = {
+      startX: event.clientX,
+      startY: event.clientY,
       x: event.clientX,
       y: event.clientY,
       value,
@@ -154,10 +165,17 @@ export function Dial({
     if (!current) {
       return;
     }
+    current.moved ||=
+      Math.hypot(
+        event.clientX - current.startX,
+        event.clientY - current.startY,
+      ) > slop;
+    if (!current.moved) {
+      return;
+    }
     const distance = event.clientX - current.x + current.y - event.clientY;
     current.x = event.clientX;
     current.y = event.clientY;
-    current.moved ||= distance !== 0;
     current.value = Math.min(
       max,
       Math.max(min, current.value + (distance * (max - min)) / sweep),
@@ -167,7 +185,8 @@ export function Dial({
       onChange(next);
     }
   }
-  function pointerUp() {
+  function end(lifted: boolean) {
+    const tapped = lifted && drag.current !== null && !drag.current.moved;
     // A drag is not the first tap of a double tap.
     if (drag.current?.moved) {
       lastTap.current = Number.NEGATIVE_INFINITY;
@@ -176,6 +195,9 @@ export function Dial({
     setScrubbing(false);
     onScrub?.(false);
     onEditingChange?.(false);
+    if (tapped) {
+      onTap?.();
+    }
   }
   function keyDown(event: KeyboardEvent) {
     const steps = keySteps[event.key];
@@ -199,10 +221,11 @@ export function Dial({
       aria-valuenow={value}
       aria-valuetext={text}
       data-scrubbing={scrubbing}
+      data-selected={Boolean(selected)}
       onPointerDown={pointerDown}
       onPointerMove={pointerMove}
-      onPointerUp={pointerUp}
-      onPointerCancel={pointerUp}
+      onPointerUp={() => end(true)}
+      onPointerCancel={() => end(false)}
       onKeyDown={keyDown}
       onKeyUp={() => onEditingChange?.(false)}
       onBlur={() => onEditingChange?.(false)}
@@ -227,7 +250,7 @@ export function Dial({
       </span>
       <span
         className={cn(
-          "whitespace-nowrap text-muted group-data-[scrubbing=true]:text-foreground",
+          "whitespace-nowrap text-muted group-data-[scrubbing=true]:text-foreground group-data-[selected=true]:text-foreground",
           color && "tabular-nums",
         )}
       >
@@ -250,7 +273,10 @@ type RowLayout =
   | { width: number; paged: false; widths: number[] }
   | { width: number; paged: true; slot: number; perPage: number };
 
-export type DialItem = DialProps & { id: string };
+/** A dial as a row holds it: the row wires the scrub, the tap, and the selection. */
+export type DialItem = Omit<DialProps, "onScrub" | "onTap" | "selected"> & {
+  id: string;
+};
 
 /**
  * Dials in one row that never scrolls under a finger, so a drag on a dial always moves its value.
@@ -261,10 +287,14 @@ export type DialItem = DialProps & { id: string };
 export function DialRow({
   dials,
   onScrub,
+  selected,
+  onTap,
 }: {
   dials: readonly DialItem[];
   /** The dial a drag is moving, or null. */
   onScrub?: (id: string | null) => void;
+  selected?: string;
+  onTap?: (id: string) => void;
 }) {
   const row = useRef<HTMLDivElement>(null);
   const cells = useRef(new Map<string, HTMLDivElement>());
@@ -370,7 +400,9 @@ export function DialRow({
             >
               <Dial
                 {...dial}
+                selected={id === selected}
                 onScrub={(scrubbing) => onScrub?.(scrubbing ? id : null)}
+                onTap={() => onTap?.(id)}
               />
             </div>
           ))}

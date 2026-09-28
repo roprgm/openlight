@@ -51,6 +51,17 @@ test("edit on a phone and carry the canvas across the breakpoint", async ({
     expect((await state()).adjustments.contrast).toBe(0);
   });
 
+  await test.step("a tapped dial takes a typed value", async () => {
+    await page.getByRole("slider", { name: "Exposure", exact: true }).click();
+    const field = page.getByRole("textbox", { name: "Exposure", exact: true });
+    await field.click();
+    await field.fill("0.5");
+    await field.press("Enter");
+    expect((await state()).adjustments.exposure).toBe(0.5);
+    await page.getByRole("button", { name: "Done", exact: true }).click();
+    await expect(field).toHaveCount(0);
+  });
+
   await test.step("the stack is a tab, and an effect's dials follow the selection", async () => {
     await page.getByRole("tab", { name: "Layers" }).click();
     await page.getByRole("button", { name: "Add effect", exact: true }).click();
@@ -63,7 +74,13 @@ test("edit on a phone and carry the canvas across the breakpoint", async ({
 
   await test.step("a crop is chosen and applied from the dock", async () => {
     await page.getByRole("tab", { name: "Crop" }).click();
+    // On a 3:2 photo, Original and 3:2 match, but only the one chosen shows.
+    const chosen = page
+      .getByRole("group", { name: "Aspect ratio" })
+      .locator('[aria-pressed="true"]');
+    await expect(chosen).toHaveText(["Original"]);
     await page.getByRole("button", { name: "Square", exact: true }).click();
+    await expect(chosen).toHaveText(["Square"]);
     await page.getByRole("button", { name: "Apply", exact: true }).click();
     const [width, height] = (await state()).frame?.size ?? [];
     expect(width).toBe(height);

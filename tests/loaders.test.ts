@@ -146,12 +146,19 @@ test("file batches preserve ordering, group imports, recover from failures, and 
       ...defaultAdjustments,
       contrast: 20,
     });
+    // A failed replacement keeps the open document and skips the settings meant for the failed file.
+    const kept = workspace.getDocument();
+    const keptAdjustments = kept.scene.getState().layers[0].adjustments;
     await registry.openFiles([exposure, new File([], "broken.png")]);
+    expect(workspace.getDocument()).toBe(kept);
     expect(workspace.state.getState()).toMatchObject({
-      status: "error",
-      file: "broken.png",
-      error: "Error: Decode failed",
+      status: "ready",
+      file: "second.png",
+      failure: { file: "broken.png", error: "Error: Decode failed" },
     });
+    expect(kept.scene.getState().layers[0].adjustments).toBe(keptAdjustments);
+    workspace.dismissFailure();
+    expect(workspace.state.getState()).not.toHaveProperty("failure");
     await registry.openFiles([exposure, photo]);
     const recovered = workspace.getDocument();
     expect(recovered.scene.getState().layers[0].adjustments.exposure).toBe(
