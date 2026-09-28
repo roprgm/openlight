@@ -33,3 +33,43 @@
     color: var(--color-foreground);
   }
 }
+
+/* The assistant's toggle morphs into its card; the rest of the page stays still. */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+}
+
+/* biome-ignore-start lint/correctness/noUnknownTypeSelector: view transition names, not elements */
+
+/*
+ * The box grows from the toggle's corner and clips both snapshots at their natural size, so the
+ * card unfolds from the button instead of stretching; its radius matches the card's.
+ */
+::view-transition-group(assistant) {
+  overflow: clip;
+  border-radius: var(--radius-xl);
+  animation-duration: 300ms;
+  animation-timing-function: cubic-bezier(0.2, 0, 0, 1);
+}
+
+::view-transition-old(assistant),
+::view-transition-new(assistant) {
+  height: 100%;
+  object-fit: none;
+  object-position: left bottom;
+}
+
+::view-transition-old(assistant) {
+  animation-duration: 150ms;
+}
+
+/* biome-ignore-end lint/correctness/noUnknownTypeSelector: view transition names, not elements */
+
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-group(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) {
+    animation: none;
+  }
+}
