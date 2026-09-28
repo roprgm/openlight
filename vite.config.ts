@@ -2,7 +2,7 @@ import tailwindcss from "@tailwindcss/vite";
 import { wgslVitePlugin } from "@vgpu/wgsl/loader-vite";
 import react from "@vitejs/plugin-react";
 import { loadEnv, type Plugin } from "vite";
-import { createAssistantHandler } from "./src/app/assistant/server.js";
+import { createAssistantHandler } from "./api/assistant.js";
 
 /** Serves `api/assistant` in development, with the key from `.env.local`. */
 function assistant(): Plugin {

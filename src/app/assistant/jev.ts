@@ -2,6 +2,7 @@ import type { Experimental_EvaluationQuestion as Question } from "ai";
 import { z } from "zod/mini";
 import type { Command } from "@/app/commands";
 import type { Adjustments } from "@/core/document";
+// Runs in the serverless function, so relative imports name their .js output.
 import type { AssistantRequest, AssistantResponse, Photo } from "./protocol.js";
 
 /**
@@ -9,130 +10,78 @@ import type { AssistantRequest, AssistantResponse, Photo } from "./protocol.js";
  * message in parallel, each by choosing among options, and the answers become commands.
  */
 
-/** A control Jev sets by choosing one of its steps. */
+/** A control Jev sets by choosing one of its steps; `about` describes it among the commands and in its value question. */
 type Slider = {
-  /** What choosing it does, among the commands. */
-  command: string;
-  label: string;
+  about: string;
   min: number;
   max: number;
   step: number;
   read: (photo: Photo) => number;
 };
 
+/** An adjustment, from -100 to 100 in steps of 10 unless given. */
 function adjustment(
   key: keyof Adjustments,
-  command: string,
-  label: string,
-  limit: number,
-  step: number,
+  about: string,
+  limit = 100,
+  step = 10,
 ): Slider & { key: keyof Adjustments } {
-  return {
-    key,
-    command,
-    label,
-    min: -limit,
-    max: limit,
-    step,
-    read: (photo) => photo.adjustments[key],
-  };
+  const read = (photo: Photo) => photo.adjustments[key];
+  return { key, about, min: -limit, max: limit, step, read };
 }
 
 /** Controls a mask can hold, so they can change one area. */
 const adjustments = {
   exposure: adjustment(
     "exposure",
-    "Exposure: make the whole image lighter or darker.",
-    "exposure (brightness, in stops)",
+    "Exposure: make the whole image lighter or darker, in stops.",
     5,
     0.5,
   ),
   contrast: adjustment(
     "contrast",
     "Contrast: more or less difference between light and dark.",
-    "contrast",
-    100,
-    10,
   ),
   highlights: adjustment(
     "highlights",
     "Highlights: recover or brighten the bright areas.",
-    "highlights (bright areas)",
-    100,
-    10,
   ),
-  shadows: adjustment(
-    "shadows",
-    "Shadows: lift or deepen the dark areas.",
-    "shadows (dark areas)",
-    100,
-    10,
-  ),
-  whites: adjustment(
-    "whites",
-    "Whites: move the white point.",
-    "whites (white point)",
-    100,
-    10,
-  ),
-  blacks: adjustment(
-    "blacks",
-    "Blacks: move the black point.",
-    "blacks (black point)",
-    100,
-    10,
-  ),
+  shadows: adjustment("shadows", "Shadows: lift or deepen the dark areas."),
+  whites: adjustment("whites", "Whites: move the white point."),
+  blacks: adjustment("blacks", "Blacks: move the black point."),
   temperature: adjustment(
     "incrementalTemperature",
     "Temperature: warmer (yellow) or cooler (blue).",
-    "temperature (warmer or cooler)",
-    100,
-    10,
   ),
-  tint: adjustment(
-    "incrementalTint",
-    "Tint: greener or more magenta.",
-    "tint (green or magenta)",
-    100,
-    10,
-  ),
+  tint: adjustment("incrementalTint", "Tint: greener or more magenta."),
   vibrance: adjustment(
     "vibrance",
     "Vibrance: more or less color, gently, protecting vivid colors and skin. The usual choice for “more color”.",
-    "vibrance (muted colors)",
-    100,
-    10,
   ),
   saturation: adjustment(
     "saturation",
     "Saturation: more or less color everywhere, down to black and white.",
-    "saturation (all colors)",
-    100,
-    10,
   ),
 };
 
 /** Controls on effect layers, which change the whole photo. */
 const effects = {
   vignette: {
-    command: "Vignette: darker edges.",
-    label: "vignette (darker edges)",
+    about: "Vignette: darker edges.",
     min: 0,
     max: 100,
     step: 5,
     read: (photo) => photo.vignette,
   },
   clarity: {
-    command: "Clarity: local contrast, punchier or softer texture.",
-    label: "clarity (local contrast)",
+    about: "Clarity: local contrast, punchier or softer texture.",
     min: -100,
     max: 100,
     step: 10,
     read: (photo) => photo.clarity,
   },
   sharpening: {
-    command: "Sharpening: crisper detail.",
-    label: "sharpening",
+    about: "Sharpening: crisper detail.",
     min: 0,
     max: 150,
     step: 10,
@@ -142,96 +91,86 @@ const effects = {
 
 const sliders: Record<string, Slider> = { ...adjustments, ...effects };
 
+type Tool = { about: string; commands: Command[]; message: string };
+
 const inverted = [
   { x: 0, y: 1 },
   { x: 1, y: 0 },
 ];
 
-function isInverted({ toneCurve }: Photo) {
-  return (
-    toneCurve.length === 2 &&
-    toneCurve.every(({ x, y }, i) => x === inverted[i].x && y === inverted[i].y)
-  );
-}
-
-type Tool = {
-  description: string;
-  run: (photo: Photo) => { commands: Command[]; message: string };
+const crops = {
+  "1:1": "a square",
+  "4:5": "4:5 portrait, as for an Instagram post",
+  "3:2": "3:2 landscape",
+  "16:9": "16:9 widescreen",
+  "9:16": "9:16 vertical, as for a story",
 };
 
-function crop(label: string, description: string, aspectRatio?: number): Tool {
+/** Commands beside the sliders; only inverting depends on the photo, which it toggles. */
+function tools({ toneCurve }: Photo): Record<string, Tool> {
+  const isInverted =
+    toneCurve.length === 2 &&
+    toneCurve.every(
+      ({ x, y }, i) => x === inverted[i].x && y === inverted[i].y,
+    );
+  const cropTo = Object.entries(crops).map(([ratio, about]) => {
+    const [width, height] = ratio.split(":").map(Number);
+    const tool: Tool = {
+      about: `Crop to ${about}.`,
+      commands: [{ type: "set-crop", aspectRatio: width / height }],
+      message: `Cropped to ${ratio}`,
+    };
+    return [`crop-${ratio}`, tool];
+  });
   return {
-    description,
-    run: () => ({
-      commands: [{ type: "set-crop", aspectRatio }],
-      message: label,
-    }),
-  };
-}
-
-/** Commands beside the sliders; replying instead of editing is the `reply` question. */
-const tools: Record<string, Tool> = {
-  invert: {
-    description: "Invert the colors into a negative, or back.",
-    run: (photo) =>
-      isInverted(photo)
-        ? {
-            commands: [{ type: "set-tone-curve" }],
-            message: "Colors restored",
-          }
-        : {
-            commands: [{ type: "set-tone-curve", points: inverted }],
-            message: "Colors inverted",
-          },
-  },
-  reset: {
-    description: "Reset every edit, returning the photo to how it was opened.",
-    run: () => ({ commands: [{ type: "reset" }], message: "Reset all edits" }),
-  },
-  undo: {
-    description: "Undo the last change.",
-    run: () => ({ commands: [{ type: "undo" }], message: "Undone" }),
-  },
-  redo: {
-    description: "Redo the last undone change.",
-    run: () => ({ commands: [{ type: "redo" }], message: "Redone" }),
-  },
-  original: {
-    description: "Show the original photo for comparison, keeping the edits.",
-    run: () => ({
+    invert: {
+      about: "Invert the colors into a negative, or back.",
+      commands: [
+        isInverted
+          ? { type: "set-tone-curve" }
+          : { type: "set-tone-curve", points: inverted },
+      ],
+      message: isInverted ? "Colors restored" : "Colors inverted",
+    },
+    reset: {
+      about:
+        "Reset every edit at once, returning the whole photo to how it was opened. Resetting one control, such as “reset the contrast”, sets that control instead.",
+      commands: [{ type: "reset" }],
+      message: "Reset all edits",
+    },
+    undo: {
+      about: "Undo the last change.",
+      commands: [{ type: "undo" }],
+      message: "Undone",
+    },
+    redo: {
+      about: "Redo the last undone change.",
+      commands: [{ type: "redo" }],
+      message: "Redone",
+    },
+    original: {
+      about: "Show the original photo for comparison, keeping the edits.",
       commands: [{ type: "set-preview", comparison: "original" }],
       message: "Showing the original. Say “show my edits” to go back.",
-    }),
-  },
-  split: {
-    description: "Compare before and after side by side.",
-    run: () => ({
+    },
+    split: {
+      about: "Compare before and after side by side.",
       commands: [{ type: "set-preview", comparison: "split" }],
       message: "Showing before and after",
-    }),
-  },
-  edited: {
-    description: "Show the edited photo again after showing the original.",
-    run: () => ({
+    },
+    edited: {
+      about: "Show the edited photo again after showing the original.",
       commands: [{ type: "set-preview", comparison: "edited" }],
       message: "Showing your edits",
-    }),
-  },
-  "crop-1:1": crop("Cropped to 1:1", "Crop to a square.", 1),
-  "crop-4:5": crop(
-    "Cropped to 4:5",
-    "Crop to 4:5 portrait, as for an Instagram post.",
-    4 / 5,
-  ),
-  "crop-3:2": crop("Cropped to 3:2", "Crop to 3:2 landscape.", 3 / 2),
-  "crop-16:9": crop("Cropped to 16:9", "Crop to 16:9 widescreen.", 16 / 9),
-  "crop-9:16": crop(
-    "Cropped to 9:16",
-    "Crop to 9:16 vertical, as for a story.",
-    9 / 16,
-  ),
-  "crop-none": crop("Crop removed", "Remove the crop."),
-};
+    },
+    ...Object.fromEntries(cropTo),
+    "crop-none": {
+      about: "Remove the crop.",
+      commands: [{ type: "set-crop" }],
+      message: "Crop removed",
+    },
+  };
+}
 
 const reply =
   "Answer with a message instead of editing: a greeting, thanks, a question, an exact number, something the editor cannot do, or anything unrelated to this photo.";
@@ -313,7 +252,7 @@ function valueQuestion(slider: Slider, current: number): Question {
   });
   return {
     type: "choice",
-    instructions: `The ${slider.label} the request asks for, now ${current}. Each option notes its change from now. Without a stated amount, prefer a moderate change.`,
+    instructions: `The value the request asks for. ${slider.about} It is now ${current}; each option notes its change from now. Without a stated amount, prefer a moderate change.`,
     criteria: Object.fromEntries(options),
   };
 }
@@ -327,8 +266,9 @@ export function ask({ message, earlier, photo }: AssistantRequest) {
     Object.entries(sliders).map(([id, slider]) => [id, slider.read(photo)]),
   );
   const commands = Object.fromEntries([
-    ...Object.entries(sliders).map(([id, slider]) => [id, slider.command]),
-    ...Object.entries(tools).map(([id, tool]) => [id, tool.description]),
+    ...Object.entries({ ...sliders, ...tools(photo) }).map(
+      ([id, { about }]) => [id, about],
+    ),
     ["reply", reply],
   ]);
   const values = Object.entries(sliders).map(([id, slider]) => [
@@ -505,7 +445,7 @@ export function interpret(
       message: replies[choice(answers, "reply")] ?? replies.unclear,
     };
   }
-  const tool = tools[first]?.run(photo);
+  const tool = tools(photo)[first];
   const moved = [first, ...others].filter((id) => id in sliders);
   const edits = moved.length > 0 ? edit(answers, photo, moved) : undefined;
   const commands = [...(tool?.commands ?? []), ...(edits?.commands ?? [])];
