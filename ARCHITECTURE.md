@@ -15,7 +15,7 @@ Where the code lives and the rules that keep it in place. Keep this file true: w
 | `app/commands.ts` | The commands: serializable, validated edits that `run`, WebMCP, and other callers share; see [API.md](API.md#commands). |
 | `app/webmcp.ts` | WebMCP tools for browser agents, one per command; see [API.md](API.md#webmcp). |
 | `app/assistant` | Experimental chat that edits the photo. `index.tsx` sends a message with a summary of the photo and runs the commands that come back; `server.ts` answers through `jev.ts`, which asks the Jev evaluation model and turns its answers into commands. |
-| `api/` | Vercel functions: `assistant.ts` serves the assistant; `bun dev` serves the same handler through Vite. |
+| `/api`, at the repository root | Vercel functions: `assistant.ts` serves the assistant; `bun dev` serves the same handler through Vite. |
 | `app/editor/index.tsx` | The editor with a document: header, then a tool's canvas and controls in the layout. A tool's `View` replaces both. |
 | `app/editor/empty.tsx` | The editor before a document opens: welcome or loading status, and the placeholder sidebar. |
 | `app/editor/sidebar.tsx` | Sidebar sections in order: `EditorSidebar` with a document, `PlaceholderSidebar` without one. |

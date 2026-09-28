@@ -26,6 +26,8 @@ type Message = { from: "user" | "assistant"; text: string };
 const unavailable = "The assistant is unavailable right now.";
 const limited =
   "You've reached the assistant's usage limit. Try again in a little while.";
+const replaced =
+  "Another photo opened before the answer came, so I left it unedited.";
 const failure = z.object({ error: z.string() });
 
 function describePhoto(workspace: Workspace, controls: Controls): Photo {
@@ -126,11 +128,16 @@ export function Assistant({
     say("user", message);
     setBusy(true);
     try {
+      const document = workspace.getDocument();
       const answer = await ask({
         message,
         earlier,
         photo: describePhoto(workspace, controls),
       });
+      // The answer describes the photo that was open when the message was sent.
+      if (workspace.getDocument() !== document) {
+        throw Error(replaced);
+      }
       const results = answer.commands.map((command) =>
         runCommand(workspace, command),
       );

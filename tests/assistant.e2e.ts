@@ -1,11 +1,25 @@
 import { expect, test } from "./fixtures";
 
-test("the assistant opens, runs the commands a message returns, selects the layer they edit, replies, and closes", async ({
+test("the assistant opens, runs the commands a message returns on the photo it was sent for, selects the layer they edit, replies, and closes", async ({
   page,
 }) => {
   const requests: unknown[] = [];
+  let release = () => {};
+  const released = new Promise<void>((resolve) => {
+    release = resolve;
+  });
   await page.route("**/api/assistant", async (route) => {
     requests.push(route.request().postDataJSON());
+    if (requests.length === 3) {
+      await released;
+      await route.fulfill({
+        json: {
+          commands: [{ type: "set-adjustments", exposure: 2 }],
+          message: "exposure 0 → 2",
+        },
+      });
+      return;
+    }
     if (requests.length === 1) {
       await route.fulfill({
         json: {
@@ -52,6 +66,26 @@ test("the assistant opens, runs the commands a message returns, selects the laye
   await message.press("Enter");
   await expect(page.getByText("You're welcome!")).toBeVisible();
   expect(requests[1]).toMatchObject({ earlier: ["darker, with a vignette"] });
+
+  // An answer that arrives after another photo opens leaves the new photo alone.
+  await message.fill("brighter");
+  await message.press("Enter");
+  await page
+    .locator('input[type="file"]')
+    .setInputFiles("tests/fixtures/tones.png");
+  await expect
+    .poll(() => page.evaluate(() => window.openlight.getState().file))
+    .toBe("tones.png");
+  release();
+  await expect(
+    page.getByText(
+      "Another photo opened before the answer came, so I left it unedited.",
+    ),
+  ).toBeVisible();
+  expect(
+    (await page.evaluate(() => window.openlight.getState())).adjustments
+      .exposure,
+  ).toBe(0);
 
   await message.press("Escape");
   await expect(message).toBeHidden();

@@ -22,8 +22,11 @@ export function createAssistantHandler({ apiKey }: { apiKey?: string } = {}) {
       return Response.json({ error: "Invalid request." }, { status: 400 });
     }
     const { state, questions } = ask(body.data);
+    // A stalled model would otherwise hold the chat until the function times out.
+    const abortSignal = AbortSignal.timeout(15_000);
     // The model directly: the SDK's evaluate rejects answers whose top options tie.
-    const evaluate = async () => model.doEvaluate({ state, questions });
+    const evaluate = async () =>
+      model.doEvaluate({ state, questions, abortSignal });
     try {
       const { answers } = await evaluate().catch(evaluate);
       return Response.json(interpret(body.data, answers));
