@@ -19,6 +19,7 @@ export function HistoryControls() {
         label="Undo"
         shortcut="Mod Z"
         size="icon"
+        className="pointer-coarse:size-10"
         disabled={!undoCount}
         onClick={history.undo}
       >
@@ -30,6 +31,7 @@ export function HistoryControls() {
         label="Redo"
         shortcut="Mod Shift Z"
         size="icon"
+        className="pointer-coarse:size-10"
         disabled={!redoCount}
         onClick={history.redo}
       >

@@ -38,6 +38,21 @@ test("decode an image, apply XMP, recover from failure, and replace a document d
   ).toHaveValue("-1.00");
   const expected = await readImage(page);
   expect(expected.center[0]).toBeLessThan(baseline.center[0]);
+  // A file that fails to open leaves the edited document open, with the failure beside it.
+  const kept = await page.evaluate(() => window.openlight.getState());
+  await page.evaluate(() =>
+    window.openlight.loadImage(new File(["invalid"], "broken.png")),
+  );
+  const failure = page.getByText("Couldn't open broken.png:", {
+    exact: false,
+  });
+  await expect(failure).toBeVisible();
+  const afterFailure = await page.evaluate(() => window.openlight.getState());
+  expect(afterFailure.documentId).toBe(kept.documentId);
+  expect(afterFailure.failure?.file).toBe("broken.png");
+  expect(afterFailure.adjustments.exposure).toBe(-1);
+  await page.getByRole("button", { name: "Dismiss", exact: true }).click();
+  await expect(failure).toBeHidden();
   const before = await page.evaluate(() => window.openlight.getState());
   await page.evaluate(() => {
     const frame = window.openlight.getState().frame;

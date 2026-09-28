@@ -58,7 +58,7 @@ export function createSceneLoader(gpu: Gpu, workspace: Workspace): FileLoader {
       if (!(file instanceof File)) {
         throw new Error("loadScene requires a File.");
       }
-      await workspace.open(file.name, () =>
+      return workspace.open(file.name, () =>
         openSceneFile(file, (source) => decode(gpu, source)),
       );
     },

@@ -26,7 +26,7 @@ export function createImageLoader(gpu: Gpu, workspace: Workspace) {
       if (!(file instanceof File)) {
         throw new Error("loadImage requires a File.");
       }
-      await workspace.open(file.name, () => loadDocument(gpu, file));
+      return workspace.open(file.name, () => loadDocument(gpu, file));
     },
     /** Enters the loading state before the fetch starts, so the empty state never shows. */
     loadUrl(url: string) {

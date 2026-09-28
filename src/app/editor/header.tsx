@@ -12,8 +12,11 @@ export function EditorHeader({
   return (
     <header className="flex h-11 shrink-0 items-center gap-3 border-edge border-b surface-panel px-3">
       <span className="flex items-center gap-2">
-        <img src="/logo.svg" alt="" className="size-5" />
-        <span className="font-medium text-foreground">OpenLight</span>
+        <img src="/logo.svg" alt="" className="size-5 shrink-0" />
+        {/* On a phone the logo alone names the app, leaving room for the file and its actions. */}
+        <span className="font-medium text-foreground max-md:hidden">
+          OpenLight
+        </span>
       </span>
       {file && (
         <Tooltip>

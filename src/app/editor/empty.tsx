@@ -2,18 +2,14 @@ import { Button } from "@roprgm/ui/button";
 import { Notice } from "@roprgm/ui/notice";
 import { Section } from "@roprgm/ui/section";
 import { Spinner } from "@roprgm/ui/spinner";
-import { useRef } from "react";
 import { type Gpu, target } from "vgpu";
 import { useGpu } from "vgpu-react";
-import { sceneExtension } from "@/app/loaders/scene";
 import type { Workspace } from "@/app/workspace";
 import { EditorFrame, EditorLayout } from "@/components/editor/layout";
 import { RendererProvider } from "@/components/editor/pipeline";
 import { DocumentProvider } from "@/components/editor/session";
-import { TextLink } from "@/components/ui/text-link";
 import { createDocument, createResources } from "@/core/document";
 import { createImageSource } from "@/core/image";
-import { accept } from "@/core/image/decode";
 import { imageFrame } from "@/core/image/frame";
 import { MaskToolProvider } from "@/features/layers/mask-tool";
 import { useDisposable } from "@/hooks/use-disposable";
@@ -22,36 +18,13 @@ import { Backdrop } from "./backdrop";
 import { DockTabList } from "./dock";
 import { EditorHeader } from "./header";
 import { createImageLayer } from "./layers";
+import { OpenImage } from "./open";
 import { createEditorRenderer } from "./renderer";
 import { PlaceholderSidebar } from "./sidebar";
 import { ToolTabList } from "./tool-rail";
 import { tools } from "./tools";
 
 type OpenProps = { onOpen: (files: File[]) => void };
-
-/** The drop hint doubles as the picker: "choose a file" opens the input. */
-function OpenImage({ onOpen }: OpenProps) {
-  const input = useRef<HTMLInputElement>(null);
-  return (
-    <p className="mt-4 text-muted">
-      Drop an image here or{" "}
-      <TextLink onClick={() => input.current?.click()}>choose a file</TextLink>
-      <input
-        accept={`${accept},${sceneExtension}`}
-        hidden
-        multiple
-        onChange={(event) => {
-          const files = event.currentTarget.files;
-          if (files?.length) {
-            onOpen(Array.from(files));
-          }
-        }}
-        ref={input}
-        type="file"
-      />
-    </p>
-  );
-}
 
 type EmptyState = Exclude<
   ReturnType<Workspace["state"]["getState"]>,

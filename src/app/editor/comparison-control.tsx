@@ -55,7 +55,7 @@ export function ComparisonControl() {
       shortcut="Hold \"
       size="icon"
       aria-pressed={comparison !== "edited"}
-      className="aria-pressed:bg-pressed aria-pressed:text-foreground"
+      className="aria-pressed:bg-pressed aria-pressed:text-foreground pointer-coarse:size-10"
       onClick={() =>
         preview.setState({
           comparison: comparison === "split" ? "edited" : "split",
