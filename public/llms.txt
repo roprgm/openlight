@@ -11,7 +11,7 @@ Open https://openlight.app in a WebGPU-capable browser (recent Chrome, Edge, Saf
 
 ```js
 const editor = window.openlight;
-await editor.loadImage(file);                 // a File; loadUrl(url) accepts a same-origin URL
+await editor.loadImage(file);                 // a File; loadUrl(url) fetches a same-origin or CORS URL
 editor.setAdjustments({ exposure: 0.5, contrast: 10, highlights: -30, shadows: 20, vibrance: 15 });
 editor.setToneCurve([{ x: 0, y: 0 }, { x: 0.25, y: 0.2 }, { x: 0.75, y: 0.8 }, { x: 1, y: 1 }]);
 editor.addLayer("mask");                      // linear gradient mask; also "details", "exposure", "color-mixer", "vignette"
@@ -22,6 +22,15 @@ editor.undo(); editor.redo();
 ```
 
 Adjustments use UI units: exposure in stops, other sliders in -100..100. RAW files expose `setWhiteBalance({ temperature, tint })`. Camera Raw XMP files import through `importXmp(file)`.
+
+## Using WebMCP
+
+In browsers with [WebMCP](https://webmachinelearning.github.io/webmcp/), such as Chrome 149 or later and ChatGPT's browser, the page registers tools on `document.modelContext`, so an agent can edit without scripting the page:
+
+- `get-state` describes the open photo: size, frame, layers, and history.
+- `open-image` opens an image from an http(s) URL the page can fetch; another origin must allow CORS. To open a local file, such as one attached to a chat, serve it over HTTP with CORS and pass its URL.
+- One tool per editing command, such as `set-adjustments`, `add-mask`, `set-color-mixer`, `set-crop`, `undo`, and `set-preview`.
+- `run-commands` runs several commands in one call.
 
 ## Reference
 

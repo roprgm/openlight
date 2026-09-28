@@ -1,7 +1,7 @@
 import { z } from "zod/mini";
 import type { EditorDocument } from "@/core/document";
 import { parse } from "@/lib/parse";
-import { commands } from "./commands";
+import { commands, runCommand } from "./commands";
 import type { createControls } from "./controls";
 import type { Workspace } from "./workspace";
 
@@ -81,8 +81,11 @@ function describe(workspace: Workspace, controls: Controls) {
 }
 
 const openImage = z.strictObject({ url: z.url({ protocol: /^https?$/ }) });
+const batch = z.strictObject({
+  commands: z.array(z.looseObject({ type: z.string() })).check(z.minLength(1)),
+});
 
-/** Registers `get-state`, `open-image`, and every command as WebMCP tools for browser agents until `signal` aborts. */
+/** Registers `get-state`, `open-image`, every command, and `run-commands` as WebMCP tools for browser agents until `signal` aborts. */
 export function registerTools(
   workspace: Workspace,
   controls: Controls,
@@ -123,6 +126,23 @@ export function registerTools(
         );
         return result.layerId ? result : "Done.";
       }),
+    ),
+    defineTool(
+      "run-commands",
+      "Runs several commands in order in one call. Each command is an object with the name of another tool as its type, such as set-adjustments or add-mask, and that tool's fields. Each is its own undo step. Returns each command's result; at the first error it stops and says which command failed, keeping the ones before it.",
+      batch,
+      (input) => {
+        const { commands: list } = parse(batch, input, "Invalid run-commands");
+        return list.map((command, index) => {
+          try {
+            return runCommand(workspace, command);
+          } catch (error) {
+            throw Error(
+              `Command ${index + 1} of ${list.length} failed, after the ones before it ran: ${String(error)}`,
+            );
+          }
+        });
+      },
     ),
   ];
   for (const tool of tools) {

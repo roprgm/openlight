@@ -21,7 +21,7 @@ Export returns a `File`. It does not start a download.
 
 ## Loading
 
-These methods accept browser `File` objects and return `Promise<void>`. Await them before editing.
+These methods return promises; await them before editing. All but `loadUrl`, which takes a URL, accept browser `File` objects.
 
 | Method | Behavior |
 | --- | --- |
@@ -34,7 +34,7 @@ These methods accept browser `File` objects and return `Promise<void>`. Await th
 | `loadUrl(url)` | Fetches an image and loads it. A URL on another origin must allow CORS; the response's content type identifies an image whose URL has no extension. |
 | `importXmp(file)` | Applies supported Camera Raw adjustments as one undoable edit. |
 
-Loading calls are queued. XMP import is skipped if no document is ready; an invalid XMP import can reject without blocking later loads. Image and scene failures do not reject the loading promise. Without a document open, a failure leaves the workspace in its error state; with one, that document stays open and keeps its history. Either way `getState().failure` names the file and the error, and settings loaded in the same batch are skipped. Check `getState().documentId` or `failure` to confirm success. Loading completion does not guarantee the preview has rendered.
+File loads are queued; `loadUrl` starts at once, and when two opens overlap the later one wins. XMP import is skipped if no document is ready; an invalid XMP import can reject without blocking later loads. Image and scene failures do not reject the loading promise. Without a document open, a failure leaves the workspace in its error state; with one, that document stays open and keeps its history. Either way `getState().failure` names the file and the error, and settings loaded in the same batch are skipped. Check `getState().documentId` or `failure` to confirm success. Loading completion does not guarantee the preview has rendered.
 
 ## Editing
 
@@ -205,4 +205,6 @@ In browsers with [WebMCP](https://webmachinelearning.github.io/webmcp/), OpenLig
 
 A read-only `get-state` tool returns the file, source size, frame, layers, comparison, and history, counting brush strokes and healing patches rather than listing them.
 
-WebMCP passes only JSON, so no tool takes or returns a file. `open-image` takes an http(s) `url` instead and opens it like `loadUrl`, in place of the open photo; it returns the new state like `get-state`, or why the image could not open. An agent opens a local file, such as an image attached to its chat, by serving it over HTTP with CORS and passing its URL. From a public origin such as openlight.app, Chrome's [Local Network Access](https://developer.chrome.com/blog/local-network-access) asks the user before the page reaches a local address; an automated browser can grant the `local-network-access` permission instead.
+WebMCP passes only JSON, so no tool takes or returns a file. `open-image` takes an http(s) `url` instead and opens it like `loadUrl`, in place of the open photo; it returns the new state like `get-state`, or why the image could not open. An agent opens a local file, such as an image attached to its chat, by serving it over HTTP with CORS and passing its URL. From a public origin such as openlight.app, Chrome's [Local Network Access](https://developer.chrome.com/blog/local-network-access) asks the user before the page reaches a local address; an automated browser can grant the `local-network-access` permission instead. When the request itself fails, the error names these causes, since the browser does not say which one it was.
+
+`run-commands` takes `commands`, a list of objects shaped like `run`'s, and runs them in order in one call, so an agent can apply an edit of several steps without a round trip for each. Each command is its own undo step. It returns each command's result; at the first error it stops, names the failing command, and keeps the ones before it.

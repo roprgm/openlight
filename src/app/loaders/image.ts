@@ -35,7 +35,12 @@ export function createImageLoader(gpu: Gpu, workspace: Workspace) {
         pathname.slice(pathname.lastIndexOf("/") + 1),
       );
       return workspace.open(name, async () => {
-        const response = await fetch(url);
+        // The browser hides why a request failed, so name the usual causes.
+        const response = await fetch(url).catch(() => {
+          throw new Error(
+            "The request failed. Another origin must allow CORS, and a local address needs the browser's permission.",
+          );
+        });
         if (!response.ok) {
           throw new Error(`${response.status} ${response.statusText}`);
         }
