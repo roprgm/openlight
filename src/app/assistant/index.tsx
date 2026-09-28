@@ -1,4 +1,3 @@
-import { Badge } from "@roprgm/ui/badge";
 import { IconButton } from "@roprgm/ui/icon-button";
 import { Input } from "@roprgm/ui/input";
 import { ScrollArea } from "@roprgm/ui/scroll-area";
@@ -12,6 +11,7 @@ import { runCommand } from "@/app/commands";
 import type { createControls } from "@/app/controls";
 import type { Workspace } from "@/app/workspace";
 import { CloseIcon } from "@/components/icons/close";
+import { InfoIcon } from "@/components/icons/info";
 import { SparklesIcon } from "@/components/icons/sparkles";
 import { parse } from "@/lib/parse";
 import {
@@ -24,6 +24,8 @@ type Controls = ReturnType<typeof createControls>;
 type Message = { from: "user" | "assistant"; text: string };
 
 const unavailable = "The assistant is unavailable right now.";
+const limited =
+  "You've reached the assistant's usage limit. Try again in a little while.";
 const failure = z.object({ error: z.string() });
 
 function describePhoto(workspace: Workspace, controls: Controls): Photo {
@@ -49,6 +51,10 @@ async function ask(request: AssistantRequest) {
     headers: { "content-type": "application/json" },
     body: JSON.stringify(request),
   });
+  // Vercel's firewall answers 429 once an address sends too many messages.
+  if (response.status === 429) {
+    throw Error(limited);
+  }
   const body = await response.json().catch(() => undefined);
   if (!response.ok) {
     const error = failure.safeParse(body);
@@ -178,9 +184,14 @@ export function Assistant({
         )}
       >
         <Section className="flex-row items-center">
-          <div className="flex flex-1 items-center gap-2">
+          <div className="flex flex-1 items-center gap-1">
             <h2 className="font-medium">Assistant</h2>
-            <Badge className="text-muted">Experimental</Badge>
+            <IconButton
+              label="The assistant is in beta, and its use is limited."
+              size="icon-sm"
+            >
+              <InfoIcon className="size-3.5" />
+            </IconButton>
           </div>
           <SectionAction>
             <IconButton
