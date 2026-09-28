@@ -1,12 +1,17 @@
 import { Tooltip, TooltipContent, TooltipTrigger } from "@roprgm/ui/tooltip";
 import type { ReactNode } from "react";
 
-/** Identity on the left, document actions on the right; present in every editor state. */
+/**
+ * Identity on the left, with the file and what opens another beside its name; document actions on
+ * the right. Present in every editor state.
+ */
 export function EditorHeader({
   file,
+  open,
   children,
 }: {
   file?: string;
+  open?: ReactNode;
   children?: ReactNode;
 }) {
   return (
@@ -18,14 +23,19 @@ export function EditorHeader({
           OpenLight
         </span>
       </span>
-      {file && (
-        <Tooltip>
-          <TooltipTrigger
-            render={<span className="min-w-0 truncate text-muted">{file}</span>}
-          />
-          <TooltipContent>{file}</TooltipContent>
-        </Tooltip>
-      )}
+      <span className="flex min-w-0 items-center gap-1">
+        {file && (
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <span className="min-w-0 truncate text-muted">{file}</span>
+              }
+            />
+            <TooltipContent>{file}</TooltipContent>
+          </Tooltip>
+        )}
+        {open}
+      </span>
       <div className="ml-auto flex items-center gap-1">{children}</div>
     </header>
   );

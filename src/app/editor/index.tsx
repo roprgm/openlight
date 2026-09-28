@@ -175,8 +175,10 @@ function DocumentEditor({
       <MaskTools>
         <HealingTools>
           <BrushProvider>
-            <EditorHeader file={state.file}>
-              <OpenButton onOpen={onOpen} />
+            <EditorHeader
+              file={state.file}
+              open={<OpenButton onOpen={onOpen} />}
+            >
               <HistoryControls />
               <hr
                 aria-orientation="vertical"
