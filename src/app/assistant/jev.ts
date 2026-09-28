@@ -2,8 +2,7 @@ import type { Experimental_EvaluationQuestion as Question } from "ai";
 import { z } from "zod/mini";
 import type { Command } from "@/app/commands";
 import type { Adjustments } from "@/core/document";
-// Runs in the serverless function, so relative imports name their .js output.
-import type { AssistantRequest, AssistantResponse, Photo } from "./protocol.js";
+import type { AssistantRequest, AssistantResponse, Photo } from "./protocol";
 
 /**
  * How the assistant asks Jev, an evaluation model: one call answers typed questions about the

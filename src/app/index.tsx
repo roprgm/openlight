@@ -8,6 +8,9 @@ import { useFileDrop } from "@/hooks/use-file-drop";
 /** Visiting /demo opens a bundled photo instead of the empty state. */
 const startup = location.pathname === "/demo" ? "/images/demo.jpg" : undefined;
 
+/** The experimental assistant mounts only when the URL asks for it, as in `/?assistant`. */
+const assistant = new URLSearchParams(location.search).has("assistant");
+
 export function App() {
   const { workspace, controls, drafts } = useWorkspace(startup);
   useFileDrop(controls.openFiles);
@@ -25,7 +28,7 @@ export function App() {
         draft={recovery}
       />
       {error && <DraftNotice error={error} onDismiss={drafts.dismiss} />}
-      {state.document && (
+      {assistant && state.document && (
         <Assistant workspace={workspace} controls={controls} />
       )}
     </>

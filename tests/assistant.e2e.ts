@@ -1,6 +1,6 @@
 import { expect, test } from "./fixtures";
 
-test("the assistant opens, runs the commands a message returns on the photo it was sent for, selects the layer they edit, replies, and closes", async ({
+test("the assistant shows only at /?assistant, opens, runs the commands a message returns on the photo it was sent for, selects the layer they edit, replies, and closes", async ({
   page,
 }) => {
   const requests: unknown[] = [];
@@ -36,11 +36,22 @@ test("the assistant opens, runs the commands a message returns on the photo it w
       json: { commands: [], message: "You're welcome!" },
     });
   });
+  const open = async () => {
+    await page
+      .locator('input[type="file"]')
+      .setInputFiles("tests/fixtures/photo.svg");
+    await expect(
+      page.getByRole("button", { name: "Open an image or scene" }),
+    ).toBeVisible();
+  };
+  const button = page.getByRole("button", { name: "Assistant", exact: true });
   await page.goto("/");
-  await page
-    .locator('input[type="file"]')
-    .setInputFiles("tests/fixtures/photo.svg");
-  await page.getByRole("button", { name: "Assistant", exact: true }).click();
+  await open();
+  await expect(button).toBeHidden();
+
+  await page.goto("/?assistant");
+  await open();
+  await button.click();
   const message = page.getByRole("textbox", { name: "Message", exact: true });
   await expect(message).toBeFocused();
 
