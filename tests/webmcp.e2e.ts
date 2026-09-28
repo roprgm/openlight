@@ -80,4 +80,22 @@ test("a browser agent opens, edits, masks, crops, undoes, and resets through Web
   expect(await readImage(page)).toEqual(gray);
   await callTool(page, "undo");
   expect(await readEnds()).toEqual(masked);
+
+  // A batch runs in order and stops at its first invalid command, keeping the ones before it.
+  const { undoCount } = (await state()).history;
+  expect(
+    await callTool(page, "run-commands", {
+      commands: [
+        { type: "set-adjustments", exposure: -1 },
+        { type: "set-vignette", intensity: 40 },
+        { type: "set-adjustments", exposure: 9 },
+      ],
+    }),
+  ).toMatch(/^Error: Command 3 of 3 failed/);
+  const batched = await state();
+  expect(batched.history.undoCount).toBe(undoCount + 2);
+  expect(batched.layers[0].adjustments.exposure).toBe(-1);
+  expect(batched.layers).toContainEqual(
+    expect.objectContaining({ kind: "vignette" }),
+  );
 });
