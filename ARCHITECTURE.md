@@ -12,7 +12,8 @@ Where the code lives and the rules that keep it in place. Keep this file true: w
 | `app/loaders` | Image, scene file, and Camera Raw XMP loaders. |
 | `app/draft` | The draft autosaved in the browser. |
 | `app/controls.ts` | `window.openlight`, documented in [API.md](API.md). |
-| `app/webmcp.ts` | WebMCP tools for browser agents, built on the controls; see [API.md](API.md#webmcp). |
+| `app/commands.ts` | The commands: serializable, validated edits that `run`, WebMCP, and other callers share; see [API.md](API.md#commands). |
+| `app/webmcp.ts` | WebMCP tools for browser agents, one per command; see [API.md](API.md#webmcp). |
 | `app/editor/index.tsx` | The editor with a document: header, then a tool's canvas and controls in the layout. A tool's `View` replaces both. |
 | `app/editor/empty.tsx` | The editor before a document opens: welcome or loading status, and the placeholder sidebar. |
 | `app/editor/sidebar.tsx` | Sidebar sections in order: `EditorSidebar` with a document, `PlaceholderSidebar` without one. |
@@ -54,7 +55,7 @@ Dependencies point downward. Features do not import each other; `app/` connects 
 
 - Document edits and rendering run without React, a mounted UI, or an implicit active document: pass workspace, document, and GPU explicitly. Feature processing imports without its panel.
 - Each document owns a vanilla Zustand scene store, history, and image resources. Scenes hold immutable, serializable content and image-source IDs; files and GPU resources stay outside history.
-- UI controls and `window.openlight` call the same edits. A slider or curve gesture is one edit; cancelling restores the previous scene. Preview settings and navigation stay outside history.
+- UI controls, `window.openlight`, and commands call the same edits. A slider or curve gesture is one edit; cancelling restores the previous scene. Preview settings and navigation stay outside history.
 - The engine owns GPU resources, rendering, and derived data such as histogram bins; frame data stays out of React state. Every resource owner disposes what it creates.
 
 ## Rendering
