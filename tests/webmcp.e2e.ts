@@ -17,26 +17,33 @@ function callTool(page: Page, name: string, input: object = {}) {
   );
 }
 
-test("a browser agent edits, masks, crops, and undoes through WebMCP tools", async ({
+test("a browser agent opens, edits, masks, crops, and undoes through WebMCP tools", async ({
   page,
 }) => {
-  await page.goto("/");
-  await page.waitForFunction(
-    async () => (await document.modelContext?.getTools())?.length,
+  // Another origin, with CORS and no extension, as an agent serves a local file.
+  const url = "http://localhost:8123/gray%20card";
+  await page.route(url, (route) =>
+    route.fulfill({
+      contentType: "image/svg+xml",
+      headers: { "access-control-allow-origin": "*" },
+      body: '<svg xmlns="http://www.w3.org/2000/svg" width="128" height="64"><rect width="128" height="64" fill="#808080"/></svg>',
+    }),
   );
+  await page.goto("/");
+  // Polled from here, since waitForFunction takes a pending promise as truthy.
+  await expect
+    .poll(() =>
+      page.evaluate(
+        async () => (await document.modelContext?.getTools())?.length,
+      ),
+    )
+    .toBeGreaterThan(0);
   expect(await callTool(page, "set_adjustments", { exposure: 1 })).toBe(
     "Error: Load an image before editing.",
   );
-  await page.locator('input[type="file"]').setInputFiles({
-    name: "gray.svg",
-    mimeType: "image/svg+xml",
-    buffer: Buffer.from(
-      '<svg xmlns="http://www.w3.org/2000/svg" width="128" height="64"><rect width="128" height="64" fill="#808080"/></svg>',
-    ),
-  });
-  await expect
-    .poll(async () => JSON.parse(await callTool(page, "get_state")).sourceSize)
-    .toEqual([128, 64]);
+  expect(JSON.parse(await callTool(page, "open_image", { url }))).toMatchObject(
+    { file: "gray card", sourceSize: [128, 64] },
+  );
   const gray = await readImage(page);
 
   expect(await callTool(page, "set_adjustments", { exposure: 9 })).toMatch(

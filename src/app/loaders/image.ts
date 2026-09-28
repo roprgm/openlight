@@ -29,14 +29,18 @@ export function createImageLoader(gpu: Gpu, workspace: Workspace) {
       return workspace.open(file.name, () => loadDocument(gpu, file));
     },
     /** Enters the loading state before the fetch starts, so the empty state never shows. */
-    loadUrl(url: string) {
-      const name = url.slice(url.lastIndexOf("/") + 1);
+    async loadUrl(url: string) {
+      const { pathname } = new URL(url, location.href);
+      const name = decodeURIComponent(
+        pathname.slice(pathname.lastIndexOf("/") + 1),
+      );
       return workspace.open(name, async () => {
         const response = await fetch(url);
         if (!response.ok) {
           throw new Error(`${response.status} ${response.statusText}`);
         }
-        return loadDocument(gpu, new File([await response.blob()], name));
+        const blob = await response.blob();
+        return loadDocument(gpu, new File([blob], name, { type: blob.type }));
       });
     },
   };

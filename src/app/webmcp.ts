@@ -53,7 +53,7 @@ function defineTool<S extends z.ZodMiniType>(
     annotations,
     async execute(value) {
       try {
-        return run(parse(input, value, "Invalid input")) ?? "Done.";
+        return (await run(parse(input, value, "Invalid input"))) ?? "Done.";
       } catch (error) {
         // Returned, since browsers pass a thrown error to the agent without its message.
         return String(error);
@@ -105,10 +105,23 @@ export function registerTools(
   const tools = [
     defineTool(
       "get_state",
-      "Describes the open photo: its file, source size in pixels, crop frame, layers from bottom to top with their IDs and settings, and undo history. Color mixer arrays list red, orange, yellow, green, aqua, blue, purple, and magenta. Call it first; when no photo is open, ask the user to open one.",
+      "Describes the open photo: its file, source size in pixels, crop frame, layers from bottom to top with their IDs and settings, and undo history. Color mixer arrays list red, orange, yellow, green, aqua, blue, purple, and magenta. Call it first; when no photo is open, open one with open_image or ask the user to open one.",
       none,
       () => describe(workspace, controls),
       { readOnlyHint: true },
+    ),
+    defineTool(
+      "open_image",
+      "Opens the image at url in place of the open photo, with a new undo history, and describes it like get_state. The page fetches url, so another origin must allow CORS. To open a local file, such as an image attached to the chat, serve it over HTTP with CORS and pass its URL; the browser may first ask the user to let the page reach local addresses.",
+      z.strictObject({ url: z.url({ protocol: /^https?$/ }) }),
+      async ({ url }) => {
+        if (await controls.loadUrl(url)) {
+          return describe(workspace, controls);
+        }
+        const reason =
+          controls.getState().failure?.error ?? "another file opened instead";
+        throw Error(`Couldn't open ${url}: ${reason}`);
+      },
     ),
     defineTool(
       "set_adjustments",
