@@ -77,6 +77,20 @@ export function Assistant({
   const toggle = useRef<HTMLButtonElement>(null);
   const input = useRef<HTMLInputElement>(null);
   const newest = useRef<HTMLLIElement>(null);
+  const content = useRef<HTMLDivElement>(null);
+  const [height, setHeight] = useState(0);
+  // The card's height follows its content, so it grows smoothly as messages arrive too.
+  useEffect(() => {
+    const element = content.current;
+    if (!element) {
+      return;
+    }
+    const observer = new ResizeObserver(([entry]) =>
+      setHeight(entry.borderBoxSize[0].blockSize),
+    );
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, []);
   useEffect(() => {
     if (messages.length > 0) {
       newest.current?.scrollIntoView({ block: "nearest" });
@@ -125,16 +139,15 @@ export function Assistant({
     setBusy(false);
   }
 
-  // One shape grows from the button into the card: its width, height, and rounding transition,
-  // and grid rows from 0fr to 1fr carry the height to the content's own. It clips rather than
-  // hides overflow, so scrolling a message into view cannot scroll the shape.
+  // One shape grows from the button into the card, over content pinned to its bottom-left
+  // corner, so nothing inside moves. It clips rather than hides overflow, so scrolling a message
+  // into view cannot scroll the shape.
   return (
     <div
+      style={open ? { height } : undefined}
       className={cn(
-        "fixed bottom-3 left-14 z-50 grid overflow-clip surface-panel bg-level-4/95 backdrop-blur-sm transition-[width,grid-template-rows,border-radius] duration-300 ease-[cubic-bezier(0.2,0,0,1)] motion-reduce:transition-none max-md:hidden",
-        open
-          ? "w-80 grid-rows-[minmax(2.5rem,1fr)] rounded-xl"
-          : "w-10 grid-rows-[minmax(2.5rem,0fr)] rounded-[1.25rem]",
+        "fixed bottom-3 left-14 z-50 overflow-clip surface-panel bg-level-4/95 backdrop-blur-sm transition-[width,height,border-radius] duration-300 ease-[cubic-bezier(0.2,0,0,1)] motion-reduce:transition-none max-md:hidden",
+        open ? "w-80 rounded-xl" : "size-10 rounded-[1.25rem]",
       )}
     >
       <Tooltip>
@@ -146,7 +159,7 @@ export function Assistant({
               aria-label="Assistant"
               onClick={() => show(true)}
               className={cn(
-                "col-start-1 row-start-1 grid size-10 place-items-center self-end text-muted transition-colors hover:text-foreground",
+                "absolute bottom-0 left-0 grid size-10 place-items-center text-muted transition-colors hover:text-foreground",
                 open ? vanish : appear,
               )}
             >
@@ -157,9 +170,10 @@ export function Assistant({
         <TooltipContent>Assistant</TooltipContent>
       </Tooltip>
       <div
+        ref={content}
         className={cn(
           sections({ lines: true }),
-          "col-start-1 row-start-1 w-80 self-end",
+          "absolute bottom-0 left-0 w-80",
           open ? appear : vanish,
         )}
       >
