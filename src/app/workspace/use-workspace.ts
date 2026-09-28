@@ -4,10 +4,11 @@ import { createControls } from "@/app/controls";
 import { createAutosave } from "@/app/draft/autosave";
 import { createDraftSession } from "@/app/draft/session";
 import { createDraftStore } from "@/app/draft/store";
+import { registerTools } from "@/app/webmcp";
 import { createWorkspace } from ".";
 
 /**
- * Connects an imperative workspace, its browser commands, and draft autosave to the app lifetime.
+ * Connects an imperative workspace, its browser commands and agent tools, and draft autosave to the app lifetime.
  * A startup URL opens while the session is created, so the first paint is already loading; otherwise a stored draft is offered.
  */
 export function useWorkspace(startup?: string) {
@@ -28,7 +29,10 @@ export function useWorkspace(startup?: string) {
     const { workspace, store, controls, drafts } = session;
     const autosave = createAutosave(workspace, store, drafts.report);
     window.openlight = controls;
+    const tools = new AbortController();
+    registerTools(workspace, controls, tools.signal);
     return () => {
+      tools.abort();
       Reflect.deleteProperty(window, "openlight");
       autosave.dispose();
       workspace.dispose();

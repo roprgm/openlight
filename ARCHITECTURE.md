@@ -12,6 +12,7 @@ Where the code lives and the rules that keep it in place. Keep this file true: w
 | `app/loaders` | Image, scene file, and Camera Raw XMP loaders. |
 | `app/draft` | The draft autosaved in the browser. |
 | `app/controls.ts` | `window.openlight`, documented in [API.md](API.md). |
+| `app/webmcp.ts` | WebMCP tools for browser agents, built on the controls; see [API.md](API.md#webmcp). |
 | `app/editor/index.tsx` | The editor with a document: header, then a tool's canvas and controls in the layout. A tool's `View` replaces both. |
 | `app/editor/empty.tsx` | The editor before a document opens: welcome or loading status, and the placeholder sidebar. |
 | `app/editor/sidebar.tsx` | Sidebar sections in order: `EditorSidebar` with a document, `PlaceholderSidebar` without one. |
