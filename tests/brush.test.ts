@@ -2,11 +2,16 @@ import { expect, mock, test } from "bun:test";
 import { init, target } from "vgpu/mock";
 import { createImageLayer, createMask } from "@/app/editor/layers";
 import { createEditorRenderer } from "@/app/editor/renderer";
-import type { BrushStroke } from "@/core/document";
+import type { BrushStroke, StrokePoint } from "@/core/document";
 import { createDocument, createResources, findLayer } from "@/core/document";
 import { createImageSource } from "@/core/image";
 import { imageFrame } from "@/core/image/frame";
-import { strokeDabs } from "@/core/renderer/strokes/dabs";
+import {
+  type Dab,
+  type DabWalk,
+  strokeDabs,
+  walkDabs,
+} from "@/core/renderer/strokes/dabs";
 import { setAdjustments } from "@/features/adjustments/edits";
 import {
   addLayer,
@@ -55,6 +60,28 @@ test("dabs follow the stroke sixteen times per diameter with interpolated pressu
   expect(small).toHaveLength(11);
   expect(small[0][3]).toBeCloseTo(1 - 0.5 ** 0.5);
   expect(strokeDabs({ ...stroke, points: [] })).toEqual([]);
+});
+
+test("a walk goes on where it stopped as a stroke grows, landing the dabs a whole walk would", () => {
+  const points: StrokePoint[] = [
+    [10, 10, 1],
+    [23, 14, 0.8],
+    [31, 30, 0.4],
+    [50, 31, 0.9],
+    [52, 60, 0.2],
+  ];
+  const whole = strokeDabs({ ...stroke, size: 20, points });
+  const walked: Dab[] = [];
+  let walk: DabWalk | undefined;
+  for (let end = 1; end <= points.length; end++) {
+    const step = walkDabs(
+      { ...stroke, size: 20, points: points.slice(0, end) },
+      walk,
+    );
+    walked.push(...step.dabs);
+    walk = step.walk;
+  }
+  expect(walked).toEqual(whole);
 });
 
 test("brush strokes stamp incrementally, replay after undo, and render a proxy during gestures", async () => {

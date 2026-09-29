@@ -4,6 +4,7 @@ import type { Point } from "@/core/image/frame";
 import { input, type RenderInput } from "@/core/renderer/node";
 import { createRasterCache } from "@/core/renderer/raster-cache";
 import { extendsStroke, type Strokes } from "@/core/renderer/strokes";
+import type { DabWalk } from "@/core/renderer/strokes/dabs";
 
 type Size = readonly [number, number];
 /** Rasters cover whole tiles, so one follows a growing stroke without reallocating at every move. */
@@ -13,8 +14,8 @@ type Patch = {
   target: Target;
   origin: Point;
   stroke?: BrushStroke;
-  /** Dabs already stamped. */
-  dabs: number;
+  /** Where the stroke's dabs stopped, to go on from there as it grows. */
+  walk?: DabWalk;
 };
 
 /** A patch's coverage and where it sits in the photo, in source pixels. */
@@ -46,7 +47,6 @@ export function createPatchRaster(gpu: Gpu, strokes: Strokes) {
   const patches = createRasterCache<Patch>(gpu, "r8unorm", (target) => ({
     target,
     origin: [0, 0],
-    dabs: 0,
   }));
   return {
     patch(id: string, stroke: BrushStroke, size: Size): PatchInput {
@@ -60,14 +60,14 @@ export function createPatchRaster(gpu: Gpu, strokes: Strokes) {
         Object.assign(patch, {
           origin: tiles.origin,
           stroke: undefined,
-          dabs: 0,
+          walk: undefined,
         });
       }
       if (patch.stroke !== stroke) {
-        patch.dabs = strokes.stamp(
+        patch.walk = strokes.stamp(
           patch.target,
           stroke,
-          patch.dabs,
+          patch.walk,
           patch.origin,
         );
         patch.stroke = stroke;

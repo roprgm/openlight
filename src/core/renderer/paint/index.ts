@@ -13,6 +13,7 @@ import {
   type Stroke,
   type Strokes,
 } from "@/core/renderer/strokes";
+import type { DabWalk } from "@/core/renderer/strokes/dabs";
 import { readRaster, writeRaster } from "./transfer";
 
 type Size = readonly [number, number];
@@ -38,8 +39,8 @@ type Raster = {
   /** The settled pixels the raster starts from. */
   base?: string;
   strokes: readonly Stroke[];
-  /** Dabs already stamped from the last stroke. */
-  dabs: number;
+  /** Where the last stroke's dabs stopped, to go on from there as it grows. */
+  walk?: DabWalk;
 };
 const none: readonly Stroke[] = [];
 
@@ -79,7 +80,7 @@ export function createPaintRaster(
   const rasters = createRasterCache<Raster>(
     gpu,
     format,
-    (target) => ({ target, strokes: none, dabs: 0 }),
+    (target) => ({ target, strokes: none }),
     (raster) => strokes.discard(raster.target),
   );
   return {
@@ -99,7 +100,7 @@ export function createPaintRaster(
       const raster = rasters.reserve(id, paintingSize(source));
       strokes.discard(raster.target);
       await writeRaster(gpu, raster.target, pixels);
-      Object.assign(raster, { base, strokes: none, dabs: 0 });
+      Object.assign(raster, { base, strokes: none, walk: undefined });
     },
     /**
      * Brings a painting's raster up to date once its settled pixels loaded, and returns it, with whether
@@ -122,20 +123,24 @@ export function createPaintRaster(
         }
         strokes.discard(target);
         strokes.clear(target);
-        Object.assign(raster, { base: undefined, strokes: none, dabs: 0 });
+        Object.assign(raster, {
+          base: undefined,
+          strokes: none,
+          walk: undefined,
+        });
       }
       if (raster.strokes === painting.strokes) {
         return { target, opened: false };
       }
       const drawn = raster.strokes.length;
-      const { dabs, ...changes } = strokes.draw(
+      const { walk, ...changes } = strokes.draw(
         target,
         painting.strokes,
         Math.max(drawn - 1, 0),
-        drawn ? raster.dabs : 0,
+        drawn ? raster.walk : undefined,
         paintingScale(source),
       );
-      Object.assign(raster, { strokes: painting.strokes, dabs });
+      Object.assign(raster, { strokes: painting.strokes, walk });
       return { target, ...changes };
     },
     /** What a paint layer composes. Read it once every layer drew: drawing one can close another's stroke. */
@@ -170,7 +175,7 @@ export function createPaintRaster(
         strokes: settled,
         pixels,
         commit(base: string) {
-          Object.assign(raster, { base, strokes: none, dabs: 0 });
+          Object.assign(raster, { base, strokes: none, walk: undefined });
         },
       };
     },

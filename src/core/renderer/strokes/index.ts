@@ -11,7 +11,7 @@ import type { BrushStroke, PaintStroke } from "@/core/document";
 import { parseColor } from "@/core/image/blend";
 import type { Point } from "@/core/image/frame";
 import copyShader from "./copy.wgsl";
-import { type Dab, strokeDabs } from "./dabs";
+import { type Dab, type DabWalk, walkDabs } from "./dabs";
 import emptyShader from "./empty.wgsl";
 import layShader from "./lay.wgsl";
 import stampShader from "./stamp.wgsl";
@@ -221,19 +221,19 @@ export function createStrokes(gpu: Gpu) {
       frame(gpu, (frame) => frame.pass({ target, clear: true }, () => {}));
     },
     /**
-     * Draws `raster`'s strokes from `from` on, skipping `skip` dabs of that first one, through the
-     * buffer, at `scale` raster pixels per photo pixel. The last stays open, so it can grow. Returns its
-     * dab count, whether it opened now, and where the buffer changed.
+     * Draws `raster`'s strokes from `from` on through the buffer, at `scale` raster pixels per photo
+     * pixel, going on with that first one where `walk` stopped. The last stays open, so it can grow.
+     * Returns where its walk stopped, whether it opened now, and where the buffer changed.
      */
     draw(
       raster: Target,
       strokes: readonly Stroke[],
       from: number,
-      skip: number,
+      walk: DabWalk | undefined,
       scale: Point,
     ) {
       const target = reserveBuffer(raster.size);
-      let count = 0;
+      let last = walk;
       let opened = false;
       let changed: Rect | undefined;
       for (let i = from; i < strokes.length; i++) {
@@ -243,11 +243,11 @@ export function createStrokes(gpu: Gpu) {
           opened = true;
         }
         const current = open ?? { raster, index: i, stroke };
-        const all = strokeDabs(stroke);
-        count = all.length;
+        const { dabs, walk } = walkDabs(stroke, i === from ? last : undefined);
+        last = walk;
         const reached = stampDabs(
           target,
-          i === from ? all.slice(skip) : all,
+          dabs,
           stroke.feather,
           cover,
           [0, 0],
@@ -256,17 +256,22 @@ export function createStrokes(gpu: Gpu) {
         changed = union(changed, reached);
         open = { ...current, stroke, bounds: union(current.bounds, reached) };
       }
-      return { dabs: count, opened, changed };
+      return { walk: last, opened, changed };
     },
     /**
-     * Stamps a stroke, from dab `skip` on, straight into `raster`, which sits at `origin` in the photo;
-     * returns its dab count. For hard strokes at full flow, which round the same either way.
+     * Stamps a stroke straight into `raster`, which sits at `origin` in the photo, going on where `walk`
+     * stopped; returns where this walk stops. For hard strokes at full flow, which round the same either way.
      */
-    stamp(raster: Target, stroke: Stroke, skip: number, origin: Point) {
-      const all = strokeDabs(stroke);
+    stamp(
+      raster: Target,
+      stroke: Stroke,
+      walk: DabWalk | undefined,
+      origin: Point,
+    ) {
+      const walked = walkDabs(stroke, walk);
       const pass = stroke.mode === "paint" ? cover : uncover;
-      stampDabs(raster, all.slice(skip), stroke.feather, pass, origin);
-      return all.length;
+      stampDabs(raster, walked.dabs, stroke.feather, pass, origin);
+      return walked.walk;
     },
     /** Whether `raster`'s last stroke is open, its coverage in the buffer rather than the raster. */
     isOpen: (raster: Target) => open?.raster === raster,
