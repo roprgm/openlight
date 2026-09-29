@@ -55,10 +55,11 @@
   </head>
   <body>
     <div id="root">
-      <main class="grid h-dvh place-content-center justify-items-center gap-1.5 p-6 text-center">
-        <img alt="" class="mb-1.5 w-16" height="64" src="/logo.svg" width="64" />
-        <h1 class="text-2xl font-bold">OpenLight</h1>
-        <p class="text-muted">Edit photos in your browser.</p>
+      <!-- For crawlers that don't run the script; visually hidden without waiting for the stylesheet. -->
+      <main style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap">
+        <h1>OpenLight</h1>
+        <p>Edit photos in your browser.</p>
+        <a href="/about">About OpenLight</a>
       </main>
     </div>
     <script type="module" src="/src/main.tsx"></script>
