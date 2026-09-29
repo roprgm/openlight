@@ -1059,11 +1059,13 @@ test("edit a photo, inspect the preview and histograms, undo changes, and export
       );
       expect(histogram.width).toBe(176);
       expect(histogram.height).toBe(56);
-      expect(histogram.x).toBeCloseTo(canvas.x + 12, 0);
-      const bottomGap =
-        canvas.y + canvas.height - histogram.y - histogram.height;
-      expect(bottomGap).toBeGreaterThanOrEqual(11);
-      expect(bottomGap).toBeLessThanOrEqual(12);
+      // In the canvas's top right corner, 12px in.
+      const rightGap = canvas.x + canvas.width - histogram.x - histogram.width;
+      expect(rightGap).toBeGreaterThanOrEqual(11);
+      expect(rightGap).toBeLessThanOrEqual(12);
+      const topGap = histogram.y - canvas.y;
+      expect(topGap).toBeGreaterThanOrEqual(11);
+      expect(topGap).toBeLessThanOrEqual(12);
       const exposure = mobile.getByRole("slider", {
         name: "Exposure",
         exact: true,
