@@ -20,7 +20,7 @@ Image processing runs on your own GPU with WebGPU. Photos never leave your devic
 
 **Layers and masks**
 
-- Draggable effect layers: Details, Exposure, Color Mixer, Vignette, Grain, and Color, which paints one color with Photoshop blend modes.
+- Draggable effect layers: Details, Exposure, Color Mixer, Vignette, Grain, Color, which paints one color with Photoshop blend modes, and LUT, which grades the photo with a 3D LUT from a `.cube` file.
 - Linear and radial masks with their own adjustments and child effects.
 - Add and Subtract submasks, from a mask's actions menu, to shape its coverage.
 
@@ -44,7 +44,7 @@ Image processing runs on your own GPU with WebGPU. Photos never leave your devic
 **Files**
 
 - Open JPEG, PNG, WebP, AVIF, GIF, BMP, SVG, HEIC, TIFF at 8-bit, 16-bit, and floating-point precision, and camera RAW/DNG with absolute white balance and As Shot reset.
-- Import Camera Raw XMP settings.
+- Import Camera Raw XMP settings, and `.cube` LUTs as layers.
 - Export PNG, JPEG, or WebP with resizing, a live preview, and the resulting file size.
 - Save the photo with every edit as an OpenLight scene, then open it to continue editing.
 - Recover the latest edited photo after closing the tab, from a draft kept in the browser.

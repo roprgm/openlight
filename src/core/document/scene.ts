@@ -122,6 +122,8 @@ export type ProcessingLayer = {
   | { readonly kind: "grain"; readonly grain: Grain }
   | { readonly kind: "color-mixer"; readonly colorMixer: ColorMixer }
   | { readonly kind: "fill"; readonly fill: Fill }
+  /** A 3D LUT from the document's resources, by ID. */
+  | { readonly kind: "lut"; readonly lut: string }
   | { readonly kind: "heal"; readonly patches: readonly HealPatch[] }
   | {
       readonly kind: "mask";

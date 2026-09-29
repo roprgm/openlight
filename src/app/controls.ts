@@ -10,6 +10,7 @@ import {
 } from "@/app/editor/export/export-image";
 import { createCameraRawXmpLoader } from "@/app/loaders/camera-raw-xmp";
 import { createImageLoader } from "@/app/loaders/image";
+import { createLutLoader } from "@/app/loaders/lut";
 import { createLoaderRegistry } from "@/app/loaders/registry";
 import { createSceneLoader, writeSceneFile } from "@/app/loaders/scene";
 import type {
@@ -20,7 +21,6 @@ import type {
   Grain,
   Mask,
   Preview,
-  ProcessingLayer,
   ToneCurve,
   Vignette,
 } from "@/core/document";
@@ -63,6 +63,7 @@ import { type Command, runCommand } from "./commands";
 import {
   createLayer,
   createMask,
+  type DefaultEffect,
   editEffect,
   findEffect,
 } from "./editor/layers";
@@ -77,8 +78,9 @@ export function createControls(
   const image = createImageLoader(gpu, workspace);
   const xmp = createCameraRawXmpLoader(workspace);
   const scene = createSceneLoader(gpu, workspace);
+  const lut = createLutLoader(workspace);
   const files = createLoaderRegistry(
-    [scene, xmp, image],
+    [scene, xmp, lut, image],
     () => workspace.state.getState().status === "ready",
   );
 
@@ -145,7 +147,7 @@ export function createControls(
       addHealPatch(workspace.getDocument(), id, stroke, offset),
     setHealSource: (id: string, patchId: string, offset: Point) =>
       setHealSource(workspace.getDocument(), id, patchId, offset),
-    addLayer(kind: ProcessingLayer["kind"], placement?: LayerPlacement) {
+    addLayer(kind: DefaultEffect | "mask", placement?: LayerPlacement) {
       const document = workspace.getDocument();
       if (kind !== "mask") {
         return addLayer(document, createLayer(kind), placement);

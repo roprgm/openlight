@@ -5,6 +5,7 @@ type NodeOptions = {
   readonly instance?: string;
   readonly set?: EffectOptions["set"];
   readonly samplers?: Readonly<Record<string, GPUSamplerDescriptor>>;
+  /** Uploaded when the array changes: pass the same array to keep the buffer as it is. */
   readonly storage?: Readonly<Record<string, Float32Array<ArrayBuffer>>>;
   readonly size?: readonly [number, number];
   readonly format?: GPUTextureFormat;

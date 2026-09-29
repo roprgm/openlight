@@ -2,7 +2,7 @@ import { IconButton } from "@roprgm/ui/icon-button";
 import { Notice, NoticeClose } from "@roprgm/ui/notice";
 import { Section, SectionAction } from "@roprgm/ui/section";
 import { Spinner } from "@roprgm/ui/spinner";
-import { type RefObject, useRef } from "react";
+import { createContext, type RefObject, useContext, useRef } from "react";
 import { sceneExtension } from "@/app/loaders/scene";
 import type { OpenFailure } from "@/app/workspace";
 import { OpenIcon } from "@/components/icons/open";
@@ -11,6 +11,19 @@ import { accept } from "@/core/image/decode";
 import { useShortcuts } from "@/hooks/use-shortcuts";
 
 type OpenProps = { onOpen: (files: File[]) => void };
+
+type ReportFailure = (file: string, error: unknown) => void;
+
+/** Where the editor reports a file it read itself but couldn't use, such as a LUT, to show like a failed open. */
+export const FailureContext = createContext<ReportFailure | null>(null);
+
+export function useReportFailure() {
+  const report = useContext(FailureContext);
+  if (!report) {
+    throw new Error("useReportFailure requires FailureContext.");
+  }
+  return report;
+}
 
 /** The hidden picker for images and scenes; clearing it after each pick lets the same file open again. */
 function FileInput({

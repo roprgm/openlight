@@ -3,6 +3,7 @@ import {
   createDocument,
   createResources,
   type EditorDocument,
+  layerLuts,
   type ProcessingLayer,
   type Scene,
   walkLayers,
@@ -24,6 +25,7 @@ import {
   maskOperation,
   maskSchema,
 } from "@/features/layers/model";
+import { readCubeFile } from "@/features/lut/cube";
 import { curveSchema } from "@/features/tone-curves/curve";
 import { defaultVignette, vignetteSchema } from "@/features/vignette/model";
 import { whiteBalanceSchema } from "@/features/white-balance/edits";
@@ -32,7 +34,7 @@ import { parse, withDefaults } from "@/lib/parse";
 /** Raised only when older files can no longer load as written; a parameter added later takes its default. */
 const version = 1;
 
-/** A saved scene: the scene as edited and the name and type of each source file, stored beside it by ID. */
+/** A saved scene: the scene as edited and the name and type of each source file, its image and LUTs, stored beside it by ID. */
 export type SceneJson = {
   format: "openlight";
   version: number;
@@ -44,14 +46,25 @@ export type SceneJson = {
 export function snapshotScene(document: EditorDocument) {
   const scene = document.scene.getState();
   const { source } = scene.layers[0];
-  const { file } = document.resources.get(source);
+  const files = new Map([
+    [source, document.resources.get(source).file],
+    ...Array.from(
+      layerLuts(scene.layers),
+      (id) => [id, document.resources.getLut(id).file] as const,
+    ),
+  ]);
   const json: SceneJson = {
     format: "openlight",
     version,
-    sources: { [source]: { name: file.name, type: file.type } },
+    sources: Object.fromEntries(
+      Array.from(files, ([id, file]) => [
+        id,
+        { name: file.name, type: file.type },
+      ]),
+    ),
     scene,
   };
-  return { json, files: new Map([[source, file]]) };
+  return { json, files };
 }
 
 const id = z.string().check(z.minLength(1));
@@ -93,6 +106,7 @@ function processingLayer(children: z.ZodMiniType<readonly ProcessingLayer[]>) {
         kind: z.literal("fill"),
         fill: withDefaults(defaultFill, fillSchema),
       }),
+      z.object({ ...base, kind: z.literal("lut"), lut: id }),
       z.object({
         ...base,
         kind: z.literal("heal"),
@@ -187,13 +201,22 @@ export async function openScene(
   }
   const { sources, scene } = parse(savedSchema, saved, "Invalid scene");
   const [image, ...layers] = scene.layers;
-  const source = sources[image.source];
-  const data = files.get(image.source);
-  if (!source || !data) {
-    throw Error("The scene's image is missing.");
+  function sourceFile(id: string, missing: string) {
+    const source = sources[id];
+    const data = files.get(id);
+    if (!source || !data) {
+      throw Error(missing);
+    }
+    return new File([data], source.name, { type: source.type });
   }
-  const sourceFile = new File([data], source.name, { type: source.type });
-  const decoded = await decode(sourceFile);
+  const imageFile = sourceFile(image.source, "The scene's image is missing.");
+  const luts = await Promise.all(
+    Array.from(layerLuts(scene.layers), async (id) => {
+      const file = sourceFile(id, "A LUT in this scene is missing.");
+      return { id, file, table: await readCubeFile(file) };
+    }),
+  );
+  const decoded = await decode(imageFile);
   const asShot = decoded.raw?.asShot;
   // Absolute white balance applies only to RAW images, which fall back to their as-shot balance.
   const whiteBalance =
@@ -206,7 +229,10 @@ export async function openScene(
       : asShot;
   const resources = createResources();
   try {
-    resources.add(sourceFile, decoded, image.source);
+    resources.add(imageFile, decoded, image.source);
+    for (const { id, file, table } of luts) {
+      resources.addLut(file, table, id);
+    }
     return createDocument(
       {
         frame: scene.frame,

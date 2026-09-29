@@ -17,6 +17,7 @@ for (const workload of [
   "brush-exposure",
   "layer-stack",
   "fill",
+  "lut",
   "heal",
   "heal-empty",
   "heal-proxy",
