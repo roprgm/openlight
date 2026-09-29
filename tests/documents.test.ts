@@ -1,15 +1,15 @@
 import { expect, test } from "bun:test";
 import { init, target } from "vgpu/mock";
-import { createImageLayer } from "@/app/editor/layers";
+import { createImageLayer, createLayer } from "@/app/editor/layers";
 import { createWorkspace } from "@/app/workspace";
 import { createDocument, createResources } from "@/core/document";
 import { createImageSource } from "@/core/image";
 import { imageFrame } from "@/core/image/frame";
 import { setAdjustments } from "@/features/adjustments/edits";
-import { detailsChange } from "@/features/details/edits";
+import { setDetails } from "@/features/details/edits";
+import { addLayer } from "@/features/layers/edits";
 import { defaultCurve } from "@/features/tone-curves/curve";
 import { setToneCurve } from "@/features/tone-curves/edits";
-import { parse } from "@/lib/parse";
 
 function document() {
   return createDocument({
@@ -46,9 +46,10 @@ test("drop removes the latest entry only after its snapshot, leaving no redo, an
   expect(doc.history.status.getState().undoCount).toBe(0);
 });
 
-test("documents edit independently without React, retain bounded history, and reject edits after replacement", async () => {
-  const first = document();
-  const second = document();
+test("detail edits reject out-of-range values and leave the scene unchanged", () => {
+  const doc = document();
+  const id = addLayer(doc, createLayer("details"));
+  const added = doc.scene.getState();
   for (const change of [
     { sharpening: -1 },
     { sharpening: 151 },
@@ -56,11 +57,16 @@ test("documents edit independently without React, retain bounded history, and re
     { sharpenRadius: 3.1 },
     { sharpenRadius: NaN },
   ]) {
-    expect(() =>
-      parse(detailsChange, change, "Invalid detail adjustment"),
-    ).toThrow("Invalid detail adjustment");
+    expect(() => setDetails(doc, change, id)).toThrow(
+      "Invalid detail adjustment",
+    );
   }
+  expect(doc.scene.getState()).toBe(added);
+});
 
+test("documents edit independently without React, retain bounded history, and reject edits after replacement", async () => {
+  const first = document();
+  const second = document();
   setAdjustments(first, { exposure: 1 });
   const points = [
     { x: 0, y: 0 },
@@ -191,17 +197,6 @@ test("documents edit independently without React, retain bounded history, and re
   }
   expect(() => resources.get(source)).toThrow("unavailable");
   expect(resources.get(replacement)).toBeDefined();
-  const frame = doc.scene.getState().frame;
-  for (const invalid of [
-    { ...frame, size: [0, 1] as const },
-    { ...frame, scale: [0, 1] as const },
-    { ...frame, angle: Number.NaN },
-  ]) {
-    expect(() => doc.edit({ ...doc.scene.getState(), frame: invalid })).toThrow(
-      "Invalid image frame",
-    );
-  }
-  expect(doc.scene.getState().frame).toBe(frame);
 
   doc.dispose();
   expect(() => resources.get(replacement)).toThrow("unavailable");

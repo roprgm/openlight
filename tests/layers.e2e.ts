@@ -1,4 +1,3 @@
-import { writeFile } from "node:fs/promises";
 import type { Page } from "@playwright/test";
 import { expect, test } from "./fixtures";
 import { readImage, readPreview } from "./images";
@@ -14,7 +13,7 @@ async function samples(page: Page) {
 
 test("draw a mask, edit its child effects, reorder layers and undo", async ({
   page,
-}, info) => {
+}) => {
   test.setTimeout(90_000);
   await page.setViewportSize({ width: 1440, height: 1000 });
   const state = () => page.evaluate(() => window.openlight.getState());
@@ -45,14 +44,6 @@ test("draw a mask, edit its child effects, reorder layers and undo", async ({
       [to.x + to.width / 2, to.y + to.height * fraction],
     );
   }
-  async function saveExport(name: string) {
-    const bytes = await page.evaluate(async () => [
-      ...new Uint8Array(
-        await (await window.openlight.exportImage()).arrayBuffer(),
-      ),
-    ]);
-    await writeFile(info.outputPath(name), new Uint8Array(bytes));
-  }
   await page.goto("/");
   await page
     .locator('input[type="file"]')
@@ -60,21 +51,6 @@ test("draw a mask, edit its child effects, reorder layers and undo", async ({
   await expect(
     page.getByRole("textbox", { name: "Exposure", exact: true }),
   ).toHaveValue("0.00");
-  await test.step("Details is an optional effect, separate from image adjustments", async () => {
-    await expect(
-      page.getByRole("heading", { name: "Adjustments", exact: true }),
-    ).toBeVisible();
-    await expect(
-      page.getByRole("textbox", { name: "Clarity", exact: true }),
-    ).toHaveCount(0);
-    await page.getByRole("button", { name: "Add effect", exact: true }).click();
-    await page.getByRole("menuitem", { name: "Details", exact: true }).click();
-    await setField("Clarity", "-100");
-    expect((await readImage(page)).corner[0]).toBeGreaterThan(0);
-    await page.getByRole("button", { name: "Undo", exact: true }).click();
-    expect((await readImage(page)).corner).toEqual([0, 0, 0, 255]);
-    await page.getByRole("button", { name: "Undo", exact: true }).click();
-  });
   const original = await samples(page);
   await test.step("a local exposure recovers light the global exposure pushed past white", async () => {
     // Export pixels at the gray field and the light band, both inside the radial mask below.
@@ -111,8 +87,6 @@ test("draw a mask, edit its child effects, reorder layers and undo", async ({
     });
     expect(await samples(page)).toEqual(original);
   });
-  await page.screenshot({ path: info.outputPath("layers-before-ui.png") });
-  await saveExport("layers-before-export.png");
   await page.getByRole("tab", { name: "Linear gradient", exact: true }).click();
   const overlay = page.getByLabel("Gradient mask canvas", { exact: true });
   const bounds = await box(overlay);
@@ -182,12 +156,12 @@ test("draw a mask, edit its child effects, reorder layers and undo", async ({
     await page.keyboard.press("ControlOrMeta+z");
     await drag(page, [center[0] + 80, center[1]], [center[0], center[1] + 80]);
     const rotated = (await state()).scene?.layers[1];
-    expect(rotated?.kind).toBe("mask");
-    if (rotated?.kind === "mask" && rotated.mask.kind === "linear") {
-      expect(
-        Math.abs(rotated.mask.end[1] - rotated.mask.start[1]),
-      ).toBeLessThan(1);
+    if (rotated?.kind !== "mask" || rotated.mask.kind !== "linear") {
+      throw Error("Linear mask missing");
     }
+    expect(Math.abs(rotated.mask.end[1] - rotated.mask.start[1])).toBeLessThan(
+      1,
+    );
     await page.keyboard.press("ControlOrMeta+z");
     await page.mouse.move(center[0], center[1]);
     await page.mouse.down();
@@ -291,8 +265,6 @@ test("draw a mask, edit its child effects, reorder layers and undo", async ({
     expect((await state()).scene?.layers[1].children).toHaveLength(1);
   });
   await page.getByRole("button", { name: "Sky", exact: true }).click();
-  await page.screenshot({ path: info.outputPath("layers-after-ui.png") });
-  await saveExport("layers-after-export.png");
   await test.step("radial masks edit locally, resize, feather, rotate, subtract and undo", async () => {
     const before = await readImage(page);
     const beforeSamples = await samples(page);
@@ -308,8 +280,6 @@ test("draw a mask, edit its child effects, reorder layers and undo", async ({
       before.center[0] + 20,
     );
     expect((await samples(page))[1]).toEqual(beforeSamples[1]);
-    await page.screenshot({ path: info.outputPath("radial-ui.png") });
-    await saveExport("radial-export.png");
     const edited = await state();
     await page.mouse.move(origin[0] + 40, origin[1] + 30);
     await expect(

@@ -43,7 +43,7 @@ function changeChildren(
   }));
 }
 
-export function validateDepth(layers: readonly Layer[]) {
+function validateDepth(layers: readonly Layer[]) {
   if (
     layers.some((layer) =>
       layer.children.some((child) => child.children.length > 0),

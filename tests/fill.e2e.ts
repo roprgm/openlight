@@ -4,7 +4,7 @@ import { box, choose, drag } from "./pointer";
 
 test("a color layer paints the image or a brush stroke with Photoshop blends", async ({
   page,
-}, info) => {
+}) => {
   await page.setViewportSize({ width: 1440, height: 1000 });
   const state = () => page.evaluate(() => window.openlight.getState());
   async function addColor() {
@@ -64,6 +64,5 @@ test("a color layer paints the image or a brush stroke with Photoshop blends", a
     expect(samples?.[0][0]).toBeGreaterThan(200);
     expect(samples?.[0][2]).toBeLessThan(100);
     expect(samples?.[1]).toEqual([128, 128, 128, 255]);
-    await page.screenshot({ path: info.outputPath("fill-ui.png") });
   });
 });

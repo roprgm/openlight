@@ -96,7 +96,7 @@ export async function probeColorMixer() {
       selected(0, "hue", 100),
     ]) {
       const [output] = graph.render([
-        pipeline(inputNode(input), [colorMixer(settings)]),
+        pipeline(inputNode(input), [colorMixer(settings, "color-mixer")]),
       ]);
       outputs.push([...(await output.readFloats())]);
     }

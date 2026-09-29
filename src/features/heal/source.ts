@@ -1,4 +1,4 @@
-import type { Gpu, Target, Timer } from "vgpu";
+import type { Gpu, Target } from "vgpu";
 import type { BrushStroke } from "@/core/document";
 import type { Point } from "@/core/image/frame";
 import { createRenderGraph, input, merge, node } from "@/core/renderer";
@@ -93,8 +93,8 @@ function matchSource(
 }
 
 /** Owns one thumbnail pass, reused for each automatic source search. */
-export function createHealSearch(gpu: Gpu, timer?: Timer) {
-  const graph = createRenderGraph(gpu, timer);
+export function createHealSearch(gpu: Gpu) {
+  const graph = createRenderGraph(gpu);
   return {
     async find(
       image: Target,
@@ -125,7 +125,6 @@ export function createHealSearch(gpu: Gpu, timer?: Timer) {
         stroke,
       );
     },
-    inspect: graph.inspect,
     dispose: graph.dispose,
   };
 }

@@ -125,6 +125,9 @@ test("heal patches reuse brush rasters, scale with the proxy, undo, and release 
     await renderer.update(document.scene.getState());
     expect(renderer.inspect().effects).toBe(0);
     expect(renderer.inspect().rasters).toEqual([]);
+    document.history.undo();
+    await renderer.update(document.scene.getState());
+    expect(renderer.inspect().rasters).toHaveLength(1);
     deleteLayer(document, id);
     await renderer.update(document.scene.getState());
     expect(renderer.inspect().rasters).toEqual([]);

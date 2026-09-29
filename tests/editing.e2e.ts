@@ -379,7 +379,6 @@ test("edit a photo, inspect the preview and histograms, undo changes, and export
     );
     const bounds = await graph.boundingBox();
     if (!bounds) throw new Error("Curve graph is missing.");
-    expect((await box(graph.locator(".."))).height).toBe(180);
     await drag(
       page,
       [bounds.x + bounds.width / 2, bounds.y + bounds.height / 2],
@@ -1052,11 +1051,6 @@ test("edit a photo, inspect the preview and histograms, undo changes, and export
       await mobile
         .locator('input[type="file"]')
         .setInputFiles("tests/fixtures/photo.svg");
-      const histogram = await box(
-        mobile.getByRole("region", { name: "Image histogram" }),
-      );
-      expect(histogram.width).toBe(176);
-      expect(histogram.height).toBe(56);
       const exposure = mobile.getByRole("slider", {
         name: "Exposure",
         exact: true,

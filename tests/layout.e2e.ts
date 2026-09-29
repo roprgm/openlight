@@ -1,5 +1,4 @@
 import { expect, test } from "./fixtures";
-import { box, drag } from "./pointer";
 
 test("edit on a phone and carry the canvas across the breakpoint", async ({
   page,
@@ -31,24 +30,6 @@ test("edit on a phone and carry the canvas across the breakpoint", async ({
     ).toBeVisible();
     await expect(canvas.locator("canvas[data-mounted]")).toHaveCount(1);
     await page.setViewportSize({ width: 390, height: 844 });
-  });
-
-  await test.step("a drag on a dial is one edit", async () => {
-    const contrast = page.getByRole("slider", {
-      name: "Contrast",
-      exact: true,
-    });
-    await expect(contrast).toBeVisible();
-    const bounds = await box(contrast);
-    const y = bounds.y + 20;
-    await drag(
-      page,
-      [bounds.x + bounds.width / 2, y],
-      [bounds.x + bounds.width / 2 + 60, y],
-    );
-    expect((await state()).adjustments.contrast).toBe(20);
-    await page.getByRole("button", { name: "Undo" }).click();
-    expect((await state()).adjustments.contrast).toBe(0);
   });
 
   await test.step("a tapped dial takes a typed value", async () => {

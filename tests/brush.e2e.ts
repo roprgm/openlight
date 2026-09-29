@@ -14,7 +14,7 @@ async function samples(page: Page) {
 
 test("paint a brush mask, adjust it in the sidebar, erase, and undo", async ({
   page,
-}, info) => {
+}) => {
   test.setTimeout(90_000);
   await page.setViewportSize({ width: 1440, height: 1000 });
   const state = () => page.evaluate(() => window.openlight.getState());
@@ -80,13 +80,14 @@ test("paint a brush mask, adjust it in the sidebar, erase, and undo", async ({
     const layers = (await state()).scene?.layers;
     expect(layers).toHaveLength(2);
     const mask = layers?.[1];
-    expect(mask).toMatchObject({ kind: "mask", name: "Brush" });
-    if (mask?.kind === "mask" && mask.mask.kind === "brush") {
-      expect(mask.mask.strokes).toHaveLength(1);
-      expect(mask.mask.strokes[0].size).toBe(200);
-      expect(mask.mask.strokes[0].points.length).toBeGreaterThan(2);
+    if (mask?.kind !== "mask" || mask.mask.kind !== "brush") {
+      throw Error("Brush mask missing");
     }
-    expect((await state()).selectedLayerId).toBe(mask?.id);
+    expect(mask.name).toBe("Brush");
+    expect(mask.mask.strokes).toHaveLength(1);
+    expect(mask.mask.strokes[0].size).toBe(200);
+    expect(mask.mask.strokes[0].points.length).toBeGreaterThan(2);
+    expect((await state()).selectedLayerId).toBe(mask.id);
     expect(await samples(page)).toEqual(original);
     await page.mouse.move(bounds.x + 20, bounds.y + 20);
     await expect.poll(tinted).toBe(true);
@@ -142,7 +143,6 @@ test("paint a brush mask, adjust it in the sidebar, erase, and undo", async ({
     await expect(overlayButton).toHaveAttribute("aria-pressed", "true");
     await page.keyboard.press("o");
     await expect.poll(tinted).toBe(false);
-    await page.screenshot({ path: info.outputPath("brush-ui.png") });
   });
   await test.step("Alt erases and each stroke is one undo step", async () => {
     const painted = await samples(page);

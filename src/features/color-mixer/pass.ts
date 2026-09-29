@@ -3,8 +3,8 @@ import { node } from "@/core/renderer";
 import shader from "./mixer.wgsl";
 import { colors, isNeutral } from "./model";
 
-export function colorMixer(mixer?: ColorMixer, name = "color-mixer") {
-  if (!mixer || isNeutral(mixer)) {
+export function colorMixer(mixer: ColorMixer, name: string) {
+  if (isNeutral(mixer)) {
     return;
   }
   return node(name, shader, {

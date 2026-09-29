@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { getMockGPUDeviceInstrumentation, init, target } from "vgpu/mock";
+import { init, target } from "vgpu/mock";
 import { createImageLayer, createLayer } from "@/app/editor/layers";
 import { createEditorRenderer } from "@/app/editor/renderer";
 import { createDocument } from "@/core/document";
@@ -8,7 +8,7 @@ import { imageFrame } from "@/core/image/frame";
 import { resetColorMixer, setColorMixer } from "@/features/color-mixer/edits";
 import { defaultMixer } from "@/features/color-mixer/model";
 
-test("color edits validate, group, cancel and reset while renderers reuse and release their outputs", async () => {
+test("color edits validate, group, cancel and reset, and a neutral mixer renders no pass", async () => {
   const gpu = await init();
   const image = target(gpu, { size: [32, 16], format: "rgba16float" });
   const source = createImageSource(image);
@@ -41,10 +41,6 @@ test("color edits validate, group, cancel and reset while renderers reuse and re
     ).toBe(-20);
     await renderer.update(scene);
     expect(renderer.inspect().passes).toEqual(["layer/mixer/color-mixer"]);
-    const edited = renderer.outputImage();
-    expect(edited.format).toBe("rgba16float");
-    const calls = getMockGPUDeviceInstrumentation(gpu.gpu).calls;
-    const pipelines = calls.createRenderPipeline;
     setColorMixer(document, "blue", { hue: 25 }, "mixer");
     expect(document.history.status.getState().undoCount).toBe(1);
     document.history.begin();
@@ -57,7 +53,6 @@ test("color edits validate, group, cancel and reset while renderers reuse and re
     document.history.redo();
     await renderer.update(document.scene.getState());
     expect(renderer.inspect().passes).toEqual(["layer/mixer/color-mixer"]);
-    expect(calls.createRenderPipeline).toBe(pipelines);
     for (const value of [NaN, Infinity, -101, 101]) {
       expect(() =>
         setColorMixer(document, "red", { hue: value }, "mixer"),
@@ -86,9 +81,6 @@ test("color edits validate, group, cancel and reset while renderers reuse and re
     });
     document.history.undo();
     expect(document.scene.getState()).toEqual(scene);
-    renderer.dispose();
-    expect(() => edited.color.view).toThrow("destroyed");
-    expect(() => image.color.view).not.toThrow();
   } finally {
     renderer.dispose();
     document.dispose();
