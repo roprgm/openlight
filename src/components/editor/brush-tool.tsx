@@ -128,9 +128,11 @@ export function BrushProvider({ children }: { children: ReactNode }) {
   );
 }
 
-/** Flow is the cube of its slider's share, so the lower half holds the light touches: 50% lays an eighth. */
+/** How the Flow slider curves: flow is its share to this power, so 50% lays a quarter and low values stay light. */
+const flowCurve = 2;
+
 export function flowAt(share: number) {
-  return share ** 3;
+  return share ** flowCurve;
 }
 
 /** The next stroke's size, feather, and flow, for sliders and dials wherever they show. */
@@ -164,7 +166,7 @@ export function useBrushParameters(): [Parameter, Parameter, Parameter] {
     {
       id: "flow",
       label: "Flow",
-      value: Math.round(Math.cbrt(settings.flow) * 100),
+      value: Math.round(settings.flow ** (1 / flowCurve) * 100),
       min: 1,
       max: 100,
       defaultValue: 100,
