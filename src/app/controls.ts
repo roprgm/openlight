@@ -17,6 +17,7 @@ import type {
   BrushStroke,
   Details,
   Fill,
+  Grain,
   Mask,
   Preview,
   ProcessingLayer,
@@ -38,6 +39,8 @@ import { applyCrop } from "@/features/crop/edits";
 import { setDetails } from "@/features/details/edits";
 import { defaultDetails } from "@/features/details/model";
 import { setFill } from "@/features/fill/edits";
+import { setGrain } from "@/features/grain/edits";
+import { defaultGrain } from "@/features/grain/model";
 import { addHealPatch, setHealSource } from "@/features/heal/edits";
 import {
   addLayer,
@@ -130,6 +133,10 @@ export function createControls(
         setVignette(document, change, id),
       );
     },
+    setGrain(change: Partial<Grain>, id?: string) {
+      const document = workspace.getDocument();
+      editEffect(document, "grain", id, (id) => setGrain(document, change, id));
+    },
     setFill(change: Partial<Fill>, id?: string) {
       const document = workspace.getDocument();
       editEffect(document, "fill", id, (id) => setFill(document, change, id));
@@ -202,6 +209,7 @@ export function createControls(
         colorMixer:
           findEffect(layers, "color-mixer")?.colorMixer ?? defaultMixer,
         vignette: findEffect(layers, "vignette")?.vignette ?? defaultVignette,
+        grain: findEffect(layers, "grain")?.grain ?? defaultGrain,
         history: document?.history.status.getState() ?? {
           undoCount: 0,
           redoCount: 0,

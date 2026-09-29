@@ -34,6 +34,7 @@ import {
   detailsParameters,
 } from "@/features/details/controls";
 import { FillControls } from "@/features/fill/controls";
+import { GrainControls, grainParameters } from "@/features/grain/controls";
 import { HealControls } from "@/features/heal/controls";
 import { Histogram } from "@/features/histogram";
 import { OverlayToggle } from "@/features/layers/overlay-toggle";
@@ -137,6 +138,8 @@ function SelectedControls({ layer }: { layer: Layer }) {
       return <ColorMixerControls id={layer.id} mixer={layer.colorMixer} />;
     case "vignette":
       return <VignetteControls id={layer.id} vignette={layer.vignette} />;
+    case "grain":
+      return <GrainControls id={layer.id} grain={layer.grain} />;
     case "fill":
       return <FillControls id={layer.id} fill={layer.fill} />;
     case "heal":
@@ -336,6 +339,13 @@ function SelectedDials({
         <DockControls
           header={<DockTitle layer={layer} />}
           parameters={vignetteParameters(document, layer.id, layer.vignette)}
+        />
+      );
+    case "grain":
+      return (
+        <DockControls
+          header={<DockTitle layer={layer} />}
+          parameters={grainParameters(document, layer.id, layer.grain)}
         />
       );
     case "exposure":

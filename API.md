@@ -38,7 +38,7 @@ File loads are queued; `loadUrl` starts at once, and when two opens overlap the 
 
 ## Editing
 
-Commands take explicit layer IDs rather than using UI selection. Without an ID, adjustments, the tone curve, and white balance address the base image; color-mixer, Details, and vignette commands use the first matching root effect or create one at the top of the stack; effects nested in other layers stay untouched. Creation and parameter changes are one edit, respecting an open history group.
+Commands take explicit layer IDs rather than using UI selection. Without an ID, adjustments, the tone curve, and white balance address the base image; color-mixer, Details, vignette, and grain commands use the first matching root effect or create one at the top of the stack; effects nested in other layers stay untouched. Creation and parameter changes are one edit, respecting an open history group.
 
 `setAdjustments(change, id?)` updates only the supplied adjustments on an image or mask. Values must be finite numbers within these inclusive ranges. Unknown names and invalid values throw.
 
@@ -55,6 +55,8 @@ Commands take explicit layer IDs rather than using UI selection. Without an ID, 
 `setColorMixer(color, change, id?)` updates one of `red`, `orange`, `yellow`, `green`, `aqua`, `blue`, `purple`, or `magenta`. Supply any of `hue`, `saturation`, and `luminance`, each a finite number from -100 to 100. Other colors and unspecified channels keep their values. `resetColorMixer(id?)` resets every color in the matching layer as one undoable edit; without a matching layer it does nothing. A full shift of 100 rotates hue by 30°, scales saturation from zero to double, or moves luminance by one stop, weighted by each pixel's distance to the color's Oklab hue. Hue and saturation edits preserve luminance, and neutrals are unaffected.
 
 `setVignette({ intensity, softness }, id?)` updates a vignette layer. Values are finite numbers from 0 to 100; defaults are intensity 0 and softness 50. Without an ID, it updates the first vignette or creates one, which starts at intensity 50 unless the change sets it. Intensity 0 bypasses the effect; increasing softness spreads the transition toward the center. The falloff stays centered on the source image before crop and rotation, independently of viewport zoom and pan. Its position among the effect layers determines processing order. It multiplies linear RGB equally and preserves alpha and HDR headroom.
+
+`setGrain({ amount, size, roughness }, id?)` updates a Grain layer, film grain in the style of Lightroom's. Values are finite numbers from 0 to 100; defaults are amount 0, size 25, and roughness 50. Without an ID, it updates the first Grain layer or creates one, which starts at amount 25 unless the change sets it. Amount 0 bypasses the effect. The particles lie at four fixed spacings, one to eight source pixels apart: size fades the finer ones out as the coarser ones come in, rather than stretching them, and roughness mixes in neighboring spacings and varies the particles' size, so 0 is even and 100 is clumped. The grain is fixed to source pixels before crop and rotation: zoom, pan, and crop do not move it, and a full-size export matches the preview; a smaller `longEdge` averages it like any fine detail. It moves luminance only, most in the midtones and fading toward black and white, scaling the channels equally so color holds, and leaves alpha and HDR headroom unchanged.
 
 `setFill({ color, blend }, id?)` updates a Color layer: `color` is `#rrggbb` sRGB and `blend` is `normal`, `multiply`, `screen`, `overlay`, `soft-light`, `color`, or `luminosity`. The layer paints that color over the image below it, blended as Photoshop does on encoded values, so inside a brush or gradient mask it paints the mask's coverage; the layer's opacity sets the strength. Without an ID it updates the first Color layer or creates one, which starts at `#f0763c` in Normal.
 
@@ -80,7 +82,7 @@ Direct mask children of another mask modify coverage instead of processing image
 
 | Method | Behavior |
 | --- | --- |
-| `addLayer(kind, placement?)` | Adds `"exposure"`, `"color-mixer"`, `"details"`, `"vignette"`, `"fill"`, `"heal"`, or `"mask"`; selects and returns its ID. `{ inside: id }` appends a child to a processing layer; `{ above: id }` inserts directly above that layer among its siblings; without a placement, the layer goes on top of the root stack. Exposure starts at +1 EV, Vignette at intensity 50; Color Mixer, Details, Healing, and masks start neutral. |
+| `addLayer(kind, placement?)` | Adds `"exposure"`, `"color-mixer"`, `"details"`, `"vignette"`, `"grain"`, `"fill"`, `"heal"`, or `"mask"`; selects and returns its ID. `{ inside: id }` appends a child to a processing layer; `{ above: id }` inserts directly above that layer among its siblings; without a placement, the layer goes on top of the root stack. Exposure starts at +1 EV, Vignette at intensity 50, Grain at amount 25; Color Mixer, Details, Healing, and masks start neutral. |
 | `selectLayer(id)` | Selects any layer. |
 | `setLayer(id, change)` | Updates processing-layer `name`, `visible`, or `opacity` (0–1). |
 | `setExposure(id, value)` | Sets an Exposure layer to -5…5 EV. |
@@ -158,7 +160,7 @@ The image renders at the document dimensions and downsamples to `longEdge` with 
 
 `scene` is the `getState()` scene; each image layer's `source` names an entry in `sources`. Opening the file with `loadScene`, `openFile`, a drop, or the file picker decodes the stored source again and restores the frame and every layer as a new document with empty history. Preview settings and history are not saved.
 
-Opening validates every value as the matching command does, and a file that fails leaves the workspace in its error state with a message naming the first invalid field. Fields OpenLight does not know are dropped. A parameter missing from `adjustments`, `details`, `vignette`, `fill`, or `colorMixer` takes its default, so older files still open when a group gains a parameter; a RAW image without a white balance uses its As Shot value. `version` increases only when older files can no longer open as written; a newer version is rejected.
+Opening validates every value as the matching command does, and a file that fails leaves the workspace in its error state with a message naming the first invalid field. Fields OpenLight does not know are dropped. A parameter missing from `adjustments`, `details`, `vignette`, `grain`, `fill`, or `colorMixer` takes its default, so older files still open when a group gains a parameter; a RAW image without a white balance uses its As Shot value. `version` increases only when older files can no longer open as written; a newer version is rejected.
 
 ## Drafts
 
@@ -170,7 +172,7 @@ On a fresh load the start screen shows a notice in the viewport's corner with **
 
 ## State
 
-`getState()` returns a detached snapshot containing `file`, `failure`, `documentId`, `scene`, `selectedLayerId`, `size`, `frame`, `adjustments`, `whiteBalance`, `details`, `toneCurve`, `colorMixer`, `vignette`, `preview`, and `history`. `scene` contains `frame` and the layer tree. The top-level adjustment, tone-curve, and white-balance values come from `scene.layers[0]`; details, color-mixer, and vignette values describe the first matching root layer from the bottom, or its defaults. `colorMixer` contains eight-value `hue`, `saturation`, and `luminance` arrays in the color order above, defaulting to zero. `whiteBalance` contains absolute temperature/tint for RAW sources and is undefined for other sources. `file` is the open document's filename, or without one the file loading or failed, `failure` is the last file that failed to open and its error until another opens or the notice is dismissed, and `history` contains `undoCount`, `redoCount`, and `editing`, which is true while a group is open.
+`getState()` returns a detached snapshot containing `file`, `failure`, `documentId`, `scene`, `selectedLayerId`, `size`, `frame`, `adjustments`, `whiteBalance`, `details`, `toneCurve`, `colorMixer`, `vignette`, `grain`, `preview`, and `history`. `scene` contains `frame` and the layer tree. The top-level adjustment, tone-curve, and white-balance values come from `scene.layers[0]`; details, color-mixer, vignette, and grain values describe the first matching root layer from the bottom, or its defaults. `colorMixer` contains eight-value `hue`, `saturation`, and `luminance` arrays in the color order above, defaulting to zero. `whiteBalance` contains absolute temperature/tint for RAW sources and is undefined for other sources. `file` is the open document's filename, or without one the file loading or failed, `failure` is the last file that failed to open and its error until another opens or the notice is dismissed, and `history` contains `undoCount`, `redoCount`, and `editing`, which is true while a group is open.
 
 Without a document, `documentId`, `size`, `frame`, and `preview` are undefined. Adjustments, details, and the tone curve use their defaults, and history counts are zero. Mutating the snapshot does not edit the document.
 
@@ -194,6 +196,7 @@ editor.run({
 | `set-color-mixer` | `color`, `hue?`, `saturation?`, `luminance?`, `layerId?` | Like `setColorMixer`. |
 | `set-details` | `clarity?`, `sharpening?`, `sharpenRadius?`, `layerId?` | Like `setDetails`. |
 | `set-vignette` | `intensity?`, `softness?`, `layerId?` | Like `setVignette`. |
+| `set-grain` | `amount?`, `size?`, `roughness?`, `layerId?` | Like `setGrain`. |
 | `add-mask` | `mask`, `adjustments?` | Adds a mask layer with those adjustments on top of the stack as one edit. |
 | `delete-layer` | `layerId` | Like `deleteLayer`. |
 | `set-crop` | `aspectRatio?`, `straighten?` | Replaces the frame with the largest centered crop of the source at `aspectRatio`, width over height, straightened by −45 to 45 degrees. Without either, it removes the crop. |

@@ -19,6 +19,7 @@ export type Workload =
   | "neutral"
   | "color-mixer"
   | "vignette"
+  | "grain"
   | "detail"
   | "pipeline"
   | "pipeline-input"
@@ -171,6 +172,15 @@ export async function benchmarkRendering(
       kind: "vignette",
       opacity: workload === "layer-stack" ? 0.6 : 1,
       vignette: { intensity: 80, softness: 60 },
+    });
+  }
+  if (workload === "grain") {
+    effects.push({
+      ...common,
+      id: "benchmark-grain",
+      name: "Grain",
+      kind: "grain",
+      grain: { amount: 50, size: 25, roughness: 50 },
     });
   }
   if (workload === "fill") {

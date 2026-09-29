@@ -36,6 +36,13 @@ export type Vignette = {
   readonly softness: number;
 };
 
+/** Film grain in 0..100 UI units, anchored to source pixels. */
+export type Grain = {
+  readonly amount: number;
+  readonly size: number;
+  readonly roughness: number;
+};
+
 export type Blend =
   | "normal"
   | "multiply"
@@ -112,6 +119,7 @@ export type ProcessingLayer = {
   | { readonly kind: "details"; readonly details: Readonly<Details> }
   | { readonly kind: "exposure"; readonly exposure: number }
   | { readonly kind: "vignette"; readonly vignette: Vignette }
+  | { readonly kind: "grain"; readonly grain: Grain }
   | { readonly kind: "color-mixer"; readonly colorMixer: ColorMixer }
   | { readonly kind: "fill"; readonly fill: Fill }
   | { readonly kind: "heal"; readonly patches: readonly HealPatch[] }

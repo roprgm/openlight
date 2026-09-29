@@ -1,6 +1,7 @@
 import { ColorMixerIcon } from "@/components/icons/color-mixer";
 import { DetailsIcon } from "@/components/icons/details";
 import { ExposureIcon } from "@/components/icons/exposure";
+import { GrainIcon } from "@/components/icons/grain";
 import { HealIcon } from "@/components/icons/heal";
 import { VignetteIcon } from "@/components/icons/vignette";
 import type {
@@ -17,6 +18,7 @@ import { defaultAdjustments } from "@/features/adjustments/model";
 import { defaultMixer, isNeutral } from "@/features/color-mixer/model";
 import { defaultDetails } from "@/features/details/model";
 import { defaultFill } from "@/features/fill/model";
+import { defaultGrain } from "@/features/grain/model";
 import type { EffectKind } from "@/features/layers/controls";
 import { defaultCurve } from "@/features/tone-curves/curve";
 import { defaultVignette } from "@/features/vignette/model";
@@ -53,6 +55,7 @@ export const effectKinds = [
     addable: true,
   },
   { kind: "vignette", label: "Vignette", Icon: VignetteIcon, addable: true },
+  { kind: "grain", label: "Grain", Icon: GrainIcon, addable: true },
   { kind: "fill", label: "Color", addable: true },
   { kind: "heal", label: "Healing", Icon: HealIcon, addable: false },
 ] as const satisfies readonly EffectKind[];
@@ -70,6 +73,8 @@ export function createLayer(kind: EffectLayer["kind"]): EffectLayer {
       return { ...base, kind, exposure: 1 };
     case "vignette":
       return { ...base, kind, vignette: { ...defaultVignette, intensity: 50 } };
+    case "grain":
+      return { ...base, kind, grain: { ...defaultGrain, amount: 25 } };
     case "color-mixer":
       return { ...base, kind, colorMixer: defaultMixer };
     case "fill":
@@ -111,6 +116,8 @@ function effectNeutral(layer: ProcessingLayer): boolean {
       return layer.exposure === 0;
     case "vignette":
       return layer.vignette.intensity === 0;
+    case "grain":
+      return layer.grain.amount === 0;
     case "color-mixer":
       return isNeutral(layer.colorMixer);
     case "fill":

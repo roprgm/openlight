@@ -8,6 +8,7 @@ for (const workload of [
   "neutral",
   "color-mixer",
   "vignette",
+  "grain",
   "detail",
   "pipeline",
   "pipeline-input",
