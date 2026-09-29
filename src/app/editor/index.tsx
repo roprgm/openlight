@@ -25,6 +25,7 @@ import { CanvasToolbar } from "@/features/layers/toolbar";
 import { PaintSettling } from "@/features/paint/settle";
 import { useShortcuts } from "@/hooks/use-shortcuts";
 import { blurActive } from "@/lib/dom";
+import { BrushKeys } from "./brush-keys";
 import { ComparisonControl } from "./comparison-control";
 import { ComparisonDivider } from "./comparison-divider";
 import { DockPanel, DockProvider, DockTabs } from "./dock";
@@ -176,8 +177,8 @@ function DocumentEditor({
   onDismissFailure: () => void;
 }) {
   return (
-    <ToolProvider>
-      <BrushProvider>
+    <BrushProvider>
+      <ToolProvider>
         <MaskTools>
           <HealingTools>
             <EditorHeader
@@ -205,10 +206,11 @@ function DocumentEditor({
               onDismiss={onDismissFailure}
             />
             <PaintSettling />
+            <BrushKeys />
           </HealingTools>
         </MaskTools>
-      </BrushProvider>
-    </ToolProvider>
+      </ToolProvider>
+    </BrushProvider>
   );
 }
 

@@ -1,6 +1,15 @@
 import { useEffect, useEffectEvent } from "react";
 import { isTyping, typingFields } from "@/lib/dom";
 
+/** Keys whose shifted character depends on the layout, named by the key itself so Shift combines with them. */
+const shiftable: Record<string, string> = {
+  BracketLeft: "[",
+  BracketRight: "]",
+  ...Object.fromEntries(
+    Array.from({ length: 10 }, (_, digit) => [`Digit${digit}`, `${digit}`]),
+  ),
+};
+
 /** View-scoped keyboard actions. Text fields opt in explicitly. */
 export function useShortcuts(
   actions: Record<string, () => void>,
@@ -22,7 +31,11 @@ export function useShortcuts(
     if (!inputs && isTyping(event.target, owned)) {
       return;
     }
-    const action = actions[`${modifier}${shift}${event.key.toLowerCase()}`];
+    const shifted = event.shiftKey && !modifier && shiftable[event.code];
+    const name = shifted
+      ? `shift+${shifted}`
+      : `${modifier}${shift}${event.key.toLowerCase()}`;
+    const action = actions[name];
     if (action) {
       event.preventDefault();
       action();

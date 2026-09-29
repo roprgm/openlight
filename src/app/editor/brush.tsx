@@ -5,6 +5,7 @@ import {
   useBrushTool,
 } from "@/components/editor/brush-tool";
 import { CanvasHint } from "@/components/editor/canvas-hint";
+import { useDesktopLayout } from "@/components/editor/layout";
 import { useDocument, useScene } from "@/components/editor/session";
 import { findLayer } from "@/core/document";
 import { BrushOptions } from "@/features/layers/brush-options";
@@ -67,5 +68,7 @@ export function BrushCanvas() {
 }
 
 export function BrushToolOptions() {
-  return <BrushOptions colors={<PaintColors />} />;
+  // On desktop the colors sit in the tool rail; the dock has no rail, so they follow the Color chip.
+  const colors = !useDesktopLayout() && <PaintColors />;
+  return <BrushOptions colors={colors} />;
 }

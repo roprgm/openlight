@@ -3,18 +3,18 @@ import { Slider } from "@roprgm/ui/slider";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@roprgm/ui/tooltip";
 import { cn } from "cn";
 import type { ReactNode } from "react";
-import { type BrushMode, useBrushTool } from "@/components/editor/brush-tool";
+import {
+  type BrushMode,
+  useBrushParameters,
+  useBrushTool,
+} from "@/components/editor/brush-tool";
 import { DockChips, DockControls } from "@/components/editor/dock";
-import type { Parameter } from "@/components/editor/parameter";
 import { barSlider, useBarDensity } from "@/components/editor/toolbar-density";
 
 const targets: readonly (readonly [BrushMode, string, string])[] = [
   ["color", "Color", "Paint colors on a paint layer"],
   ["mask", "Mask", "Paint where a mask adjusts"],
 ];
-
-/** The Flow slider sets the cube of its share, so its lower half holds the light touches: 50% lays an eighth. */
-const flowCurve = 3;
 
 const modes = [
   ["paint", "Paint", "Add paint", undefined],
@@ -67,51 +67,14 @@ function Chips({
  * over the canvas or the dock. `colors` follows the Color chip while it is chosen. Alt shows on the Erase chip.
  */
 export function BrushOptions({ colors }: { colors?: ReactNode }) {
-  const { settings, erase, maxSize, setPreview, update } = useBrushTool();
+  const { settings, erase, update } = useBrushTool();
   const shownColors = settings.mode === "color" && colors;
   const stroke = erase ? "erase" : "paint";
   const density = useBarDensity();
   const variant = barSlider(density);
   // In the overflow menu the group spans the column, so the two modes share it evenly.
   const menu = density === "menu";
-  const parameters: Parameter[] = [
-    {
-      id: "size",
-      label: "Size",
-      value: settings.size,
-      min: 1,
-      max: maxSize,
-      format: (value) => `${value}px`,
-      valueWidth: `${maxSize}`.length,
-      onEditingChange: setPreview,
-      onChange: (size) => update({ size: Math.round(size) }),
-    },
-    {
-      id: "feather",
-      label: "Feather",
-      value: Math.round(settings.feather * 100),
-      min: 0,
-      max: 100,
-      defaultValue: 50,
-      origin: 0,
-      format: (value) => `${value}%`,
-      valueWidth: 3,
-      onEditingChange: setPreview,
-      onChange: (value) => update({ feather: value / 100 }),
-    },
-    {
-      id: "flow",
-      label: "Flow",
-      value: Math.round(settings.flow ** (1 / flowCurve) * 100),
-      min: 1,
-      max: 100,
-      defaultValue: 100,
-      origin: 0,
-      format: (value) => `${value}%`,
-      valueWidth: 3,
-      onChange: (value) => update({ flow: (value / 100) ** flowCurve }),
-    },
-  ];
+  const parameters = useBrushParameters();
   if (density === "dock") {
     return (
       <DockControls

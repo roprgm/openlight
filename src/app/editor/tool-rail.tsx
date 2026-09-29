@@ -3,6 +3,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@roprgm/ui/tooltip";
 import type { ReactNode } from "react";
 import { GithubIcon } from "@/components/icons/github";
 import { InfoIcon } from "@/components/icons/info";
+import { PaintColors } from "@/features/paint/colors";
 import { type Tool, tools, useTool } from "./tools";
 
 /** Opens in a new tab, leaving the photo open. */
@@ -35,13 +36,18 @@ function RailLink({
   );
 }
 
-/** Icon tabs in a column at the window's left edge; tooltips carry the label and shortcut. Without a handler the tabs are inert. */
+/**
+ * Icon tabs in a column at the window's left edge, then `children`; tooltips carry the label and
+ * shortcut. Without a handler the tabs are inert.
+ */
 export function ToolTabList({
   selected,
   onSelect,
+  children,
 }: {
   selected: Tool;
   onSelect?: (tool: Tool) => void;
+  children?: ReactNode;
 }) {
   const editing = tools.filter((entry) => entry.group === "edit");
   return (
@@ -71,6 +77,7 @@ export function ToolTabList({
           </Tooltip>
         ))}
       </TabList>
+      {children}
       <div className="mt-auto flex flex-col gap-1">
         <RailLink href="/about" label="About OpenLight">
           <InfoIcon className="size-5" />
@@ -86,7 +93,12 @@ export function ToolTabList({
   );
 }
 
+/** The tools, then the paint colors, as Photoshop keeps them. */
 export function ToolRail() {
   const { tool, setTool } = useTool();
-  return <ToolTabList selected={tool} onSelect={setTool} />;
+  return (
+    <ToolTabList selected={tool} onSelect={setTool}>
+      <PaintColors vertical />
+    </ToolTabList>
+  );
 }

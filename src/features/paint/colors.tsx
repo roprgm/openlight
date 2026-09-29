@@ -31,14 +31,18 @@ export function usePaintColors() {
   };
 }
 
+type Side = "top" | "right";
+
 function Swatch({
   label,
   value,
+  side,
   className,
   onChange,
 }: {
   label: string;
   value: string;
+  side: Side;
   className: string;
   onChange: (color: string) => void;
 }) {
@@ -48,7 +52,7 @@ function Swatch({
         render={
           <label
             className={cn(
-              "absolute size-4 cursor-pointer rounded-sm surface-raised focus-ring",
+              "absolute size-4.5 cursor-pointer rounded-sm surface-raised focus-ring",
               className,
             )}
             style={{ backgroundColor: value }}
@@ -63,26 +67,32 @@ function Swatch({
           </label>
         }
       />
-      <TooltipContent>{label}</TooltipContent>
+      <TooltipContent side={side}>{label}</TooltipContent>
     </Tooltip>
   );
 }
 
-/** Two raised squares, as in Photoshop: the primary over the secondary, with swap and pick beside them. */
-export function PaintColors() {
+/**
+ * Two raised squares, as in Photoshop: the primary over the secondary, with swap and pick after them,
+ * in a row or, in the tool rail, a column.
+ */
+export function PaintColors({ vertical = false }: { vertical?: boolean }) {
   const colors = usePaintColors();
+  const side = vertical ? "right" : "top";
   return (
-    <div className="flex items-center gap-0.5">
-      <div className="relative mx-1 size-6 shrink-0">
+    <div className={cn("flex items-center gap-0.5", vertical && "flex-col")}>
+      <div className="relative m-1 size-7 shrink-0">
         <Swatch
           label="Secondary color"
           value={colors.secondary}
+          side={side}
           className="right-0 bottom-0"
           onChange={colors.setSecondary}
         />
         <Swatch
           label="Primary color"
           value={colors.primary}
+          side={side}
           className="top-0 left-0"
           onChange={colors.setPrimary}
         />
@@ -90,6 +100,7 @@ export function PaintColors() {
       <IconButton
         label="Swap colors"
         shortcut="X"
+        side={side}
         size="icon-sm"
         className="rounded-full"
         onClick={colors.swap}
@@ -100,6 +111,7 @@ export function PaintColors() {
         <IconButton
           label="Pick a color"
           shortcut="I"
+          side={side}
           size="icon-sm"
           className="rounded-full"
           onClick={colors.pick}

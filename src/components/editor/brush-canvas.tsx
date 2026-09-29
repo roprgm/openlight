@@ -1,3 +1,6 @@
+import { Popover, PopoverContent, PopoverTrigger } from "@roprgm/ui/popover";
+import { Section } from "@roprgm/ui/section";
+import { Slider } from "@roprgm/ui/slider";
 import {
   type PointerEvent,
   type ReactNode,
@@ -10,7 +13,7 @@ import type { BrushStroke, StrokePoint } from "@/core/document";
 import type { Point } from "@/core/image/frame";
 import { useShortcuts } from "@/hooks/use-shortcuts";
 import { blurActive } from "@/lib/dom";
-import { useBrushTool } from "./brush-tool";
+import { useBrushParameters, useBrushTool } from "./brush-tool";
 import { CanvasHint } from "./canvas-hint";
 import { useDocumentMapping } from "./mapping";
 import { useDocument } from "./session";
@@ -68,6 +71,8 @@ export function BrushCanvas({
   const stroke = useRef<Stroke | null>(null);
   const completing = useRef<AbortController | null>(null);
   const [pointer, setPointer] = useState<Point | null>(null);
+  /** Where a right click opened the brush menu. */
+  const [menu, setMenu] = useState<Point | null>(null);
   const [pointerVisible, setPointerVisible] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
@@ -168,7 +173,13 @@ export function BrushCanvas({
     },
     "[": () => brush.update({ size: Math.round(brush.settings.size / 1.25) }),
     "]": () => brush.update({ size: Math.round(brush.settings.size * 1.25) }),
+    "shift+[": () => featherBy(-0.1),
+    "shift+]": () => featherBy(0.1),
   });
+  function featherBy(step: number) {
+    const feather = Math.round((brush.settings.feather + step) * 10) / 10;
+    brush.update({ feather: Math.min(1, Math.max(0, feather)) });
+  }
   function start(event: PointerEvent<HTMLDivElement>) {
     const current = stroke.current;
     if (current?.touch && event.pointerType === "touch" && !event.isPrimary) {
@@ -260,6 +271,11 @@ export function BrushCanvas({
       className="absolute inset-0 cursor-none touch-none data-[pan=true]:pointer-events-none"
       data-pan={camera.panMode}
       onDoubleClick={(event) => event.stopPropagation()}
+      onContextMenu={(event) => {
+        event.preventDefault();
+        const bounds = event.currentTarget.getBoundingClientRect();
+        setMenu([event.clientX - bounds.left, event.clientY - bounds.top]);
+      }}
       onPointerDown={start}
       onPointerMove={move}
       onPointerUp={end}
@@ -314,6 +330,33 @@ export function BrushCanvas({
         </svg>
       )}
       {status && <CanvasHint>{status}</CanvasHint>}
+      {menu && <BrushMenu at={menu} onClose={() => setMenu(null)} />}
     </div>
+  );
+}
+
+/** The brush's size and feather where a right click opened them, as Photoshop's brush menu. */
+function BrushMenu({ at, onClose }: { at: Point; onClose: () => void }) {
+  const [size, feather] = useBrushParameters();
+  return (
+    <Popover open onOpenChange={(open) => !open && onClose()}>
+      <PopoverTrigger
+        nativeButton={false}
+        render={
+          <span
+            aria-hidden
+            className="pointer-events-none absolute size-0"
+            style={{ left: at[0], top: at[1] }}
+          />
+        }
+      />
+      <PopoverContent align="start" className="w-60">
+        <Section>
+          {[size, feather].map(({ id, ...parameter }) => (
+            <Slider key={id} {...parameter} variant="panel" />
+          ))}
+        </Section>
+      </PopoverContent>
+    </Popover>
   );
 }

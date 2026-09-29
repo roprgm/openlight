@@ -49,7 +49,7 @@ test("paint colors on a layer, swap them, erase, blend, and switch to a mask", a
   const from = [center[0] - 150 * scale, center[1]];
   const to = [center[0] + 150 * scale, center[1]];
   await test.step("a stroke paints the primary color", async () => {
-    await options.getByLabel("Primary color").fill("#ff0000");
+    await page.getByLabel("Primary color").fill("#ff0000");
     await drag(page, from, to, 16);
     expect(await samples(page)).toEqual([[255, 0, 0, 255], gray]);
   });
@@ -176,4 +176,62 @@ test("strokes settle into pixels, undo takes them back, and scenes keep them", a
     await expect.poll(layer).toEqual({ raster, strokes: 0 });
     expect(await samples(page)).toEqual(settled);
   });
+});
+
+test("Photoshop's keys switch the brush, its colors, feather, flow, and opacity, and a right click sizes it", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await page.goto("/");
+  await page
+    .locator('input[type="file"]')
+    .setInputFiles("tests/fixtures/photo.svg");
+  await expect(
+    page.getByRole("textbox", { name: "Exposure", exact: true }),
+  ).toHaveValue("0.00");
+  const options = page.getByRole("group", { name: "Layer options" });
+  const field = (name: string) =>
+    options.getByRole("textbox", { name, exact: true });
+  const chip = (name: string) =>
+    options.getByRole("button", { name, exact: true });
+  await page.keyboard.press("b");
+  await expect(chip("Mask")).toHaveAttribute("aria-pressed", "true");
+  await page.keyboard.press("b");
+  await expect(chip("Color")).toHaveAttribute("aria-pressed", "true");
+
+  const primary = page.getByLabel("Primary color");
+  const secondary = page.getByLabel("Secondary color");
+  await primary.fill("#ff0000");
+  await page.keyboard.press("x");
+  await expect(primary).toHaveValue("#ffffff");
+  await expect(secondary).toHaveValue("#ff0000");
+  await page.keyboard.press("d");
+  await expect(primary).toHaveValue("#000000");
+
+  await page.keyboard.press("Shift+BracketRight");
+  await expect(field("Feather")).toHaveValue("60");
+  await page.keyboard.press("5");
+  await expect(field("Flow")).toHaveValue("50");
+  await page.keyboard.press("Shift+Digit3");
+  await expect(field("Opacity")).toHaveValue("30");
+
+  // On a mask, X paints or erases, as black and white do in Photoshop.
+  await page.keyboard.press("b");
+  await expect(chip("Mask")).toHaveAttribute("aria-pressed", "true");
+  await page.keyboard.press("x");
+  await expect(chip("Erase")).toHaveAttribute("aria-pressed", "true");
+  await page.keyboard.press("x");
+  await expect(chip("Paint")).toHaveAttribute("aria-pressed", "true");
+
+  await page
+    .getByLabel("Brush canvas", { exact: true })
+    .click({ button: "right", position: { x: 300, y: 300 } });
+  const size = page
+    .getByRole("dialog")
+    .getByRole("textbox", { name: "Size", exact: true });
+  await size.fill("120");
+  await size.press("Enter");
+  await expect(field("Size")).toHaveValue("120");
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("dialog")).toHaveCount(0);
 });

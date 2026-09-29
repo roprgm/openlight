@@ -4,8 +4,6 @@ import { useBrushTool } from "@/components/editor/brush-tool";
 import { useDocument } from "@/components/editor/session";
 import { useToolLayer } from "@/components/editor/tool-layer";
 import type { Layer, PaintLayer } from "@/core/document";
-import { useShortcuts } from "@/hooks/use-shortcuts";
-import { usePaintColors } from "./colors";
 import { addPaintStroke, extendPaintStroke } from "./edits";
 
 function isPaintLayer(layer: Layer): layer is PaintLayer {
@@ -28,17 +26,11 @@ export function PaintOverlay({
 }) {
   const document = useDocument();
   const brush = useBrushTool();
-  const colors = usePaintColors();
   const painting = useRef<string | undefined>(undefined);
   const selectedPaint = useToolLayer({
     accepts: isPaintLayer,
     create: canCreate ? create : undefined,
     leave: onLeave,
-  });
-  useShortcuts({
-    x: colors.swap,
-    d: colors.reset,
-    ...(colors.pick && { i: colors.pick }),
   });
   return (
     <BrushCanvas
@@ -48,7 +40,10 @@ export function PaintOverlay({
         const id = selectedPaint()?.id;
         if (!id) return false;
         painting.current = id;
-        addPaintStroke(document, id, { ...stroke, color: colors.primary });
+        addPaintStroke(document, id, {
+          ...stroke,
+          color: brush.settings.colors[0],
+        });
         return true;
       }}
       onExtend={(points) => {

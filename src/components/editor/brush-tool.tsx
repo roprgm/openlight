@@ -7,6 +7,7 @@ import {
 } from "react";
 import { findLayer, type Layer } from "@/core/document";
 import { clamp } from "@/lib/math";
+import type { Parameter } from "./parameter";
 import { useDocument, useScene } from "./session";
 
 /** What the brush paints: color on a paint layer, or coverage on a brush mask. */
@@ -125,4 +126,52 @@ export function BrushProvider({ children }: { children: ReactNode }) {
       {children}
     </BrushTool>
   );
+}
+
+/** Flow is the cube of its slider's share, so the lower half holds the light touches: 50% lays an eighth. */
+export function flowAt(share: number) {
+  return share ** 3;
+}
+
+/** The next stroke's size, feather, and flow, for sliders and dials wherever they show. */
+export function useBrushParameters(): [Parameter, Parameter, Parameter] {
+  const { settings, maxSize, setPreview, update } = useBrushTool();
+  return [
+    {
+      id: "size",
+      label: "Size",
+      value: settings.size,
+      min: 1,
+      max: maxSize,
+      format: (value) => `${value}px`,
+      valueWidth: `${maxSize}`.length,
+      onEditingChange: setPreview,
+      onChange: (size) => update({ size: Math.round(size) }),
+    },
+    {
+      id: "feather",
+      label: "Feather",
+      value: Math.round(settings.feather * 100),
+      min: 0,
+      max: 100,
+      defaultValue: 50,
+      origin: 0,
+      format: (value) => `${value}%`,
+      valueWidth: 3,
+      onEditingChange: setPreview,
+      onChange: (value) => update({ feather: value / 100 }),
+    },
+    {
+      id: "flow",
+      label: "Flow",
+      value: Math.round(Math.cbrt(settings.flow) * 100),
+      min: 1,
+      max: 100,
+      defaultValue: 100,
+      origin: 0,
+      format: (value) => `${value}%`,
+      valueWidth: 3,
+      onChange: (value) => update({ flow: flowAt(value / 100) }),
+    },
+  ];
 }

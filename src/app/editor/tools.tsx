@@ -6,6 +6,7 @@ import {
   useContext,
   useState,
 } from "react";
+import { useBrushTool } from "@/components/editor/brush-tool";
 import { useDocument } from "@/components/editor/session";
 import { AdjustIcon } from "@/components/icons/adjust";
 import { BrushIcon } from "@/components/icons/brush";
@@ -136,12 +137,25 @@ export const tools = [
 
 export type Tool = (typeof tools)[number];
 
-/** Holds the active tool, and each tool's key selects it in either layout. */
+/**
+ * Holds the active tool, and each tool's key selects it in either layout. The Brush's key, pressed on
+ * the Brush, switches it between color and mask.
+ */
 export function ToolProvider({ children }: { children: ReactNode }) {
   const [tool, setTool] = useState<Tool>(adjust);
+  const brush = useBrushTool();
+  function select(entry: Tool) {
+    if (entry === tool && entry.id === "brush") {
+      brush.update({
+        mode: brush.settings.mode === "color" ? "mask" : "color",
+      });
+      return;
+    }
+    setTool(entry);
+  }
   useShortcuts(
     Object.fromEntries(
-      tools.map((entry) => [entry.key, () => setTool(entry)] as const),
+      tools.map((entry) => [entry.key, () => select(entry)] as const),
     ),
   );
   return <ToolContext value={{ tool, setTool }}>{children}</ToolContext>;
