@@ -21,4 +21,13 @@ test("?stats counts the GPU's textures and buffers, and Reset starts a workflow 
   await exposure.fill("1");
   await exposure.press("Enter");
   await expect(value("Textures")).toHaveText(/ · [1-9]\d* made/);
+  // Changing values only rewrites uniforms: every render, histograms included, reuses what it has.
+  await stats.getByRole("button", { name: "Reset" }).click();
+  for (const next of ["2", "0.5", "1.5"]) {
+    await exposure.fill(next);
+    await exposure.press("Enter");
+  }
+  await page.waitForTimeout(1500);
+  await expect(value("Buffers")).toHaveText(/ · 0 made · 0 freed/);
+  await expect(value("Textures")).toHaveText(/ · 0 made · 0 freed/);
 });

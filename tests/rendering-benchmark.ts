@@ -297,7 +297,7 @@ export async function benchmarkRendering(
       if (inputId && !inspected) {
         throw Error("Missing benchmark curve input.");
       }
-      const reading = inspected && histogram?.read(inspected, true, 1);
+      const reading = inspected && histogram?.read(() => inspected, true, 1);
       const encoded = performance.now();
       await gpu.gpu.queue.onSubmittedWorkDone();
       const end = performance.now();
