@@ -104,16 +104,22 @@ test("scene files reopen the photo with every layer for further editing", async 
     api.setVignette({ intensity: 70, softness: 20 });
     api.setColorMixer("blue", { hue: 20, luminance: -10 });
     api.setExposure(api.addLayer("exposure"), -0.5);
-    const cube = [
-      "TITLE Grade",
-      "LUT_3D_SIZE 2",
-      ...Array(8).fill("0.5 0.5 0.5"),
-    ];
-    await api.openFile(new File([cube.join("\n")], "grade.cube"));
-    const lut = api.getState().scene?.layers.at(-1);
-    if (lut?.kind !== "lut") throw Error("Missing LUT layer.");
-    api.duplicateLayer(lut.id);
+    await api.openFile(
+      new File(
+        [
+          [
+            "TITLE Grade",
+            "LUT_3D_SIZE 2",
+            ...Array(8).fill("0.5 0.5 0.5"),
+          ].join("\n"),
+        ],
+        "grade.cube",
+      ),
+    );
     const edited = workspace.getDocument().scene.getState();
+    const lut = edited.layers.at(-1);
+    if (lut?.kind !== "lut") throw Error("Missing LUT layer.");
+    expect(lut.name).toBe("Grade");
 
     const file = await api.exportScene();
     expect(file.name).toBe("photo.openlight");
@@ -123,18 +129,11 @@ test("scene files reopen the photo with every layer for further editing", async 
     expect(json).toMatchObject({
       format: "openlight",
       version: 1,
-      sources: {
-        [source]: { name: "photo.nef", type: "image/x-nikon-nef" },
-        [lut.lut]: { name: "grade.cube", type: "" },
-      },
+      sources: { [source]: { name: "photo.nef", type: "image/x-nikon-nef" } },
       scene: edited,
     });
-    expect(Object.keys(json.sources)).toHaveLength(2);
     const stored = await entries.get(`sources/${source}`)?.bytes();
     expect(stored).toEqual(bytes);
-    expect(await entries.get(`sources/${lut.lut}`)?.text()).toBe(
-      cube.join("\n"),
-    );
 
     const opened = await openSceneFile(file, raw.decode);
     const reopened = raw.decoded.at(-1);
@@ -142,7 +141,6 @@ test("scene files reopen the photo with every layer for further editing", async 
     expect(reopened?.type).toBe("image/x-nikon-nef");
     expect(await reopened?.bytes()).toEqual(bytes);
     expect(opened.scene.getState()).toEqual(edited);
-    expect(opened.resources.getLut(lut.lut).name).toBe("Grade");
     expect(opened.history.status.getState().undoCount).toBe(0);
     opened.dispose();
 
@@ -162,13 +160,6 @@ test("scene files reopen the photo with every layer for further editing", async 
       ],
       [await archive({ ...json, version: 2 }), "needs a newer version"],
       [await archive(json, new Map()), "The scene's image is missing."],
-      [
-        await archive(
-          json,
-          new Map([...entries].filter(([name]) => !name.endsWith(lut.lut))),
-        ),
-        "A LUT in this scene is missing.",
-      ],
       [
         await archive({
           ...json,
@@ -191,6 +182,19 @@ test("scene files reopen the photo with every layer for further editing", async 
           },
         }),
         "Unknown layer kind: text.",
+      ],
+      [
+        await archive({
+          ...json,
+          scene: {
+            ...json.scene,
+            layers: [
+              ...json.scene.layers,
+              { ...lut, id: "short", lut: { ...lut.lut, table: [0, 0, 0] } },
+            ],
+          },
+        }),
+        "The table needs three values per entry",
       ],
     ];
     for (const [value, message] of invalid) {

@@ -10,7 +10,6 @@ import type { Gpu } from "vgpu";
 import { useGpu } from "vgpu-react";
 import { adjustmentTarget } from "@/core/document";
 import type { ImageSource } from "@/core/image";
-import type { LookupTable } from "@/core/image/lut";
 import type { createRenderer } from "@/core/renderer";
 import { useDisposable } from "@/hooks/use-disposable";
 import { useDocument, useScene } from "./session";
@@ -40,7 +39,6 @@ type RendererProviderProps = {
   createRenderer: (
     gpu: Gpu,
     source: ImageSource,
-    luts: (id: string) => LookupTable,
   ) => ReturnType<typeof createRenderer>;
 };
 
@@ -53,8 +51,8 @@ export function RendererProvider({
   const sourceId = useScene((scene) => scene.layers[0].source);
   const source = document.resources.get(sourceId);
   const renderer = useDisposable(
-    () => createRenderer(gpu, source, document.resources.getLut),
-    [gpu, source, document, createRenderer],
+    () => createRenderer(gpu, source),
+    [gpu, source, createRenderer],
   );
   const [error, setError] = useState<string>();
 

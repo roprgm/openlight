@@ -98,9 +98,9 @@ A brush mask is a list of strokes. Each stroke has `mode` (`"paint"` or `"erase"
 
 ## LUTs
 
-A LUT layer grades the image below it with a 3D lookup table from an Adobe or Resolve `.cube` file. `openFile` with a `.cube` file adds one on top of the stack, named after the file's `TITLE` or, without one, the file; the Add menu asks for a file and places the layer as it places other effects, and the layer's panel replaces its file. A replacement keeps the layer's name unless it still reads the previous LUT's name. The layer's opacity sets its strength. `addLayer` cannot create a LUT layer, since it needs a file.
+A LUT layer grades the image below it with a 3D lookup table, stored in the layer as `lut: { size, domain: [min, max], table }`: `table` holds `size`³ RGB triplets, red varying fastest, then green, then blue, for inputs spread evenly across the domain. The layer's opacity sets its strength.
 
-The file needs `LUT_3D_SIZE`, a whole number from 2 to 65, before its rows: `LUT_3D_SIZE`³ lines of three numbers, red varying fastest, then green, then blue. `TITLE`, `DOMAIN_MIN` and `DOMAIN_MAX` (default 0 and 1), or Resolve's `LUT_3D_INPUT_RANGE`, are read; comments, blank lines, and other keywords are skipped. 1D LUTs are rejected, and so is a file with too few or too many rows, naming the line where one is wrong.
+`openFile` with an Adobe or Resolve `.cube` file adds one where the Add menu places effects, named after the file's `TITLE` or, without one, the file; the Add menu's LUT entry asks for such a file. The file needs `LUT_3D_SIZE`, a whole number from 2 to 65, before its rows. `TITLE`, `DOMAIN_MIN` and `DOMAIN_MAX` (default 0 and 1), or Resolve's `LUT_3D_INPUT_RANGE`, are read; comments, blank lines, and other keywords are skipped. 1D LUTs are rejected, and so is a file with too few or too many rows, naming the line where one is wrong.
 
 Creative LUTs expect and return display-referred, sRGB-encoded color. The layer converts the working color as display does, into sRGB clipped to its gamut with hue and luminance kept, so headroom above white clips at the LUT; the color, clamped to the LUT's domain, is interpolated tetrahedrally between its entries, and the result, clamped to 0–1, converts back to the working space. The image layer's adjustments still apply after it, on the composite.
 
@@ -155,7 +155,7 @@ The image renders at the document dimensions and downsamples to `longEdge` with 
 
 ## Scene files
 
-`exportScene()` returns `Promise<File>`: the document as an `.openlight` file named after its source image, which **Save scene** in the Export panel downloads. It is a ZIP archive holding the original bytes of the source image and of each LUT the scene uses at `sources/<id>`, and a deflated `scene.json`:
+`exportScene()` returns `Promise<File>`: the document as an `.openlight` file named after its source image, which **Save scene** in the Export panel downloads. It is a ZIP archive holding the source file's original bytes at `sources/<id>` and a deflated `scene.json`:
 
 ```json
 {
@@ -166,7 +166,7 @@ The image renders at the document dimensions and downsamples to `longEdge` with 
 }
 ```
 
-`scene` is the `getState()` scene; the image layer's `source` and each LUT layer's `lut` name entries in `sources`. Opening the file with `loadScene`, `openFile`, a drop, or the file picker decodes the stored source again and restores the frame and every layer as a new document with empty history. Preview settings and history are not saved.
+`scene` is the `getState()` scene; each image layer's `source` names an entry in `sources`. Opening the file with `loadScene`, `openFile`, a drop, or the file picker decodes the stored source again and restores the frame and every layer as a new document with empty history. Preview settings and history are not saved.
 
 Opening validates every value as the matching command does, and a file that fails leaves the workspace in its error state with a message naming the first invalid field. Fields OpenLight does not know are dropped. A parameter missing from `adjustments`, `details`, `vignette`, `grain`, `fill`, or `colorMixer` takes its default, so older files still open when a group gains a parameter; a RAW image without a white balance uses its As Shot value. `version` increases only when older files can no longer open as written; a newer version is rejected.
 
@@ -174,7 +174,7 @@ Opening validates every value as the matching command does, and a file that fail
 
 Once a document has an edit, OpenLight keeps it as the draft in the browser's IndexedDB, so closing the tab loses nothing. A save follows 1.5 s after the last scene change and flushes when the tab is hidden or the page unloads; saves run one at a time and never render. Opening an image or scene without editing it keeps the previous draft. Only the latest document is kept.
 
-A draft stores the same `scene.json` object a [scene file](#scene-files) holds, in a record with its own `version` and the document's name, while each source file, the image and any LUTs, sits in a separate store under its ID. A save keeps source files already stored under their ID and deletes unreferenced ones in the same transaction, so edits never rewrite the photo.
+A draft stores the same `scene.json` object a [scene file](#scene-files) holds, in a record with its own `version` and the document's name, while each source file sits in a separate store under its source ID. A save keeps source files already stored under their ID and deletes unreferenced ones in the same transaction, so edits never rewrite the photo.
 
 On a fresh load the start screen shows a notice in the viewport's corner with **Recover** and **Forget**. `recoverDraft()` opens the draft through the same validation as a scene file, restoring each source under its original ID, with empty history; a newer draft `version` is rejected rather than dropped, and a parameter added to a group since takes its default. `discardDraft()` removes it. Both return `Promise<void>`. When IndexedDB is unavailable or fails, a dismissible notice suggests saving a scene file, and editing continues.
 
@@ -216,7 +216,7 @@ editor.run({
 
 In browsers with [WebMCP](https://webmachinelearning.github.io/webmcp/), OpenLight registers every command as a tool on `document.modelContext`, so a browser agent can edit the open photo. Chrome offers WebMCP from version 149 through an origin trial or `chrome://flags/#enable-webmcp-testing`. A tool takes its command's fields, with a JSON Schema generated from the same models, and returns `{ layerId }` or `"Done."`; errors come back as text, so the agent can correct its input.
 
-A read-only `get-state` tool returns the file, source size, frame, layers, comparison, and history, counting brush strokes and healing patches rather than listing them.
+A read-only `get-state` tool returns the file, source size, frame, layers, comparison, and history, counting brush strokes, healing patches, and LUT table values rather than listing them.
 
 WebMCP passes only JSON, so no tool takes or returns a file. `open-image` takes an http(s) `url` instead and opens it like `loadUrl`, in place of the open photo; it returns the new state like `get-state`, or why the image could not open. An agent opens a local file, such as an image attached to its chat, by serving it over HTTP with CORS and passing its URL. From a public origin such as openlight.app, Chrome's [Local Network Access](https://developer.chrome.com/blog/local-network-access) asks the user before the page reaches a local address; an automated browser can grant the `local-network-access` permission instead. When the request itself fails, the error names these causes, since the browser does not say which one it was.
 

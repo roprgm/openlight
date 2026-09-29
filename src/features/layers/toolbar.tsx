@@ -58,7 +58,9 @@ export function CanvasToolbar({ children }: { children?: ReactNode }) {
   // The canvas's width, kept so a resize always renders again, even when the bar is already at its
   // roomiest step, and the overflow below is measured anew.
   const [width, setWidth] = useState(0);
-  const hasLayerOptions = layer.kind !== "image" && layer.kind !== "heal";
+  // A LUT's intensity is its opacity, which its panel shows.
+  const hasLayerOptions =
+    layer.kind !== "image" && layer.kind !== "heal" && layer.kind !== "lut";
   const shown = Boolean(children) || hasLayerOptions;
   const content = `${Boolean(children)}/${layer.kind}/${layer.kind === "mask" ? layer.mask.kind : ""}`;
   // New content or a resized canvas starts again from the roomiest layout.

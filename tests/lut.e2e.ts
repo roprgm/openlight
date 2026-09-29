@@ -1,14 +1,7 @@
 import { expect, test } from "./fixtures";
 import { readImage } from "./images";
 
-/** A two-point LUT that returns its input, rows listed with red varying fastest. */
-const identity = [
-  'TITLE "Identity"',
-  "LUT_3D_SIZE 2",
-  ...Array.from({ length: 8 }, (_, i) => `${i & 1} ${(i >> 1) & 1} ${i >> 2}`),
-].join("\n");
-
-test("a LUT layer grades the photo from a .cube file at the layer's opacity, replaces its file, undoes, and saves with the scene", async ({
+test("a LUT layer grades the photo from a .cube file at the layer's opacity, undoes, and saves with the scene", async ({
   page,
 }) => {
   test.setTimeout(90_000);
@@ -43,19 +36,30 @@ test("a LUT layer grades the photo from a .cube file at the layer's opacity, rep
     await page.getByRole("menuitem", { name: "LUT", exact: true }).click();
     await (await chooser).setFiles("tests/fixtures/swap.cube");
     await expect(layers.getByText("Swap red and blue")).toBeVisible();
-    await expect(
-      page.getByRole("button", { name: "Replace…", exact: true }),
-    ).toBeVisible();
     const [patch, gray] = (await sample()) ?? [];
     near(patch, [128, 80, 48, 255]);
     near(gray, [128, 128, 128, 255]);
   });
   const swapped = await sample();
 
-  await test.step("the layer's opacity sets its strength", async () => {
-    const opacity = page.getByRole("textbox", { name: "Opacity", exact: true });
-    await opacity.fill("50");
-    await opacity.press("Enter");
+  await test.step("the panel's Intensity sets the layer's opacity", async () => {
+    await expect(
+      page.getByRole("textbox", { name: "Opacity", exact: true }),
+    ).toHaveCount(0);
+    const intensity = page.getByRole("textbox", {
+      name: "Intensity",
+      exact: true,
+    });
+    await intensity.fill("50");
+    await intensity.press("Enter");
+    await expect
+      .poll(() =>
+        page.evaluate(() => {
+          const layer = window.openlight.getState().scene?.layers.at(-1);
+          return layer?.kind === "lut" ? layer.opacity : undefined;
+        }),
+      )
+      .toBe(0.5);
     const [patch] = (await sample()) ?? [];
     expect(patch?.[0]).toBeGreaterThan(48);
     expect(patch?.[0]).toBeLessThan(128);
@@ -64,23 +68,7 @@ test("a LUT layer grades the photo from a .cube file at the layer's opacity, rep
   });
   const half = await sample();
 
-  await test.step("replacing the file with an identity LUT leaves the photo as it was", async () => {
-    const chooser = page.waitForEvent("filechooser");
-    await page.getByRole("button", { name: "Replace…", exact: true }).click();
-    await (await chooser).setFiles({
-      name: "identity.cube",
-      mimeType: "",
-      buffer: Buffer.from(identity),
-    });
-    await expect(layers.getByText("Identity")).toBeVisible();
-    const [patch, gray] = (await sample()) ?? [];
-    near(patch, original?.[0] ?? []);
-    near(gray, original?.[1] ?? []);
-  });
-
-  await test.step("undo steps back through the replacement, the opacity, and the layer", async () => {
-    await page.keyboard.press("ControlOrMeta+z");
-    expect(await sample()).toEqual(half);
+  await test.step("undo steps back through the opacity and the layer", async () => {
     await page.keyboard.press("ControlOrMeta+z");
     expect(await sample()).toEqual(swapped);
     await page.keyboard.press("ControlOrMeta+z");

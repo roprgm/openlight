@@ -12,29 +12,28 @@ import { useShortcuts } from "@/hooks/use-shortcuts";
 
 type OpenProps = { onOpen: (files: File[]) => void };
 
-type ReportFailure = (file: string, error: unknown) => void;
+/** Opens files anywhere in the editor through the loaders, as a drop does. */
+export const OpenContext = createContext<OpenProps["onOpen"] | null>(null);
 
-/** Where the editor reports a file it read itself but couldn't use, such as a LUT, to show like a failed open. */
-export const FailureContext = createContext<ReportFailure | null>(null);
-
-export function useReportFailure() {
-  const report = useContext(FailureContext);
-  if (!report) {
-    throw new Error("useReportFailure requires FailureContext.");
+export function useOpen() {
+  const open = useContext(OpenContext);
+  if (!open) {
+    throw new Error("useOpen requires OpenContext.");
   }
-  return report;
+  return open;
 }
 
-/** The hidden picker for images and scenes; clearing it after each pick lets the same file open again. */
-function FileInput({
+/** A hidden file picker, images and scenes unless `accept` says otherwise; clearing it after each pick lets the same file open again. */
+export function FileInput({
   ref,
   onOpen,
-}: OpenProps & { ref: RefObject<HTMLInputElement | null> }) {
+  accept: types = `${accept},${sceneExtension}`,
+}: OpenProps & { ref: RefObject<HTMLInputElement | null>; accept?: string }) {
   return (
     <input
       ref={ref}
       type="file"
-      accept={`${accept},${sceneExtension}`}
+      accept={types}
       multiple
       hidden
       onChange={(event) => {

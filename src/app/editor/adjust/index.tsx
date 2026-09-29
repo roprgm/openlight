@@ -3,7 +3,6 @@ import { Slider } from "@roprgm/ui/slider";
 import { type ReactNode, useCallback, useState } from "react";
 import { useStore } from "zustand";
 import { effectKinds } from "@/app/editor/layers";
-import { useReportFailure } from "@/app/editor/open";
 import { DockChips, DockControls } from "@/components/editor/dock";
 import { PanelBody, PanelHeader } from "@/components/editor/panel";
 import type { Parameter } from "@/components/editor/parameter";
@@ -38,8 +37,9 @@ import { FillControls } from "@/features/fill/controls";
 import { GrainControls, grainParameters } from "@/features/grain/controls";
 import { HealControls } from "@/features/heal/controls";
 import { Histogram } from "@/features/histogram";
+import { setLayer } from "@/features/layers/edits";
 import { OverlayToggle } from "@/features/layers/overlay-toggle";
-import { LutControls } from "@/features/lut/controls";
+import { LutCurves } from "@/features/lut/curves";
 import { defaultCurve } from "@/features/tone-curves/curve";
 import { setToneCurve } from "@/features/tone-curves/edits";
 import { ToneCurves } from "@/features/tone-curves/tone-curves";
@@ -117,12 +117,20 @@ function exposureParameter(
   };
 }
 
-/** A replacement file that can't be read shows beside the document, as a failed open does. */
-function LayerLut({ layer }: { layer: Kind<"lut"> }) {
-  const reportFailure = useReportFailure();
-  return (
-    <LutControls id={layer.id} lut={layer.lut} onFailure={reportFailure} />
-  );
+/** A LUT's strength is its layer's opacity. */
+function intensityParameter(
+  document: EditorDocument,
+  layer: Kind<"lut">,
+): Parameter {
+  return {
+    id: "intensity",
+    label: "Intensity",
+    value: layer.opacity * 100,
+    min: 0,
+    max: 100,
+    defaultValue: 100,
+    onChange: (value) => setLayer(document, layer.id, { opacity: value / 100 }),
+  };
 }
 
 function SelectedControls({ layer }: { layer: Layer }) {
@@ -152,8 +160,15 @@ function SelectedControls({ layer }: { layer: Layer }) {
       return <GrainControls id={layer.id} grain={layer.grain} />;
     case "fill":
       return <FillControls id={layer.id} fill={layer.fill} />;
-    case "lut":
-      return <LayerLut layer={layer} />;
+    case "lut": {
+      const { id, ...intensity } = intensityParameter(document, layer);
+      return (
+        <section className="flex flex-col gap-3.5 p-3.5">
+          <Slider {...intensity} />
+          <LutCurves lut={layer.lut} opacity={layer.opacity} />
+        </section>
+      );
+    }
     case "heal":
       return <HealControls id={layer.id} patches={layer.patches} />;
     case "exposure": {
@@ -375,9 +390,10 @@ function SelectedDials({
       );
     case "lut":
       return (
-        <DockControls header={<DockTitle layer={layer} />}>
-          <LayerLut layer={layer} />
-        </DockControls>
+        <DockControls
+          header={<DockTitle layer={layer} />}
+          parameters={[intensityParameter(document, layer)]}
+        />
       );
     case "heal":
       return (
