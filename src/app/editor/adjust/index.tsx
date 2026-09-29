@@ -165,7 +165,7 @@ function SelectedControls({ layer }: { layer: Layer }) {
       return (
         <section className="flex flex-col gap-3.5 p-3.5">
           <Slider {...intensity} />
-          <LutCurves lut={layer.lut} />
+          <LutCurves lut={layer.lut} opacity={layer.opacity} />
         </section>
       );
     }
