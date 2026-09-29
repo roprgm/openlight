@@ -2,7 +2,6 @@ import { IconButton } from "@roprgm/ui/icon-button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@roprgm/ui/tooltip";
 import { cn } from "cn";
 import { defaultColors, useBrushTool } from "@/components/editor/brush-tool";
-import { useBarDensity } from "@/components/editor/toolbar-density";
 import { EyedropperIcon } from "@/components/icons/eyedropper";
 import { SwapIcon } from "@/components/icons/swap";
 import { hexColor } from "@/lib/parse";
@@ -35,21 +34,25 @@ export function usePaintColors() {
 function Swatch({
   label,
   value,
+  className,
   onChange,
 }: {
   label: string;
   value: string;
+  className: string;
   onChange: (color: string) => void;
 }) {
   return (
     <Tooltip>
       <TooltipTrigger
         render={
-          <label className="flex size-6 cursor-pointer items-center justify-center rounded-full transition focus-ring hover:bg-hover">
-            <span
-              className="size-3.5 rounded-full border border-level-8"
-              style={{ backgroundColor: value }}
-            />
+          <label
+            className={cn(
+              "absolute size-4 cursor-pointer rounded-sm surface-raised focus-ring",
+              className,
+            )}
+            style={{ backgroundColor: value }}
+          >
             <input
               type="color"
               aria-label={label}
@@ -65,28 +68,25 @@ function Swatch({
   );
 }
 
-/** The primary and secondary colors, grouped like the chips beside them, with swap and pick after. */
+/** Two raised squares, as in Photoshop: the primary over the secondary, with swap and pick beside them. */
 export function PaintColors() {
   const colors = usePaintColors();
-  // The dock's chips sit sunken, the bar's on its hover fill.
-  const fill = useBarDensity() === "dock" ? "bg-field" : "bg-hover";
   return (
     <div className="flex items-center gap-0.5">
-      <fieldset
-        aria-label="Paint colors"
-        className={cn("flex gap-0.5 rounded-full p-0.5", fill)}
-      >
-        <Swatch
-          label="Primary color"
-          value={colors.primary}
-          onChange={colors.setPrimary}
-        />
+      <div className="relative mx-1 size-6 shrink-0">
         <Swatch
           label="Secondary color"
           value={colors.secondary}
+          className="right-0 bottom-0"
           onChange={colors.setSecondary}
         />
-      </fieldset>
+        <Swatch
+          label="Primary color"
+          value={colors.primary}
+          className="top-0 left-0"
+          onChange={colors.setPrimary}
+        />
+      </div>
       <IconButton
         label="Swap colors"
         shortcut="X"

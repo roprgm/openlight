@@ -13,6 +13,9 @@ const targets: readonly (readonly [BrushMode, string, string])[] = [
   ["mask", "Mask", "Paint where a mask adjusts"],
 ];
 
+/** The Flow slider sets the cube of its share, so its lower half holds the light touches: 50% lays an eighth. */
+const flowCurve = 3;
+
 const modes = [
   ["paint", "Paint", "Add paint", undefined],
   ["erase", "Erase", "Remove paint", "Hold Alt"],
@@ -90,6 +93,7 @@ export function BrushOptions({ colors }: { colors?: ReactNode }) {
       min: 0,
       max: 100,
       defaultValue: 50,
+      origin: 0,
       format: (value) => `${value}%`,
       valueWidth: 3,
       onEditingChange: setPreview,
@@ -98,13 +102,14 @@ export function BrushOptions({ colors }: { colors?: ReactNode }) {
     {
       id: "flow",
       label: "Flow",
-      value: Math.round(settings.flow * 100),
+      value: Math.round(settings.flow ** (1 / flowCurve) * 100),
       min: 1,
       max: 100,
       defaultValue: 100,
+      origin: 0,
       format: (value) => `${value}%`,
       valueWidth: 3,
-      onChange: (value) => update({ flow: value / 100 }),
+      onChange: (value) => update({ flow: (value / 100) ** flowCurve }),
     },
   ];
   if (density === "dock") {

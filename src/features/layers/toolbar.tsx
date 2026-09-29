@@ -27,6 +27,7 @@ function LayerOptions({ layer }: { layer: ProcessingLayer }) {
         min={0}
         max={100}
         defaultValue={100}
+        origin={0}
         format={(value) => `${value}%`}
         valueWidth={3}
         variant={barSlider(density)}
