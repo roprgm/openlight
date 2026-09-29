@@ -21,26 +21,53 @@ import { gradientParams } from "@/core/renderer/blend";
 import { input, type RenderInput } from "@/core/renderer/node";
 import brushShader from "./brush.wgsl";
 import { type Dab, strokeDabs } from "./dabs";
+import emptyShader from "./empty.wgsl";
 import gradientShader from "./gradient.wgsl";
+import layStrokeShader from "./lay-stroke.wgsl";
 import strokeShader from "./strokes.wgsl";
 import { readRaster, writeRaster } from "./transfer";
 
 /** Dabs per pass: every fragment in the chunk's bounds loops over them. */
-const chunk = 64;
+const chunk = 32;
+/**
+ * Paint dabs per diameter, close enough that soft edges add up without ripples. Masks keep four: they
+ * stamp straight into 8 bits, where fainter dabs would round away.
+ */
+const paintDabs = 16;
 
 type Size = readonly [number, number];
-/** Coverage strokes stamp white into one channel; paint strokes stamp their color with coverage as alpha. */
+/** x, y, width, height, in pixels. */
+type Rect = readonly [number, number, number, number];
+/** Every stroke stamps coverage; a paint stroke also has the color it lays. */
 type Stroke = BrushStroke | PaintStroke;
 /** One brush's own coverage or paint, stamped as its strokes grow. */
-type Brush = {
+type Brush<S extends Stroke = Stroke> = {
   target: Target;
-  strokes: readonly Stroke[];
+  strokes: readonly S[];
   /** Dabs already stamped from the last stroke. */
   dabs: number;
   /** A paint raster's settled pixels, which its strokes draw over. */
   base?: string;
 };
-const none: readonly Stroke[] = [];
+type Paint = Brush<PaintStroke>;
+const none: readonly never[] = [];
+/**
+ * The paint stroke drawn last, its coverage kept in the stroke buffer until another stroke starts. Its
+ * raster then takes it in one pass, so a stroke drawn a few dabs at a time rounds once, as it does when
+ * drawn whole.
+ */
+type OpenStroke = {
+  paint: Paint;
+  index: number;
+  stroke: PaintStroke;
+  bounds?: Rect;
+};
+/** A paint layer's raster, and its open stroke to lay over it from the stroke buffer. */
+export type PaintInput = {
+  raster: RenderInput;
+  buffer: RenderInput;
+  stroke?: PaintStroke;
+};
 /** A mask's own coverage combined with the children that shape it. */
 type Group = {
   target: Target;
@@ -62,6 +89,20 @@ function covers(op: MaskModifier) {
 
 function strokeColor(stroke: Stroke) {
   return "color" in stroke ? stroke.color : undefined;
+}
+
+function union(a: Rect | undefined, b: Rect | undefined): Rect | undefined {
+  if (!a || !b) {
+    return a ?? b;
+  }
+  const left = Math.min(a[0], b[0]);
+  const top = Math.min(a[1], b[1]);
+  return [
+    left,
+    top,
+    Math.max(a[0] + a[2], b[0] + b[2]) - left,
+    Math.max(a[1] + a[3], b[1] + b[3]) - top,
+  ];
 }
 
 function sameStroke(a: Stroke, b: Stroke) {
@@ -117,7 +158,6 @@ const out: BlendOptions = {
   color: { src: "zero", dst: "one-minus-src-alpha" },
   alpha: { src: "zero", dst: "one-minus-src-alpha" },
 };
-const white = [1, 1, 1] as const;
 const add: BlendOptions = { color: { src: "one", dst: "one" } };
 const subtract: BlendOptions = {
   color: { src: "one", dst: "one", op: "reverse-subtract" },
@@ -127,19 +167,26 @@ const subtract: BlendOptions = {
  * Rasterizes brush coverage into r8unorm textures, and paint into premultiplied rgba8unorm ones, at
  * source resolution. Each brush owns the coverage of its strokes, stamped incrementally as they grow
  * and replayed when earlier content changes; a mask shaped by children combines its own coverage
- * with theirs in a second texture, rebuilt whenever any of them changes. Strokes stay the document's
- * truth; textures are caches.
+ * with theirs in a second texture, rebuilt whenever any of them changes. Paint strokes stamp into a
+ * stroke buffer first, one at a time. Strokes stay the document's truth; textures are caches.
  */
 export function createMaskRaster(gpu: Gpu) {
   const brushes = new Map<string, Brush>();
+  const paints = new Map<string, Paint>();
   const groups = new Map<string, Group>();
   const used = new Set<Brush | Group>();
   const dabs: Buffer = gpu.device.createBuffer({
     size: chunk * 16,
     usage: ["storage", "copy_dst"],
   });
-  const paint = effect(gpu, strokeShader, { blend: over, set: { dabs } });
-  const erase = effect(gpu, strokeShader, { blend: out, set: { dabs } });
+  const cover = effect(gpu, strokeShader, { blend: over, set: { dabs } });
+  const uncover = effect(gpu, strokeShader, { blend: out, set: { dabs } });
+  const layOver = effect(gpu, layStrokeShader, { blend: over });
+  const layOut = effect(gpu, layStrokeShader, { blend: out });
+  const empty = effect(gpu, emptyShader);
+  /** Half floats, so a stroke's faintest dabs add up before they round; one serves every paint layer. */
+  let strokeBuffer: Target | undefined;
+  let open: OpenStroke | undefined;
   const gradientAdd = effect(gpu, gradientShader, { blend: add });
   const gradientSubtract = effect(gpu, gradientShader, { blend: subtract });
   const brushAdd = effect(gpu, brushShader, { blend: add });
@@ -150,8 +197,15 @@ export function createMaskRaster(gpu: Gpu) {
     frame(gpu, (frame) => frame.pass({ target, clear: true }, () => {}));
   }
 
-  function stampDabs(target: Target, dabList: readonly Dab[], stroke: Stroke) {
+  /** Stamps dabs' coverage a chunk at a time, and returns the rectangle they reach. */
+  function stampDabs(
+    target: Target,
+    dabList: readonly Dab[],
+    feather: number,
+    pass: typeof cover,
+  ) {
     const [width, height] = target.size;
+    let reached: Rect | undefined;
     for (let start = 0; start < dabList.length; start += chunk) {
       const batch = dabList.slice(start, start + chunk);
       let left = width;
@@ -174,21 +228,15 @@ export function createMaskRaster(gpu: Gpu) {
         continue;
       }
       dabs.write(data);
-      const pass = stroke.mode === "paint" ? paint : erase;
-      const color = strokeColor(stroke);
-      pass.set({
-        params: {
-          count: batch.length,
-          feather: stroke.feather,
-          color: color ? parseColor(color) : white,
-        },
-      });
+      pass.set({ params: { count: batch.length, feather } });
       // One frame per chunk: buffer and uniform writes land in queue order, before the pass that reads them.
       frame(gpu, (frame) =>
         frame.pass({ target, clear: false, scissor: [x, y, w, h] }, pass),
       );
       stamped += batch.length;
+      reached = union(reached, [x, y, w, h]);
     }
+    return reached;
   }
 
   /** Stamps strokes from `fromStroke` on, skipping `skipDabs` of that first one; returns the last stroke's dab count. */
@@ -205,8 +253,98 @@ export function createMaskRaster(gpu: Gpu) {
       }
       const all = strokeDabs(stroke);
       count = all.length;
-      stampDabs(target, i === fromStroke ? all.slice(skipDabs) : all, stroke);
+      stampDabs(
+        target,
+        i === fromStroke ? all.slice(skipDabs) : all,
+        stroke.feather,
+        stroke.mode === "paint" ? cover : uncover,
+      );
     });
+    return count;
+  }
+
+  function reserveStrokeBuffer(size: Size) {
+    if (
+      strokeBuffer &&
+      (strokeBuffer.size[0] !== size[0] || strokeBuffer.size[1] !== size[1])
+    ) {
+      strokeBuffer.color.dispose();
+      strokeBuffer = undefined;
+      open = undefined;
+    }
+    strokeBuffer ??= target(gpu, {
+      size: [...size],
+      format: "r16float",
+      clearColor: [0, 0, 0, 0],
+    });
+    return strokeBuffer;
+  }
+
+  /** Forgets the open stroke, emptying the stroke buffer where it reached. */
+  function emptyStroke() {
+    const bounds = open?.bounds;
+    const buffer = strokeBuffer;
+    open = undefined;
+    if (bounds && buffer) {
+      frame(gpu, (frame) =>
+        frame.pass({ target: buffer, clear: false, scissor: bounds }, empty),
+      );
+    }
+  }
+
+  /** Lays the open stroke into its raster, then empties the stroke buffer. */
+  function closeStroke() {
+    if (open?.bounds && strokeBuffer) {
+      const { paint, stroke, bounds } = open;
+      const pass = (stroke.mode === "paint" ? layOver : layOut).set({
+        coverage: strokeBuffer.color,
+        params: { color: parseColor(stroke.color) },
+      });
+      frame(gpu, (frame) =>
+        frame.pass(
+          { target: paint.target, clear: false, scissor: bounds },
+          pass,
+        ),
+      );
+    }
+    emptyStroke();
+  }
+
+  /** Drops a paint raster's open stroke, for a raster about to be redrawn or freed. */
+  function discardStroke(paint: Paint) {
+    if (open?.paint === paint) {
+      emptyStroke();
+    }
+  }
+
+  /**
+   * Draws a paint raster's strokes from `from` on, skipping `skip` dabs of that first one, through the
+   * stroke buffer; returns the last stroke's dab count. That stroke stays open, so it can grow.
+   */
+  function drawStrokes(
+    buffer: Target,
+    paint: Paint,
+    strokes: readonly PaintStroke[],
+    from: number,
+    skip: number,
+  ) {
+    let count = 0;
+    for (let i = from; i < strokes.length; i++) {
+      const stroke = strokes[i];
+      if (open?.paint !== paint || open.index !== i) {
+        closeStroke();
+      }
+      const current: OpenStroke = open ?? { paint, index: i, stroke };
+      const all = strokeDabs(stroke, paintDabs);
+      count = all.length;
+      const reached = stampDabs(
+        buffer,
+        i === from ? all.slice(skip) : all,
+        stroke.feather,
+        cover,
+      );
+      open = { ...current, stroke, bounds: union(current.bounds, reached) };
+    }
     return count;
   }
 
@@ -269,7 +407,7 @@ export function createMaskRaster(gpu: Gpu) {
 
   function reservePaint(id: string, size: Size) {
     return reserve(
-      brushes,
+      paints,
       id,
       size,
       (target) => ({ target, strokes: none, dabs: 0 }),
@@ -279,10 +417,10 @@ export function createMaskRaster(gpu: Gpu) {
 
   /** Whether a paint raster holds `base` and strokes that only grow into `strokes`. */
   function holds(
-    brush: Brush | undefined,
+    brush: Paint | undefined,
     base: string | undefined,
-    strokes: readonly Stroke[],
-  ): brush is Brush {
+    strokes: readonly PaintStroke[],
+  ) {
     return (
       brush !== undefined &&
       brush.base === base &&
@@ -347,12 +485,13 @@ export function createMaskRaster(gpu: Gpu) {
     needsBase(layer: PaintLayer): layer is PaintLayer & { raster: string } {
       return (
         layer.raster !== undefined &&
-        !holds(brushes.get(layer.id), layer.raster, layer.strokes)
+        !holds(paints.get(layer.id), layer.raster, layer.strokes)
       );
     },
     /** Loads a paint layer's settled pixels; the next update draws its strokes over them. */
     async loadBase(id: string, base: string, pixels: Blob, size: Size) {
       const brush = reservePaint(id, size);
+      discardStroke(brush);
       await writeRaster(gpu, brush.target, pixels);
       Object.assign(brush, { base, strokes: none, dabs: 0 });
     },
@@ -361,38 +500,55 @@ export function createMaskRaster(gpu: Gpu) {
      * them. The raster comes with the layer's first paint and stays, cleared if need be, while the layer
      * lasts, so painting and undoing never reallocate it.
      */
-    paint(layer: PaintLayer, size: Size) {
+    draw(layer: PaintLayer, size: Size) {
       const { id, raster: base, strokes } = layer;
-      if (!hasPaint(layer) && !brushes.has(id)) {
-        return undefined;
+      if (!hasPaint(layer) && !paints.has(id)) {
+        return;
       }
+      const buffer = reserveStrokeBuffer(size);
       const brush = reservePaint(id, size);
       if (!holds(brush, base, strokes)) {
         if (base !== undefined) {
           throw Error("Load the paint's settled pixels first.");
         }
+        discardStroke(brush);
         clear(brush.target);
         Object.assign(brush, { base, strokes: none, dabs: 0 });
       }
       if (brush.strokes !== strokes) {
-        brush.dabs = stampStrokes(
-          brush.target,
+        brush.dabs = drawStrokes(
+          buffer,
+          brush,
           strokes,
           Math.max(brush.strokes.length - 1, 0),
           brush.strokes.length ? brush.dabs : 0,
         );
         brush.strokes = strokes;
       }
-      return hasPaint(layer) ? input(brush.target) : undefined;
+    },
+    /** What a paint layer composes once every layer drew, since drawing one can close another's stroke. */
+    paint(layer: PaintLayer): PaintInput | undefined {
+      const brush = paints.get(layer.id);
+      if (!brush || !strokeBuffer || !hasPaint(layer)) {
+        return undefined;
+      }
+      return {
+        raster: input(brush.target),
+        buffer: input(strokeBuffer),
+        stroke: open?.paint === brush ? open.stroke : undefined,
+      };
     },
     /**
      * Reads a paint layer's raster, its settled pixels with every stroke drawn, so they settle into new
      * pixels; `commit` records that the raster now holds them alone. Nothing may draw meanwhile.
      */
     async settle(id: string) {
-      const brush = brushes.get(id);
+      const brush = paints.get(id);
       if (!brush) {
         return undefined;
+      }
+      if (open?.paint === brush) {
+        closeStroke();
       }
       const { base, strokes } = brush;
       const pixels = await readRaster(gpu, brush.target);
@@ -433,20 +589,28 @@ export function createMaskRaster(gpu: Gpu) {
     },
     /** A mask's combined coverage, or a brush's own. */
     get(id: string): RenderInput | undefined {
-      const raster = groups.get(id) ?? brushes.get(id);
+      const raster = groups.get(id) ?? brushes.get(id) ?? paints.get(id);
       return raster && input(raster.target);
     },
-    /** Releases the rasters that no update used since the previous sweep. */
+    /** Releases the rasters that no update used since the previous sweep, and the stroke buffer with the last paint. */
     sweep() {
+      if (open && !used.has(open.paint)) {
+        discardStroke(open.paint);
+      }
       release(brushes);
+      release(paints);
       release(groups);
+      if (!paints.size) {
+        strokeBuffer?.color.dispose();
+        strokeBuffer = undefined;
+      }
       used.clear();
     },
     inspect() {
       return {
         stamped,
         rasters: [
-          ...[...brushes].map(([id, { target }]) => ({
+          ...[...brushes, ...paints].map(([id, { target }]) => ({
             id,
             size: [...target.size],
             format: target.format,
@@ -456,14 +620,29 @@ export function createMaskRaster(gpu: Gpu) {
             size: [...target.size],
             format: target.format,
           })),
+          ...(strokeBuffer
+            ? [
+                {
+                  id: "stroke buffer",
+                  size: [...strokeBuffer.size],
+                  format: strokeBuffer.format,
+                },
+              ]
+            : []),
         ],
       };
     },
     dispose() {
-      for (const { target } of [...brushes.values(), ...groups.values()]) {
+      for (const { target } of [
+        ...brushes.values(),
+        ...paints.values(),
+        ...groups.values(),
+      ]) {
         target.color.dispose();
       }
+      strokeBuffer?.color.dispose();
       brushes.clear();
+      paints.clear();
       groups.clear();
       dabs.dispose();
     },

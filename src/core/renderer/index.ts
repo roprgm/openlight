@@ -8,7 +8,7 @@ import {
 } from "@/core/document";
 import type { ImageSource, WhiteBalance } from "@/core/image";
 import { createRenderGraph } from "./graph";
-import { createMaskRaster } from "./mask";
+import { createMaskRaster, type PaintInput } from "./mask";
 import { input, type RenderImage, type RenderInput } from "./node";
 import { createProxy } from "./proxy";
 
@@ -22,6 +22,7 @@ export {
   renderCoverage,
   type View,
 } from "./display";
+export type { PaintInput } from "./mask";
 export {
   input,
   merge,
@@ -46,7 +47,7 @@ export type Composition = {
   /** Rasterized coverage of a mask that paints with brushes, prepared before composition. */
   coverage: (layer: MaskLayer) => RenderInput | undefined;
   /** Rasterized paint of a paint layer, prepared before composition. */
-  paint: (layer: PaintLayer) => RenderInput | undefined;
+  paint: (layer: PaintLayer) => PaintInput | undefined;
   brush: (id: string, strokes: readonly BrushStroke[]) => RenderInput;
 };
 
@@ -128,7 +129,7 @@ export function createRenderer(
         rasters.set(layer.id, raster.update(layer, developed.size));
       }
       if (layer.kind === "paint") {
-        rasters.set(layer.id, raster.paint(layer, developed.size));
+        raster.draw(layer, developed.size);
       }
     }
     const image =
@@ -137,7 +138,7 @@ export function createRenderer(
       inputId,
       retain: (id) => active.add(id),
       coverage: (layer) => rasters.get(layer.id),
-      paint: (layer) => rasters.get(layer.id),
+      paint: (layer) => raster.paint(layer),
       brush: (id, strokes) => raster.brush(id, strokes, developed.size),
     });
     for (const id of instances) {

@@ -93,6 +93,81 @@ test("paint colors on a layer, swap them, erase, blend, and switch to a mask", a
   });
 });
 
+/** How far the red channel strays along each displayed row through a stroke, `rows` in page pixels. */
+async function ripples(
+  page: Page,
+  rows: readonly number[],
+  left: number,
+  right: number,
+) {
+  const canvas = page
+    .getByRole("region", { name: "Image canvas" })
+    .locator("canvas");
+  const origin = await box(canvas);
+  const bytes = await canvas.screenshot();
+  return page.evaluate(
+    async ([bytes, rows, left, right]) => {
+      const image = await createImageBitmap(new Blob([new Uint8Array(bytes)]));
+      const canvas = new OffscreenCanvas(image.width, image.height);
+      const context = canvas.getContext("2d");
+      if (!context) throw new Error("Cannot read preview pixels.");
+      context.drawImage(image, 0, 0);
+      return rows.map((y) => {
+        const { data } = context.getImageData(left, y, right - left, 1);
+        const red = data.filter((_, i) => i % 4 === 0);
+        return Math.max(...red) - Math.min(...red);
+      });
+    },
+    [
+      [...bytes],
+      rows.map((y) => Math.round(y - origin.y)),
+      Math.round(left - origin.x),
+      Math.round(right - origin.x),
+    ] as const,
+  );
+}
+
+test("a light stroke drawn a little at a time comes out smooth", async ({
+  page,
+}) => {
+  test.setTimeout(90_000);
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await page.goto("/");
+  await page
+    .locator('input[type="file"]')
+    .setInputFiles("tests/fixtures/photo.svg");
+  await expect(
+    page.getByRole("textbox", { name: "Exposure", exact: true }),
+  ).toHaveValue("0.00");
+  await page.getByRole("tab", { name: "Brush", exact: true }).click();
+  const options = page.getByRole("group", { name: "Layer options" });
+  await options.getByRole("button", { name: "Color", exact: true }).click();
+  for (const [name, value] of [
+    ["Size", "200"],
+    ["Flow", "40"],
+  ]) {
+    const field = options.getByRole("textbox", { name, exact: true });
+    await field.fill(value);
+    await field.press("Enter");
+  }
+  await page.getByLabel("Primary color").fill("#ff0000");
+  const bounds = await box(page.getByLabel("Paint canvas", { exact: true }));
+  const scale = Math.min(bounds.width / 1200, bounds.height / 800, 2);
+  const center = [bounds.x + bounds.width / 2, bounds.y + bounds.height / 2];
+  // Each small move stamps a dab or two, which used to round to 8 bits apart and leave rings.
+  await drag(
+    page,
+    [center[0] - 300 * scale, center[1]],
+    [center[0] + 300 * scale, center[1]],
+    120,
+  );
+  const rows = [0, 25, 50, 70].map((offset) => center[1] + offset * scale);
+  const [left, right] = [center[0] - 100 * scale, center[0] + 100 * scale];
+  for (const spread of await ripples(page, rows, left, right)) {
+    expect(spread).toBeLessThanOrEqual(1);
+  }
+});
+
 test("strokes settle into pixels, undo takes them back, and scenes keep them", async ({
   page,
 }) => {

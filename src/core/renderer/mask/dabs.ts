@@ -3,10 +3,15 @@ import type { BrushStroke } from "@/core/document";
 /** Dab center with its radius and alpha: x, y, radius, alpha. */
 export type Dab = readonly [number, number, number, number];
 
-/** Dabs every quarter diameter along the stroke, starting at its first point; a fixed walk keeps replays identical. */
-export function strokeDabs(stroke: BrushStroke): Dab[] {
+/**
+ * Dabs `perDiameter` times per diameter along the stroke, starting at its first point; a fixed walk keeps
+ * replays identical. Closer dabs each lay less, so a stroke builds up as it does with four, Photoshop's
+ * spacing, only with smoother soft edges.
+ */
+export function strokeDabs(stroke: BrushStroke, perDiameter = 4): Dab[] {
   const radius = stroke.size / 2;
-  const spacing = Math.max(1, stroke.size / 4);
+  const spacing = Math.max(1, stroke.size / perDiameter);
+  const share = spacing / Math.max(1, stroke.size / 4);
   const dabs: Dab[] = [];
   const [first] = stroke.points;
   if (!first) {
@@ -16,7 +21,7 @@ export function strokeDabs(stroke: BrushStroke): Dab[] {
     x,
     y,
     radius,
-    stroke.flow * pressure,
+    1 - (1 - stroke.flow * pressure) ** share,
   ];
   dabs.push(dab(first[0], first[1], first[2]));
   let travelled = 0;

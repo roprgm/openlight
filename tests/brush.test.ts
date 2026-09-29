@@ -42,6 +42,32 @@ test("dabs follow the stroke at a quarter diameter with interpolated pressure", 
   expect(line[10][0]).toBeCloseTo(30);
   expect(line[10][3]).toBeCloseTo(0);
   expect(strokeDabs({ ...stroke, points: [] })).toEqual([]);
+  // Four times as many dabs, down to one per pixel, each laying less, so together they leave as much uncovered.
+  const dense = strokeDabs(
+    {
+      ...stroke,
+      size: 32,
+      points: [
+        [10, 10, 1],
+        [20, 10, 1],
+      ],
+    },
+    16,
+  );
+  expect(dense).toHaveLength(6);
+  expect(dense[1]).toEqual([12, 10, 16, 1 - 0.5 ** (1 / 4)]);
+  expect(
+    strokeDabs(
+      {
+        ...stroke,
+        points: [
+          [10, 10, 1],
+          [20, 10, 1],
+        ],
+      },
+      16,
+    ),
+  ).toHaveLength(11);
 });
 
 test("brush strokes stamp incrementally, replay after undo, and render a proxy during gestures", async () => {
