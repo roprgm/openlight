@@ -2,27 +2,25 @@ import { luminance } from "../../core/image/color.wgsl";
 
 // Gray edge (van de Weijer, Gevers, and Gijsenij, 2007): differences between neighboring surfaces
 // average to the light's color, so a large colored area counts only at its edges. One workgroup walks
-// a grid of samples and reduces it to the photo's cast: red over blue, warm when positive, and green
-// over their geometric mean, green when positive. Without usable edges, the mean color decides.
-//
-// The cast comes twice: in stops of light, which a RAW development's gains shift, and in the log odds
-// the adjustments shift, where a channel moves less the brighter it is, taken at the level of the edges.
+// a grid of samples and reduces it to the light's color in stops, beside each channel's level where
+// the edges are. Without usable edges, the mean color decides both.
 const samples = vec2u(512u, 320u);
 const threads = 256u;
 // A high norm leans on the strongest edges.
 const norm = 6.0;
 
+struct Light {
+  stops: vec3f,
+  level: vec3f,
+}
+
 @group(0) @binding(0) var source: texture_2d<f32>;
-@group(0) @binding(1) var<storage, read_write> result: vec4f;
+@group(0) @binding(1) var<storage, read_write> light: Light;
 
 var<workgroup> edges: array<vec3f, threads>;
 var<workgroup> levels: array<vec3f, threads>;
 // Usable colors, summed, and in w their count.
 var<workgroup> colors: array<vec4f, threads>;
-
-fn tilt(channels: vec3f) -> vec2f {
-  return vec2f(channels.r - channels.b, channels.g - 0.5 * (channels.r + channels.b));
-}
 
 fn sample(point: vec2u) -> vec4f {
   return textureLoad(source, point * textureDimensions(source) / samples, 0);
@@ -70,8 +68,9 @@ fn usable(color: vec4f) -> bool {
   if (thread == 0u) {
     let mean = colors[0].rgb / colors[0].w;
     let edged = all(edges[0] > vec3f(0.0));
-    let stops = select(log2(mean), log2(edges[0]) / norm, edged);
-    let odds = stops / (1.0 - select(mean, levels[0] / edges[0], edged));
-    result = select(vec4f(0.0), vec4f(tilt(stops), tilt(odds)), all(mean > vec3f(0.0)));
+    light = Light(
+      select(log2(mean), log2(edges[0]) / norm, edged),
+      select(mean, levels[0] / edges[0], edged),
+    );
   }
 }
