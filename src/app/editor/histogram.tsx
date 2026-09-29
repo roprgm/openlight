@@ -9,9 +9,9 @@ const placement = cva("group shrink-0", {
   variants: {
     placement: {
       panel: "relative bg-level-2",
-      // Anchored like the zoom control, at the canvas's other bottom corner.
+      // In the canvas's top right corner, beside the layer's options, leaving the bottom to the zoom control and hints.
       canvas:
-        "absolute bottom-3 left-3 z-10 h-14 w-44 overflow-hidden rounded-md bg-level-4/80 backdrop-blur-sm",
+        "absolute top-3 right-3 z-10 h-14 w-44 overflow-hidden rounded-md bg-level-4/80 backdrop-blur-sm",
     },
   },
 });
