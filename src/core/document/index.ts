@@ -38,6 +38,7 @@ export {
   adjustmentTarget,
   editLayer,
   findLayer,
+  hasPaint,
   locateLayer,
   maskModifiers,
   updateLayer,

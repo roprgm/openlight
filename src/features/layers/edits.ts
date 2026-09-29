@@ -58,7 +58,7 @@ export function validateDepth(layers: readonly Layer[]) {
  * photo holds a few of each.
  */
 export const brushLimits = { color: 4, mask: 10 } as const;
-const limitNames = { color: "paint layers", mask: "brush masks" };
+export const brushLimitNames = { color: "paint layers", mask: "brush masks" };
 
 /** The paint layers and brush masks, submasks included, among `layers` and their children. */
 export function brushLayerCounts(layers: readonly Layer[]) {
@@ -80,7 +80,7 @@ export function brushExcess(layers: readonly Layer[]) {
     (mode) => counts[mode] > brushLimits[mode],
   );
   return (
-    over && `A photo holds up to ${brushLimits[over]} ${limitNames[over]}.`
+    over && `A photo holds up to ${brushLimits[over]} ${brushLimitNames[over]}.`
   );
 }
 

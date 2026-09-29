@@ -10,6 +10,7 @@ import {
   type EditorDocument,
   type EffectLayer,
   findLayer,
+  hasPaint,
   type ImageLayer,
   type Layer,
   type LookupTable,
@@ -155,7 +156,7 @@ function effectNeutral(layer: ProcessingLayer): boolean {
     case "heal":
       return layer.patches.length === 0;
     case "paint":
-      return !layer.strokes.some((stroke) => stroke.mode === "paint");
+      return !hasPaint(layer);
     case "mask":
       return true;
   }

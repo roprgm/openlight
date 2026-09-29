@@ -9,6 +9,7 @@ import {
 } from "vgpu";
 import {
   type BrushStroke,
+  hasPaint,
   type MaskLayer,
   type MaskModifier,
   maskModifiers,
@@ -360,8 +361,9 @@ export function createMaskRaster(gpu: Gpu) {
      * them. The raster comes with the layer's first paint and stays, cleared if need be, while the layer
      * lasts, so painting and undoing never reallocate it.
      */
-    paint({ id, raster: base, strokes }: PaintLayer, size: Size) {
-      if (base === undefined && !strokes.length && !brushes.has(id)) {
+    paint(layer: PaintLayer, size: Size) {
+      const { id, raster: base, strokes } = layer;
+      if (!hasPaint(layer) && !brushes.has(id)) {
         return undefined;
       }
       const brush = reservePaint(id, size);
@@ -381,9 +383,7 @@ export function createMaskRaster(gpu: Gpu) {
         );
         brush.strokes = strokes;
       }
-      return base !== undefined || strokes.length
-        ? input(brush.target)
-        : undefined;
+      return hasPaint(layer) ? input(brush.target) : undefined;
     },
     /**
      * Reads a paint layer's raster, its settled pixels with every stroke drawn, so they settle into new

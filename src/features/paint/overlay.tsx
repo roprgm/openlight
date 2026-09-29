@@ -14,12 +14,14 @@ function isPaintLayer(layer: Layer): layer is PaintLayer {
 
 /** Paints the primary color on the selected paint layer; an untouched new one disappears on leaving. */
 export function PaintOverlay({
+  canCreate,
   create,
   onLeave,
   onDone,
 }: {
-  /** Adds a paint layer when none is selected; without it, strokes wait for a selected one. */
-  create?: () => void;
+  /** Whether a paint layer may be added when none is selected; without, strokes wait for a selected one. */
+  canCreate: boolean;
+  create: () => void;
   /** The selection moved off paint layers. */
   onLeave: () => void;
   onDone: () => void;
@@ -30,7 +32,7 @@ export function PaintOverlay({
   const painting = useRef<string | undefined>(undefined);
   const selectedPaint = useToolLayer({
     accepts: isPaintLayer,
-    create,
+    create: canCreate ? create : undefined,
     leave: onLeave,
   });
   useShortcuts({

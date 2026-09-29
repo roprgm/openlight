@@ -66,6 +66,7 @@ function Chips({
 export function BrushOptions({ colors }: { colors?: ReactNode }) {
   const { settings, erase, maxSize, setPreview, update } = useBrushTool();
   const shownColors = settings.mode === "color" && colors;
+  const stroke = erase ? "erase" : "paint";
   const density = useBarDensity();
   const variant = barSlider(density);
   // In the overflow menu the group spans the column, so the two modes share it evenly.
@@ -121,7 +122,7 @@ export function BrushOptions({ colors }: { colors?: ReactNode }) {
             <DockChips
               label="Brush mode"
               items={modes.map(([mode, label]) => [mode, label] as const)}
-              value={erase ? "erase" : "paint"}
+              value={stroke}
               onChange={(mode) => update({ erase: mode === "erase" })}
             />
           </div>

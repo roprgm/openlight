@@ -1,6 +1,11 @@
 import { expect, test } from "bun:test";
 import { init, target } from "vgpu/mock";
-import { createImageLayer, createLayer, createMask } from "@/app/editor/layers";
+import {
+  createImageLayer,
+  createLayer,
+  createMask,
+  maskNeutral,
+} from "@/app/editor/layers";
 import { createEditorRenderer } from "@/app/editor/renderer";
 import {
   type Blend,
@@ -176,4 +181,16 @@ test("settled paint stays while the history names it and goes after", async () =
     document.dispose();
     gpu.dispose();
   }
+});
+
+test("a paint layer changes a mask once it holds paint, settled or not", () => {
+  const mask = createMask({ kind: "brush", strokes: [] });
+  const paint = createLayer("paint");
+  expect(maskNeutral({ ...mask, children: [paint] })).toBe(true);
+  expect(
+    maskNeutral({ ...mask, children: [{ ...paint, strokes: [stroke] }] }),
+  ).toBe(false);
+  expect(
+    maskNeutral({ ...mask, children: [{ ...paint, raster: "settled" }] }),
+  ).toBe(false);
 });
