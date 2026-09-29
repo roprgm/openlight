@@ -12,6 +12,8 @@ import { applyCrop } from "@/features/crop/edits";
 import { fitRatio, rotate } from "@/features/crop/geometry";
 import { setDetails } from "@/features/details/edits";
 import { detailsSchema } from "@/features/details/model";
+import { setGrain } from "@/features/grain/edits";
+import { grainSchema } from "@/features/grain/model";
 import { addLayer, deleteLayer } from "@/features/layers/edits";
 import { maskSchema } from "@/features/layers/model";
 import { curveSchema, defaultCurve } from "@/features/tone-curves/curve";
@@ -126,6 +128,15 @@ export const commands = {
     (document, { layerId, ...vignette }) => ({
       layerId: editEffect(document, "vignette", layerId, (id) =>
         setVignette(document, vignette, id),
+      ),
+    }),
+  ),
+  "set-grain": command(
+    "Adds film grain: amount from 0 (off) to 100, size from 0 (fine) to 100 (coarse), and roughness from 0 (even) to 100 (clumped), keeping omitted values. Without layerId it edits the first Grain layer, creating one when there is none.",
+    z.extend(change(grainSchema), { layerId }),
+    (document, { layerId, ...grain }) => ({
+      layerId: editEffect(document, "grain", layerId, (id) =>
+        setGrain(document, grain, id),
       ),
     }),
   ),

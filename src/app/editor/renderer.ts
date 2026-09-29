@@ -16,6 +16,7 @@ import { adjustments } from "@/features/adjustments/pass";
 import { colorMixer } from "@/features/color-mixer/pass";
 import { unsharpMask } from "@/features/details/unsharp-mask";
 import { fill } from "@/features/fill/pass";
+import { grain } from "@/features/grain/pass";
 import { heal } from "@/features/heal/pass";
 import { toneCurves } from "@/features/tone-curves/pass";
 import { vignette } from "@/features/vignette/pass";
@@ -72,6 +73,9 @@ function composeLayer(
       break;
     case "vignette":
       edited = pipeline(below, [vignette(layer.vignette, `${name}/vignette`)]);
+      break;
+    case "grain":
+      edited = pipeline(below, [grain(layer.grain, `${name}/grain`)]);
       break;
     case "color-mixer":
       edited = pipeline(below, [

@@ -17,6 +17,7 @@ import {
 import { defaultMixer, mixerSchema } from "@/features/color-mixer/model";
 import { defaultDetails, detailsSchema } from "@/features/details/model";
 import { defaultFill, fillSchema } from "@/features/fill/model";
+import { defaultGrain, grainSchema } from "@/features/grain/model";
 import { healPatchSchema } from "@/features/heal/model";
 import {
   layerSettings,
@@ -76,6 +77,11 @@ function processingLayer(children: z.ZodMiniType<readonly ProcessingLayer[]>) {
         ...base,
         kind: z.literal("vignette"),
         vignette: withDefaults(defaultVignette, vignetteSchema),
+      }),
+      z.object({
+        ...base,
+        kind: z.literal("grain"),
+        grain: withDefaults(defaultGrain, grainSchema),
       }),
       z.object({
         ...base,

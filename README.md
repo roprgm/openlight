@@ -16,11 +16,11 @@ Image processing runs on your own GPU with WebGPU. Photos never leave your devic
 - Tone curves with a live input histogram.
 - Clarity and sharpening.
 - Color Mixer with eight hue, saturation, and luminance ranges.
-- Vignette.
+- Vignette and film grain.
 
 **Layers and masks**
 
-- Draggable effect layers: Details, Exposure, Color Mixer, Vignette, and Color, which paints one color with Photoshop blend modes.
+- Draggable effect layers: Details, Exposure, Color Mixer, Vignette, Grain, and Color, which paints one color with Photoshop blend modes.
 - Linear and radial masks with their own adjustments and child effects.
 - Add and Subtract submasks, from a mask's actions menu, to shape its coverage.
 
