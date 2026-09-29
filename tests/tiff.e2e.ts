@@ -28,26 +28,20 @@ test("TIFF files open through the loader with their color, orientation, headroom
   expect((await readImage(page)).size).toEqual([17, 19]);
   // Row 1 of the float file holds linear 1, 2, and 4 at x = 4..6: all clip at first, then separate at -2 stops.
   await load("float32-be.tif");
-  const row = () =>
-    page.evaluate(async () => {
-      const image = await createImageBitmap(
-        await window.openlight.exportImage(),
-      );
-      const canvas = new OffscreenCanvas(image.width, image.height);
-      const context = canvas.getContext("2d");
-      if (!context) throw new Error("Cannot read exported image.");
-      context.drawImage(image, 0, 0);
-      image.close();
-      return [...context.getImageData(0, 1, 7, 1).data].filter(
-        (_, i) => i % 4 === 0,
-      );
-    });
-  expect((await row()).slice(4)).toEqual([255, 255, 255]);
+  const reds = async () => {
+    const { samples } = await readImage(page, undefined, [
+      [4, 1],
+      [5, 1],
+      [6, 1],
+    ]);
+    return samples?.map((pixel) => pixel[0]) ?? [];
+  };
+  expect(await reds()).toEqual([255, 255, 255]);
   await page.evaluate(() => window.openlight.setAdjustments({ exposure: -2 }));
-  const recovered = await row();
-  expect(recovered[4]).toBeLessThan(150);
-  expect(recovered[5]).toBeGreaterThan(recovered[4]);
-  expect(recovered[6]).toBeGreaterThan(240);
+  const recovered = await reds();
+  expect(recovered[0]).toBeLessThan(150);
+  expect(recovered[1]).toBeGreaterThan(recovered[0]);
+  expect(recovered[2]).toBeGreaterThan(240);
   // The blue pixel brightens without losing its hue, then approaches white.
   await load("blue-float.tif");
   const colors = [];

@@ -1,5 +1,5 @@
 import type { Page } from "@playwright/test";
-import { expect, test } from "./fixtures";
+import { expect, openPhoto, test } from "./fixtures";
 import { readImage, readPreview } from "./images";
 import { box, choose, drag } from "./pointer";
 
@@ -44,13 +44,7 @@ test("draw a mask, edit its child effects, reorder layers and undo", async ({
       [to.x + to.width / 2, to.y + to.height * fraction],
     );
   }
-  await page.goto("/");
-  await page
-    .locator('input[type="file"]')
-    .setInputFiles("tests/fixtures/photo.svg");
-  await expect(
-    page.getByRole("textbox", { name: "Exposure", exact: true }),
-  ).toHaveValue("0.00");
+  await openPhoto(page);
   const original = await samples(page);
   await test.step("a local exposure recovers light the global exposure pushed past white", async () => {
     // Export pixels at the gray field and the light band, both inside the radial mask below.
@@ -258,6 +252,27 @@ test("draw a mask, edit its child effects, reorder layers and undo", async ({
     await page.getByRole("button", { name: "Undo", exact: true }).click();
     await page.getByRole("button", { name: "Undo", exact: true }).click();
     await page.getByRole("button", { name: "Undo", exact: true }).click();
+    expect(await samples(page)).toEqual(nested);
+    // The actions menu moves a child out and back in as the drags do, and duplicates it.
+    await action("Vignette", "Move out");
+    expect((await state()).scene?.layers).toHaveLength(3);
+    expect((await samples(page))[1][0]).toBeLessThan(masked[1][0]);
+    await page
+      .getByRole("button", { name: "Vignette actions", exact: true })
+      .click();
+    await page
+      .getByRole("menuitem", { name: "Move into", exact: true })
+      .click();
+    await page.getByRole("menuitem", { name: "Sky", exact: true }).click();
+    expect(await samples(page)).toEqual(nested);
+    await action("Vignette", "Duplicate");
+    expect(
+      (await state()).scene?.layers[1].children.map((layer) => layer.kind),
+    ).toEqual(["vignette", "vignette"]);
+    expect((await samples(page))[0][0]).toBeLessThan(nested[0][0]);
+    for (let i = 0; i < 3; i++) {
+      await page.getByRole("button", { name: "Undo", exact: true }).click();
+    }
     expect(await samples(page)).toEqual(nested);
     await action("Vignette", "Delete");
     expect(await samples(page)).toEqual(masked);

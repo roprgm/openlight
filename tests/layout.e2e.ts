@@ -1,4 +1,6 @@
-import { expect, test } from "./fixtures";
+import { expect, openPhoto, test } from "./fixtures";
+import { readImage } from "./images";
+import { box } from "./pointer";
 
 test("edit on a phone and carry the canvas across the breakpoint", async ({
   page,
@@ -6,13 +8,7 @@ test("edit on a phone and carry the canvas across the breakpoint", async ({
   const state = () => page.evaluate(() => window.openlight.getState());
   const canvas = page.getByRole("region", { name: "Image canvas" });
   await page.setViewportSize({ width: 1280, height: 800 });
-  await page.goto("/");
-  await page
-    .locator('input[type="file"]')
-    .setInputFiles("tests/fixtures/photo.svg");
-  await expect(
-    page.getByRole("textbox", { name: "Exposure", exact: true }),
-  ).toHaveValue("0.00");
+  await openPhoto(page);
 
   await test.step("the canvas stays mounted while the layout switches", async () => {
     await canvas.locator("canvas").evaluate((element) => {
@@ -80,5 +76,60 @@ test("edit on a phone and carry the canvas across the breakpoint", async ({
         name: "Brush mode",
       }),
     ).toHaveCount(0);
+  });
+});
+
+test.describe("on a touch phone", () => {
+  test.use({
+    viewport: { width: 390, height: 844 },
+    isMobile: true,
+    hasTouch: true,
+    deviceScaleFactor: 2,
+  });
+
+  test("dials take a finger's drag as one edit, and a double tap resets", async ({
+    page,
+    context,
+  }) => {
+    await page.goto("/");
+    await page
+      .locator('input[type="file"]')
+      .setInputFiles("tests/fixtures/photo.svg");
+    const exposure = page.getByRole("slider", {
+      name: "Exposure",
+      exact: true,
+    });
+    await expect(exposure).toHaveAttribute("aria-valuetext", "0.00");
+    // Every dial takes a fingertip.
+    for (const dial of await page.getByRole("slider").all()) {
+      const bounds = await box(dial);
+      expect(bounds.width).toBeGreaterThanOrEqual(44);
+      expect(bounds.height).toBeGreaterThanOrEqual(44);
+    }
+    const bounds = await box(exposure);
+    const [x, y] = [bounds.x + bounds.width / 2, bounds.y + 20];
+    const touch = await context.newCDPSession(page);
+    const send = (type: "touchStart" | "touchMove" | "touchEnd", at = [x]) =>
+      touch.send("Input.dispatchTouchEvent", {
+        type,
+        touchPoints: type === "touchEnd" ? [] : at.map((x) => ({ x, y })),
+      });
+    await send("touchStart");
+    for (let step = 1; step <= 6; step++) {
+      await send("touchMove", [x + step * 10]);
+    }
+    await send("touchEnd");
+    // Sixty pixels sweep a tenth of the range.
+    await expect(exposure).toHaveAttribute("aria-valuetext", "1.00");
+    expect((await readImage(page)).center).not.toEqual([128, 128, 128, 255]);
+    await page.touchscreen.tap(x, y);
+    await page.touchscreen.tap(x, y);
+    await expect(exposure).toHaveAttribute("aria-valuetext", "0.00");
+    const undo = page.getByRole("button", { name: "Undo", exact: true });
+    await undo.tap();
+    await expect(exposure).toHaveAttribute("aria-valuetext", "1.00");
+    await undo.tap();
+    await expect(exposure).toHaveAttribute("aria-valuetext", "0.00");
+    expect((await readImage(page)).center).toEqual([128, 128, 128, 255]);
   });
 });

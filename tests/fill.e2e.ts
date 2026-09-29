@@ -1,4 +1,4 @@
-import { expect, test } from "./fixtures";
+import { expect, openPhoto, test } from "./fixtures";
 import { readImage } from "./images";
 import { box, choose, drag } from "./pointer";
 
@@ -11,13 +11,7 @@ test("a color layer paints the image or a brush stroke with Photoshop blends", a
     await page.getByRole("button", { name: "Add effect", exact: true }).click();
     await page.getByRole("menuitem", { name: "Color", exact: true }).click();
   }
-  await page.goto("/");
-  await page
-    .locator('input[type="file"]')
-    .setInputFiles("tests/fixtures/photo.svg");
-  await expect(
-    page.getByRole("textbox", { name: "Exposure", exact: true }),
-  ).toHaveValue("0.00");
+  await openPhoto(page);
   expect((await readImage(page)).center).toEqual([128, 128, 128, 255]);
   await test.step("Normal paints the color; Multiply darkens by it", async () => {
     await addColor();

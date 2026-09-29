@@ -1,4 +1,4 @@
-import { expect, test } from "./fixtures";
+import { expect, openPhoto, test } from "./fixtures";
 import { readImage } from "./images";
 import { box } from "./pointer";
 
@@ -38,13 +38,7 @@ test("healing preserves an edge, alpha, and HDR texture at full and proxy resolu
 
 test("Healing paints patches, edits them, and undoes", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 1000 });
-  await page.goto("/");
-  await page
-    .locator('input[type="file"]')
-    .setInputFiles("tests/fixtures/photo.svg");
-  await expect(
-    page.getByRole("textbox", { name: "Exposure", exact: true }),
-  ).toHaveValue("0.00");
+  await openPhoto(page);
   const before = await readImage(page, undefined, [
     [350, 200],
     [600, 400],
@@ -294,6 +288,20 @@ test("Healing paints patches, edits them, and undoes", async ({ page }) => {
     )
     .not.toBe(beforeDestination);
   expect(await sourceX()).toBe(fixedSource);
+  // A patch's actions duplicate and delete it, each as one undo step.
+  const scene = () => page.evaluate(() => window.openlight.getState().scene);
+  const withPatches = await scene();
+  const actions = patchList.getByRole("button", { name: "Patch actions" });
+  await actions.first().click();
+  await page.getByRole("menuitem", { name: "Duplicate", exact: true }).click();
+  await expect(actions).toHaveCount(3);
+  await actions.first().click();
+  await page.getByRole("menuitem", { name: "Delete", exact: true }).click();
+  await expect(actions).toHaveCount(2);
+  await page.getByRole("button", { name: "Undo", exact: true }).click();
+  await page.getByRole("button", { name: "Undo", exact: true }).click();
+  expect(await scene()).toEqual(withPatches);
+  await firstPatch.click();
   await feather.fill("60");
   await feather.press("Enter");
   const opacity = page.getByRole("textbox", {
@@ -339,13 +347,7 @@ test("Healing paints patches, edits them, and undoes", async ({ page }) => {
 test("Healing takes the first stroke after H and finds donors inside a mask", async ({
   page,
 }) => {
-  await page.goto("/");
-  await page
-    .locator('input[type="file"]')
-    .setInputFiles("tests/fixtures/photo.svg");
-  await expect(
-    page.getByRole("textbox", { name: "Exposure", exact: true }),
-  ).toHaveValue("0.00");
+  await openPhoto(page);
   const canvas = page.getByRole("region", { name: "Image canvas" });
   const bounds = await box(canvas);
   const spot = [bounds.x + bounds.width * 0.3, bounds.y + bounds.height * 0.4];
