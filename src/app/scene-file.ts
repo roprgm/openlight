@@ -6,6 +6,7 @@ import {
   type ProcessingLayer,
   paintingOf,
   type Scene,
+  settledPixels,
   walkLayers,
 } from "@/core/document";
 import type { ImageSource } from "@/core/image";
@@ -54,14 +55,11 @@ export function snapshotScene(document: EditorDocument) {
     sources: { [source]: { name: file.name, type: file.type } },
     scene,
   };
-  const paint = new Map<string, Blob>();
-  for (const { layer } of walkLayers(scene.layers)) {
-    const raster = paintingOf(layer)?.raster;
-    if (raster) {
-      paint.set(raster, document.resources.paint(raster));
-    }
-  }
-  return { json, sources: new Map([[source, file]]), paint };
+  return {
+    json,
+    sources: new Map([[source, file]]),
+    paint: settledPixels(document, scene),
+  };
 }
 
 const id = z.string().check(z.minLength(1));

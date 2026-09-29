@@ -13,6 +13,7 @@ import {
   createResources,
   findLayer,
   type PaintStroke,
+  settledPixels,
   updateLayer,
 } from "@/core/document";
 import { createImageSource } from "@/core/image";
@@ -222,6 +223,28 @@ test("a brush mask settles like paint: its pixels stay while history names them,
     expect(() => document.resources.paint(raster)).toThrow("unavailable");
   } finally {
     document.dispose();
+    gpu.dispose();
+  }
+});
+
+test("settled pixels taken with a scene outlive the document, as an export's must", async () => {
+  const { gpu, document } = await open();
+  try {
+    const paint = addLayer(document, createLayer("paint"));
+    const raster = document.resources.addPaint(new Blob(["settled"]));
+    document.replace(
+      updateLayer(document.scene.getState(), paint, (layer) => ({
+        ...layer,
+        raster,
+        strokes: [],
+      })),
+    );
+    const pixels = settledPixels(document);
+    // Opening another photo closes this document and frees what it holds.
+    document.dispose();
+    expect(() => document.resources.paint(raster)).toThrow("unavailable");
+    expect(await pixels.get(raster)?.text()).toBe("settled");
+  } finally {
     gpu.dispose();
   }
 });

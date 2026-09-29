@@ -100,6 +100,21 @@ function resourceIds(scene: Scene) {
   return ids;
 }
 
+/** The settled pixels `scene` names, taken now, so work that may outlive the document still has them. */
+export function settledPixels(
+  document: EditorDocument,
+  scene = document.scene.getState(),
+) {
+  const pixels = new Map<string, Blob>();
+  for (const { layer } of walkLayers(scene.layers)) {
+    const raster = paintingOf(layer)?.raster;
+    if (raster) {
+      pixels.set(raster, document.resources.paint(raster));
+    }
+  }
+  return pixels;
+}
+
 /** One independent editing session. No React, decoders, or file workflows. */
 export function createDocument(initial: Scene, resources = createResources()) {
   const scene = createStore(() => initial);
