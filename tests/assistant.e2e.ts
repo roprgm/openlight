@@ -81,9 +81,9 @@ test("the assistant shows only at /?assistant, opens, runs the commands a messag
   // An answer that arrives after another photo opens leaves the new photo alone.
   await message.fill("brighter");
   await message.press("Enter");
-  await page
-    .locator('input[type="file"]')
-    .setInputFiles("tests/fixtures/tones.png");
+  const chooser = page.waitForEvent("filechooser");
+  await page.getByRole("button", { name: "Open an image or scene" }).click();
+  await (await chooser).setFiles("tests/fixtures/tones.png");
   await expect
     .poll(() => page.evaluate(() => window.openlight.getState().file))
     .toBe("tones.png");

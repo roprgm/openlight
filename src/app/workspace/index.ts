@@ -89,6 +89,16 @@ export function createWorkspace() {
         return false;
       }
     },
+    /** Shows why a file could not be applied to the open document, as a failed open does. */
+    reportFailure(file: string, error: unknown) {
+      const current = state.getState();
+      if (current.status === "ready") {
+        state.setState(
+          { ...current, failure: { file, error: String(error) } },
+          true,
+        );
+      }
+    },
     /** Clears a failure shown beside the open document. */
     dismissFailure() {
       const current = state.getState();

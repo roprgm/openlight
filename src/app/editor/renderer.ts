@@ -1,6 +1,7 @@
 import type { Gpu, Timer } from "vgpu";
 import { maskModifiers, type ProcessingLayer } from "@/core/document";
 import type { ImageSource } from "@/core/image";
+import type { LookupTable } from "@/core/image/lut";
 import {
   type Composition,
   createRenderer,
@@ -18,6 +19,7 @@ import { unsharpMask } from "@/features/details/unsharp-mask";
 import { fill } from "@/features/fill/pass";
 import { grain } from "@/features/grain/pass";
 import { heal } from "@/features/heal/pass";
+import { lut } from "@/features/lut/pass";
 import { toneCurves } from "@/features/tone-curves/pass";
 import { vignette } from "@/features/vignette/pass";
 
@@ -26,10 +28,18 @@ type Branch = {
   input?: RenderImage;
 };
 
+/** Finds the table a LUT layer names; a document's resources hold them. */
+type Luts = (id: string) => LookupTable;
+
+function noLuts(): never {
+  throw Error("LUT is unavailable.");
+}
+
 function composeLayer(
   below: RenderImage,
   layer: ProcessingLayer,
   composition: Composition,
+  luts: Luts,
 ): Branch {
   const name = `layer/${layer.id}`;
   composition.retain(name);
@@ -85,6 +95,9 @@ function composeLayer(
     case "fill":
       edited = pipeline(below, [fill(layer.fill, `${name}/fill`)]);
       break;
+    case "lut":
+      edited = pipeline(below, [lut(luts(layer.lut), `${name}/lut`)]);
+      break;
     case "heal": {
       const result = heal(below, layer.patches, name, composition);
       edited = result.image;
@@ -97,7 +110,7 @@ function composeLayer(
     layer.kind === "mask"
       ? layer.children.filter((child) => child.kind !== "mask")
       : layer.children;
-  const children = composeLayers(edited, effects, composition);
+  const children = composeLayers(edited, effects, composition, luts);
   const image = mixAdjustment(
     name,
     below,
@@ -114,11 +127,12 @@ function composeLayers(
   below: RenderImage,
   layers: readonly ProcessingLayer[],
   composition: Composition,
+  luts: Luts,
 ): Branch {
   let image = below;
   let input: RenderImage | undefined;
   for (const layer of layers) {
-    const branch = composeLayer(image, layer, composition);
+    const branch = composeLayer(image, layer, composition, luts);
     image = branch.image;
     input ??= branch.input;
   }
@@ -133,6 +147,7 @@ function composeLayers(
 export function createEditorRenderer(
   gpu: Gpu,
   source: ImageSource,
+  luts: Luts = noLuts,
   timer?: Timer,
 ) {
   return createRenderer(
@@ -142,8 +157,18 @@ export function createEditorRenderer(
       const [sourceLayer, ...layers] = scene.layers;
       const name = `layer/${sourceLayer.id}`;
       composition.retain(name);
-      const children = composeLayers(image, sourceLayer.children, composition);
-      const composite = composeLayers(children.image, layers, composition);
+      const children = composeLayers(
+        image,
+        sourceLayer.children,
+        composition,
+        luts,
+      );
+      const composite = composeLayers(
+        children.image,
+        layers,
+        composition,
+        luts,
+      );
       const adjusted = pipeline(composite.image, [
         adjustments(sourceLayer.adjustments, name),
       ]);

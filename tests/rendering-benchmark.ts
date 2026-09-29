@@ -11,6 +11,7 @@ import type {
 } from "@/core/document";
 import { createImageSource } from "@/core/image";
 import { imageFrame } from "@/core/image/frame";
+import type { LookupTable } from "@/core/image/lut";
 import { defaultAdjustments } from "@/features/adjustments/model";
 import { createHistogram } from "@/features/histogram/histogram";
 import { defaultCurve } from "@/features/tone-curves/curve";
@@ -28,6 +29,7 @@ export type Workload =
   | "brush-exposure"
   | "layer-stack"
   | "fill"
+  | "lut"
   | "heal"
   | "heal-empty"
   | "heal-proxy"
@@ -76,6 +78,27 @@ function benchmarkMask(workload: Workload, size: [number, number]): Mask {
     kind: "linear",
     start: [0, size[1] * 0.2],
     end: [0, size[1] * 0.8],
+  };
+}
+
+/** A 33-point LUT that warms highlights and cools shadows, as a creative grade does. */
+function benchmarkLut(): LookupTable {
+  const size = 33;
+  const table = new Float32Array(3 * size ** 3);
+  for (let index = 0; index < size ** 3; index++) {
+    const r = (index % size) / (size - 1);
+    const g = (Math.floor(index / size) % size) / (size - 1);
+    const b = Math.floor(index / size ** 2) / (size - 1);
+    table.set([r ** 0.9, g, b ** 1.1], 3 * index);
+  }
+  return {
+    name: "Benchmark",
+    size,
+    domain: [
+      [0, 0, 0],
+      [1, 1, 1],
+    ],
+    table,
   };
 }
 
@@ -193,6 +216,15 @@ export async function benchmarkRendering(
       fill: { color: "#f0763c", blend: "soft-light" },
     });
   }
+  if (workload === "lut") {
+    effects.push({
+      ...common,
+      id: "benchmark-lut",
+      name: "LUT",
+      kind: "lut",
+      lut: "benchmark-table",
+    });
+  }
   if (
     workload === "heal" ||
     workload === "heal-empty" ||
@@ -245,8 +277,9 @@ export async function benchmarkRendering(
       ...effects,
     ],
   };
+  const lut = benchmarkLut();
   function create(clock?: Timer) {
-    const renderer = createEditorRenderer(gpu, source, clock);
+    const renderer = createEditorRenderer(gpu, source, () => lut, clock);
     // Half a device pixel per source pixel, as a fitted view of a large photo, renders at a factor of 2.
     renderer.setDisplayScale(proxy ? 0.5 : 1);
     return renderer;

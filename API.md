@@ -25,8 +25,8 @@ These methods return promises; await them before editing. All but `loadUrl`, whi
 
 | Method | Behavior |
 | --- | --- |
-| `openFile(file)` | Opens one image or [scene file](#scene-files), or imports one Camera Raw XMP file. |
-| `openFiles(files)` | Opens the first recognized image or scene file, then imports recognized XMP files in order. Unsupported files are ignored. |
+| `openFile(file)` | Opens one image or [scene file](#scene-files), imports one Camera Raw XMP file, or adds a [LUT](#luts) layer from one `.cube` file. |
+| `openFiles(files)` | Opens the first recognized image or scene file, then imports recognized XMP and `.cube` files in order. Unsupported files are ignored. |
 | `loadImage(file)` | Loads a file as an image, replacing the current document and its history. |
 | `loadScene(file)` | Opens a scene file as a new document, replacing the current one and its history. |
 | `recoverDraft()` | Opens the stored [draft](#drafts) as a new document, like `loadScene`. Rejects when no draft is stored or storage fails. |
@@ -34,7 +34,7 @@ These methods return promises; await them before editing. All but `loadUrl`, whi
 | `loadUrl(url)` | Fetches an image and loads it. A URL on another origin must allow CORS; the response's content type identifies an image whose URL has no extension. |
 | `importXmp(file)` | Applies supported Camera Raw adjustments as one undoable edit. |
 
-File loads are queued; `loadUrl` starts at once, and when two opens overlap the later one wins. XMP import is skipped if no document is ready; an invalid XMP import can reject without blocking later loads. Image and scene failures do not reject the loading promise. Without a document open, a failure leaves the workspace in its error state; with one, that document stays open and keeps its history. Either way `getState().failure` names the file and the error, and settings loaded in the same batch are skipped. Check `getState().documentId` or `failure` to confirm success. Loading completion does not guarantee the preview has rendered.
+File loads are queued; `loadUrl` starts at once, and when two opens overlap the later one wins. XMP and `.cube` imports are skipped if no document is ready; an invalid XMP import can reject without blocking later loads. Image, scene, and `.cube` failures do not reject the loading promise. Without a document open, a failure leaves the workspace in its error state; with one, that document stays open and keeps its history. Either way `getState().failure` names the file and the error, and settings loaded in the same batch are skipped. Check `getState().documentId` or `failure` to confirm success. Loading completion does not guarantee the preview has rendered.
 
 ## Editing
 
@@ -82,7 +82,7 @@ Direct mask children of another mask modify coverage instead of processing image
 
 | Method | Behavior |
 | --- | --- |
-| `addLayer(kind, placement?)` | Adds `"exposure"`, `"color-mixer"`, `"details"`, `"vignette"`, `"grain"`, `"fill"`, `"heal"`, or `"mask"`; selects and returns its ID. `{ inside: id }` appends a child to a processing layer; `{ above: id }` inserts directly above that layer among its siblings; without a placement, the layer goes on top of the root stack. Exposure starts at +1 EV, Vignette at intensity 50, Grain at amount 25; Color Mixer, Details, Healing, and masks start neutral. |
+| `addLayer(kind, placement?)` | Adds `"exposure"`, `"color-mixer"`, `"details"`, `"vignette"`, `"grain"`, `"fill"`, `"heal"`, or `"mask"`; selects and returns its ID. A `"lut"` layer comes from a `.cube` file instead. `{ inside: id }` appends a child to a processing layer; `{ above: id }` inserts directly above that layer among its siblings; without a placement, the layer goes on top of the root stack. Exposure starts at +1 EV, Vignette at intensity 50, Grain at amount 25; Color Mixer, Details, Healing, and masks start neutral. |
 | `selectLayer(id)` | Selects any layer. |
 | `setLayer(id, change)` | Updates processing-layer `name`, `visible`, or `opacity` (0–1). |
 | `setExposure(id, value)` | Sets an Exposure layer to -5…5 EV. |
@@ -95,6 +95,14 @@ Direct mask children of another mask modify coverage instead of processing image
 A linear gradient has full coverage at `start`, zero at `end`; its points must be finite and distinct. A radial gradient covers the ellipse inside `radius`, with positive radii and a feathered falloff toward its edge. Crop, rotation, and viewport navigation do not move it within the document.
 
 A brush mask is a list of strokes. Each stroke has `mode` (`"paint"` or `"erase"`), `size` (diameter in source pixels), `feather` and `flow` (0–1), and `points`, each `[x, y, pressure]` in source pixels with pressure 0–1. Dabs land every quarter diameter along the points; a paint stroke adds `flow × pressure` of the remaining coverage under each dab, and an erase stroke removes that share of the existing coverage. The renderer rasterizes strokes into a cached coverage texture at source resolution and only stamps new points, so appending to the last stroke is cheap and undo replays the rest. A brush inside another mask keeps its own coverage, paint and erase strokes alike, which the mask adds or subtracts scaled by the brush layer's opacity. A mask with no painted coverage and nothing added to it is bypassed.
+
+## LUTs
+
+A LUT layer grades the image below it with a 3D lookup table from an Adobe or Resolve `.cube` file. `openFile` with a `.cube` file adds one on top of the stack, named after the file's `TITLE` or, without one, the file; the Add menu asks for a file and places the layer as it places other effects, and the layer's panel replaces its file. A replacement keeps the layer's name unless it still reads the previous LUT's name. The layer's opacity sets its strength. `addLayer` cannot create a LUT layer, since it needs a file.
+
+The file needs `LUT_3D_SIZE`, a whole number from 2 to 65, before its rows: `LUT_3D_SIZE`³ lines of three numbers, red varying fastest, then green, then blue. `TITLE`, `DOMAIN_MIN` and `DOMAIN_MAX` (default 0 and 1), or Resolve's `LUT_3D_INPUT_RANGE`, are read; comments, blank lines, and other keywords are skipped. 1D LUTs are rejected, and so is a file with too few or too many rows, naming the line where one is wrong.
+
+Creative LUTs expect and return display-referred, sRGB-encoded color. The layer converts the working color as display does, into sRGB clipped to its gamut with hue and luminance kept, so headroom above white clips at the LUT; the color, clamped to the LUT's domain, is interpolated tetrahedrally between its entries, and the result, clamped to 0–1, converts back to the working space. The image layer's adjustments still apply after it, on the composite.
 
 ## History
 
@@ -147,7 +155,7 @@ The image renders at the document dimensions and downsamples to `longEdge` with 
 
 ## Scene files
 
-`exportScene()` returns `Promise<File>`: the document as an `.openlight` file named after its source image, which **Save scene** in the Export panel downloads. It is a ZIP archive holding the source file's original bytes at `sources/<id>` and a deflated `scene.json`:
+`exportScene()` returns `Promise<File>`: the document as an `.openlight` file named after its source image, which **Save scene** in the Export panel downloads. It is a ZIP archive holding the original bytes of the source image and of each LUT the scene uses at `sources/<id>`, and a deflated `scene.json`:
 
 ```json
 {
@@ -158,7 +166,7 @@ The image renders at the document dimensions and downsamples to `longEdge` with 
 }
 ```
 
-`scene` is the `getState()` scene; each image layer's `source` names an entry in `sources`. Opening the file with `loadScene`, `openFile`, a drop, or the file picker decodes the stored source again and restores the frame and every layer as a new document with empty history. Preview settings and history are not saved.
+`scene` is the `getState()` scene; the image layer's `source` and each LUT layer's `lut` name entries in `sources`. Opening the file with `loadScene`, `openFile`, a drop, or the file picker decodes the stored source again and restores the frame and every layer as a new document with empty history. Preview settings and history are not saved.
 
 Opening validates every value as the matching command does, and a file that fails leaves the workspace in its error state with a message naming the first invalid field. Fields OpenLight does not know are dropped. A parameter missing from `adjustments`, `details`, `vignette`, `grain`, `fill`, or `colorMixer` takes its default, so older files still open when a group gains a parameter; a RAW image without a white balance uses its As Shot value. `version` increases only when older files can no longer open as written; a newer version is rejected.
 
@@ -166,7 +174,7 @@ Opening validates every value as the matching command does, and a file that fail
 
 Once a document has an edit, OpenLight keeps it as the draft in the browser's IndexedDB, so closing the tab loses nothing. A save follows 1.5 s after the last scene change and flushes when the tab is hidden or the page unloads; saves run one at a time and never render. Opening an image or scene without editing it keeps the previous draft. Only the latest document is kept.
 
-A draft stores the same `scene.json` object a [scene file](#scene-files) holds, in a record with its own `version` and the document's name, while each source file sits in a separate store under its source ID. A save keeps source files already stored under their ID and deletes unreferenced ones in the same transaction, so edits never rewrite the photo.
+A draft stores the same `scene.json` object a [scene file](#scene-files) holds, in a record with its own `version` and the document's name, while each source file, the image and any LUTs, sits in a separate store under its ID. A save keeps source files already stored under their ID and deletes unreferenced ones in the same transaction, so edits never rewrite the photo.
 
 On a fresh load the start screen shows a notice in the viewport's corner with **Recover** and **Forget**. `recoverDraft()` opens the draft through the same validation as a scene file, restoring each source under its original ID, with empty history; a newer draft `version` is rejected rather than dropped, and a parameter added to a group since takes its default. `discardDraft()` removes it. Both return `Promise<void>`. When IndexedDB is unavailable or fails, a dismissible notice suggests saving a scene file, and editing continues.
 

@@ -14,7 +14,8 @@ import type { RenderImage, RenderNode } from "./node";
 type Pass = {
   shader: RenderNode["shader"];
   effect: Effect;
-  buffers: Map<string, Buffer>;
+  /** Each storage buffer with the array it holds, so the same array is not uploaded again. */
+  buffers: Map<string, { buffer: Buffer; data: Float32Array }>;
 };
 
 function plan(outputs: readonly RenderImage[]) {
@@ -83,17 +84,21 @@ export function createRenderGraph(gpu: Gpu, timer?: Timer) {
       throw Error(`Render node ${node.name} changed shader; use a new name.`);
     }
     for (const [name, data] of Object.entries(node.storage ?? {})) {
-      let buffer = pass.buffers.get(name);
+      const stored = pass.buffers.get(name);
+      if (stored?.data === data) {
+        continue;
+      }
+      let buffer = stored?.buffer;
       if (!buffer || buffer.options.size !== data.byteLength) {
         buffer?.dispose();
         buffer = gpu.device.createBuffer({
           size: data.byteLength,
           usage: ["storage", "copy_dst"],
         });
-        pass.buffers.set(name, buffer);
         pass.effect.set({ [name]: buffer });
       }
       buffer.write(data);
+      pass.buffers.set(name, { buffer, data });
     }
     return pass.effect;
   }
@@ -117,7 +122,7 @@ export function createRenderGraph(gpu: Gpu, timer?: Timer) {
     release(prefix: string) {
       for (const [name, pass] of effects) {
         if (name.startsWith(prefix)) {
-          for (const buffer of pass.buffers.values()) {
+          for (const { buffer } of pass.buffers.values()) {
             buffer.dispose();
           }
           effects.delete(name);
@@ -221,7 +226,7 @@ export function createRenderGraph(gpu: Gpu, timer?: Timer) {
     dispose() {
       disposed = true;
       for (const pass of effects.values()) {
-        for (const buffer of pass.buffers.values()) {
+        for (const { buffer } of pass.buffers.values()) {
           buffer.dispose();
         }
       }

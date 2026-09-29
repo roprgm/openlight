@@ -1,4 +1,4 @@
-import { expect, test } from "bun:test";
+import { expect, spyOn, test } from "bun:test";
 import { getMockGPUDeviceInstrumentation, init, target } from "vgpu/mock";
 import {
   createRenderGraph,
@@ -76,9 +76,11 @@ test("a shared branch renders once and reuses effects, buffers, and temporary st
     { source: shared, base: branch },
     node("join", shader, options),
   );
+  const uploads = spyOn(gpu.gpu.queue, "writeBuffer");
   try {
     const [saved, output] = graph.render([shared, joined]);
     expect(output).not.toBe(saved);
+    expect(uploads).toHaveBeenCalledTimes(4);
     expect(graph.inspect().passes).toEqual([
       "shared",
       "middle",
@@ -97,6 +99,8 @@ test("a shared branch renders once and reuses effects, buffers, and temporary st
     ]);
     expect(calls.createBuffer).toBe(buffers);
     expect(calls.createRenderPipeline).toBe(pipelines);
+    // A storage array uploads once while passes keep receiving it.
+    expect(uploads).toHaveBeenCalledTimes(4);
     // Bypassing releases scratch storage.
     expect(graph.render([shared])[0]).toBe(saved);
     expect(graph.inspect().textures).toHaveLength(1);

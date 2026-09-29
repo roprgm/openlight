@@ -3,6 +3,7 @@ import { DetailsIcon } from "@/components/icons/details";
 import { ExposureIcon } from "@/components/icons/exposure";
 import { GrainIcon } from "@/components/icons/grain";
 import { HealIcon } from "@/components/icons/heal";
+import { LutIcon } from "@/components/icons/lut";
 import { VignetteIcon } from "@/components/icons/vignette";
 import type {
   EditorDocument,
@@ -14,12 +15,14 @@ import type {
   ProcessingLayer,
 } from "@/core/document";
 import type { WhiteBalance } from "@/core/image";
+import type { LookupTable } from "@/core/image/lut";
 import { defaultAdjustments } from "@/features/adjustments/model";
 import { defaultMixer, isNeutral } from "@/features/color-mixer/model";
 import { defaultDetails } from "@/features/details/model";
 import { defaultFill } from "@/features/fill/model";
 import { defaultGrain } from "@/features/grain/model";
 import type { EffectKind } from "@/features/layers/controls";
+import { addLayer, type LayerPlacement } from "@/features/layers/edits";
 import { defaultCurve } from "@/features/tone-curves/curve";
 import { defaultVignette } from "@/features/vignette/model";
 
@@ -57,13 +60,17 @@ export const effectKinds = [
   { kind: "vignette", label: "Vignette", Icon: VignetteIcon, addable: true },
   { kind: "grain", label: "Grain", Icon: GrainIcon, addable: true },
   { kind: "fill", label: "Color", addable: true },
+  { kind: "lut", label: "LUT", Icon: LutIcon, addable: true },
   { kind: "heal", label: "Healing", Icon: HealIcon, addable: false },
 ] as const satisfies readonly EffectKind[];
 
-export function createLayer<K extends EffectLayer["kind"]>(
+/** Effects that start from defaults; a LUT layer needs its table first. */
+export type DefaultEffect = Exclude<EffectLayer["kind"], "lut">;
+
+export function createLayer<K extends DefaultEffect>(
   kind: K,
 ): Extract<EffectLayer, { kind: K }>;
-export function createLayer(kind: EffectLayer["kind"]): EffectLayer {
+export function createLayer(kind: DefaultEffect): EffectLayer {
   const name = effectKinds.find((entry) => entry.kind === kind)?.label ?? kind;
   const base = { ...baseLayer(), name };
   switch (kind) {
@@ -82,6 +89,25 @@ export function createLayer(kind: EffectLayer["kind"]): EffectLayer {
     case "heal":
       return { ...base, kind, patches: [] };
   }
+}
+
+/** Keeps a table read from `file` with the document and adds a layer named after it; returns the layer's ID. */
+export function addLut(
+  document: EditorDocument,
+  file: File,
+  table: LookupTable,
+  placement?: LayerPlacement,
+) {
+  // An open group commits first: releasing it would drop a table no layer uses yet.
+  document.history.commit();
+  const lut = document.resources.addLut(file, table);
+  const layer: ProcessingLayer = {
+    ...baseLayer(),
+    kind: "lut",
+    name: table.name,
+    lut,
+  };
+  return addLayer(document, layer, placement);
 }
 
 const maskNames: Record<Mask["kind"], string> = {
@@ -121,6 +147,7 @@ function effectNeutral(layer: ProcessingLayer): boolean {
     case "color-mixer":
       return isNeutral(layer.colorMixer);
     case "fill":
+    case "lut":
       return false;
     case "heal":
       return layer.patches.length === 0;
@@ -153,7 +180,7 @@ export function findEffect<K extends EffectLayer["kind"]>(
 /** Convenience commands address the first root effect of a kind or create one on top of the stack as one entry; returns the layer edited. */
 export function editEffect(
   document: EditorDocument,
-  kind: EffectLayer["kind"],
+  kind: DefaultEffect,
   id: string | undefined,
   edit: (id: string) => void,
 ) {
