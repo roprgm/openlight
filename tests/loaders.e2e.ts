@@ -7,7 +7,9 @@ test("a photo takes XMP settings, survives a failed open, and exports while anot
   const state = () => page.evaluate(() => window.openlight.getState());
   await openPhoto(page);
   expect((await readImage(page)).center).toEqual([128, 128, 128, 255]);
-  await page.locator('input[type="file"]').setInputFiles({
+  const chooser = page.waitForEvent("filechooser");
+  await page.getByRole("button", { name: "Open an image or scene" }).click();
+  await (await chooser).setFiles({
     name: "photo.xmp",
     mimeType: "",
     buffer: Buffer.from(
