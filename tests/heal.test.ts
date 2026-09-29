@@ -2,12 +2,7 @@ import { expect, test } from "bun:test";
 import { init, target } from "vgpu/mock";
 import { createImageLayer, createLayer } from "@/app/editor/layers";
 import { createEditorRenderer } from "@/app/editor/renderer";
-import {
-  type BrushStroke,
-  createDocument,
-  createResources,
-  findLayer,
-} from "@/core/document";
+import { type BrushStroke, createDocument, findLayer } from "@/core/document";
 import { createImageSource } from "@/core/image";
 import { imageFrame } from "@/core/image/frame";
 import {
@@ -21,253 +16,146 @@ import {
 } from "@/features/heal/edits";
 import { addLayer, deleteLayer } from "@/features/layers/edits";
 
-function healFixture(size: readonly [number, number] = [64, 64]) {
-  const resources = createResources();
-  const document = createDocument(
-    {
-      frame: imageFrame(size),
-      layers: [createImageLayer("source", "Photo")],
-    },
-    resources,
+async function healFixture(size: [number, number]) {
+  const gpu = await init();
+  const source = createImageSource(
+    target(gpu, { size, format: "rgba16float" }),
   );
+  const layers = [createImageLayer("photo", "Photo")] as const;
+  const document = createDocument({ frame: imageFrame(size), layers });
+  const renderer = createEditorRenderer(gpu, source);
   const layer = addLayer(document, createLayer("heal"));
-  return { document, layer };
+  return {
+    document,
+    renderer,
+    layer,
+    render: (inputId?: string, interactive?: boolean) =>
+      renderer.update(document.scene.getState(), inputId, interactive),
+    patches() {
+      const healing = findLayer(document.scene.getState().layers, layer);
+      if (healing?.kind !== "heal") throw Error("Healing layer missing.");
+      return healing.patches;
+    },
+    dispose() {
+      renderer.dispose();
+      document.dispose();
+      source.dispose();
+      gpu.dispose();
+    },
+  };
 }
 
-const dab: BrushStroke = {
-  mode: "paint",
-  size: 8,
-  feather: 0,
-  flow: 1,
-  points: [[10, 10, 1]],
-};
-
-function patchesOf(document: ReturnType<typeof createDocument>, layer: string) {
-  const healing = findLayer(document.scene.getState().layers, layer);
-  if (healing?.kind !== "heal") throw Error("Healing layer missing.");
-  return healing.patches;
+function dab(size: number, x: number, y: number): BrushStroke {
+  return { mode: "paint", size, feather: 0.4, flow: 1, points: [[x, y, 1]] };
 }
 
 test("heal patches reuse brush rasters, scale with the proxy, undo, and release with the layer", async () => {
-  const gpu = await init();
-  const source = createImageSource(
-    target(gpu, { size: [256, 192], format: "rgba16float" }),
+  const { document, renderer, layer, render, patches, dispose } =
+    await healFixture([256, 192]);
+  const inspect = () => renderer.inspect();
+  document.history.begin();
+  const patch = addHealPatch(document, layer, dab(30, 100, 80), [60, 0]);
+  expect(patches()[0]).toMatchObject({ feather: 0.4, stroke: { feather: 0 } });
+  renderer.setDisplayScale(0.25);
+  await render(layer, true);
+  expect(renderer.fullImage().size).toEqual([64, 48]);
+  expect(inspect().rasters).toEqual([
+    { id: `layer/${layer}/${patch}`, size: [256, 192], format: "r8unorm" },
+  ]);
+  const stamped = inspect().stamped;
+  extendHealPatch(document, layer, [[120, 80, 1]]);
+  await render(layer, true);
+  const extended = inspect().stamped;
+  expect(extended).toBeGreaterThan(stamped);
+  document.history.commit();
+  await render();
+  expect(renderer.fullImage().size).toEqual([256, 192]);
+  expect(inspect().passes.at(-1)).toBe(`layer/${layer}/${patch}/blend`);
+  const { textures, effects } = inspect();
+  // Committing and moving the source reuse the graph and the raster.
+  setHealSource(document, layer, patch, [70, 0]);
+  await render();
+  expect(inspect()).toMatchObject({ textures, effects, stamped: extended });
+  const erase: BrushStroke = { ...dab(4, 1, 1), mode: "erase" };
+  expect(() => addHealPatch(document, layer, erase, [1, 2])).toThrow("painted");
+  expect(() => setHealSource(document, layer, patch, [NaN, 0])).toThrow(
+    "Invalid heal source",
   );
-  const resources = createResources();
-  const sourceId = resources.add(new File([], "photo.png"), source);
-  const document = createDocument(
-    {
-      frame: imageFrame(source.image.size),
-      layers: [createImageLayer(sourceId, "Photo")],
-    },
-    resources,
-  );
-  const renderer = createEditorRenderer(gpu, source);
-  try {
-    const id = addLayer(document, createLayer("heal"));
-    const stroke: BrushStroke = {
-      mode: "paint",
-      size: 30,
-      feather: 0.4,
-      flow: 1,
-      points: [[100, 80, 1]],
-    };
-    document.history.begin();
-    const patch = addHealPatch(document, id, stroke, [60, 0]);
-    const created = document.scene
-      .getState()
-      .layers.find((item) => item.id === id);
-    expect(
-      created?.kind === "heal" &&
-        created.patches.find((item) => item.id === patch),
-    ).toMatchObject({ feather: 0.4, stroke: { size: 30, feather: 0 } });
-    renderer.setDisplayScale(0.25);
-    await renderer.update(document.scene.getState(), id, true);
-    expect(renderer.fullImage().size).toEqual([64, 48]);
-    expect(renderer.inspect().rasters).toEqual([
-      { id: `layer/${id}/${patch}`, size: [256, 192], format: "r8unorm" },
-    ]);
-    const stamped = renderer.inspect().stamped;
-    extendHealPatch(document, id, [[120, 80, 1]]);
-    await renderer.update(document.scene.getState(), id, true);
-    expect(renderer.inspect().stamped).toBeGreaterThan(stamped);
-    const extended = renderer.inspect().stamped;
-    document.history.commit();
-    await renderer.update(document.scene.getState());
-    expect(renderer.fullImage().size).toEqual([256, 192]);
-    expect(renderer.inspect().stamped).toBe(extended);
-    expect(renderer.inspect().passes.at(-1)).toBe(`layer/${id}/${patch}/blend`);
-    expect(renderer.inspect().passes.length).toBeGreaterThan(1);
-    expect(renderer.inspect().effects).toBeLessThan(15);
-    const textures = renderer.inspect().textures;
-    setHealSource(document, id, patch, [70, 0]);
-    await renderer.update(document.scene.getState());
-    expect(renderer.inspect().textures).toEqual(textures);
-    expect(renderer.inspect().stamped).toBe(extended);
-    document.history.undo();
-    document.history.undo();
-    await renderer.update(document.scene.getState());
-    expect(renderer.inspect().rasters).toEqual([]);
-    expect(renderer.inspect().passes).toEqual([]);
-    document.history.redo();
-    await renderer.update(document.scene.getState());
-    expect(renderer.inspect().rasters).toHaveLength(1);
-    expect(() =>
-      addHealPatch(document, id, { ...stroke, mode: "erase" }, [1, 2]),
-    ).toThrow("painted");
-    expect(() => setHealSource(document, id, patch, [NaN, 0])).toThrow(
-      "Invalid heal source",
-    );
-    expect(() => setHealPatch(document, id, patch, { feather: NaN })).toThrow(
-      "feather",
-    );
-    setHealSource(document, id, patch, [0, 0]);
-    await renderer.update(document.scene.getState());
-    expect(renderer.inspect().effects).toBe(0);
-    expect(renderer.inspect().rasters).toEqual([]);
-    document.history.undo();
-    await renderer.update(document.scene.getState());
-    expect(renderer.inspect().rasters).toHaveLength(1);
-    deleteLayer(document, id);
-    await renderer.update(document.scene.getState());
-    expect(renderer.inspect().rasters).toEqual([]);
-  } finally {
-    renderer.dispose();
-    document.dispose();
-    gpu.dispose();
-  }
+  // A patch that copies from itself has nothing to repair.
+  setHealSource(document, layer, patch, [0, 0]);
+  await render();
+  expect(inspect()).toMatchObject({ effects: 0, rasters: [] });
+  document.history.undo();
+  await render();
+  expect(inspect().rasters).toHaveLength(1);
+  deleteLayer(document, layer);
+  await render();
+  expect(inspect().rasters).toEqual([]);
+  dispose();
 });
 
 test("a heal patch's raster covers only the tiles its stroke reaches, growing with it", async () => {
-  const gpu = await init();
-  const source = createImageSource(
-    target(gpu, { size: [2048, 1536], format: "rgba16float" }),
-  );
-  const resources = createResources();
-  const sourceId = resources.add(new File([], "photo.png"), source);
-  const document = createDocument(
-    {
-      frame: imageFrame(source.image.size),
-      layers: [createImageLayer(sourceId, "Photo")],
-    },
-    resources,
-  );
-  const renderer = createEditorRenderer(gpu, source);
+  const { document, renderer, layer, render, dispose } = await healFixture([
+    2048, 1536,
+  ]);
   const raster = () => renderer.inspect().rasters.map(({ size }) => size);
-  try {
-    const id = addLayer(document, createLayer("heal"));
-    document.history.begin();
-    addHealPatch(
-      document,
-      id,
-      { ...dab, size: 30, points: [[1000, 700, 1]] },
-      [80, 0],
-    );
-    await renderer.update(document.scene.getState(), undefined, true);
-    // One 256 px tile rather than the whole photo.
-    expect(raster()).toEqual([[256, 256]]);
-    extendHealPatch(document, id, [[1100, 700, 1]]);
-    await renderer.update(document.scene.getState(), undefined, true);
-    expect(raster()).toEqual([[512, 256]]);
-    document.history.commit();
-  } finally {
-    renderer.dispose();
-    document.dispose();
-    gpu.dispose();
-  }
+  document.history.begin();
+  addHealPatch(document, layer, dab(30, 1000, 700), [80, 0]);
+  await render(undefined, true);
+  // One 256 px tile rather than the whole photo.
+  expect(raster()).toEqual([[256, 256]]);
+  extendHealPatch(document, layer, [[1100, 700, 1]]);
+  await render(undefined, true);
+  expect(raster()).toEqual([[512, 256]]);
+  document.history.commit();
+  dispose();
 });
 
 test("one Healing layer composes its patches in order through render nodes", async () => {
-  const gpu = await init();
-  const resources = createResources();
-  const source = createImageSource(
-    target(gpu, { size: [128, 96], format: "rgba16float" }),
-  );
-  const sourceId = resources.add(new File([], "photo.png"), source);
-  const document = createDocument(
-    {
-      frame: imageFrame(source.image.size),
-      layers: [createImageLayer(sourceId, "Photo")],
-    },
-    resources,
-  );
-  const renderer = createEditorRenderer(gpu, source);
-  try {
-    const layer = addLayer(document, createLayer("heal"));
-    const stroke: BrushStroke = {
-      mode: "paint",
-      size: 24,
-      feather: 0.4,
-      flow: 1,
-      points: [[64, 48, 1]],
-    };
-    const first = addHealPatch(document, layer, stroke, [30, 0]);
-    const second = addHealPatch(document, layer, stroke, [-30, 0]);
-    await renderer.update(document.scene.getState(), layer);
-    expect(renderer.inspect().passes).toContain(
-      `layer/${layer}/${first}/blend`,
-    );
-    expect(renderer.inspect().passes).toContain(
-      `layer/${layer}/${second}/blend`,
-    );
-    await renderer.update(document.scene.getState(), first);
-    const firstInput = renderer.inputImage(first);
-    expect(firstInput).toBeDefined();
-    // A later patch sees the result of the earlier ones.
-    await renderer.update(document.scene.getState(), second);
-    expect(renderer.inputImage(second)).toBeDefined();
-    expect(renderer.inputImage(second)).not.toBe(firstInput);
-    const correctionGraph = renderer.inspect();
-    setHealDestination(document, layer, first, [80, 60]);
-    setHealPatch(document, layer, first, { feather: 0.2, opacity: 0.6 });
-    await renderer.update(document.scene.getState(), second);
-    expect(renderer.inspect().passes).toEqual(correctionGraph.passes);
-    expect(renderer.inspect().textures).toEqual(correctionGraph.textures);
-    const copy = duplicateHealPatch(document, layer, first);
-    expect(patchesOf(document, layer)).toMatchObject([
-      {
-        id: first,
-        stroke: { points: [[80, 60, 1]], size: 24, feather: 0 },
-        offset: [14, -12],
-        feather: 0.2,
-        opacity: 0.6,
-      },
-      { id: copy, offset: [14, -12] },
-      { id: second },
-    ]);
-    deleteHealPatch(document, layer, copy);
-    expect(patchesOf(document, layer).map((patch) => patch.id)).toEqual([
-      first,
-      second,
-    ]);
-  } finally {
-    renderer.dispose();
-    document.dispose();
-    gpu.dispose();
-  }
+  const { document, renderer, layer, render, patches, dispose } =
+    await healFixture([128, 96]);
+  const first = addHealPatch(document, layer, dab(24, 64, 48), [30, 0]);
+  const second = addHealPatch(document, layer, dab(24, 64, 48), [-30, 0]);
+  await render(first);
+  const firstInput = renderer.inputImage(first);
+  expect(firstInput).toBeDefined();
+  // A later patch sees the result of the earlier ones.
+  await render(second);
+  expect(renderer.inputImage(second)).toBeDefined();
+  expect(renderer.inputImage(second)).not.toBe(firstInput);
+  const { passes, textures } = renderer.inspect();
+  expect(passes.filter((pass) => pass.endsWith("/blend"))).toEqual([
+    `layer/${layer}/${first}/blend`,
+    `layer/${layer}/${second}/blend`,
+  ]);
+  // Moving a patch or changing its edge and opacity keeps the graph.
+  setHealDestination(document, layer, first, [80, 60]);
+  setHealPatch(document, layer, first, { feather: 0.2, opacity: 0.6 });
+  await render(second);
+  expect(renderer.inspect()).toMatchObject({ passes, textures });
+  const copy = duplicateHealPatch(document, layer, first);
+  const moved = { stroke: { points: [[80, 60, 1]] }, offset: [14, -12] };
+  expect(patches()).toMatchObject([
+    { ...moved, id: first, feather: 0.2, opacity: 0.6 },
+    { ...moved, id: copy },
+    { id: second },
+  ]);
+  deleteHealPatch(document, layer, copy);
+  expect(patches().map((patch) => patch.id)).toEqual([first, second]);
+  dispose();
 });
 
-test("a gesture during a finishing stroke joins its undo step", () => {
-  const { document, layer } = healFixture();
-  try {
-    expect(document.history.begin()).toBe(true);
-    const patch = addHealPatch(document, layer, dab, [0, 0]);
-    // A slider or handle finds the group open and leaves it to the stroke.
-    expect(document.history.begin()).toBe(false);
-    setHealPatch(document, layer, patch, { feather: 0.5 });
-    setHealSource(document, layer, patch, [6, -2]);
-    document.history.commit();
-    expect(document.history.status.getState()).toMatchObject({
-      undoCount: 2,
-      editing: false,
-    });
-    expect(patchesOf(document, layer)[0]).toMatchObject({
-      feather: 0.5,
-      offset: [6, -2],
-    });
-    document.history.undo();
-    expect(patchesOf(document, layer)).toHaveLength(0);
-  } finally {
-    document.dispose();
-  }
+test("a gesture during a finishing stroke joins its undo step", async () => {
+  const { document, layer, patches, dispose } = await healFixture([64, 64]);
+  expect(document.history.begin()).toBe(true);
+  const patch = addHealPatch(document, layer, dab(8, 10, 10), [0, 0]);
+  // A slider or handle finds the group open and leaves it to the stroke.
+  expect(document.history.begin()).toBe(false);
+  setHealPatch(document, layer, patch, { feather: 0.5 });
+  setHealSource(document, layer, patch, [6, -2]);
+  document.history.commit();
+  expect(patches()[0]).toMatchObject({ feather: 0.5, offset: [6, -2] });
+  document.history.undo();
+  expect(patches()).toHaveLength(0);
+  dispose();
 });

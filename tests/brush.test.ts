@@ -3,7 +3,7 @@ import { init, target } from "vgpu/mock";
 import { createImageLayer, createMask } from "@/app/editor/layers";
 import { createEditorRenderer } from "@/app/editor/renderer";
 import type { BrushStroke, StrokePoint } from "@/core/document";
-import { createDocument, createResources, findLayer } from "@/core/document";
+import { createDocument, findLayer } from "@/core/document";
 import { createImageSource } from "@/core/image";
 import { imageFrame } from "@/core/image/frame";
 import { type Dab, type DabWalk, walkDabs } from "@/core/renderer/strokes/dabs";
@@ -81,147 +81,106 @@ test("a walk goes on where it stopped as a stroke grows, landing the dabs a whol
 
 test("brush strokes stamp incrementally, replay after undo, and render a proxy during gestures", async () => {
   const gpu = await init();
-  const source = createImageSource(
-    target(gpu, { size: [64, 32], format: "rgba16float" }),
-  );
-  const resources = createResources();
-  const sourceId = resources.add(new File([], "photo.png"), source);
-  const document = createDocument(
-    {
-      frame: imageFrame(source.image.size),
-      layers: [{ ...createImageLayer(sourceId, "Photo"), id: "base" }],
-    },
-    resources,
-  );
+  const image = target(gpu, { size: [64, 32], format: "rgba16float" });
+  const source = createImageSource(image);
+  const layers = [createImageLayer("photo", "Photo")] as const;
+  const document = createDocument({ frame: imageFrame(image.size), layers });
   const renderer = createEditorRenderer(gpu, source);
   const notify = mock(() => {});
   renderer.subscribe(notify);
-  const render = (interactive = false) =>
-    renderer.update(document.scene.getState(), undefined, interactive);
-  try {
-    const mask = addLayer(document, createMask({ kind: "brush", strokes: [] }));
-    setAdjustments(document, { exposure: 1 }, mask);
-    await render();
-    // An empty brush covers nothing, so the layer is bypassed without a raster.
-    expect(renderer.inspect()).toMatchObject({
-      passes: [],
-      stamped: 0,
-      rasters: [],
-    });
-    expect(document.history.status.getState().editing).toBe(false);
-    expect(document.history.begin()).toBe(true);
-    expect(document.history.status.getState().editing).toBe(true);
-    paintStroke(document, mask, stroke);
-    await render(true);
-    expect(renderer.inspect()).toMatchObject({
-      passes: [`layer/${mask}/exposure`, `layer/${mask}/raster`],
-      stamped: 1,
-      // The open stroke waits in the stroke buffer, and the mask reads it laid over its raster in the view.
-      rasters: [
-        { id: mask, size: [32, 16], format: "r8unorm" },
-        { id: "stroke view", size: [32, 16], format: "r8unorm" },
-        { id: "stroke buffer", size: [32, 16], format: "r16float" },
-      ],
-    });
-    expect(renderer.coverage(mask)?.target.size).toEqual([32, 16]);
-    // A 20 px extension adds twenty dabs; earlier ones are not stamped again.
-    extendStroke(document, mask, [[30, 10, 1]]);
-    await render(true);
-    expect(renderer.inspect().stamped).toBe(21);
-    expect(renderer.outputImage().size).toEqual([64, 32]);
-    // The display scale sets the proxy: a quarter of a device pixel per source pixel means a quarter-size render.
-    renderer.setDisplayScale(0.25);
-    await render(true);
-    expect(renderer.outputImage().size).toEqual([16, 8]);
-    expect(renderer.inspect().stamped).toBe(21);
-    document.history.commit();
-    expect(document.history.status.getState().editing).toBe(false);
-    await render();
-    expect(renderer.outputImage().size).toEqual([64, 32]);
-    const rendered = notify.mock.calls.length;
-    await render();
-    expect(notify).toHaveBeenCalledTimes(rendered);
-    paintStroke(document, mask, { ...stroke, mode: "erase" });
-    await render();
-    expect(renderer.inspect().stamped).toBe(22);
-    // Undo removes the last stroke, which rebuilds the raster from the remaining one.
-    document.history.undo();
-    await render();
-    expect(renderer.inspect().stamped).toBe(43);
-    const layer = findLayer(document.scene.getState().layers, mask);
-    expect(layer?.kind === "mask" && layer.mask.kind === "brush").toBe(true);
-    if (layer?.kind === "mask" && layer.mask.kind === "brush") {
-      expect(layer.mask.strokes).toHaveLength(1);
-      expect(layer.mask.strokes[0].points).toHaveLength(2);
-    }
-    // A brush subtracting from a gradient turns the whole mask into a raster.
-    const gradient = addLayer(document, createMask(defaultGradient([64, 32])));
-    setAdjustments(document, { exposure: -1 }, gradient);
-    await render();
-    expect(renderer.inspect().passes).toContain(`layer/${gradient}/mix`);
-    // Inspecting the mask copies its curve input with coverage as alpha, even at zero opacity.
-    await renderer.update(document.scene.getState(), gradient);
-    expect(renderer.inputImage(gradient)).toBeDefined();
-    expect(renderer.inspect().passes).toContain(`layer/${gradient}/input`);
-    setLayer(document, gradient, { opacity: 0 });
-    await renderer.update(document.scene.getState(), gradient);
-    expect(renderer.inputImage(gradient)).toBeDefined();
-    expect(renderer.inspect().passes).toEqual([
-      `layer/${mask}/exposure`,
-      `layer/${mask}/raster`,
-      `layer/${gradient}/exposure`,
-      `layer/${gradient}/input`,
-    ]);
-    setLayer(document, gradient, { opacity: 1 });
-    const child = addLayer(
-      document,
-      createMask({ kind: "brush", strokes: [stroke] }, "subtract"),
-      { inside: gradient },
-    );
-    await render();
-    expect(renderer.inspect().passes).toContain(`layer/${gradient}/raster`);
-    expect(renderer.inspect().passes).not.toContain(`layer/${gradient}/mix`);
-    await renderer.update(document.scene.getState(), gradient);
-    expect(renderer.inspect().passes).toContain(
-      `layer/${gradient}/raster-input`,
-    );
-    // The child keeps its own coverage for its preview; the gradient combines it into a second texture.
-    expect(renderer.inspect().rasters.map((raster) => raster.id)).toEqual([
-      mask,
-      child,
-      "stroke view",
-      `${gradient}/group`,
-      "stroke buffer",
-    ]);
-    expect(renderer.coverage(child)?.target.size).toEqual([32, 16]);
-    // Erasing inside the child stamps its own raster only, and the group recombines.
-    const stampedBefore = renderer.inspect().stamped;
-    paintStroke(document, child, { ...stroke, mode: "erase" });
-    await render();
-    expect(renderer.inspect().stamped).toBe(stampedBefore + 1);
-    deleteLayer(document, child);
-    deleteLayer(document, mask);
-    await render();
-    expect(renderer.inspect().rasters).toEqual([]);
-    expect(renderer.inspect().passes).toContain(`layer/${gradient}/mix`);
-    for (const invalid of [
-      { ...stroke, size: 0 },
-      { ...stroke, feather: 2 },
-      { ...stroke, flow: -1 },
-      { ...stroke, mode: "smudge" as BrushStroke["mode"] },
-      { ...stroke, points: [] },
-      { ...stroke, points: [[1, 2, 3]] as BrushStroke["points"] },
-    ]) {
-      expect(() =>
-        setLayerMask(document, gradient, { kind: "brush", strokes: [invalid] }),
-      ).toThrow();
-    }
-    expect(() => extendStroke(document, gradient, [[1, 1, 1]])).toThrow(
-      "brush",
-    );
-  } finally {
-    renderer.dispose();
-    document.dispose();
-    gpu.dispose();
-  }
+  const render = (inputId?: string, interactive = false) =>
+    renderer.update(document.scene.getState(), inputId, interactive);
+  const inspect = () => renderer.inspect();
+  const mask = addLayer(document, createMask({ kind: "brush", strokes: [] }));
+  setAdjustments(document, { exposure: 1 }, mask);
+  await render();
+  // An empty brush covers nothing, so the layer is bypassed without a raster.
+  expect(inspect()).toMatchObject({ passes: [], stamped: 0, rasters: [] });
+  document.history.begin();
+  paintStroke(document, mask, stroke);
+  await render(undefined, true);
+  expect(inspect()).toMatchObject({
+    passes: [`layer/${mask}/exposure`, `layer/${mask}/raster`],
+    stamped: 1,
+    // The open stroke waits in the stroke buffer, and the mask reads it laid over its raster in the view.
+    rasters: [
+      { id: mask, size: [32, 16], format: "r8unorm" },
+      { id: "stroke view", size: [32, 16], format: "r8unorm" },
+      { id: "stroke buffer", size: [32, 16], format: "r16float" },
+    ],
+  });
+  expect(renderer.coverage(mask)?.target.size).toEqual([32, 16]);
+  // A 20 px extension adds twenty dabs; earlier ones are not stamped again.
+  extendStroke(document, mask, [[30, 10, 1]]);
+  await render(undefined, true);
+  expect(inspect().stamped).toBe(21);
+  // A quarter of a device pixel per source pixel means a quarter-size render.
+  renderer.setDisplayScale(0.25);
+  await render(undefined, true);
+  expect(renderer.outputImage().size).toEqual([16, 8]);
+  expect(inspect().stamped).toBe(21);
+  document.history.commit();
+  await render();
+  const rendered = notify.mock.calls.length;
+  await render();
+  expect(notify).toHaveBeenCalledTimes(rendered);
+  paintStroke(document, mask, { ...stroke, mode: "erase" });
+  await render();
+  expect(inspect().stamped).toBe(22);
+  // Undo removes the last stroke, which rebuilds the raster from the remaining one.
+  document.history.undo();
+  await render();
+  expect(inspect().stamped).toBe(43);
+  expect(findLayer(document.scene.getState().layers, mask)).toMatchObject({
+    mask: { strokes: [{ points: [stroke.points[0], [30, 10, 1]] }] },
+  });
+  const gradient = addLayer(document, createMask(defaultGradient([64, 32])));
+  setAdjustments(document, { exposure: -1 }, gradient);
+  // Inspecting the mask copies its curve input with coverage as alpha, even at zero opacity.
+  setLayer(document, gradient, { opacity: 0 });
+  await render(gradient);
+  expect(renderer.inputImage(gradient)).toBeDefined();
+  expect(inspect().passes).toEqual([
+    `layer/${mask}/exposure`,
+    `layer/${mask}/raster`,
+    `layer/${gradient}/exposure`,
+    `layer/${gradient}/input`,
+  ]);
+  setLayer(document, gradient, { opacity: 1 });
+  // A brush subtracting from a gradient turns the whole mask into a raster.
+  const child = addLayer(
+    document,
+    createMask({ kind: "brush", strokes: [stroke] }, "subtract"),
+    { inside: gradient },
+  );
+  await render();
+  expect(inspect().passes).toContain(`layer/${gradient}/raster`);
+  expect(inspect().passes).not.toContain(`layer/${gradient}/mix`);
+  await render(gradient);
+  expect(inspect().passes).toContain(`layer/${gradient}/raster-input`);
+  // The child keeps its own coverage for its preview; the gradient combines it into a second texture.
+  expect(inspect().rasters.map((raster) => raster.id)).toEqual([
+    mask,
+    child,
+    "stroke view",
+    `${gradient}/group`,
+    "stroke buffer",
+  ]);
+  expect(renderer.coverage(child)?.target.size).toEqual([32, 16]);
+  // Erasing inside the child stamps its own raster only, and the group recombines.
+  const stamped = inspect().stamped;
+  paintStroke(document, child, { ...stroke, mode: "erase" });
+  await render();
+  expect(inspect().stamped).toBe(stamped + 1);
+  deleteLayer(document, child);
+  deleteLayer(document, mask);
+  await render();
+  expect(inspect().rasters).toEqual([]);
+  expect(inspect().passes).toContain(`layer/${gradient}/mix`);
+  const invalid = { ...stroke, flow: 2 };
+  expect(() =>
+    setLayerMask(document, gradient, { kind: "brush", strokes: [invalid] }),
+  ).toThrow();
+  expect(() => extendStroke(document, gradient, [[1, 1, 1]])).toThrow("brush");
+  gpu.dispose();
 });

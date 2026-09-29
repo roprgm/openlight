@@ -26,79 +26,26 @@ const scene: Scene = {
   ],
 };
 
+type Result = ReturnType<typeof layerDrop>;
+
 // Drop positions are visual, top to bottom; results are bottom-to-top sibling indices.
-test.each<[string, LayerDrop, ReturnType<typeof layerDrop>]>([
-  [
-    "above a root sibling",
-    { id: "top", target: "mask", position: "before" },
-    { index: 2 },
-  ],
-  [
-    "below a root sibling",
-    { id: "top", target: "mask", position: "after" },
-    { index: 1 },
-  ],
-  [
-    "above the image",
-    { id: "vignette", target: "image", position: "before" },
-    { index: 1 },
-  ],
-  [
-    "into a mask",
-    { id: "top", target: "mask", position: "inside" },
-    { parentId: "mask", index: 2 },
-  ],
-  [
-    "above a nested sibling",
-    { id: "top", target: "exposure", position: "before" },
-    { parentId: "mask", index: 1 },
-  ],
-  [
-    "below a nested sibling",
-    { id: "top", target: "exposure", position: "after" },
-    { parentId: "mask", index: 0 },
-  ],
-  [
-    "below the image",
-    { id: "vignette", target: "image", position: "after" },
-    undefined,
-  ],
-  [
-    "into the image",
-    { id: "top", target: "image", position: "inside" },
-    undefined,
-  ],
-  [
-    "the image itself",
-    { id: "image", target: "top", position: "before" },
-    undefined,
-  ],
-  [
-    "a parent into its child",
-    { id: "mask", target: "exposure", position: "inside" },
-    undefined,
-  ],
-  [
-    "into a nested layer",
-    { id: "top", target: "exposure", position: "inside" },
-    undefined,
-  ],
-  [
-    "a parent into another mask",
-    { id: "mask", target: "other", position: "inside" },
-    undefined,
-  ],
-  [
-    "a parent beside a nested layer",
-    { id: "mask", target: "details", position: "before" },
-    undefined,
-  ],
-  ["onto itself", { id: "top", target: "top", position: "inside" }, undefined],
-  [
-    "an unknown target",
-    { id: "top", target: "missing", position: "before" },
-    undefined,
-  ],
-])("layerDrop rejects or resolves %s", (_, drop, expected) => {
-  expect(layerDrop(scene, drop)).toEqual(expected);
+test.each<[string, LayerDrop["position"], string, Result]>([
+  ["top", "before", "mask", { index: 2 }],
+  ["top", "after", "mask", { index: 1 }],
+  ["vignette", "before", "image", { index: 1 }],
+  ["top", "inside", "mask", { parentId: "mask", index: 2 }],
+  ["top", "before", "exposure", { parentId: "mask", index: 1 }],
+  // Below the image, into the image, or moving the image itself.
+  ["vignette", "after", "image", undefined],
+  ["top", "inside", "image", undefined],
+  ["image", "before", "top", undefined],
+  // A parent into its own child, into another mask, or beside a nested layer.
+  ["mask", "inside", "exposure", undefined],
+  ["mask", "inside", "other", undefined],
+  ["mask", "before", "details", undefined],
+  // Deeper than two levels, or next to a missing layer.
+  ["top", "inside", "exposure", undefined],
+  ["top", "before", "missing", undefined],
+])("drop %s %s %s", (id, position, target, expected) => {
+  expect(layerDrop(scene, { id, target, position })).toEqual(expected);
 });

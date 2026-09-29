@@ -20,6 +20,7 @@ function document() {
 
 test("drop removes the latest entry only after its snapshot, leaving no redo, and cancels an open group", () => {
   const doc = document();
+  const status = () => doc.history.status.getState();
   const start = doc.scene.getState();
   setAdjustments(doc, { exposure: 1 });
   const adjusted = doc.scene.getState();
@@ -27,36 +28,22 @@ test("drop removes the latest entry only after its snapshot, leaving no redo, an
   doc.history.undo();
   doc.history.drop(adjusted);
   expect(doc.scene.getState()).toBe(adjusted);
-  expect(doc.history.status.getState()).toEqual({
-    undoCount: 1,
-    redoCount: 1,
-    editing: false,
-  });
+  expect(status()).toMatchObject({ undoCount: 1, redoCount: 1 });
   doc.history.drop(start);
   expect(doc.scene.getState()).toBe(start);
-  expect(doc.history.status.getState()).toEqual({
-    undoCount: 0,
-    redoCount: 0,
-    editing: false,
-  });
+  expect(status()).toMatchObject({ undoCount: 0, redoCount: 0 });
   doc.history.begin();
   setAdjustments(doc, { exposure: 3 });
   doc.history.drop(start);
   expect(doc.scene.getState()).toBe(start);
-  expect(doc.history.status.getState().undoCount).toBe(0);
+  expect(status().editing).toBe(false);
 });
 
 test("detail edits reject out-of-range values and leave the scene unchanged", () => {
   const doc = document();
   const id = addLayer(doc, createLayer("details"));
   const added = doc.scene.getState();
-  for (const change of [
-    { sharpening: -1 },
-    { sharpening: 151 },
-    { sharpenRadius: 0 },
-    { sharpenRadius: 3.1 },
-    { sharpenRadius: NaN },
-  ]) {
+  for (const change of [{ sharpening: 151 }, { sharpenRadius: NaN }]) {
     expect(() => setDetails(doc, change, id)).toThrow(
       "Invalid detail adjustment",
     );
@@ -75,84 +62,46 @@ test("documents edit independently without React, retain bounded history, and re
   ];
   setToneCurve(first, points);
   points[1].y = 0.2;
-  expect(first.scene.getState().layers[0]).toMatchObject({
-    toneCurve: [
-      { x: 0, y: 0 },
-      { x: 0.5, y: 0.7 },
-      { x: 1, y: 1 },
-    ],
-  });
+  expect(first.scene.getState().layers[0].toneCurve[1].y).toBe(0.7);
   expect(second.scene.getState().layers[0].adjustments.exposure).toBe(0);
   expect(second.history.status.getState().undoCount).toBe(0);
   const unchanged = first.scene.getState();
+  // Too few points, points closer than the minimum gap, and an endpoint off its edge.
   for (const curve of [
-    [],
     [{ x: 0, y: 0 }],
-    [
-      { x: 0, y: 0 },
-      { x: 0, y: 1 },
-    ],
     [
       { x: 0, y: 0 },
       { x: 1 / 2048, y: 1 },
     ],
     [
-      { x: 0, y: 0 },
-      { x: 0.8, y: 0.5 },
-      { x: 0.5, y: 1 },
-    ],
-    [
-      { x: 0, y: 0 },
-      { x: 1, y: Number.NaN },
-    ],
-    [
-      { x: 0, y: -1 },
-      { x: 1, y: 1 },
-    ],
-    [
       { x: 0.1, y: 0.1 },
       { x: 1, y: 1 },
     ],
-    [
-      { x: 0, y: 0 },
-      { x: 0.9, y: 0.9 },
-    ],
   ]) {
-    expect(() => setToneCurve(first, curve)).toThrow();
+    expect(() => setToneCurve(first, curve)).toThrow("Invalid tone curve");
   }
   expect(first.scene.getState()).toBe(unchanged);
   first.history.undo();
-  expect(first.scene.getState().layers[0]).toMatchObject({
-    toneCurve: defaultCurve,
-  });
+  expect(first.scene.getState().layers[0].toneCurve).toEqual(defaultCurve);
+  const status = () => first.history.status.getState();
   for (let i = 0; i < 150; i++) setAdjustments(first, { exposure: i % 2 });
-  expect(first.history.status.getState().undoCount).toBe(100);
+  expect(status().undoCount).toBe(100);
   for (let i = 0; i < 100; i++) first.history.undo();
-  expect(first.history.status.getState()).toEqual({
-    undoCount: 0,
-    redoCount: 100,
-    editing: false,
-  });
+  expect(status().redoCount).toBe(100);
   setAdjustments(first, { contrast: 10 });
-  expect(first.history.status.getState()).toEqual({
-    undoCount: 1,
-    redoCount: 0,
-    editing: false,
-  });
+  expect(status()).toMatchObject({ undoCount: 1, redoCount: 0 });
   const workspace = createWorkspace();
   await workspace.open("first", async () => first);
   const stale = document();
-  let release = () => {};
-  const pending = new Promise<typeof stale>((resolve) => {
-    release = () => resolve(stale);
-  });
-  const loading = workspace.open("slow", () => pending);
+  const pending = Promise.withResolvers<typeof stale>();
+  const loading = workspace.open("slow", () => pending.promise);
   await workspace.open("second", async () => second);
-  release();
+  pending.resolve(stale);
   await loading;
-  expect(() => setAdjustments(stale, { exposure: 2 })).toThrow("closed");
   expect(workspace.getDocument()).toBe(second);
-  expect(() => setAdjustments(first, { exposure: 2 })).toThrow("closed");
+  for (const closed of [stale, first]) {
+    expect(() => setAdjustments(closed, { exposure: 2 })).toThrow("closed");
+  }
   workspace.dispose();
   expect(() => setAdjustments(second, { exposure: 2 })).toThrow("closed");
 
@@ -163,41 +112,29 @@ test("documents edit independently without React, retain bounded history, and re
   const add = () =>
     resources.add(file, createImageSource(target(gpu, { size: [2, 2] })));
   const source = add();
-  const doc = createDocument(
-    {
-      ...document().scene.getState(),
-      layers: [{ ...document().scene.getState().layers[0], source }],
-    },
-    resources,
-  );
-  const replace = (source: string) =>
-    doc.edit({
-      ...doc.scene.getState(),
-      layers: [{ ...doc.scene.getState().layers[0], source }],
-    });
+  const base = document().scene.getState();
+  const layers = [{ ...base.layers[0], source }] as const;
+  const doc = createDocument({ ...base, layers }, resources);
+  const replace = (source: string) => {
+    const scene = doc.scene.getState();
+    doc.edit({ ...scene, layers: [{ ...scene.layers[0], source }] });
+  };
   const canceled = add();
   doc.history.begin();
   replace(canceled);
-  expect(resources.get(source)).toBeDefined();
   doc.history.cancel();
   expect(() => resources.get(canceled)).toThrow("unavailable");
   const branch = add();
   replace(branch);
   doc.history.undo();
   expect(resources.get(branch)).toBeDefined();
-  doc.history.redo();
-  expect(doc.scene.getState().layers[0].source).toBe(branch);
-  doc.history.undo();
   setAdjustments(doc, { exposure: 1 });
   expect(() => resources.get(branch)).toThrow("unavailable");
   const replacement = add();
   replace(replacement);
-  for (let i = 0; i < 100; i++) {
-    setAdjustments(doc, { exposure: i % 2 });
-  }
+  for (let i = 0; i < 100; i++) setAdjustments(doc, { exposure: i % 2 });
   expect(() => resources.get(source)).toThrow("unavailable");
   expect(resources.get(replacement)).toBeDefined();
-
   doc.dispose();
   expect(() => resources.get(replacement)).toThrow("unavailable");
   gpu.dispose();

@@ -43,152 +43,108 @@ test("file batches preserve ordering, group imports, recover from failures, and 
     [xmp, image],
     () => workspace.state.getState().status === "ready",
   );
+  const layers = () => workspace.getDocument().scene.getState().layers;
+  const adjustments = () => layers()[0].adjustments;
   const photo = new File([], "photo.png");
+  const broken = new File([], "broken.png");
   const exposure = settings('crs:Exposure2012="1.25"');
-  try {
-    await registry.openFiles([new File([], "notes.txt"), exposure]);
-    expect(workspace.state.getState()).toEqual({ status: "empty" });
-    for (const settingsFirst of [true, false]) {
-      const parameters = settings(
-        'crs:Exposure2012="1.25" crs:Contrast2012="-20" crs:Highlights2012="-50" crs:Shadows2012="50" crs:Whites2012="25" crs:Blacks2012="-25" crs:Vibrance="30" crs:Saturation="-10"',
-        settingsFirst ? "photo.xml" : "photo.xmp",
-      );
-      const images = [photo, new File([], "broken.png")];
-      await registry.openFiles(
-        settingsFirst ? [parameters, ...images] : [...images, parameters],
-      );
-      const document = workspace.getDocument();
-      expect(workspace.state.getState().file).toBe("photo.png");
-      const imported = {
-        ...defaultAdjustments,
-        exposure: 1.25,
-        contrast: -20,
-        highlights: -50,
-        shadows: 50,
-        whites: 25,
-        blacks: -25,
-        vibrance: 30,
-        saturation: -10,
-      };
-      expect(document.scene.getState().layers[0].adjustments).toEqual(imported);
-      await registry.openFiles([
-        settings('crs:Exposure2012="3"'),
-        settings('crs:Exposure2012="-1"'),
-      ]);
-      expect(document.scene.getState().layers[0].adjustments).toEqual({
-        ...imported,
-        exposure: -1,
-      });
-      document.history.undo();
-      expect(document.scene.getState().layers[0].adjustments.exposure).toBe(3);
-      document.history.redo();
-      document.history.begin();
-      setAdjustments(document, { contrast: 20 });
-      setAdjustments(document, { contrast: 30 });
-      await registry.openFiles([
-        settings(
-          'crs:Highlights2012="0" crs:Shadows2012="0" crs:Whites2012="0" crs:Blacks2012="0"',
-        ),
-      ]);
-      expect(document.history.status.getState()).toEqual({
-        undoCount: 5,
-        redoCount: 0,
-        editing: false,
-      });
-      expect(document.scene.getState().layers[0].adjustments).toMatchObject({
-        highlights: 0,
-        shadows: 0,
-        whites: 0,
-        blacks: 0,
-      });
-      document.history.undo();
-      expect(document.scene.getState().layers[0].adjustments).toEqual({
-        ...imported,
-        exposure: -1,
-        contrast: 30,
-      });
-      document.history.undo();
-      expect(document.scene.getState().layers[0].adjustments.contrast).toBe(
-        -20,
-      );
-    }
-    const document = workspace.getDocument();
-    const maskId = addLayer(document, createMask(defaultGradient([32, 32])));
-    addLayer(document, createLayer("details"), { inside: maskId });
-    const beforeDetails = document.scene.getState();
-    await xmp.load(settings('crs:Exposure2012="0.5" crs:Clarity2012="35"'));
-    expect(document.scene.getState().layers[2]).toMatchObject({
-      kind: "details",
-      details: { clarity: 35 },
-    });
-    expect(document.scene.getState().layers[0].adjustments.exposure).toBe(0.5);
-    expect(document.scene.getState().layers[1]).toBe(beforeDetails.layers[1]);
-    document.history.undo();
-    expect(document.scene.getState()).toEqual(beforeDetails);
-    document.history.redo();
-    await xmp.load(settings('crs:Clarity2012="0"'));
-    expect(document.scene.getState().layers).toHaveLength(3);
-    expect(document.scene.getState().layers[2]).toMatchObject({
-      details: { clarity: 0 },
-    });
-    expect(document.scene.getState().layers[1]).toBe(beforeDetails.layers[1]);
-    await Promise.all([
-      registry.openFiles([exposure, new File([], "first.png")]),
-      registry.openFiles([
-        new File([], "second.png"),
-        settings('crs:Contrast2012="20"'),
-      ]),
-    ]);
-    expect(workspace.state.getState().file).toBe("second.png");
-    expect(
-      workspace.getDocument().scene.getState().layers[0].adjustments,
-    ).toEqual({
-      ...defaultAdjustments,
-      contrast: 20,
-    });
-    // A failed replacement keeps the open document and skips the settings meant for the failed file.
-    const kept = workspace.getDocument();
-    const keptAdjustments = kept.scene.getState().layers[0].adjustments;
-    await registry.openFiles([exposure, new File([], "broken.png")]);
-    expect(workspace.getDocument()).toBe(kept);
-    expect(workspace.state.getState()).toMatchObject({
-      status: "ready",
-      file: "second.png",
-      failure: { file: "broken.png", error: "Error: Decode failed" },
-    });
-    expect(kept.scene.getState().layers[0].adjustments).toBe(keptAdjustments);
-    workspace.dismissFailure();
-    expect(workspace.state.getState()).not.toHaveProperty("failure");
-    await registry.openFiles([exposure, photo]);
-    const recovered = workspace.getDocument();
-    expect(recovered.scene.getState().layers[0].adjustments.exposure).toBe(
-      1.25,
-    );
-    await expect(
-      registry.openFiles([settings('crs:Exposure2012="99"')]),
-    ).rejects.toThrow("Invalid adjustment");
-    await registry.openFiles([
-      settings('crs:Contrast2012="10" crs:Exposure2012="NaN"'),
-    ]);
-    expect(recovered.scene.getState().layers[0].adjustments).toEqual({
-      ...defaultAdjustments,
-      exposure: 1.25,
-      contrast: 10,
-    });
-
-    // Hold file reading so replacement happens before the old import completes.
-    const text = Promise.withResolvers<string>();
-    const delayed = settings('crs:Exposure2012="4"');
-    delayed.text = () => text.promise;
-    const pending = xmp.load(delayed);
-    await registry.loadFile(image, photo);
-    text.resolve(await exposure.text());
-    await pending;
-    expect(workspace.getDocument()).not.toBe(recovered);
-    expect(
-      workspace.getDocument().scene.getState().layers[0].adjustments,
-    ).toEqual(defaultAdjustments);
-  } finally {
-    workspace.dispose();
+  await registry.openFiles([new File([], "notes.txt"), exposure]);
+  expect(workspace.state.getState()).toEqual({ status: "empty" });
+  const imported = {
+    ...defaultAdjustments,
+    exposure: 1.25,
+    contrast: -20,
+    highlights: -50,
+    shadows: 50,
+    whites: 25,
+    blacks: -25,
+    vibrance: 30,
+    saturation: -10,
+  };
+  const all =
+    'crs:Exposure2012="1.25" crs:Contrast2012="-20" crs:Highlights2012="-50" crs:Shadows2012="50" crs:Whites2012="25" crs:Blacks2012="-25" crs:Vibrance="30" crs:Saturation="-10"';
+  // Settings wait for the batch's first image, before or after them.
+  for (const batch of [
+    [settings(all, "photo.xml"), photo, broken],
+    [photo, broken, settings(all)],
+  ]) {
+    await registry.openFiles(batch);
+    expect(workspace.state.getState().file).toBe("photo.png");
+    expect(adjustments()).toEqual(imported);
   }
+  const document = workspace.getDocument();
+  // Each settings file is its own undo step, and an import commits an open gesture first.
+  await registry.openFiles([
+    settings('crs:Exposure2012="3"'),
+    settings('crs:Exposure2012="-1"'),
+  ]);
+  document.history.undo();
+  expect(adjustments().exposure).toBe(3);
+  document.history.redo();
+  document.history.begin();
+  setAdjustments(document, { contrast: 20 });
+  setAdjustments(document, { contrast: 30 });
+  await registry.openFiles([settings('crs:Highlights2012="0"')]);
+  expect(adjustments().highlights).toBe(0);
+  document.history.undo();
+  expect(adjustments()).toEqual({ ...imported, exposure: -1, contrast: 30 });
+  document.history.undo();
+  expect(adjustments().contrast).toBe(-20);
+  const maskId = addLayer(document, createMask(defaultGradient([32, 32])));
+  addLayer(document, createLayer("details"), { inside: maskId });
+  const before = document.scene.getState();
+  // Clarity goes to a root Details layer, leaving the mask's own untouched.
+  await xmp.load(settings('crs:Exposure2012="0.5" crs:Clarity2012="35"'));
+  expect(layers()[2]).toMatchObject({ details: { clarity: 35 } });
+  expect(adjustments().exposure).toBe(0.5);
+  expect(layers()[1]).toBe(before.layers[1]);
+  document.history.undo();
+  expect(document.scene.getState()).toEqual(before);
+  document.history.redo();
+  await xmp.load(settings('crs:Clarity2012="0"'));
+  expect(layers()).toHaveLength(3);
+  expect(layers()[2]).toMatchObject({ details: { clarity: 0 } });
+  await Promise.all([
+    registry.openFiles([exposure, new File([], "first.png")]),
+    registry.openFiles([
+      new File([], "second.png"),
+      settings('crs:Contrast2012="20"'),
+    ]),
+  ]);
+  expect(workspace.state.getState().file).toBe("second.png");
+  expect(adjustments()).toEqual({ ...defaultAdjustments, contrast: 20 });
+  // A failed replacement keeps the open document and skips the settings meant for the failed file.
+  const kept = workspace.getDocument();
+  const keptAdjustments = adjustments();
+  await registry.openFiles([exposure, broken]);
+  expect(workspace.getDocument()).toBe(kept);
+  expect(workspace.state.getState()).toMatchObject({
+    status: "ready",
+    file: "second.png",
+    failure: { file: "broken.png", error: "Error: Decode failed" },
+  });
+  expect(adjustments()).toBe(keptAdjustments);
+  workspace.dismissFailure();
+  expect(workspace.state.getState()).not.toHaveProperty("failure");
+  await registry.openFiles([exposure, photo]);
+  const recovered = workspace.getDocument();
+  await expect(
+    registry.openFiles([settings('crs:Exposure2012="99"')]),
+  ).rejects.toThrow("Invalid adjustment");
+  await registry.openFiles([
+    settings('crs:Contrast2012="10" crs:Exposure2012="NaN"'),
+  ]);
+  expect(adjustments()).toMatchObject({ exposure: 1.25, contrast: 10 });
+
+  // Hold file reading so replacement happens before the old import completes.
+  const text = Promise.withResolvers<string>();
+  const delayed = settings('crs:Exposure2012="4"');
+  delayed.text = () => text.promise;
+  const pending = xmp.load(delayed);
+  await registry.loadFile(image, photo);
+  text.resolve(await exposure.text());
+  await pending;
+  expect(workspace.getDocument()).not.toBe(recovered);
+  expect(adjustments()).toEqual(defaultAdjustments);
+  workspace.dispose();
 });

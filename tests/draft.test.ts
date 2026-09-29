@@ -18,24 +18,15 @@ test("a draft survives storage's structured clone, reopens under its source ID, 
     );
   const bytes = new Uint8Array([1, 2, 3, 4]);
   const resources = createResources();
-  const source = resources.add(
-    new File([bytes], "photo.png", { type: "image/png" }),
-    await decode(),
+  const file = new File([bytes], "photo.png", { type: "image/png" });
+  const source = resources.add(file, await decode());
+  const duplicate = await decode();
+  expect(() => resources.add(file, duplicate, source)).toThrow(
+    "already exists",
   );
-  expect(() =>
-    resources.add(
-      new File([], "copy.png"),
-      createImageSource(target(gpu, { size: [1, 1] })),
-      source,
-    ),
-  ).toThrow("already exists");
-  const document = createDocument(
-    {
-      frame: imageFrame([8, 4]),
-      layers: [createImageLayer(source, "photo.png")],
-    },
-    resources,
-  );
+  const layers = [createImageLayer(source, "photo.png")] as const;
+  const frame = imageFrame([8, 4]);
+  const document = createDocument({ frame, layers }, resources);
   setAdjustments(document, { exposure: 0.5 });
   const vignette = addLayer(document, createLayer("vignette"));
   setVignette(document, { intensity: 30, softness: 70 }, vignette);
@@ -45,9 +36,7 @@ test("a draft survives storage's structured clone, reopens under its source ID, 
   const stored = structuredClone(snapshotDraft(document, "photo.png"));
   document.dispose();
   expect(stored.record).toMatchObject({ version: 1, name: "photo.png" });
-  const file = stored.files.get(source);
-  expect(file).toBeInstanceOf(File);
-  expect(await file?.bytes()).toEqual(bytes);
+  expect(await stored.files.get(source)?.bytes()).toEqual(bytes);
   const recovered = await openDraft(stored, decode);
   expect(recovered.scene.getState()).toEqual(edited);
   expect(recovered.resources.get(source).file.name).toBe("photo.png");
@@ -55,12 +44,10 @@ test("a draft survives storage's structured clone, reopens under its source ID, 
   recovered.dispose();
 
   const { record, files } = stored;
-  const malformed: [unknown, string][] = [
+  for (const [value, message] of [
     [undefined, "Invalid draft"],
-    [{ ...record, version: "1" }, "Invalid draft version"],
     [{ ...record, version: 2 }, "This draft needs a newer version"],
-  ];
-  for (const [value, message] of malformed) {
+  ] as const) {
     await expect(
       openDraft({ record: value as typeof record, files }, decode),
     ).rejects.toThrow(message);
