@@ -333,8 +333,12 @@ export function createMaskRaster(gpu: Gpu) {
     size: Size,
     format: Format = "r8unorm",
   ): Brush | undefined {
-    const region = paintedRegion(strokes, size);
     let brush = brushes.get(id);
+    if (brush?.strokes === strokes) {
+      used.add(brush);
+      return brush;
+    }
+    const region = paintedRegion(strokes, size);
     if (!region) {
       brush?.target.color.dispose();
       brushes.delete(id);
@@ -350,23 +354,13 @@ export function createMaskRaster(gpu: Gpu) {
       brushes.set(id, brush);
     }
     used.add(brush);
-    const applied = brush.strokes;
-    const extending =
-      applied.length > 0 &&
-      applied !== strokes &&
-      extendsStrokes(applied, strokes);
+    let extending =
+      brush.strokes.length > 0 && extendsStrokes(brush.strokes, strokes);
     if (!sameRegion(brush, region)) {
-      const keep =
-        (applied === strokes || extending) && contains(region, brush);
-      place(brush, region, keep);
-      if (!keep) {
-        brush.strokes = [];
-      }
+      extending &&= contains(region, brush);
+      place(brush, region, extending);
     }
-    if (brush.strokes === strokes) {
-      return brush;
-    }
-    if (brush.strokes.length && extending) {
+    if (extending) {
       brush.dabs = stampStrokes(
         brush,
         strokes,
