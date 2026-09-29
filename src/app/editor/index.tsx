@@ -98,7 +98,7 @@ function ExportButton() {
         render={
           <Button
             aria-pressed={exporting}
-            className="ml-1 px-4 aria-pressed:bg-raised-hover pointer-coarse:h-10"
+            className="ml-1 aria-pressed:bg-raised-hover"
             onClick={() => setTool(exporting ? tools[0] : exportTool)}
           >
             Export
