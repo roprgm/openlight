@@ -3,18 +3,18 @@ import {
   type Composition,
   merge,
   node,
+  type PatchInput,
   type RenderImage,
-  type RenderInput,
   sourceSize,
 } from "@/core/renderer";
 import shader from "./heal.wgsl";
 import { patchBounds } from "./model";
 
-type HealComposition = Pick<Composition, "brush" | "inputId" | "retain">;
+type HealComposition = Pick<Composition, "patch" | "inputId" | "retain">;
 
 function healPatch(
   source: RenderImage,
-  coverage: RenderInput,
+  { coverage, origin: coverageOrigin }: PatchInput,
   patch: HealPatch,
   name: string,
 ) {
@@ -28,6 +28,8 @@ function healPatch(
     extent,
     dimensions,
     offset: patch.offset,
+    coverageOrigin,
+    coverageSize: coverage.size,
   };
   let correction = source;
   // Coarse-to-fine harmonic extension of the destination/donor log color ratio.
@@ -92,7 +94,7 @@ export function heal(
     if (patch.id === composition.inputId) inspected = image;
     const id = `${name}/${patch.id}`;
     if (patch.offset[0] === 0 && patch.offset[1] === 0) continue;
-    const coverage = composition.brush(id, [patch.stroke]);
+    const coverage = composition.patch(id, patch.stroke);
     composition.retain(id);
     image = healPatch(image, coverage, patch, id);
   }

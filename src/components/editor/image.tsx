@@ -66,7 +66,7 @@ export function Image({
         frame: sceneFrame,
         sourceSize,
         coverage: overlay.layerId
-          ? renderer.coverage(overlay.layerId)
+          ? renderer.coverage(overlay.layerId)?.target
           : undefined,
       },
     });

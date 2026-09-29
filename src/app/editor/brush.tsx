@@ -13,7 +13,7 @@ import { BrushOverlay } from "@/features/layers/brush-overlay";
 import {
   addLayer,
   brushLayerCounts,
-  brushLimitNames,
+  brushLimit,
   brushLimits,
 } from "@/features/layers/edits";
 import { useMaskTool } from "@/features/layers/mask-tool";
@@ -44,7 +44,7 @@ function ModeCanvas({ mode, full }: { mode: BrushMode; full: boolean }) {
  * The mode follows the selection onto either kind, and choosing the other mode starts a layer of it.
  * A photo at its limit of layers of the mode adds none, and the canvas says why.
  */
-export function BrushCanvas() {
+export function BrushToolCanvas() {
   const document = useDocument();
   const { mode } = useBrushTool().settings;
   const full = useScene(
@@ -59,8 +59,7 @@ export function BrushCanvas() {
       <ModeCanvas mode={mode} full={full} />
       {full && selected !== mode && (
         <CanvasHint>
-          A photo holds up to {brushLimits[mode]} {brushLimitNames[mode]}:
-          select one to paint on, or delete one.
+          {brushLimit(mode)}: select one to paint on, or delete one.
         </CanvasHint>
       )}
     </>

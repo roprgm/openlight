@@ -7,10 +7,14 @@ import {
   walkLayers,
 } from "@/core/document";
 import type { ImageSource, WhiteBalance } from "@/core/image";
+import type { Point } from "@/core/image/frame";
 import { createRenderGraph } from "./graph";
-import { createMaskRaster, type PaintInput } from "./mask";
+import { createMaskRaster } from "./mask";
+import { createPatchRaster, type PatchInput } from "./mask/patches";
 import { input, type RenderImage, type RenderInput } from "./node";
+import { createPaintRaster, type PaintInput } from "./paint";
 import { createProxy } from "./proxy";
+import { createStrokes } from "./strokes";
 
 export { maskInput, mixAdjustment } from "./blend";
 export {
@@ -22,7 +26,7 @@ export {
   renderCoverage,
   type View,
 } from "./display";
-export type { PaintInput } from "./mask";
+export type { PatchInput } from "./mask/patches";
 export {
   input,
   merge,
@@ -37,6 +41,7 @@ export {
   sourceSize,
   split,
 } from "./node";
+export type { PaintInput } from "./paint";
 export { transformImages } from "./transform";
 export { createRenderGraph };
 
@@ -48,7 +53,8 @@ export type Composition = {
   coverage: (layer: MaskLayer) => RenderInput | undefined;
   /** Rasterized paint of a paint layer, prepared before composition. */
   paint: (layer: PaintLayer) => PaintInput | undefined;
-  brush: (id: string, strokes: readonly BrushStroke[]) => RenderInput;
+  /** Rasterized coverage of an effect's own stroke, such as a Healing patch. */
+  patch: (id: string, stroke: BrushStroke) => PatchInput;
 };
 
 /** App composition describes requested outputs; the engine owns their storage. */
@@ -89,7 +95,10 @@ export function createRenderer(
 ) {
   const source = resource.image;
   const graph = createRenderGraph(gpu, timer);
-  const raster = createMaskRaster(gpu);
+  const strokes = createStrokes(gpu);
+  const masks = createMaskRaster(gpu, strokes);
+  const patches = createPatchRaster(gpu, strokes);
+  const paints = createPaintRaster(gpu, strokes);
   const proxy = createProxy(gpu);
   const release = resource.retain();
   const raw = resource.raw?.createPass();
@@ -123,13 +132,12 @@ export function createRenderer(
     const active = new Set<string>();
     const developed = raw?.render() ?? source;
     // Every mask and paint layer updates once, bypassed or not, so a hidden one keeps its raster; child masks only shape their parent's coverage.
-    const rasters = new Map<string, RenderInput | undefined>();
     for (const { layer, parent } of walkLayers(scene.layers)) {
       if (layer.kind === "mask" && parent?.kind !== "mask") {
-        rasters.set(layer.id, raster.update(layer, developed.size));
+        masks.update(layer, developed.size);
       }
       if (layer.kind === "paint") {
-        raster.draw(layer, developed.size);
+        paints.draw(layer, developed.size);
       }
     }
     const image =
@@ -137,15 +145,19 @@ export function createRenderer(
     const images = compose(image, scene, {
       inputId,
       retain: (id) => active.add(id),
-      coverage: (layer) => rasters.get(layer.id),
-      paint: (layer) => raster.paint(layer),
-      brush: (id, strokes) => raster.brush(id, strokes, developed.size),
+      coverage: (layer) => masks.coverage(layer.id),
+      paint: (layer) => paints.input(layer),
+      patch: (id, stroke) => patches.patch(id, stroke, developed.size),
     });
     for (const id of instances) {
       if (!active.has(id)) graph.release(`${id}/`);
     }
     instances = active;
-    raster.sweep();
+    // The stroke buffer goes last, once the others let go of the strokes they left open.
+    masks.sweep();
+    patches.sweep();
+    paints.sweep();
+    strokes.sweep();
     const targets = graph.render([
       images.original,
       images.full,
@@ -165,7 +177,7 @@ export function createRenderer(
   function stalePaint(scene: Scene) {
     const stale = [];
     for (const { layer } of walkLayers(scene.layers)) {
-      if (layer.kind === "paint" && raster.needsBase(layer)) {
+      if (layer.kind === "paint" && paints.needsBase(layer)) {
         stale.push(layer);
       }
     }
@@ -194,7 +206,7 @@ export function createRenderer(
       }
       for (const layer of stalePaint(scene)) {
         const pixels = paintPixels(layer.raster);
-        await raster.loadBase(layer.id, layer.raster, pixels, source.size);
+        await paints.loadBase(layer.id, layer.raster, pixels, source.size);
         if (disposed) {
           return;
         }
@@ -241,15 +253,30 @@ export function createRenderer(
     outputImage: () => output,
     inputImage: (id: string) =>
       inspected?.id === id ? inspected.image : undefined,
-    /** The rasterized coverage of a mask layer, for the display overlay. */
-    coverage: (id: string) => raster.get(id)?.target,
+    /**
+     * A raster by ID and where it sits in the photo: a mask's coverage, for the display overlay and
+     * thumbnails, a Healing patch's, or a paint layer's.
+     */
+    coverage(id: string): { target: Target; origin: Point } | undefined {
+      const target = masks.coverage(id)?.target ?? paints.raster(id);
+      return target ? { target, origin: [0, 0] } : patches.raster(id);
+    },
     /** Device pixels shown per source pixel; interactive renders reduce the source to about this density. */
     setDisplayScale(scale: number) {
       if (Number.isFinite(scale) && scale > 0) {
         displayScale = scale;
       }
     },
-    inspect: () => ({ ...graph.inspect(), ...raster.inspect() }),
+    inspect: () => ({
+      ...graph.inspect(),
+      stamped: strokes.stamped(),
+      rasters: [
+        ...masks.inspect(),
+        ...patches.inspect(),
+        ...paints.inspect(),
+        ...strokes.inspect(),
+      ],
+    }),
     subscribe(listener: () => void) {
       listeners.add(listener);
       if (rendered) {
@@ -268,7 +295,7 @@ export function createRenderer(
       while (pending || settling) {
         await (pending ?? settling);
       }
-      const read = raster.settle(id);
+      const read = paints.settle(id);
       settling = read;
       try {
         return await read;
@@ -283,7 +310,10 @@ export function createRenderer(
       disposed = true;
       listeners.clear();
       graph.dispose();
-      raster.dispose();
+      masks.dispose();
+      patches.dispose();
+      paints.dispose();
+      strokes.dispose();
       proxy.dispose();
       raw?.dispose();
       release();

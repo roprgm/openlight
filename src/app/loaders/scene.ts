@@ -20,7 +20,7 @@ export function isSceneFile(file: File) {
  * the already deflated pixels paint settled into at `paint/<id>`.
  */
 export async function writeSceneFile(document: EditorDocument) {
-  const { json, files } = snapshotScene(document);
+  const { json, sources, paint } = snapshotScene(document);
   const { writeZip } = await import("@/lib/zip");
   const archive = await writeZip([
     {
@@ -28,13 +28,11 @@ export async function writeSceneFile(document: EditorDocument) {
       data: new Blob([JSON.stringify(json)]),
       deflate: true,
     },
-    ...[...files].map(([id, data]) => ({
-      name: `${id in json.sources ? "sources" : "paint"}/${id}`,
-      data,
-    })),
+    ...[...sources].map(([id, data]) => ({ name: `sources/${id}`, data })),
+    ...[...paint].map(([id, data]) => ({ name: `paint/${id}`, data })),
   ]);
-  const [source] = Object.values(json.sources);
-  const name = source.name.replace(/\.[^.]*$/, "") || "scene";
+  const [file] = sources.values();
+  const name = file.name.replace(/\.[^.]*$/, "") || "scene";
   return new File([archive], `${name}${sceneExtension}`);
 }
 

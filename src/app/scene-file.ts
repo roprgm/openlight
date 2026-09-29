@@ -42,7 +42,7 @@ export type SceneJson = {
   scene: Scene;
 };
 
-/** The document's scene and the source files it references, read without rendering. */
+/** The document's scene, the source file it references, and the pixels its paint settled into, read without rendering. */
 export function snapshotScene(document: EditorDocument) {
   const scene = document.scene.getState();
   const { source } = scene.layers[0];
@@ -53,13 +53,13 @@ export function snapshotScene(document: EditorDocument) {
     sources: { [source]: { name: file.name, type: file.type } },
     scene,
   };
-  const files = new Map<string, Blob>([[source, file]]);
+  const paint = new Map<string, Blob>();
   for (const { layer } of walkLayers(scene.layers)) {
     if (layer.kind === "paint" && layer.raster) {
-      files.set(layer.raster, document.resources.paint(layer.raster));
+      paint.set(layer.raster, document.resources.paint(layer.raster));
     }
   }
-  return { json, files };
+  return { json, sources: new Map([[source, file]]), paint };
 }
 
 const id = z.string().check(z.minLength(1));

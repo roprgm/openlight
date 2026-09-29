@@ -5,6 +5,42 @@ import { box, choose, drag } from "./pointer";
 
 const gray = [128, 128, 128, 255];
 
+/** Opens the gray test photo, 1200 × 800, in a wide window. */
+async function openPhoto(page: Page) {
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await page.goto("/");
+  await page
+    .locator('input[type="file"]')
+    .setInputFiles("tests/fixtures/photo.svg");
+  await expect(
+    page.getByRole("textbox", { name: "Exposure", exact: true }),
+  ).toHaveValue("0.00");
+}
+
+const brushBar = (page: Page) =>
+  page.getByRole("group", { name: "Layer options" });
+const brushField = (page: Page, name: string) =>
+  brushBar(page).getByRole("textbox", { name, exact: true });
+const brushChip = (page: Page, name: string) =>
+  brushBar(page).getByRole("button", { name, exact: true });
+
+async function setBrush(page: Page, fields: Record<string, string>) {
+  for (const [name, value] of Object.entries(fields)) {
+    await brushField(page, name).fill(value);
+    await brushField(page, name).press("Enter");
+  }
+}
+
+/** Maps photo pixels, counted from the photo's center, to the page. */
+async function photoToPage(page: Page) {
+  const bounds = await box(page.getByRole("region", { name: "Image canvas" }));
+  const scale = Math.min(bounds.width / 1200, bounds.height / 800, 2);
+  return (x: number, y: number) => [
+    bounds.x + bounds.width / 2 + x * scale,
+    bounds.y + bounds.height / 2 + y * scale,
+  ];
+}
+
 /** Export pixels inside the strokes and far above them. */
 async function samples(page: Page) {
   const { samples } = await readImage(page, undefined, [
@@ -18,36 +54,23 @@ test("paint colors on a layer, swap them, erase, blend, and switch to a mask", a
   page,
 }) => {
   test.setTimeout(90_000);
-  await page.setViewportSize({ width: 1440, height: 1000 });
   const kinds = async () =>
     (await page.evaluate(() => window.openlight.getState())).scene?.layers.map(
       (layer) => layer.kind,
     );
-  await page.goto("/");
-  await page
-    .locator('input[type="file"]')
-    .setInputFiles("tests/fixtures/photo.svg");
-  await expect(
-    page.getByRole("textbox", { name: "Exposure", exact: true }),
-  ).toHaveValue("0.00");
+  await openPhoto(page);
   await page.getByRole("tab", { name: "Brush", exact: true }).click();
-  const options = page.getByRole("group", { name: "Layer options" });
-  const color = options.getByRole("button", { name: "Color", exact: true });
-  const mask = options.getByRole("button", { name: "Mask", exact: true });
+  const color = brushChip(page, "Color");
+  const mask = brushChip(page, "Mask");
   await expect(mask).toHaveAttribute("aria-pressed", "true");
   await color.click();
   const canvas = page.getByLabel("Paint canvas", { exact: true });
   await expect(canvas).toBeVisible();
   // The untouched brush mask gives way to a paint layer.
   expect(await kinds()).toEqual(["image", "paint"]);
-  const size = options.getByRole("textbox", { name: "Size", exact: true });
-  await size.fill("200");
-  await size.press("Enter");
-  const bounds = await box(canvas);
-  const scale = Math.min(bounds.width / 1200, bounds.height / 800, 2);
-  const center = [bounds.x + bounds.width / 2, bounds.y + bounds.height / 2];
-  const from = [center[0] - 150 * scale, center[1]];
-  const to = [center[0] + 150 * scale, center[1]];
+  await setBrush(page, { Size: "200" });
+  const at = await photoToPage(page);
+  const [from, to] = [at(-150, 0), at(150, 0)];
   await test.step("a stroke paints the primary color", async () => {
     await page.getByLabel("Primary color").fill("#ff0000");
     await drag(page, from, to, 16);
@@ -93,8 +116,8 @@ test("paint colors on a layer, swap them, erase, blend, and switch to a mask", a
   });
 });
 
-/** How far the red channel strays along each displayed row through a stroke, `rows` in page pixels. */
-async function ripples(
+/** The red channel's least and most along each displayed row, `rows` in page pixels. */
+async function redRange(
   page: Page,
   rows: readonly number[],
   left: number,
@@ -115,7 +138,7 @@ async function ripples(
       return rows.map((y) => {
         const { data } = context.getImageData(left, y, right - left, 1);
         const red = data.filter((_, i) => i % 4 === 0);
-        return Math.max(...red) - Math.min(...red);
+        return [Math.min(...red), Math.max(...red)];
       });
     },
     [
@@ -127,58 +150,47 @@ async function ripples(
   );
 }
 
-test("a light stroke drawn a little at a time comes out smooth", async ({
+/** Draws a light stroke across the photo in small moves; each row along it must show and stay within a level. */
+async function expectSmoothStroke(page: Page, y: number) {
+  await setBrush(page, { Size: "200", Flow: "40" });
+  const at = await photoToPage(page);
+  // Each small move stamps a dab or two, which used to round to 8 bits apart and leave rings.
+  await drag(page, at(-300, y), at(300, y), 120);
+  const rows = [0, 25, 50, 70].map((offset) => at(0, y + offset)[1]);
+  const ranges = await redRange(page, rows, at(-100, 0)[0], at(100, 0)[0]);
+  expect(ranges[0][0]).toBeGreaterThan(gray[0] + 20);
+  for (const [least, most] of ranges) {
+    expect(most - least).toBeLessThanOrEqual(1);
+  }
+}
+
+test("light strokes drawn a little at a time come out smooth, on a mask and in color", async ({
   page,
 }) => {
-  test.setTimeout(90_000);
-  await page.setViewportSize({ width: 1440, height: 1000 });
-  await page.goto("/");
-  await page
-    .locator('input[type="file"]')
-    .setInputFiles("tests/fixtures/photo.svg");
-  await expect(
-    page.getByRole("textbox", { name: "Exposure", exact: true }),
-  ).toHaveValue("0.00");
+  test.setTimeout(120_000);
+  await openPhoto(page);
   await page.getByRole("tab", { name: "Brush", exact: true }).click();
-  const options = page.getByRole("group", { name: "Layer options" });
-  await options.getByRole("button", { name: "Color", exact: true }).click();
-  for (const [name, value] of [
-    ["Size", "200"],
-    ["Flow", "40"],
-  ]) {
-    const field = options.getByRole("textbox", { name, exact: true });
-    await field.fill(value);
-    await field.press("Enter");
-  }
-  await page.getByLabel("Primary color").fill("#ff0000");
-  const bounds = await box(page.getByLabel("Paint canvas", { exact: true }));
-  const scale = Math.min(bounds.width / 1200, bounds.height / 800, 2);
-  const center = [bounds.x + bounds.width / 2, bounds.y + bounds.height / 2];
-  // Each small move stamps a dab or two, which used to round to 8 bits apart and leave rings.
-  await drag(
-    page,
-    [center[0] - 300 * scale, center[1]],
-    [center[0] + 300 * scale, center[1]],
-    120,
-  );
-  const rows = [0, 25, 50, 70].map((offset) => center[1] + offset * scale);
-  const [left, right] = [center[0] - 100 * scale, center[0] + 100 * scale];
-  for (const spread of await ripples(page, rows, left, right)) {
-    expect(spread).toBeLessThanOrEqual(1);
-  }
+  await test.step("a mask brightens through its stroke", async () => {
+    const exposure = page.getByRole("textbox", {
+      name: "Exposure",
+      exact: true,
+    });
+    await exposure.fill("2");
+    await exposure.press("Enter");
+    await expectSmoothStroke(page, -150);
+  });
+  await test.step("a paint layer lays red", async () => {
+    await brushChip(page, "Color").click();
+    await page.getByLabel("Primary color").fill("#ff0000");
+    await expectSmoothStroke(page, 150);
+  });
 });
 
 test("strokes settle into pixels, undo takes them back, and scenes keep them", async ({
   page,
 }) => {
   test.setTimeout(120_000);
-  await page.goto("/");
-  await page
-    .locator('input[type="file"]')
-    .setInputFiles("tests/fixtures/photo.svg");
-  await expect(
-    page.getByRole("textbox", { name: "Exposure", exact: true }),
-  ).toHaveValue("0.00");
+  await openPhoto(page);
   const layer = () =>
     page.evaluate(() => {
       const [, paint] = window.openlight.getState().scene?.layers ?? [];
@@ -256,19 +268,9 @@ test("strokes settle into pixels, undo takes them back, and scenes keep them", a
 test("Photoshop's keys switch the brush, its colors, feather, flow, and opacity, and a right click sizes it", async ({
   page,
 }) => {
-  await page.setViewportSize({ width: 1440, height: 1000 });
-  await page.goto("/");
-  await page
-    .locator('input[type="file"]')
-    .setInputFiles("tests/fixtures/photo.svg");
-  await expect(
-    page.getByRole("textbox", { name: "Exposure", exact: true }),
-  ).toHaveValue("0.00");
-  const options = page.getByRole("group", { name: "Layer options" });
-  const field = (name: string) =>
-    options.getByRole("textbox", { name, exact: true });
-  const chip = (name: string) =>
-    options.getByRole("button", { name, exact: true });
+  await openPhoto(page);
+  const field = (name: string) => brushField(page, name);
+  const chip = (name: string) => brushChip(page, name);
   await page.keyboard.press("b");
   await expect(chip("Mask")).toHaveAttribute("aria-pressed", "true");
   await page.keyboard.press("b");

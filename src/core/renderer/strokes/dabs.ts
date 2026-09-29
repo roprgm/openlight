@@ -4,13 +4,13 @@ import type { BrushStroke } from "@/core/document";
 export type Dab = readonly [number, number, number, number];
 
 /**
- * Dabs `perDiameter` times per diameter along the stroke, starting at its first point; a fixed walk keeps
- * replays identical. Closer dabs each lay less, so a stroke builds up as it does with four, Photoshop's
- * spacing, only with smoother soft edges.
+ * Dabs sixteen times per diameter along the stroke, starting at its first point, close enough that soft
+ * edges add up without ripples; a fixed walk keeps replays identical. Each dab lays less, so a stroke
+ * builds up as it does with four, Photoshop's spacing.
  */
-export function strokeDabs(stroke: BrushStroke, perDiameter = 4): Dab[] {
+export function strokeDabs(stroke: BrushStroke): Dab[] {
   const radius = stroke.size / 2;
-  const spacing = Math.max(1, stroke.size / perDiameter);
+  const spacing = Math.max(1, stroke.size / 16);
   const share = spacing / Math.max(1, stroke.size / 4);
   const dabs: Dab[] = [];
   const [first] = stroke.points;

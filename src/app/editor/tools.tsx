@@ -21,7 +21,7 @@ import { HealOverlay } from "@/features/heal/overlay";
 import { addLayer } from "@/features/layers/edits";
 import { GradientOverlay } from "@/features/layers/gradient-overlay";
 import { useShortcuts } from "@/hooks/use-shortcuts";
-import { BrushCanvas, BrushToolOptions } from "./brush";
+import { BrushToolCanvas, BrushToolOptions } from "./brush";
 import { ExportMode } from "./export";
 import { createLayer } from "./layers";
 
@@ -92,7 +92,7 @@ export const tools = [
     key: "b",
     Icon: BrushIcon,
     group: "edit",
-    Canvas: BrushCanvas,
+    Canvas: BrushToolCanvas,
     Options: BrushToolOptions,
   },
   {

@@ -6,8 +6,9 @@ import { useDocument } from "./session";
 
 /**
  * The renderer's coverage raster for one id, drawn into a small canvas after each committed change.
- * `version` is the scene content the raster follows; a change redraws once its gesture ends.
- * Without a raster, such as a mask that paints nothing yet, the fallback shows instead.
+ * `version` is the scene content the raster follows; a change redraws once its gesture ends. `region`
+ * is in source pixels, whatever part of the photo the raster covers. Without a raster, such as a mask
+ * that paints nothing yet, the fallback shows instead.
  */
 export function CoverageThumbnail({
   id,
@@ -47,8 +48,17 @@ export function CoverageThumbnail({
   useEffect(() => {
     const coverage = ready !== undefined && renderer.coverage(id);
     if (!coverage) return;
+    const { target, origin } = coverage;
     let active = true;
-    renderCoverage(gpu, coverage, [64, 64], region)
+    renderCoverage(
+      gpu,
+      target,
+      [64, 64],
+      region && {
+        origin: [region.origin[0] - origin[0], region.origin[1] - origin[1]],
+        extent: region.extent,
+      },
+    )
       .then((bitmap) => {
         const context = canvas.current?.getContext("2d");
         if (active && context) context.drawImage(bitmap, 0, 0);

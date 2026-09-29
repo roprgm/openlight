@@ -93,17 +93,17 @@ test("a paint layer stamps colored strokes into one raster the size of the photo
     expect(renderer.inspect()).toMatchObject({ passes: [], stamped: 41 });
     expect(renderer.inspect().rasters).toHaveLength(2);
     // Undoing every stroke clears the raster rather than freeing it, and painting again reuses it.
-    const raster = renderer.coverage(paint);
+    const raster = renderer.coverage(paint)?.target;
     document.history.undo();
     document.history.undo();
     document.history.undo();
     await render();
     expect(renderer.inspect()).toMatchObject({ passes: [] });
-    expect(renderer.coverage(paint)).toBe(raster);
+    expect(renderer.coverage(paint)?.target).toBe(raster);
     addPaintStroke(document, paint, stroke);
     await render();
     expect(renderer.inspect().passes).toEqual([`layer/${paint}/paint`]);
-    expect(renderer.coverage(paint)).toBe(raster);
+    expect(renderer.coverage(paint)?.target).toBe(raster);
     // Deleting the last paint layer frees its raster and the stroke buffer.
     deleteLayer(document, paint);
     await render();

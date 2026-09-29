@@ -1,11 +1,11 @@
 import { effect, frame, type Gpu, type Target } from "vgpu";
+import copyShader from "@/core/renderer/strokes/copy.wgsl";
 import { weakMemo } from "@/lib/weak-memo";
-import uploadShader from "./upload.wgsl";
 
 /** Rows moved at a time, so neither direction holds a copy of the whole raster. */
 const bandRows = 256;
 
-const upload = weakMemo((gpu: Gpu) => effect(gpu, uploadShader));
+const copy = weakMemo((gpu: Gpu) => effect(gpu, copyShader));
 
 /**
  * Reads an rgba8 raster band by band and deflates its bytes, rows tightly packed. Nothing may draw into
@@ -78,7 +78,10 @@ export async function writeRaster(gpu: Gpu, raster: Target, pixels: Blob) {
       { bytesPerRow: rowBytes },
       [width, rows],
     );
-    const pass = upload(gpu).set({ band: staging, params: { top: y } });
+    const pass = copy(gpu).set({
+      source: staging,
+      params: { offset: [0, -y] },
+    });
     frame(gpu, (frame) =>
       frame.pass(
         { target: raster, clear: false, scissor: [0, y, width, rows] },
