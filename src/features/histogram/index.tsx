@@ -9,7 +9,7 @@ type Colors = readonly [string] | readonly [string, string, string];
 /** Draws each channel as a filled polygon with an outline; one read runs at a time and the latest request wins. */
 function plot(
   svg: SVGSVGElement,
-  read: (image: Target) => Promise<Float32Array>,
+  read: (image: () => Target | undefined) => Promise<Float32Array | undefined>,
   image: () => Target | undefined,
   colors: Colors,
 ) {
@@ -38,20 +38,19 @@ function plot(
     try {
       do {
         requested = false;
-        const source = image();
-        if (!source) {
-          for (const { polygon, polyline } of curves) {
-            polygon.setAttribute("points", "");
-            polyline.setAttribute("points", "");
-          }
-          return;
-        }
-        const values = await read(source);
+        const values = await read(image);
         if (!group.isConnected) {
           return;
         }
         if (requested) {
           continue;
+        }
+        if (!values) {
+          for (const { polygon, polyline } of curves) {
+            polygon.setAttribute("points", "");
+            polyline.setAttribute("points", "");
+          }
+          return;
         }
         curves.forEach(({ polygon, polyline }, channel) => {
           const points = Array.from(
@@ -94,7 +93,7 @@ export function Histogram({
       if (svg) {
         const chart = plot(
           svg,
-          (source) => histogram.read(source, working, colors.length),
+          (image) => histogram.read(image, working, colors.length),
           image,
           colors,
         );
