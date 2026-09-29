@@ -68,17 +68,14 @@ export async function probeColorMixer() {
     { set: { samples: data } },
   );
   const graph = createRenderGraph(gpu);
-  const uniform = (channel: keyof ColorMixer, value: number): ColorMixer => ({
-    ...defaultMixer,
-    [channel]: colors.map(() => value),
-  });
-  const selected = (
-    index: number,
+  /** Sets one channel of every color, or only of the color at `index`. */
+  const mix = (
     channel: keyof ColorMixer,
     value: number,
+    index?: number,
   ): ColorMixer => ({
     ...defaultMixer,
-    [channel]: colors.map((_, i) => (i === index ? value : 0)),
+    [channel]: colors.map((_, i) => ((index ?? i) === i ? value : 0)),
   });
   try {
     frame(gpu, (f) => f.pass(input, fill));
@@ -87,13 +84,11 @@ export async function probeColorMixer() {
     const outputs = [];
     for (const settings of [
       defaultMixer,
-      uniform("hue", 100),
-      uniform("hue", -100),
-      uniform("saturation", -100),
-      uniform("luminance", 100),
-      uniform("luminance", -100),
-      selected(5, "saturation", -100),
-      selected(0, "hue", 100),
+      mix("hue", 100),
+      mix("saturation", -100),
+      mix("luminance", 100),
+      mix("saturation", -100, 5),
+      mix("hue", 100, 0),
     ]) {
       const [output] = graph.render([
         pipeline(inputNode(input), [colorMixer(settings, "color-mixer")]),

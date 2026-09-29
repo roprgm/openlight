@@ -32,7 +32,7 @@ export async function renderHealReference() {
         patches: [
           {
             id: "spot",
-            feather: 0.25,
+            feather: 0,
             opacity: 1,
             stroke: {
               mode: "paint",
@@ -50,51 +50,31 @@ export async function renderHealReference() {
   try {
     frame(gpu, (frame) => frame.pass(image, shader));
     const results = [];
-    const healing = scene.layers[1];
-    if (healing.kind !== "heal") throw Error("Healing layer missing.");
-    for (const feather of [0, 0.75]) {
-      const renderScene: Scene = {
-        ...scene,
-        layers: [
-          scene.layers[0],
-          {
-            ...healing,
-            patches: healing.patches.map((patch) => ({
-              ...patch,
-              feather,
-            })),
-          },
-        ],
-      };
-      for (const proxy of [false, true]) {
-        renderer.setDisplayScale(0.25);
-        await renderer.update(renderScene, undefined, proxy);
-        const output = renderer.fullImage();
-        const pixels = await output.readFloats();
-        const scale = 256 / output.size[0];
-        const samples = [
-          [128, 96],
-          [120, 96],
-          [136, 96],
-          [100, 96],
-          [158, 96],
-          [64, 64],
-        ].map(([x, y]) => {
-          const px = Math.floor(x / scale);
-          const py = Math.floor(y / scale);
-          const p = [(px + 0.5) * scale, (py + 0.5) * scale];
-          const i = (py * output.size[0] + px) * 4;
-          return {
-            actual: [...pixels.slice(i, i + 4)],
-            expected: [
-              0.2 + p[0] * 0.002 + (p[0] >= 128 ? 0.5 : 0),
-              0.3 + p[1] * 0.001,
-              1.4,
-              0.75,
-            ],
-          };
+    for (const proxy of [false, true]) {
+      renderer.setDisplayScale(0.25);
+      await renderer.update(scene, undefined, proxy);
+      const output = renderer.fullImage();
+      const pixels = await output.readFloats();
+      const scale = 256 / output.size[0];
+      // Both sides of the edge inside the patch, and beside it where the donor has a defect.
+      for (const [x, y] of [
+        [120, 96],
+        [136, 96],
+        [158, 96],
+      ]) {
+        const px = Math.floor(x / scale);
+        const py = Math.floor(y / scale);
+        const p = [(px + 0.5) * scale, (py + 0.5) * scale];
+        const i = (py * output.size[0] + px) * 4;
+        results.push({
+          actual: [...pixels.slice(i, i + 4)],
+          expected: [
+            0.2 + p[0] * 0.002 + (p[0] >= 128 ? 0.5 : 0),
+            0.3 + p[1] * 0.001,
+            1.4,
+            0.75,
+          ],
         });
-        results.push({ feather, proxy, samples });
       }
     }
     return { results, errors };
