@@ -15,7 +15,7 @@ import {
 } from "@/core/document";
 import { gradientParams } from "@/core/renderer/blend";
 import { input, type RenderInput } from "@/core/renderer/node";
-import type { PaintRaster } from "@/core/renderer/paint";
+import { type PaintRaster, paintingSize } from "@/core/renderer/paint";
 import { createRasterCache } from "@/core/renderer/raster-cache";
 import type { Rect, Strokes } from "@/core/renderer/strokes";
 import brushShader from "./brush.wgsl";
@@ -59,7 +59,7 @@ const subtract: BlendOptions = {
 };
 
 /**
- * Brings masks' coverage together at source resolution. A brush paints its coverage as a paint layer
+ * Brings masks' coverage together at half the photo's resolution, as paintings keep theirs. A brush paints its coverage as a paint layer
  * paints color, into an r8unorm raster of `brushes`; a mask shaped by children combines its own
  * coverage with theirs in a second texture, rebuilt whenever any of them changes. Gradients alone
  * need no texture: the mix pass computes them.
@@ -115,11 +115,11 @@ export function createMaskRaster(
   }
 
   /** The pass that adds or subtracts one op's coverage, or nothing for a brush without strokes. */
-  function opPass(op: MaskModifier) {
+  function opPass(op: MaskModifier, scale: Size) {
     if (op.mask.kind !== "brush") {
       const pass = op.operation === "add" ? gradientAdd : gradientSubtract;
       return pass.set({
-        params: { ...gradientParams(op.mask), opacity: op.opacity },
+        params: { ...gradientParams(op.mask), opacity: op.opacity, scale },
       });
     }
     const brush = covers(op) ? brushes.get(op.id) : undefined;
@@ -134,14 +134,17 @@ export function createMaskRaster(
   }
 
   /** Combines a mask's own coverage with its children's in stored order, once any of them changed. */
-  function updateGroup(id: string, ops: readonly MaskModifier[], size: Size) {
+  function updateGroup(id: string, ops: readonly MaskModifier[], source: Size) {
+    const size = paintingSize(source);
     const group = groups.reserve(id, size);
+    // Gradients evaluate at photo pixels, and the group keeps the brushes' resolution.
+    const scale = [source[0] / size[0], source[1] / size[1]] as const;
     if (sameOps(group.ops, ops)) {
       return group;
     }
     strokes.clear(group.target);
     for (const op of ops) {
-      const pass = opPass(op);
+      const pass = opPass(op, scale);
       if (pass) {
         // One frame per pass: uniform writes land in queue order, before the pass that reads them.
         frame(gpu, (frame) =>

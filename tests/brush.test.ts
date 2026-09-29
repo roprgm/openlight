@@ -96,12 +96,12 @@ test("brush strokes stamp incrementally, replay after undo, and render a proxy d
       stamped: 1,
       // The open stroke waits in the stroke buffer, and the mask reads it laid over its raster in the view.
       rasters: [
-        { id: mask, size: [64, 32], format: "r8unorm" },
-        { id: "stroke view", size: [64, 32], format: "r8unorm" },
-        { id: "stroke buffer", size: [64, 32], format: "r16float" },
+        { id: mask, size: [32, 16], format: "r8unorm" },
+        { id: "stroke view", size: [32, 16], format: "r8unorm" },
+        { id: "stroke buffer", size: [32, 16], format: "r16float" },
       ],
     });
-    expect(renderer.coverage(mask)?.target.size).toEqual([64, 32]);
+    expect(renderer.coverage(mask)?.target.size).toEqual([32, 16]);
     // A 20 px extension adds twenty dabs; earlier ones are not stamped again.
     extendStroke(document, mask, [[30, 10, 1]]);
     await render(true);
@@ -171,7 +171,7 @@ test("brush strokes stamp incrementally, replay after undo, and render a proxy d
       "stroke view",
       "stroke buffer",
     ]);
-    expect(renderer.coverage(child)?.target.size).toEqual([64, 32]);
+    expect(renderer.coverage(child)?.target.size).toEqual([32, 16]);
     // Erasing inside the child stamps its own raster only, and the group recombines.
     const stampedBefore = renderer.inspect().stamped;
     paintStroke(document, child, { ...stroke, mode: "erase" });

@@ -94,7 +94,7 @@ export type Strokes = ReturnType<typeof createStrokes>;
 
 /**
  * Stamps strokes into the rasters that cache them. A mask's or paint layer's stroke builds up in the
- * stroke buffer, half floats the size of the photo, one stroke at a time: its raster takes it in one
+ * stroke buffer, half floats as large as the rasters, one stroke at a time: its raster takes it in one
  * pass once another stroke starts, so a stroke drawn a few dabs at a time rounds to 8 bits once, as it
  * does drawn whole. Until then, whoever shows the raster lays the open stroke over it.
  */
@@ -117,13 +117,17 @@ export function createStrokes(gpu: Gpu) {
   let reserved = false;
   let stamped = 0;
 
-  /** Stamps dabs' coverage into `target`, which sits at `origin` in the photo, a chunk at a time. */
+  /**
+   * Stamps dabs' coverage into `target`, a chunk at a time. The raster sits at `origin` in the photo and
+   * has `scale` of its pixels for each of the photo's.
+   */
   function stampDabs(
     target: Target,
     list: readonly Dab[],
     feather: number,
     pass: typeof cover,
     origin: Point = [0, 0],
+    scale: Point = [1, 1],
   ) {
     const [width, height] = target.size;
     let reached: Rect | undefined;
@@ -134,8 +138,9 @@ export function createStrokes(gpu: Gpu) {
       let right = 0;
       let bottom = 0;
       const data = new Float32Array(batch.length * 4);
-      batch.forEach(([x, y, radius, alpha], i) => {
-        const center = [x - origin[0], y - origin[1]];
+      batch.forEach(([x, y, size, alpha], i) => {
+        const center = [(x - origin[0]) * scale[0], (y - origin[1]) * scale[1]];
+        const radius = size * scale[0];
         data.set([center[0], center[1], radius, alpha], i * 4);
         left = Math.min(left, center[0] - radius);
         top = Math.min(top, center[1] - radius);
@@ -211,22 +216,21 @@ export function createStrokes(gpu: Gpu) {
   }
 
   return {
-    /** The stroke buffer, which a render that shows an open stroke reserves at the photo's size. */
-    reserve: reserveBuffer,
     buffer: () => buffer,
     clear(target: Target) {
       frame(gpu, (frame) => frame.pass({ target, clear: true }, () => {}));
     },
     /**
      * Draws `raster`'s strokes from `from` on, skipping `skip` dabs of that first one, through the
-     * buffer. The last stays open, so it can grow. Returns its dab count, whether it opened now, and
-     * where the buffer changed.
+     * buffer, at `scale` raster pixels per photo pixel. The last stays open, so it can grow. Returns its
+     * dab count, whether it opened now, and where the buffer changed.
      */
     draw(
       raster: Target,
       strokes: readonly Stroke[],
       from: number,
       skip: number,
+      scale: Point,
     ) {
       const target = reserveBuffer(raster.size);
       let count = 0;
@@ -246,6 +250,8 @@ export function createStrokes(gpu: Gpu) {
           i === from ? all.slice(skip) : all,
           stroke.feather,
           cover,
+          [0, 0],
+          scale,
         );
         changed = union(changed, reached);
         open = { ...current, stroke, bounds: union(current.bounds, reached) };

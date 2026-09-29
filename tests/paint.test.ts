@@ -58,7 +58,7 @@ async function open() {
   return { gpu, source, document };
 }
 
-test("a paint layer stamps colored strokes into one raster the size of the photo, kept until the layer goes, through one stroke buffer", async () => {
+test("a paint layer stamps colored strokes into one raster at half the photo's resolution, kept until the layer goes, through one stroke buffer", async () => {
   const { gpu, source, document } = await open();
   const renderer = createEditorRenderer(gpu, source);
   const render = () => renderer.update(document.scene.getState());
@@ -76,8 +76,8 @@ test("a paint layer stamps colored strokes into one raster the size of the photo
       passes: [`layer/${paint}/paint`],
       stamped: 1 + 40,
       rasters: [
-        { id: paint, size: [1024, 768], format: "rgba8unorm" },
-        { id: "stroke buffer", size: [1024, 768], format: "r16float" },
+        { id: paint, size: [512, 384], format: "rgba8unorm" },
+        { id: "stroke buffer", size: [512, 384], format: "r16float" },
       ],
     });
     const scene = document.scene.getState();

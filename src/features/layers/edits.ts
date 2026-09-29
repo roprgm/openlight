@@ -54,8 +54,8 @@ export function validateDepth(layers: readonly Layer[]) {
 }
 
 /**
- * Each paint layer keeps an rgba8 raster the size of the photo and each brush mask an r8 one, so a
- * photo holds a few of each.
+ * Each paint layer keeps an rgba8 raster at half the photo's resolution and each brush mask an r8
+ * one, so a photo holds a few of each.
  */
 export const brushLimits = { color: 4, mask: 10 } as const;
 const brushLimitNames = { color: "paint layers", mask: "brush masks" };

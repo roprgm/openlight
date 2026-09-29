@@ -16,6 +16,22 @@ import {
 import { readRaster, writeRaster } from "./transfer";
 
 type Size = readonly [number, number];
+
+/**
+ * Paintings keep half the photo's resolution each way, a quarter of its pixels, which the passes that
+ * read them sample back to full size by position. A stroke can't set a single photo pixel, which
+ * photos rarely want of paint or masks, and each raster takes a quarter of the memory.
+ */
+export function paintingSize([width, height]: Size): Size {
+  return [Math.ceil(width / 2), Math.ceil(height / 2)];
+}
+
+/** Raster pixels per photo pixel on each axis. */
+function paintingScale(source: Size): Size {
+  const [width, height] = paintingSize(source);
+  return [width / source[0], height / source[1]];
+}
+
 /** One painting's raster: its settled pixels, if any, and strokes over them. */
 type Raster = {
   target: Target;
@@ -50,7 +66,7 @@ function holds(
 export type PaintRaster = ReturnType<typeof createPaintRaster>;
 
 /**
- * Rasterizes paintings at source resolution, premultiplied color for paint layers and coverage for
+ * Rasterizes paintings at half the photo's resolution, premultiplied color for paint layers and coverage for
  * brush masks: settled pixels, loaded first, and strokes drawn over them through the stroke buffer. A
  * raster comes with its painting's first stroke or pixels and stays, cleared if need be, while the
  * painting lasts, so painting and undoing never reallocate it.
@@ -78,26 +94,27 @@ export function createPaintRaster(
     ): painting is Painting & { raster: string } {
       return painting.raster !== undefined && !holds(rasters.get(id), painting);
     },
-    /** Loads a painting's settled pixels; the next draw lays its strokes over them. */
-    async loadBase(id: string, base: string, pixels: Blob, size: Size) {
-      const raster = rasters.reserve(id, size);
+    /** Loads a painting's settled pixels; the next draw lays its strokes over them. `source` is the photo's size. */
+    async loadBase(id: string, base: string, pixels: Blob, source: Size) {
+      const raster = rasters.reserve(id, paintingSize(source));
       strokes.discard(raster.target);
       await writeRaster(gpu, raster.target, pixels);
       Object.assign(raster, { base, strokes: none, dabs: 0 });
     },
     /**
      * Brings a painting's raster up to date once its settled pixels loaded, and returns it, with whether
-     * its last stroke opened now and where the stroke buffer changed; nothing without paint.
+     * its last stroke opened now and where the stroke buffer changed; nothing without paint. `source` is
+     * the photo's size.
      */
     draw(
       id: string,
       painting: Painting,
-      size: Size,
+      source: Size,
     ): { target: Target; opened: boolean; changed?: Rect } | undefined {
       if (!hasPaint(painting) && !rasters.get(id)) {
         return undefined;
       }
-      const raster = rasters.reserve(id, size);
+      const raster = rasters.reserve(id, paintingSize(source));
       const { target } = raster;
       if (!holds(raster, painting)) {
         if (painting.raster !== undefined) {
@@ -116,6 +133,7 @@ export function createPaintRaster(
         painting.strokes,
         Math.max(drawn - 1, 0),
         drawn ? raster.dabs : 0,
+        paintingScale(source),
       );
       Object.assign(raster, { strokes: painting.strokes, dabs });
       return { target, ...changes };
