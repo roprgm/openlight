@@ -3,7 +3,20 @@
 > OpenLight is a free, open-source photo editor that runs entirely in the browser on WebGPU. Photos stay on the device. Every editing action is also exposed as a JavaScript API on `window.openlight`, so an AI agent with browser access can open, edit, and export images programmatically.
 
 Site: https://openlight.app
+About and how to use it: https://openlight.app/about
 Source (MIT): https://github.com/roprgm/openlight
+
+## Features
+
+OpenLight is free to use with no account or upload, and works as an online alternative to desktop RAW editors for everyday photo editing.
+
+- Adjustments: exposure, contrast, highlights, shadows, whites, blacks, white balance with auto, vibrance, saturation, tone curves, clarity, and sharpening.
+- Color Mixer with eight hue, saturation, and luminance ranges, film grain, vignette, and 3D LUTs from `.cube` files.
+- Effect layers with linear, radial, and brush masks, including pen pressure.
+- Healing tool to remove spots and distractions.
+- Crop, rotate, straighten, and flip.
+- Opens JPEG, PNG, WebP, AVIF, GIF, BMP, SVG, HEIC, TIFF, and camera RAW/DNG files, and imports Camera Raw XMP settings.
+- Exports PNG, JPEG, or WebP, and saves scenes to keep editing later.
 
 ## Using the API from a browser agent
 
