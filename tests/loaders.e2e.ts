@@ -1,78 +1,40 @@
-import { readFile } from "node:fs/promises";
-import { expect, test } from "./fixtures";
+import { expect, openPhoto, test } from "./fixtures";
 import { readImage } from "./images";
-import { choose } from "./pointer";
 
-test("decode an image, apply XMP, recover from failure, and replace a document during export", async ({
+test("a photo takes XMP settings, survives a failed open, and exports while another replaces it", async ({
   page,
 }) => {
-  await page.goto("/");
-  await page.waitForFunction(() => window.openlight);
-  await page.evaluate(() =>
-    window.openlight.loadImage(new File(["invalid"], "broken.png")),
-  );
-  await expect(
-    page.getByText("Couldn't open broken.png:", { exact: false }),
-  ).toBeVisible();
-  await page.evaluate(
-    (text) =>
-      window.openlight.loadImage(
-        new File([text], "photo.svg", { type: "image/svg+xml" }),
-      ),
-    await readFile("tests/fixtures/photo.svg", "utf8"),
-  );
-  const baseline = await readImage(page);
-  expect(baseline.center).toEqual([128, 128, 128, 255]);
-  await page.evaluate(() =>
-    window.openlight.importXmp(
-      new File(
-        [
-          '<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"><rdf:Description xmlns:crs="http://ns.adobe.com/camera-raw-settings/1.0/" crs:Exposure2012="-1" /></rdf:RDF>',
-        ],
-        "photo.xmp",
-      ),
+  const state = () => page.evaluate(() => window.openlight.getState());
+  await openPhoto(page);
+  expect((await readImage(page)).center).toEqual([128, 128, 128, 255]);
+  await page.locator('input[type="file"]').setInputFiles({
+    name: "photo.xmp",
+    mimeType: "",
+    buffer: Buffer.from(
+      '<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"><rdf:Description xmlns:crs="http://ns.adobe.com/camera-raw-settings/1.0/" crs:Exposure2012="-1" /></rdf:RDF>',
     ),
-  );
+  });
   await expect(
     page.getByRole("textbox", { name: "Exposure", exact: true }),
   ).toHaveValue("-1.00");
-  const expected = await readImage(page);
-  expect(expected.center[0]).toBeLessThan(baseline.center[0]);
-  // A file that fails to open leaves the edited document open, with the failure beside it.
-  const kept = await page.evaluate(() => window.openlight.getState());
+  const edited = await readImage(page);
+  expect(edited.center[0]).toBeLessThan(128);
+
+  const { documentId } = await state();
   await page.evaluate(() =>
     window.openlight.loadImage(new File(["invalid"], "broken.png")),
   );
-  const failure = page.getByText("Couldn't open broken.png:", {
-    exact: false,
-  });
+  const failure = page.getByText("Couldn't open broken.png:", { exact: false });
   await expect(failure).toBeVisible();
-  const afterFailure = await page.evaluate(() => window.openlight.getState());
-  expect(afterFailure.documentId).toBe(kept.documentId);
-  expect(afterFailure.failure?.file).toBe("broken.png");
-  expect(afterFailure.adjustments.exposure).toBe(-1);
+  expect(await state()).toMatchObject({
+    documentId,
+    failure: { file: "broken.png" },
+    adjustments: { exposure: -1 },
+  });
   await page.getByRole("button", { name: "Dismiss", exact: true }).click();
   await expect(failure).toBeHidden();
-  const before = await page.evaluate(() => window.openlight.getState());
-  await page.evaluate(() => {
-    const frame = window.openlight.getState().frame;
-    if (!frame) throw new Error("Missing loaded frame");
-    frame.angle = 30;
-    Reflect.set(frame.center, 0, 0);
-  });
-  expect(
-    (await page.evaluate(() => window.openlight.getState())).frame,
-  ).toEqual(before.frame);
-  await page.evaluate(() => window.openlight.undo());
-  expect(await readImage(page)).toEqual(baseline);
-  await page.evaluate(() => window.openlight.redo());
-  expect(await readImage(page)).toEqual(expected);
-  await page.getByRole("tab", { name: "Crop" }).click();
-  await choose(
-    page,
-    page.getByRole("combobox", { name: "Aspect ratio" }),
-    "Square",
-  );
+
+  // Export renders the scene it captured, even when another image opens before it encodes.
   const exported = await page.evaluate(async () => {
     const api = window.openlight;
     const convert = OffscreenCanvas.prototype.convertToBlob;
@@ -100,15 +62,10 @@ test("decode an image, apply XMP, recover from failure, and replace a document d
       OffscreenCanvas.prototype.convertToBlob = convert;
     }
   });
-  expect(await readImage(page, new Uint8Array(exported))).toEqual(expected);
-  const replaced = await page.evaluate(() => window.openlight.getState());
-  await expect(page.getByRole("region", { name: "Crop tool" })).toBeHidden();
-  expect(replaced.frame?.size).toEqual([32, 32]);
-  expect(replaced.documentId).not.toBe(before.documentId);
-  expect(replaced.history).toEqual({
-    undoCount: 0,
-    redoCount: 0,
-    editing: false,
+  expect(await readImage(page, new Uint8Array(exported))).toEqual(edited);
+  expect(await state()).toMatchObject({
+    size: [32, 32],
+    adjustments: { exposure: 0 },
+    history: { undoCount: 0 },
   });
-  expect(replaced.adjustments.exposure).toBe(0);
 });

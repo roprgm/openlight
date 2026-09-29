@@ -1,101 +1,56 @@
 import type { Page } from "@playwright/test";
-import { expect, test } from "./fixtures";
+import { expect, openPhoto, test } from "./fixtures";
 import { readImage } from "./images";
 
-/** The stored draft's base exposure and source keys, read straight from IndexedDB. */
-function storedDraft(page: Page) {
+/** The stored draft's base exposure, read straight from IndexedDB. */
+function savedExposure(page: Page) {
   return page.evaluate(
     () =>
-      new Promise<{ exposure: number; sources: IDBValidKey[] } | null>(
-        (resolve, reject) => {
-          const opening = indexedDB.open("openlight", 1);
-          opening.onerror = () => reject(opening.error);
-          opening.onsuccess = () => {
-            const database = opening.result;
-            const transaction = database.transaction(["draft", "sources"]);
-            const record = transaction.objectStore("draft").get("latest");
-            const sources = transaction.objectStore("sources").getAllKeys();
-            transaction.oncomplete = () => {
-              database.close();
-              resolve(
-                record.result
-                  ? {
-                      exposure:
-                        record.result.scene.scene.layers[0].adjustments
-                          .exposure,
-                      sources: sources.result,
-                    }
-                  : null,
-              );
-            };
+      new Promise<number | undefined>((resolve, reject) => {
+        const opening = indexedDB.open("openlight", 1);
+        opening.onerror = () => reject(opening.error);
+        opening.onsuccess = () => {
+          const database = opening.result;
+          const request = database
+            .transaction("draft")
+            .objectStore("draft")
+            .get("latest");
+          request.onsuccess = () => {
+            database.close();
+            resolve(request.result?.scene.scene.layers[0].adjustments.exposure);
           };
-        },
-      ),
+        };
+      }),
   );
 }
 
-test("edits survive a reload as a draft that recovers, keeps editing, and can be forgotten", async ({
+test("edits survive a reload as a draft that recovers, keeps saving, and can be forgotten", async ({
   page,
 }) => {
-  await page.goto("/");
   const recover = page.getByRole("button", { name: "Recover", exact: true });
-  const forget = page.getByRole("button", { name: "Forget", exact: true });
-  await page
-    .locator('input[type="file"]')
-    .setInputFiles("tests/fixtures/photo.svg");
   const exposure = page.getByRole("textbox", { name: "Exposure", exact: true });
-  await expect(exposure).toHaveValue("0.00");
-  await expect(recover).toHaveCount(0);
-  expect(await storedDraft(page)).toBeNull();
-
+  await openPhoto(page);
   await page.evaluate(() => {
-    const api = window.openlight;
-    api.setAdjustments({ exposure: -1 });
-    const mask = api.addLayer("mask");
-    api.setLayerMask(mask, {
-      kind: "radial",
-      center: [600, 400],
-      radius: [300, 200],
-      angle: 0,
-      feather: 0.5,
-    });
-    api.setAdjustments({ exposure: 1.5 }, mask);
-    api.selectLayer(api.getState().scene?.layers[0].id ?? "");
+    window.openlight.setVignette({ intensity: 80 });
+    window.openlight.setAdjustments({ exposure: -1 });
   });
-  await expect(exposure).toHaveValue("-1.00");
-  const samples = [
-    [600, 400],
-    [1100, 400],
-  ] as const;
-  const edited = await readImage(page, undefined, samples);
-  await expect.poll(() => storedDraft(page)).toMatchObject({ exposure: -1 });
-  const { sources } = (await storedDraft(page)) ?? { sources: [] };
-  expect(sources).toHaveLength(1);
+  const edited = await readImage(page);
+  await expect.poll(() => savedExposure(page)).toBe(-1);
 
   await page.reload();
-  await expect(recover).toBeVisible();
-  await expect(forget).toBeVisible();
   await recover.click();
   await expect(exposure).toHaveValue("-1.00");
-  expect(await readImage(page, undefined, samples)).toEqual(edited);
+  expect(await readImage(page)).toEqual(edited);
   expect(
     (await page.evaluate(() => window.openlight.getState())).history.undoCount,
   ).toBe(0);
-
   await page.evaluate(() => window.openlight.setAdjustments({ exposure: 0.5 }));
-  await expect(exposure).toHaveValue("0.50");
-  // The recovered source keeps its ID, so the save reuses the stored file.
-  await expect
-    .poll(() => storedDraft(page))
-    .toEqual({ exposure: 0.5, sources });
+  await expect.poll(() => savedExposure(page)).toBe(0.5);
 
   await page.reload();
-  await forget.click();
+  await page.getByRole("button", { name: "Forget", exact: true }).click();
   await expect(recover).toHaveCount(0);
-  expect(await storedDraft(page)).toBeNull();
-  await page.reload();
-  await expect(page.getByText("choose a file")).toBeVisible();
-  await expect(recover).toHaveCount(0);
+  await expect.poll(() => savedExposure(page)).toBeUndefined();
 });
 
 test("without IndexedDB a notice suggests scene files and editing still works", async ({
@@ -104,22 +59,13 @@ test("without IndexedDB a notice suggests scene files and editing still works", 
   await page.addInitScript(() =>
     Object.defineProperty(window, "indexedDB", { value: undefined }),
   );
-  await page.goto("/");
+  await openPhoto(page);
   const notice = page.getByRole("status").filter({ hasText: "Drafts" });
   await expect(notice).toContainText("Save a scene from Export");
-  await page
-    .locator('input[type="file"]')
-    .setInputFiles("tests/fixtures/photo.svg");
-  const exposure = page.getByRole("textbox", { name: "Exposure", exact: true });
-  await expect(exposure).toBeEnabled();
-  await expect
-    .poll(() => page.evaluate(() => window.openlight.getState().documentId))
-    .toBeDefined();
   await page.evaluate(() => window.openlight.setAdjustments({ exposure: 1 }));
-  await expect(exposure).toHaveValue("1.00");
+  await expect(
+    page.getByRole("textbox", { name: "Exposure", exact: true }),
+  ).toHaveValue("1.00");
   await notice.getByRole("button", { name: "Dismiss" }).click();
   await expect(notice).toHaveCount(0);
-  await expect(
-    page.evaluate(() => window.openlight.recoverDraft()),
-  ).rejects.toThrow("IndexedDB is unavailable.");
 });

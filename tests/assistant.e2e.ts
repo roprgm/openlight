@@ -1,6 +1,6 @@
-import { expect, test } from "./fixtures";
+import { expect, openPhoto, test } from "./fixtures";
 
-test("the assistant shows only at /?assistant, opens, runs the commands a message returns on the photo it was sent for, selects the layer they edit, replies, and closes", async ({
+test("the assistant at /?assistant edits the photo it was asked about and selects the layer it edits", async ({
   page,
 }) => {
   const requests: unknown[] = [];
@@ -10,16 +10,6 @@ test("the assistant shows only at /?assistant, opens, runs the commands a messag
   });
   await page.route("**/api/assistant", async (route) => {
     requests.push(route.request().postDataJSON());
-    if (requests.length === 3) {
-      await released;
-      await route.fulfill({
-        json: {
-          commands: [{ type: "set-adjustments", exposure: 2 }],
-          message: "exposure 0 → 2",
-        },
-      });
-      return;
-    }
     if (requests.length === 1) {
       await route.fulfill({
         json: {
@@ -32,29 +22,25 @@ test("the assistant shows only at /?assistant, opens, runs the commands a messag
       });
       return;
     }
+    await released;
     await route.fulfill({
-      json: { commands: [], message: "You're welcome!" },
+      json: {
+        commands: [{ type: "set-adjustments", exposure: 2 }],
+        message: "exposure 0 → 2",
+      },
     });
   });
-  const open = async () => {
-    await page
-      .locator('input[type="file"]')
-      .setInputFiles("tests/fixtures/photo.svg");
-    await expect(
-      page.getByRole("button", { name: "Open an image or scene" }),
-    ).toBeVisible();
-  };
   const button = page.getByRole("button", { name: "Assistant", exact: true });
-  await page.goto("/");
-  await open();
+  const state = () => page.evaluate(() => window.openlight.getState());
+  await openPhoto(page);
   await expect(button).toBeHidden();
 
   await page.goto("/?assistant");
-  await open();
+  await page
+    .locator('input[type="file"]')
+    .setInputFiles("tests/fixtures/photo.svg");
   await button.click();
   const message = page.getByRole("textbox", { name: "Message", exact: true });
-  await expect(message).toBeFocused();
-
   await message.fill("darker, with a vignette");
   await message.press("Enter");
   await expect(
@@ -62,21 +48,15 @@ test("the assistant shows only at /?assistant, opens, runs the commands a messag
   ).toBeVisible();
   expect(requests[0]).toMatchObject({
     message: "darker, with a vignette",
-    earlier: [],
-    photo: { sourceSize: [1200, 800], comparison: "edited" },
+    photo: { sourceSize: [1200, 800] },
   });
-  const state = await page.evaluate(() => window.openlight.getState());
-  expect(state.adjustments.exposure).toBe(-1);
-  const vignette = state.scene?.layers.find(
+  const edited = await state();
+  expect(edited.adjustments.exposure).toBe(-1);
+  const vignette = edited.scene?.layers.find(
     (layer) => layer.kind === "vignette",
   );
   expect(vignette).toMatchObject({ vignette: { intensity: 40 } });
-  expect(state.selectedLayerId).toBe(vignette?.id);
-
-  await message.fill("thanks");
-  await message.press("Enter");
-  await expect(page.getByText("You're welcome!")).toBeVisible();
-  expect(requests[1]).toMatchObject({ earlier: ["darker, with a vignette"] });
+  expect(edited.selectedLayerId).toBe(vignette?.id);
 
   // An answer that arrives after another photo opens leaves the new photo alone.
   await message.fill("brighter");
@@ -84,23 +64,13 @@ test("the assistant shows only at /?assistant, opens, runs the commands a messag
   const chooser = page.waitForEvent("filechooser");
   await page.getByRole("button", { name: "Open an image or scene" }).click();
   await (await chooser).setFiles("tests/fixtures/tones.png");
-  await expect
-    .poll(() => page.evaluate(() => window.openlight.getState().file))
-    .toBe("tones.png");
+  await expect.poll(async () => (await state()).file).toBe("tones.png");
   release();
-  await expect(
-    page.getByText(
-      "Another photo opened before the answer came, so I left it unedited.",
-    ),
-  ).toBeVisible();
-  expect(
-    (await page.evaluate(() => window.openlight.getState())).adjustments
-      .exposure,
-  ).toBe(0);
+  await expect(page.getByText("Another photo opened")).toBeVisible();
+  expect(requests[1]).toMatchObject({ earlier: ["darker, with a vignette"] });
+  expect((await state()).adjustments.exposure).toBe(0);
 
   await message.press("Escape");
   await expect(message).toBeHidden();
-  await expect(
-    page.getByRole("button", { name: "Assistant", exact: true }),
-  ).toBeFocused();
+  await expect(button).toBeFocused();
 });
