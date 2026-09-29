@@ -50,4 +50,4 @@ OpenLight uses a small set of shared UI primitives so the editor reads as one ap
 - Use `TextLink` for an underlined link inside running text. It renders an anchor with `href` and a button otherwise; the `muted` variant stays in the sentence's color for secondary actions such as Forget.
 - Use `ScrubInput` for numbers that read as inline text, drag sideways, and accept typing. It hugs its digits and unit and shows a subtly rounded background only while text editing is active.
 - Give toolbar slider values an explicit minimum character width (`valueWidth`) when their expected range changes digit count. It counts digits, with the unit after them: percentages reserve three tabular characters, while brush size uses the actual maximum's digit count. Do not guess a global maximum.
-- Text uses the global body size. Express hierarchy with weight and color.
+- Text uses the global body size. Express hierarchy with weight and color. The About page is the exception: it is read, not operated, so its text is a step larger.
