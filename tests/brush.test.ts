@@ -6,7 +6,6 @@ import type { BrushStroke } from "@/core/document";
 import { createDocument, createResources, findLayer } from "@/core/document";
 import { createImageSource } from "@/core/image";
 import { imageFrame } from "@/core/image/frame";
-import { paintedRegion } from "@/core/renderer/mask";
 import { strokeDabs } from "@/core/renderer/mask/dabs";
 import { setAdjustments } from "@/features/adjustments/edits";
 import {
@@ -43,74 +42,6 @@ test("dabs follow the stroke at a quarter diameter with interpolated pressure", 
   expect(line[10][0]).toBeCloseTo(30);
   expect(line[10][3]).toBeCloseTo(0);
   expect(strokeDabs({ ...stroke, points: [] })).toEqual([]);
-});
-
-test("a brush raster covers the tiles its paint strokes reach", () => {
-  const size = [1024, 768] as const;
-  expect(paintedRegion([], size)).toBeUndefined();
-  expect(paintedRegion([{ ...stroke, mode: "erase" }], size)).toBeUndefined();
-  expect(
-    paintedRegion([{ ...stroke, points: [[-100, -100, 1]] }], size),
-  ).toBeUndefined();
-  expect(paintedRegion([{ ...stroke, points: [[600, 500, 1]] }], size)).toEqual(
-    { origin: [512, 256], size: [256, 256] },
-  );
-  // A dab's reach across a tile edge takes the next tile, clipped to the source.
-  expect(
-    paintedRegion(
-      [
-        {
-          ...stroke,
-          points: [
-            [254, 500, 1],
-            [1000, 700, 1],
-          ],
-        },
-      ],
-      size,
-    ),
-  ).toEqual({ origin: [0, 256], size: [1024, 512] });
-});
-
-test("a brush raster grows with its stroke, keeps what it stamped, and shrinks on undo", async () => {
-  const gpu = await init();
-  const source = createImageSource(
-    target(gpu, { size: [1024, 768], format: "rgba16float" }),
-  );
-  const resources = createResources();
-  const sourceId = resources.add(new File([], "photo.png"), source);
-  const document = createDocument(
-    {
-      frame: imageFrame(source.image.size),
-      layers: [{ ...createImageLayer(sourceId, "Photo"), id: "base" }],
-    },
-    resources,
-  );
-  const renderer = createEditorRenderer(gpu, source);
-  const render = () => renderer.update(document.scene.getState());
-  try {
-    const mask = addLayer(document, createMask({ kind: "brush", strokes: [] }));
-    setAdjustments(document, { exposure: 1 }, mask);
-    paintStroke(document, mask, { ...stroke, points: [[600, 500, 1]] });
-    await render();
-    expect(renderer.coverage(mask)?.origin).toEqual([512, 256]);
-    expect(renderer.coverage(mask)?.target.size).toEqual([256, 256]);
-    expect(renderer.inspect().stamped).toBe(1);
-    document.history.begin();
-    extendStroke(document, mask, [[900, 500, 1]]);
-    await render();
-    // The raster moves onto the wider region with its content; only the new dabs stamp.
-    expect(renderer.coverage(mask)?.target.size).toEqual([512, 256]);
-    expect(renderer.inspect().stamped).toBe(1 + 150);
-    document.history.commit();
-    document.history.undo();
-    await render();
-    expect(renderer.coverage(mask)?.target.size).toEqual([256, 256]);
-  } finally {
-    renderer.dispose();
-    document.dispose();
-    gpu.dispose();
-  }
 });
 
 test("brush strokes stamp incrementally, replay after undo, and render a proxy during gestures", async () => {
@@ -152,7 +83,7 @@ test("brush strokes stamp incrementally, replay after undo, and render a proxy d
       stamped: 1,
       rasters: [{ id: mask, size: [64, 32] }],
     });
-    expect(renderer.coverage(mask)?.target.size).toEqual([64, 32]);
+    expect(renderer.coverage(mask)?.size).toEqual([64, 32]);
     // A 20 px extension adds ten dabs; earlier ones are not stamped again.
     extendStroke(document, mask, [[30, 10, 1]]);
     await render(true);
@@ -220,7 +151,7 @@ test("brush strokes stamp incrementally, replay after undo, and render a proxy d
       child,
       `${gradient}/group`,
     ]);
-    expect(renderer.coverage(child)?.target.size).toEqual([64, 32]);
+    expect(renderer.coverage(child)?.size).toEqual([64, 32]);
     // Erasing inside the child stamps its own raster only, and the group recombines.
     const stampedBefore = renderer.inspect().stamped;
     paintStroke(document, child, { ...stroke, mode: "erase" });

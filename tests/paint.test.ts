@@ -12,6 +12,7 @@ import { createImageSource } from "@/core/image";
 import { imageFrame } from "@/core/image/frame";
 import {
   addLayer,
+  deleteLayer,
   duplicateLayer,
   maxBrushLayers,
   setLayer,
@@ -48,7 +49,7 @@ async function open() {
   return { gpu, source, document };
 }
 
-test("paint layers stamp colored strokes into a bounded raster and blend them over the image", async () => {
+test("a paint layer stamps colored strokes into one raster the size of the photo, kept until the layer goes", async () => {
   const { gpu, source, document } = await open();
   const renderer = createEditorRenderer(gpu, source);
   const render = () => renderer.update(document.scene.getState());
@@ -65,7 +66,7 @@ test("paint layers stamp colored strokes into a bounded raster and blend them ov
     expect(renderer.inspect()).toMatchObject({
       passes: [`layer/${paint}/paint`],
       stamped: 1 + 20,
-      rasters: [{ id: paint, size: [256, 256], format: "rgba8unorm" }],
+      rasters: [{ id: paint, size: [1024, 768], format: "rgba8unorm" }],
     });
     const scene = document.scene.getState();
     const layer = scene.layers[1];
@@ -82,6 +83,22 @@ test("paint layers stamp colored strokes into a bounded raster and blend them ov
     await render();
     expect(renderer.inspect()).toMatchObject({ passes: [], stamped: 21 });
     expect(renderer.inspect().rasters).toHaveLength(1);
+    // Undoing every stroke clears the raster rather than freeing it, and painting again reuses it.
+    const raster = renderer.coverage(paint);
+    document.history.undo();
+    document.history.undo();
+    document.history.undo();
+    await render();
+    expect(renderer.inspect()).toMatchObject({ passes: [] });
+    expect(renderer.coverage(paint)).toBe(raster);
+    addPaintStroke(document, paint, stroke);
+    await render();
+    expect(renderer.inspect().passes).toEqual([`layer/${paint}/paint`]);
+    expect(renderer.coverage(paint)).toBe(raster);
+    // Deleting the layer frees it.
+    deleteLayer(document, paint);
+    await render();
+    expect(renderer.inspect().rasters).toEqual([]);
   } finally {
     renderer.dispose();
     document.dispose();

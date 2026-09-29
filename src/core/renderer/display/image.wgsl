@@ -1,7 +1,6 @@
 import { View, imagePoint, previewColor, background, maskTint } from "./display.wgsl";
 import { Transform, sourcePoint } from "../transform/transform.wgsl";
 import { gradientCoverage } from "../blend/coverage.wgsl";
-import { sampleRegion } from "../mask/region.wgsl";
 
 struct MaskOverlay {
   kind: u32,
@@ -13,8 +12,6 @@ struct MaskOverlay {
   sourceSize: vec2f,
   // The layer's opacity scales coverage in the mix pass, so the tint follows it.
   opacity: f32,
-  // Where a rasterized mask starts, in source pixels.
-  origin: vec2f,
 }
 
 @group(0) @binding(0) var<uniform> view: View;
@@ -30,10 +27,11 @@ struct MaskOverlay {
 
 // The same coverage the mix pass applies: kind 3 reads a rasterized mask, the rest evaluate gradients in source pixels.
 fn overlayCoverage(uv: vec2f) -> f32 {
-  let position = sourcePoint(maskTransform, uv) * overlay.sourceSize;
+  let point = sourcePoint(maskTransform, uv);
   if (overlay.kind == 3u) {
-    return sampleRegion(coverage, sourceSampler, position, overlay.origin).r * overlay.opacity;
+    return textureSampleLevel(coverage, sourceSampler, point, 0.0).r * overlay.opacity;
   }
+  let position = point * overlay.sourceSize;
   var coverage = gradientCoverage(position, overlay.first, overlay.second, overlay.kind, overlay.feather, overlay.angle);
   for (var i = 0u; i < overlay.modifierCount; i++) {
     let points = modifiers[i * 2u];

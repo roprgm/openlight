@@ -405,7 +405,7 @@ export async function benchmarkRendering(
           sum + size[0] * size[1] * (format === "rgba32float" ? 16 : 8),
         0,
       ),
-      // Brush rasters are r8unorm, and paint rgba8unorm, at source resolution over the tiles their strokes reach, outside the graph.
+      // Brush rasters are r8unorm, and paint rgba8unorm, at source resolution, outside the graph.
       rasterBytes: storage.rasters.reduce(
         (sum, { size, format }) =>
           sum + size[0] * size[1] * (format === "rgba8unorm" ? 4 : 1),

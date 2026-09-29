@@ -2,12 +2,11 @@ import { type ReactNode, useEffect, useRef, useState } from "react";
 import { useGpu } from "vgpu-react";
 import { type CoverageRegion, renderCoverage } from "@/core/renderer";
 import { useRenderer } from "./pipeline";
-import { useDocument, useScene } from "./session";
+import { useDocument } from "./session";
 
 /**
  * The renderer's coverage raster for one id, drawn into a small canvas after each committed change.
- * `version` is the scene content the raster follows; a change redraws once its gesture ends. It shows
- * `region` of the source, the whole source by default.
+ * `version` is the scene content the raster follows; a change redraws once its gesture ends.
  * Without a raster, such as a mask that paints nothing yet, the fallback shows instead.
  */
 export function CoverageThumbnail({
@@ -26,8 +25,6 @@ export function CoverageThumbnail({
   const gpu = useGpu();
   const document = useDocument();
   const renderer = useRenderer();
-  const source = useScene((scene) => scene.layers[0].source);
-  const [width, height] = document.resources.get(source).image.size;
   const canvas = useRef<HTMLCanvasElement>(null);
   const [raster, setRaster] = useState(false);
   const [ready, setReady] = useState<unknown>();
@@ -51,12 +48,7 @@ export function CoverageThumbnail({
     const coverage = ready !== undefined && renderer.coverage(id);
     if (!coverage) return;
     let active = true;
-    renderCoverage(
-      gpu,
-      coverage,
-      [64, 64],
-      region ?? { origin: [0, 0], extent: [width, height] },
-    )
+    renderCoverage(gpu, coverage, [64, 64], region)
       .then((bitmap) => {
         const context = canvas.current?.getContext("2d");
         if (active && context) context.drawImage(bitmap, 0, 0);
@@ -66,7 +58,7 @@ export function CoverageThumbnail({
     return () => {
       active = false;
     };
-  }, [gpu, renderer, id, ready, region, width, height]);
+  }, [gpu, renderer, id, ready, region]);
   if (!raster) return fallback;
   return (
     <canvas

@@ -78,6 +78,6 @@ Dependencies point downward. Features do not import each other; `app/` connects 
 - Layers process in stack order; the image layer's adjustments and tone curve run last, on the composite.
 - Preserve HDR headroom through exposure, curves, and vibrance. Exposure clips negatives and applies one luminance gain to all channels.
 - The adjustment shader's parameters use UI units; its fitted constants are calibration data.
-- Strokes are scene content; the renderer caches their rasterized coverage, or a Paint layer's premultiplied 8-bit color, over the tiles they reach and stamps only appended dabs. A photo holds up to 10 brush layers, since each may keep a raster as large as the source.
+- Strokes are scene content; the renderer caches their rasterized coverage, or a Paint layer's premultiplied 8-bit color, at source size and stamps only appended dabs. A Paint layer's raster comes with its first stroke and stays, cleared if need be, until the layer goes, so painting and undoing allocate nothing. A photo holds up to 10 brush layers, since each may keep a raster as large as the source.
 - Open history groups render a reduced proxy. Every render image carries `scale`, its source pixels per texel; shaders that take document coordinates or radii apply it.
 - TIFF and camera RAW decode through `raw-webgpu`; OpenLight adapts its resources to document ownership.
