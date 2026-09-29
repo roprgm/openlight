@@ -64,6 +64,8 @@ bun dev
 
 The shared controls, such as buttons, sliders, menus, and panels, come from [@roprgm/ui](https://ui.roprgm.com). See [AGENTS.md](AGENTS.md) for browser setup and checks, and [ARCHITECTURE.md](ARCHITECTURE.md) for how the code is organized. `window.openlight` exposes a scripting [API](API.md).
 
+Add `?stats` to the URL to see frames per second and every texture and buffer the GPU makes, frees, and keeps, with their memory; Reset counts a workflow from zero. It wraps WebGPU's own methods, so nothing else in the code reports to it.
+
 ## License
 
 [MIT](LICENSE)

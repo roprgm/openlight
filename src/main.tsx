@@ -5,8 +5,14 @@ import { Component, type ReactNode } from "react";
 import { createRoot } from "react-dom/client";
 import { GpuProvider } from "vgpu-react";
 import { App } from "@/app";
+import { GpuStats } from "@/components/gpu-stats";
 import { TextLink } from "@/components/ui/text-link";
+import { statsEnabled, trackGpu } from "@/lib/gpu-stats";
 import "./index.css";
+
+if (statsEnabled) {
+  trackGpu();
+}
 
 /** GPU initialization throws during render; without WebGPU the page would otherwise stay blank. */
 class GpuBoundary extends Component<
@@ -51,6 +57,7 @@ if (root) {
           </TooltipProvider>
         </GpuProvider>
       </GpuBoundary>
+      {statsEnabled && <GpuStats />}
       {/* Their scripts load from Vercel's CDN; development and tests stay offline. */}
       {import.meta.env.PROD && (
         <>
