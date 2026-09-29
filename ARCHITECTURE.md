@@ -77,6 +77,6 @@ Dependencies point downward. Features do not import each other; `app/` connects 
 - Layers process in stack order; the image layer's adjustments and tone curve run last, on the composite.
 - Preserve HDR headroom through exposure, curves, and vibrance. Exposure clips negatives and applies one luminance gain to all channels.
 - The adjustment shader's parameters use UI units; its fitted constants are calibration data.
-- Strokes are scene content; the renderer caches their rasterized coverage and stamps only appended dabs.
+- Strokes are scene content; the renderer caches their rasterized coverage over the tiles they reach and stamps only appended dabs.
 - Open history groups render a reduced proxy. Every render image carries `scale`, its source pixels per texel; shaders that take document coordinates or radii apply it.
 - TIFF and camera RAW decode through `raw-webgpu`; OpenLight adapts its resources to document ownership.

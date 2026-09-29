@@ -3,6 +3,8 @@ struct Params {
   extent: vec2f,
   dimensions: vec2f,
   offset: vec2f,
+  // Where the patch's coverage raster starts, in source pixels.
+  coverageOrigin: vec2f,
   grid: vec2f,
   mode: u32,
   feather: f32,
@@ -18,7 +20,8 @@ fn color(p: vec2f) -> vec4f {
   return textureSampleLevel(source, linearSampler, p / params.dimensions, 0.0);
 }
 fn mask(p: vec2f) -> f32 {
-  return textureSampleLevel(coverage, linearSampler, p / params.dimensions, 0.0).r;
+  let uv = (p - params.coverageOrigin) / vec2f(textureDimensions(coverage));
+  return textureSampleLevel(coverage, linearSampler, uv, 0.0).r;
 }
 fn difference(p: vec2f) -> vec3f {
   // A smooth log gain matches color without subtracting bright-boundary differences
@@ -37,10 +40,11 @@ fn patchCoverage(
   texture: texture_2d<f32>,
   textureSampler: sampler,
   p: vec2f,
-  dimensions: vec2f,
+  origin: vec2f,
   radius: f32,
 ) -> f32 {
-  let uv = p / dimensions;
+  let dimensions = vec2f(textureDimensions(texture));
+  let uv = (p - origin) / dimensions;
   let center = textureSampleLevel(texture, textureSampler, uv, 0.0).r;
   if (radius < 0.5) {
     return center;
@@ -67,7 +71,7 @@ fn patchCoverage(
     if (any(p < params.origin) || any(p > params.origin + params.extent)) {
       return original;
     }
-    let amount = patchCoverage(coverage, linearSampler, p, params.dimensions, params.feather) * params.opacity;
+    let amount = patchCoverage(coverage, linearSampler, p, params.coverageOrigin, params.feather) * params.opacity;
     let donor = p + params.offset;
     if (amount == 0.0 || any(donor < vec2f(0.5)) || any(donor > params.dimensions - 0.5)) {
       return original;

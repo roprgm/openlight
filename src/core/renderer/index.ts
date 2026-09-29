@@ -7,8 +7,8 @@ import {
 } from "@/core/document";
 import type { ImageSource, WhiteBalance } from "@/core/image";
 import { createRenderGraph } from "./graph";
-import { createMaskRaster } from "./mask";
-import { input, type RenderImage, type RenderInput } from "./node";
+import { createMaskRaster, type Raster } from "./mask";
+import { input, type RenderImage } from "./node";
 import { createProxy } from "./proxy";
 
 export { maskInput, mixAdjustment } from "./blend";
@@ -21,6 +21,7 @@ export {
   renderCoverage,
   type View,
 } from "./display";
+export type { Raster } from "./mask";
 export {
   input,
   merge,
@@ -43,8 +44,8 @@ export type Composition = {
   /** Keep one stable composition instance and its render-graph resources reusable. */
   retain: (id: string) => void;
   /** Rasterized coverage of a mask that paints with brushes, prepared before composition. */
-  coverage: (layer: MaskLayer) => RenderInput | undefined;
-  brush: (id: string, strokes: readonly BrushStroke[]) => RenderInput;
+  coverage: (layer: MaskLayer) => Raster | undefined;
+  brush: (id: string, strokes: readonly BrushStroke[]) => Raster | undefined;
 };
 
 /** App composition describes requested outputs; the engine owns their storage. */
@@ -111,7 +112,7 @@ export function createRenderer(
     const active = new Set<string>();
     const developed = raw?.render() ?? source;
     // Every mask updates once, bypassed or not, so a hidden mask keeps its cache; child masks only shape their parent's coverage.
-    const coverage = new Map<string, RenderInput | undefined>();
+    const coverage = new Map<string, Raster | undefined>();
     for (const { layer, parent } of walkLayers(scene.layers)) {
       if (layer.kind === "mask" && parent?.kind !== "mask") {
         coverage.set(layer.id, raster.update(layer, developed.size));
@@ -202,7 +203,7 @@ export function createRenderer(
     inputImage: (id: string) =>
       inspected?.id === id ? inspected.image : undefined,
     /** The rasterized coverage of a mask layer, for the display overlay. */
-    coverage: (id: string) => raster.get(id)?.target,
+    coverage: (id: string) => raster.get(id),
     /** Device pixels shown per source pixel; interactive renders reduce the source to about this density. */
     setDisplayScale(scale: number) {
       if (Number.isFinite(scale) && scale > 0) {

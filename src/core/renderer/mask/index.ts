@@ -14,28 +14,88 @@ import {
   maskModifiers,
 } from "@/core/document";
 import { gradientParams } from "@/core/renderer/blend";
-import { input, type RenderInput } from "@/core/renderer/node";
 import brushShader from "./brush.wgsl";
+import copyShader from "./copy.wgsl";
 import { type Dab, strokeDabs } from "./dabs";
 import gradientShader from "./gradient.wgsl";
 import strokeShader from "./strokes.wgsl";
 
 /** Dabs per pass: every fragment in the chunk's bounds loops over them. */
 const chunk = 64;
+/** Brush rasters grow in tiles of this many source pixels, so a stroke moves its raster only as it reaches a new tile. */
+const tile = 256;
 
 type Size = readonly [number, number];
-/** One brush's own coverage, stamped as its strokes grow. */
+/** A texture covering part of the source: its first texel sits at `origin`, in source pixels, and nothing lies outside it. */
+export type Raster = {
+  readonly target: Target;
+  readonly origin: readonly [number, number];
+};
+/** A region of the source in whole pixels. */
+type Region = { origin: [number, number]; size: [number, number] };
+/** One brush's own coverage over the region its strokes paint, stamped as they grow. */
 type Brush = {
   target: Target;
+  origin: [number, number];
   strokes: readonly BrushStroke[];
   /** Dabs already stamped from the last stroke. */
   dabs: number;
 };
-/** A mask's own coverage combined with the children that shape it. */
+/** A mask's own coverage combined with the children that shape it, over the whole source. */
 type Group = {
   target: Target;
   ops: readonly MaskModifier[];
 };
+
+/** The tiles that the paint strokes can reach within the source, or nothing when none reach it. */
+export function paintedRegion(
+  strokes: readonly BrushStroke[],
+  size: Size,
+): Region | undefined {
+  let left = Number.POSITIVE_INFINITY;
+  let top = Number.POSITIVE_INFINITY;
+  let right = Number.NEGATIVE_INFINITY;
+  let bottom = Number.NEGATIVE_INFINITY;
+  for (const stroke of strokes) {
+    if (stroke.mode !== "paint") {
+      continue;
+    }
+    // A pixel past the radius holds the antialiased edge.
+    const reach = stroke.size / 2 + 1;
+    for (const [x, y] of stroke.points) {
+      left = Math.min(left, x - reach);
+      top = Math.min(top, y - reach);
+      right = Math.max(right, x + reach);
+      bottom = Math.max(bottom, y + reach);
+    }
+  }
+  const x = Math.max(0, Math.floor(left / tile) * tile);
+  const y = Math.max(0, Math.floor(top / tile) * tile);
+  const width = Math.min(size[0], Math.ceil(right / tile) * tile) - x;
+  const height = Math.min(size[1], Math.ceil(bottom / tile) * tile) - y;
+  if (!(width > 0 && height > 0)) {
+    return undefined;
+  }
+  return { origin: [x, y], size: [width, height] };
+}
+
+function sameRegion(brush: Brush, region: Region) {
+  return (
+    brush.origin[0] === region.origin[0] &&
+    brush.origin[1] === region.origin[1] &&
+    brush.target.size[0] === region.size[0] &&
+    brush.target.size[1] === region.size[1]
+  );
+}
+
+function contains(outer: Region, brush: Brush) {
+  return (
+    brush.origin[0] >= outer.origin[0] &&
+    brush.origin[1] >= outer.origin[1] &&
+    brush.origin[0] + brush.target.size[0] <= outer.origin[0] + outer.size[0] &&
+    brush.origin[1] + brush.target.size[1] <= outer.origin[1] + outer.size[1]
+  );
+}
 
 /** A mask's own coverage followed by the children that shape it, in stored order. */
 function maskOps(layer: MaskLayer): readonly MaskModifier[] {
@@ -45,9 +105,12 @@ function maskOps(layer: MaskLayer): readonly MaskModifier[] {
   ];
 }
 
-/** Whether an op can cover pixels: a gradient always does, a brush once it has strokes. */
+/** Whether an op can cover pixels: a gradient always does, a brush once it paints a stroke. */
 function covers(op: MaskModifier) {
-  return op.mask.kind !== "brush" || op.mask.strokes.length > 0;
+  return (
+    op.mask.kind !== "brush" ||
+    op.mask.strokes.some((stroke) => stroke.mode === "paint")
+  );
 }
 
 function sameStroke(a: BrushStroke, b: BrushStroke) {
@@ -105,9 +168,10 @@ const subtract: BlendOptions = {
 
 /**
  * Rasterizes brush coverage into r8unorm textures at source resolution. Each brush owns the
- * coverage of its strokes, stamped incrementally as they grow and replayed when earlier content
- * changes; a mask shaped by children combines its own coverage with theirs in a second texture,
- * rebuilt whenever any of them changes. Strokes stay the document's truth; textures are caches.
+ * coverage of its strokes over the tiles they reach, stamped incrementally as they grow and
+ * replayed when earlier content changes; a mask shaped by children combines its own coverage with
+ * theirs in a second texture over the whole source, rebuilt whenever any of them changes. Strokes
+ * stay the document's truth; textures are caches.
  */
 export function createMaskRaster(gpu: Gpu) {
   const brushes = new Map<string, Brush>();
@@ -123,6 +187,7 @@ export function createMaskRaster(gpu: Gpu) {
   const gradientSubtract = effect(gpu, gradientShader, { blend: subtract });
   const brushAdd = effect(gpu, brushShader, { blend: add });
   const brushSubtract = effect(gpu, brushShader, { blend: subtract });
+  const copy = effect(gpu, copyShader);
   let stamped = 0;
 
   function clear(target: Target) {
@@ -130,11 +195,12 @@ export function createMaskRaster(gpu: Gpu) {
   }
 
   function stampDabs(
-    target: Target,
+    brush: Brush,
     dabList: readonly Dab[],
     feather: number,
     mode: BrushStroke["mode"],
   ) {
+    const { target, origin } = brush;
     const [width, height] = target.size;
     for (let start = 0; start < dabList.length; start += chunk) {
       const batch = dabList.slice(start, start + chunk);
@@ -143,12 +209,13 @@ export function createMaskRaster(gpu: Gpu) {
       let right = 0;
       let bottom = 0;
       const data = new Float32Array(batch.length * 4);
-      batch.forEach((dab, i) => {
-        data.set(dab, i * 4);
-        left = Math.min(left, dab[0] - dab[2]);
-        top = Math.min(top, dab[1] - dab[2]);
-        right = Math.max(right, dab[0] + dab[2]);
-        bottom = Math.max(bottom, dab[1] + dab[2]);
+      batch.forEach(([x, y, radius, alpha], i) => {
+        const local = [x - origin[0], y - origin[1], radius, alpha];
+        data.set(local, i * 4);
+        left = Math.min(left, local[0] - radius);
+        top = Math.min(top, local[1] - radius);
+        right = Math.max(right, local[0] + radius);
+        bottom = Math.max(bottom, local[1] + radius);
       });
       const x = Math.max(0, Math.floor(left) - 1);
       const y = Math.max(0, Math.floor(top) - 1);
@@ -170,7 +237,7 @@ export function createMaskRaster(gpu: Gpu) {
 
   /** Stamps strokes from `fromStroke` on, skipping `skipDabs` of that first one; returns the last stroke's dab count. */
   function stampStrokes(
-    target: Target,
+    brush: Brush,
     strokes: readonly BrushStroke[],
     fromStroke = 0,
     skipDabs = 0,
@@ -183,7 +250,7 @@ export function createMaskRaster(gpu: Gpu) {
       const all = strokeDabs(stroke);
       count = all.length;
       stampDabs(
-        target,
+        brush,
         i === fromStroke ? all.slice(skipDabs) : all,
         stroke.feather,
         stroke.mode,
@@ -192,54 +259,102 @@ export function createMaskRaster(gpu: Gpu) {
     return count;
   }
 
-  /** The entry for `id` at `size`, created or resized as needed, and marked as in use. */
-  function reserve<E extends Brush | Group>(
-    map: Map<string, E>,
-    id: string,
-    size: Size,
-    create: (target: Target) => E,
-  ) {
-    let entry = map.get(id);
+  /** A mask's combined coverage at `size`, created or resized as needed, and marked as in use. */
+  function reserveGroup(id: string, size: Size) {
+    let group = groups.get(id);
     if (
-      entry &&
-      (entry.target.size[0] !== size[0] || entry.target.size[1] !== size[1])
+      group &&
+      (group.target.size[0] !== size[0] || group.target.size[1] !== size[1])
     ) {
-      entry.target.color.dispose();
-      entry = undefined;
+      group.target.color.dispose();
+      group = undefined;
     }
-    if (!entry) {
-      entry = create(target(gpu, { size: [...size], format: "r8unorm" }));
-      map.set(id, entry);
+    if (!group) {
+      group = {
+        target: target(gpu, { size: [...size], format: "r8unorm" }),
+        ops: [],
+      };
+      groups.set(id, group);
     }
-    used.add(entry);
-    return entry;
+    used.add(group);
+    return group;
   }
 
-  /** Brings one brush's coverage up to date: appended points stamp, any other change replays every stroke. */
+  /** Moves a brush onto `region`, keeping what it has stamped when the region still holds it. */
+  function place(brush: Brush, region: Region, keep: boolean) {
+    const previous = brush.target;
+    brush.target = target(gpu, { size: region.size, format: "r8unorm" });
+    const offset = [
+      brush.origin[0] - region.origin[0],
+      brush.origin[1] - region.origin[1],
+    ] as const;
+    brush.origin = region.origin;
+    if (keep) {
+      const [width, height] = previous.size;
+      frame(gpu, (frame) =>
+        frame.pass(
+          { target: brush.target, scissor: [...offset, width, height] },
+          copy.set({ previous: previous.color, params: { offset } }),
+        ),
+      );
+    } else {
+      clear(brush.target);
+    }
+    previous.color.dispose();
+  }
+
+  /**
+   * Brings one brush's coverage up to date: appended points stamp, any other change replays every
+   * stroke. The raster follows the strokes' region, moving its content when it grows.
+   */
   function updateBrush(
     id: string,
     strokes: readonly BrushStroke[],
     size: Size,
-  ) {
-    const brush = reserve(brushes, id, size, (target) => ({
-      target,
-      strokes: [],
-      dabs: 0,
-    }));
+  ): Brush | undefined {
+    const region = paintedRegion(strokes, size);
+    let brush = brushes.get(id);
+    if (!region) {
+      brush?.target.color.dispose();
+      brushes.delete(id);
+      return undefined;
+    }
+    if (!brush) {
+      brush = {
+        target: target(gpu, { size: region.size, format: "r8unorm" }),
+        origin: region.origin,
+        strokes: [],
+        dabs: 0,
+      };
+      brushes.set(id, brush);
+    }
+    used.add(brush);
     const applied = brush.strokes;
-    if (applied === strokes) {
+    const extending =
+      applied.length > 0 &&
+      applied !== strokes &&
+      extendsStrokes(applied, strokes);
+    if (!sameRegion(brush, region)) {
+      const keep =
+        (applied === strokes || extending) && contains(region, brush);
+      place(brush, region, keep);
+      if (!keep) {
+        brush.strokes = [];
+      }
+    }
+    if (brush.strokes === strokes) {
       return brush;
     }
-    if (applied.length && extendsStrokes(applied, strokes)) {
+    if (brush.strokes.length && extending) {
       brush.dabs = stampStrokes(
-        brush.target,
+        brush,
         strokes,
-        applied.length - 1,
+        brush.strokes.length - 1,
         brush.dabs,
       );
     } else {
       clear(brush.target);
-      brush.dabs = stampStrokes(brush.target, strokes);
+      brush.dabs = stampStrokes(brush, strokes);
     }
     brush.strokes = strokes;
     return brush;
@@ -260,13 +375,13 @@ export function createMaskRaster(gpu: Gpu) {
     const pass = op.operation === "add" ? brushAdd : brushSubtract;
     return pass.set({
       coverage: brush.target.color,
-      params: { opacity: op.opacity },
+      params: { opacity: op.opacity, origin: brush.origin },
     });
   }
 
   /** Combines a mask's own coverage with its children's in stored order, once any of them changed. */
   function updateGroup(id: string, ops: readonly MaskModifier[], size: Size) {
-    const group = reserve(groups, id, size, (target) => ({ target, ops: [] }));
+    const group = reserveGroup(id, size);
     if (sameOps(group.ops, ops)) {
       return group;
     }
@@ -293,13 +408,21 @@ export function createMaskRaster(gpu: Gpu) {
     }
   }
 
+  function whole(group: Group): Raster {
+    return { target: group.target, origin: [0, 0] };
+  }
+
+  function region(brush: Brush | undefined): Raster | undefined {
+    return brush && { target: brush.target, origin: brush.origin };
+  }
+
   return {
-    /** Shares the incremental brush cache with effects that own individual strokes. */
+    /** Shares the incremental brush cache with effects that own individual strokes; nothing when they paint outside the source. */
     brush(id: string, strokes: readonly BrushStroke[], size: Size) {
-      return input(updateBrush(id, strokes, size).target);
+      return region(updateBrush(id, strokes, size));
     },
     /** Brings the layer's rasters up to date and returns the coverage its composition samples, if any. */
-    update(layer: MaskLayer, size: Size): RenderInput | undefined {
+    update(layer: MaskLayer, size: Size): Raster | undefined {
       const [own, ...children] = maskOps(layer);
       const active = children.filter(covers);
       const ops = [own, ...active];
@@ -311,23 +434,22 @@ export function createMaskRaster(gpu: Gpu) {
       if (own.mask.kind !== "brush") {
         // Gradient children combine in the mix pass; a painted brush child needs a raster.
         return active.some((op) => op.mask.kind === "brush")
-          ? input(updateGroup(layer.id, ops, size).target)
+          ? whole(updateGroup(layer.id, ops, size))
           : undefined;
       }
       if (active.length === 0) {
         // Nothing shapes the brush, so its own coverage is the mask's; without strokes the layer is bypassed.
-        const brush = covers(own) ? brushes.get(own.id) : undefined;
-        return brush && input(brush.target);
+        return covers(own) ? region(brushes.get(own.id)) : undefined;
       }
       if (!covers(own) && !active.some((op) => op.operation === "add")) {
         return undefined;
       }
-      return input(updateGroup(layer.id, ops, size).target);
+      return whole(updateGroup(layer.id, ops, size));
     },
     /** A mask's combined coverage, or a brush's own. */
-    get(id: string): RenderInput | undefined {
-      const raster = groups.get(id) ?? brushes.get(id);
-      return raster && input(raster.target);
+    get(id: string): Raster | undefined {
+      const group = groups.get(id);
+      return group ? whole(group) : region(brushes.get(id));
     },
     /** Releases the rasters that no update used since the previous sweep. */
     sweep() {

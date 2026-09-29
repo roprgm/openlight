@@ -21,6 +21,7 @@ import {
   gradientParams,
   modifierData,
 } from "@/core/renderer/blend";
+import type { Raster } from "@/core/renderer/mask";
 import { weakMemo } from "@/lib/weak-memo";
 import coverageShader from "./coverage.wgsl";
 import shader from "./image.wgsl";
@@ -33,7 +34,7 @@ export type MaskOverlay = {
   modifiers: readonly MaskModifier[];
   frame: ImageFrame;
   sourceSize: readonly number[];
-  coverage?: Target;
+  coverage?: Raster;
   /** The layer's opacity, which scales its coverage. */
   opacity?: number;
 };
@@ -103,7 +104,7 @@ export function createDisplay(gpu: Gpu) {
           overlay?.frame ?? geometry,
           overlay?.sourceSize ?? image.size,
         ),
-        coverage: (overlay?.coverage ?? blank).color,
+        coverage: (overlay?.coverage?.target ?? blank).color,
         overlay: {
           ...gradientParams(overlay?.mask),
           ...(overlay?.coverage ? { kind: 3 } : {}),
@@ -112,6 +113,7 @@ export function createDisplay(gpu: Gpu) {
             : 0,
           sourceSize: overlay?.sourceSize ?? image.size,
           opacity: overlay?.opacity ?? 1,
+          origin: overlay?.coverage?.origin ?? [0, 0],
         },
       }),
     );
@@ -131,12 +133,12 @@ const coveragePreview = weakMemo((gpu: Gpu) => effect(gpu, coverageShader));
 
 export type CoverageRegion = { origin: Point; extent: Point };
 
-/** Draws a coverage raster, or a region of it in raster pixels, as a gray preview of `size` and takes its pixels; no texture outlives the call. */
+/** Draws a region of a coverage raster, in source pixels, as a gray preview of `size` and takes its pixels; no texture outlives the call. */
 export async function renderCoverage(
   gpu: Gpu,
-  coverage: Target,
+  coverage: Raster,
   size: Point,
-  region: CoverageRegion = { origin: [0, 0], extent: coverage.size },
+  region: CoverageRegion,
 ) {
   const preview = coveragePreview(gpu);
   const canvas = new OffscreenCanvas(size[0], size[1]);
@@ -146,8 +148,15 @@ export async function renderCoverage(
       frame.pass(
         output,
         preview.set({
-          coverage: coverage.color,
-          params: { size, origin: region.origin, extent: region.extent },
+          coverage: coverage.target.color,
+          params: {
+            size,
+            origin: [
+              region.origin[0] - coverage.origin[0],
+              region.origin[1] - coverage.origin[1],
+            ],
+            extent: region.extent,
+          },
         }),
       ),
     );

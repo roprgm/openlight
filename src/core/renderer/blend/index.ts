@@ -1,10 +1,6 @@
 import type { Mask, MaskModifier } from "@/core/document";
-import {
-  merge,
-  node,
-  type RenderImage,
-  type RenderInput,
-} from "@/core/renderer/node";
+import type { Raster } from "@/core/renderer/mask";
+import { input, merge, node, type RenderImage } from "@/core/renderer/node";
 import shader from "./mix.wgsl";
 import rasterShader from "./raster.wgsl";
 
@@ -59,6 +55,15 @@ export function modifierData(modifiers: readonly MaskModifier[]) {
   return data;
 }
 
+function rasterParams(
+  coverage: Raster,
+  image: RenderImage,
+  opacity: number,
+  mode: number,
+) {
+  return { opacity, mode, origin: coverage.origin, scale: image.scale };
+}
+
 /**
  * Interpolates an adjustment result without changing image coverage or HDR headroom.
  * Rasterized coverage replaces the analytical gradients when a brush is involved.
@@ -70,7 +75,7 @@ export function mixAdjustment(
   opacity: number,
   mask?: Mask,
   modifiers: readonly MaskModifier[] = [],
-  coverage?: RenderInput,
+  coverage?: Raster,
 ) {
   if (original === edited || opacity === 0) {
     return original;
@@ -80,12 +85,12 @@ export function mixAdjustment(
   }
   if (coverage) {
     return merge(
-      { original, edited, coverage },
+      { original, edited, coverage: input(coverage.target) },
       node(`${name}/raster`, rasterShader, {
         samplers: {
           coverageSampler: { minFilter: "linear", magFilter: "linear" },
         },
-        set: { params: { opacity, mode: 0 } },
+        set: { params: rasterParams(coverage, original, opacity, 0) },
       }),
     );
   }
@@ -119,16 +124,16 @@ export function maskInput(
   image: RenderImage,
   mask: Mask,
   modifiers: readonly MaskModifier[] = [],
-  coverage?: RenderInput,
+  coverage?: Raster,
 ) {
   if (coverage) {
     return merge(
-      { original: image, edited: image, coverage },
+      { original: image, edited: image, coverage: input(coverage.target) },
       node(`${name}/raster-input`, rasterShader, {
         samplers: {
           coverageSampler: { minFilter: "linear", magFilter: "linear" },
         },
-        set: { params: { opacity: 1, mode: 1 } },
+        set: { params: rasterParams(coverage, image, 1, 1) },
       }),
     );
   }
