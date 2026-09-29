@@ -1,7 +1,11 @@
 import { z } from "zod/mini";
-import { type EditorDocument, editLayer } from "@/core/document";
+import {
+  type Adjustments,
+  type EditorDocument,
+  editLayer,
+} from "@/core/document";
 import type { WhiteBalance } from "@/core/image";
-import { parse, range } from "@/lib/parse";
+import { change, parse, range } from "@/lib/parse";
 
 export function whiteBalanceLimits(asShot: WhiteBalance) {
   return {
@@ -47,5 +51,32 @@ export function setWhiteBalance(
       throw Error("Select the image layer.");
     }
     return { ...layer, whiteBalance };
+  });
+}
+
+type Incremental = Pick<
+  Adjustments,
+  "incrementalTemperature" | "incrementalTint"
+>;
+
+/** The adjustments' temperature and tint, -100 to 100, which shift an image or mask's RGB. */
+const incrementalChange = change(
+  z.object({
+    incrementalTemperature: range(-100, 100),
+    incrementalTint: range(-100, 100),
+  }) satisfies z.ZodMiniType<Incremental>,
+);
+
+export function setIncrementalBalance(
+  document: EditorDocument,
+  id: string,
+  values: Partial<Incremental>,
+) {
+  const balance = parse(incrementalChange, values, "Invalid white balance");
+  editLayer(document, id, (layer) => {
+    if (layer.kind !== "image" && layer.kind !== "mask") {
+      throw Error("Select an image or a mask.");
+    }
+    return { ...layer, adjustments: { ...layer.adjustments, ...balance } };
   });
 }

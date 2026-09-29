@@ -12,6 +12,7 @@ Image processing runs on your own GPU with WebGPU. Photos never leave your devic
 **Adjust**
 
 - Exposure, contrast, highlights, shadows, whites, blacks, temperature, tint, vibrance, and saturation.
+- Auto white balance, which neutralizes the photo's color cast as a starting point for temperature and tint.
 - Tone curves with a live input histogram.
 - Clarity and sharpening.
 - Color Mixer with eight hue, saturation, and luminance ranges.

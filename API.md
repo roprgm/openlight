@@ -64,6 +64,8 @@ Create an empty Heal effect with `addLayer("heal")`.
 
 For RAW sources, `setWhiteBalance({ temperature, tint })` sets absolute Kelvin and DNG tint, preserving unspecified values. Temperature accepts 2000–25000 K and tint accepts -150–150, extending either range to include the file's As Shot value. `setWhiteBalance()` restores that value (the decoder's daylight fallback if camera multipliers are unavailable). Non-RAW sources and invalid values throw. Incremental temperature/tint remain separate RGB adjustments.
 
+`autoWhiteBalance()` neutralizes the photo's color cast as one edit and resolves once it is made. The GPU measures the cast of the source before any edit, as its edges' average color, so calling it again gives the same balance. A RAW photo's white balance moves from As Shot; any other photo's incremental temperature and tint are replaced. When another photo opens first, it resolves without an edit.
+
 Edits update the scene and history synchronously. Rendering may finish later, particularly RAW development. Tests should wait for visible results; `exportImage()` renders and waits for its captured scene independently of the preview.
 
 `setFrame(frame)` replaces the complete [ImageFrame](src/core/image/frame.ts) as an undoable edit. Geometry uses finite two-element coordinate pairs, positive dimensions, and nonzero scale. The frame is validated and copied; later changes to the supplied object do not affect the document.
