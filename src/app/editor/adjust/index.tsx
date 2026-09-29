@@ -37,7 +37,9 @@ import { FillControls } from "@/features/fill/controls";
 import { GrainControls, grainParameters } from "@/features/grain/controls";
 import { HealControls } from "@/features/heal/controls";
 import { Histogram } from "@/features/histogram";
+import { setLayer } from "@/features/layers/edits";
 import { OverlayToggle } from "@/features/layers/overlay-toggle";
+import { LutCurves } from "@/features/lut/curves";
 import { defaultCurve } from "@/features/tone-curves/curve";
 import { setToneCurve } from "@/features/tone-curves/edits";
 import { ToneCurves } from "@/features/tone-curves/tone-curves";
@@ -115,6 +117,22 @@ function exposureParameter(
   };
 }
 
+/** A LUT's strength is its layer's opacity. */
+function intensityParameter(
+  document: EditorDocument,
+  layer: Kind<"lut">,
+): Parameter {
+  return {
+    id: "intensity",
+    label: "Intensity",
+    value: layer.opacity * 100,
+    min: 0,
+    max: 100,
+    defaultValue: 100,
+    onChange: (value) => setLayer(document, layer.id, { opacity: value / 100 }),
+  };
+}
+
 function SelectedControls({ layer }: { layer: Layer }) {
   const document = useDocument();
   switch (layer.kind) {
@@ -142,8 +160,15 @@ function SelectedControls({ layer }: { layer: Layer }) {
       return <GrainControls id={layer.id} grain={layer.grain} />;
     case "fill":
       return <FillControls id={layer.id} fill={layer.fill} />;
-    case "lut":
-      return null;
+    case "lut": {
+      const { id, ...intensity } = intensityParameter(document, layer);
+      return (
+        <section className="flex flex-col gap-3.5 p-3.5">
+          <Slider {...intensity} />
+          <LutCurves lut={layer.lut} />
+        </section>
+      );
+    }
     case "heal":
       return <HealControls id={layer.id} patches={layer.patches} />;
     case "exposure": {
@@ -364,7 +389,12 @@ function SelectedDials({
         </DockControls>
       );
     case "lut":
-      return <DockControls header={<DockTitle layer={layer} />} />;
+      return (
+        <DockControls
+          header={<DockTitle layer={layer} />}
+          parameters={[intensityParameter(document, layer)]}
+        />
+      );
     case "heal":
       return (
         <DockControls header={<DockTitle layer={layer} />}>

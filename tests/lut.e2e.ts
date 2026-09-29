@@ -42,10 +42,24 @@ test("a LUT layer grades the photo from a .cube file at the layer's opacity, und
   });
   const swapped = await sample();
 
-  await test.step("the layer's opacity sets its strength", async () => {
-    const opacity = page.getByRole("textbox", { name: "Opacity", exact: true });
-    await opacity.fill("50");
-    await opacity.press("Enter");
+  await test.step("the panel's Intensity sets the layer's opacity", async () => {
+    await expect(
+      page.getByRole("textbox", { name: "Opacity", exact: true }),
+    ).toHaveCount(0);
+    const intensity = page.getByRole("textbox", {
+      name: "Intensity",
+      exact: true,
+    });
+    await intensity.fill("50");
+    await intensity.press("Enter");
+    await expect
+      .poll(() =>
+        page.evaluate(() => {
+          const layer = window.openlight.getState().scene?.layers.at(-1);
+          return layer?.kind === "lut" ? layer.opacity : undefined;
+        }),
+      )
+      .toBe(0.5);
     const [patch] = (await sample()) ?? [];
     expect(patch?.[0]).toBeGreaterThan(48);
     expect(patch?.[0]).toBeLessThan(128);
