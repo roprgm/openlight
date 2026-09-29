@@ -3,6 +3,7 @@ import {
   type BrushStroke,
   type MaskLayer,
   type PaintLayer,
+  paintingOf,
   type Scene,
   walkLayers,
 } from "@/core/document";
@@ -82,7 +83,7 @@ function sameBalance(a: WhiteBalance | undefined, b: WhiteBalance | undefined) {
 
 /**
  * Owns scene passes, mask and paint rasters, the proxy, and intermediate textures for one decoded
- * source. `paintPixels` gives the settled pixels a paint layer's `raster` names.
+ * source. `paintPixels` gives the settled pixels a paint layer's or brush mask's `raster` names.
  */
 export function createRenderer(
   gpu: Gpu,
@@ -96,9 +97,10 @@ export function createRenderer(
   const source = resource.image;
   const graph = createRenderGraph(gpu, timer);
   const strokes = createStrokes(gpu);
-  const masks = createMaskRaster(gpu, strokes);
+  const brushes = createPaintRaster(gpu, strokes, "r8unorm");
+  const masks = createMaskRaster(gpu, strokes, brushes);
   const patches = createPatchRaster(gpu, strokes);
-  const paints = createPaintRaster(gpu, strokes);
+  const paints = createPaintRaster(gpu, strokes, "rgba8unorm");
   const proxy = createProxy(gpu);
   const release = resource.retain();
   const raw = resource.raw?.createPass();
@@ -137,7 +139,7 @@ export function createRenderer(
         masks.update(layer, developed.size);
       }
       if (layer.kind === "paint") {
-        paints.draw(layer, developed.size);
+        paints.draw(layer.id, layer, developed.size);
       }
     }
     const image =
@@ -173,12 +175,18 @@ export function createRenderer(
       listener();
     }
   }
-  /** Paint layers whose rasters must load settled pixels before they draw. */
+  /** The raster of a paint layer's color or of a brush mask's coverage. */
+  function paintRaster(id: string) {
+    return paints.get(id) ? paints : brushes;
+  }
+  /** Paintings whose rasters must load settled pixels before they draw. */
   function stalePaint(scene: Scene) {
     const stale = [];
     for (const { layer } of walkLayers(scene.layers)) {
-      if (layer.kind === "paint" && paints.needsBase(layer)) {
-        stale.push(layer);
+      const painting = paintingOf(layer);
+      const rasters = layer.kind === "paint" ? paints : brushes;
+      if (painting && rasters.needsBase(layer.id, painting)) {
+        stale.push({ id: layer.id, raster: painting.raster, rasters });
       }
     }
     return stale;
@@ -204,9 +212,8 @@ export function createRenderer(
         balance = selected;
         version++;
       }
-      for (const layer of stalePaint(scene)) {
-        const pixels = paintPixels(layer.raster);
-        await paints.loadBase(layer.id, layer.raster, pixels, source.size);
+      for (const { id, raster, rasters } of stalePaint(scene)) {
+        await rasters.loadBase(id, raster, paintPixels(raster), source.size);
         if (disposed) {
           return;
         }
@@ -258,7 +265,7 @@ export function createRenderer(
      * thumbnails, a Healing patch's, or a paint layer's.
      */
     coverage(id: string): { target: Target; origin: Point } | undefined {
-      const target = masks.coverage(id)?.target ?? paints.raster(id);
+      const target = masks.coverage(id)?.target ?? paints.get(id);
       return target ? { target, origin: [0, 0] } : patches.raster(id);
     },
     /** Device pixels shown per source pixel; interactive renders reduce the source to about this density. */
@@ -295,7 +302,7 @@ export function createRenderer(
       while (pending || settling) {
         await (pending ?? settling);
       }
-      const read = paints.settle(id);
+      const read = paintRaster(id).settle(id);
       settling = read;
       try {
         return await read;

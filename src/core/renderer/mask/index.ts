@@ -7,30 +7,21 @@ import {
   target,
 } from "vgpu";
 import {
-  type BrushStroke,
+  type BrushMask,
+  hasPaint,
   type MaskLayer,
   type MaskModifier,
   maskModifiers,
 } from "@/core/document";
 import { gradientParams } from "@/core/renderer/blend";
 import { input, type RenderInput } from "@/core/renderer/node";
+import type { PaintRaster } from "@/core/renderer/paint";
 import { createRasterCache } from "@/core/renderer/raster-cache";
-import {
-  extendsStrokes,
-  type Rect,
-  type Strokes,
-} from "@/core/renderer/strokes";
+import type { Rect, Strokes } from "@/core/renderer/strokes";
 import brushShader from "./brush.wgsl";
 import gradientShader from "./gradient.wgsl";
 
 type Size = readonly [number, number];
-/** One brush's own coverage, stamped as its strokes grow. */
-type Brush = {
-  target: Target;
-  strokes: readonly BrushStroke[];
-  /** Dabs already stamped from the last stroke. */
-  dabs: number;
-};
 /** A mask's own coverage combined with the children that shape it. */
 type Group = {
   target: Target;
@@ -45,9 +36,9 @@ function maskOps(layer: MaskLayer): readonly MaskModifier[] {
   ];
 }
 
-/** Whether an op can cover pixels: a gradient always does, a brush once it has strokes. */
+/** Whether an op can cover pixels: a gradient always does, a brush once it has paint. */
 function covers(op: MaskModifier) {
-  return op.mask.kind !== "brush" || op.mask.strokes.length > 0;
+  return op.mask.kind !== "brush" || hasPaint(op.mask);
 }
 
 function sameOps(a: readonly MaskModifier[], b: readonly MaskModifier[]) {
@@ -68,18 +59,16 @@ const subtract: BlendOptions = {
 };
 
 /**
- * Rasterizes brush coverage into r8unorm textures at source resolution. Each brush owns the coverage
- * of its strokes, drawn through the stroke buffer as they grow and again when earlier content changes;
- * a mask shaped by children combines its own coverage with theirs in a second texture, rebuilt
- * whenever any of them changes. Strokes stay the document's truth; textures are caches.
+ * Brings masks' coverage together at source resolution. A brush paints its coverage as a paint layer
+ * paints color, into an r8unorm raster of `brushes`; a mask shaped by children combines its own
+ * coverage with theirs in a second texture, rebuilt whenever any of them changes. Gradients alone
+ * need no texture: the mix pass computes them.
  */
-export function createMaskRaster(gpu: Gpu, strokes: Strokes) {
-  const brushes = createRasterCache<Brush>(
-    gpu,
-    "r8unorm",
-    (target) => ({ target, strokes: [], dabs: 0 }),
-    (brush) => strokes.discard(brush.target),
-  );
+export function createMaskRaster(
+  gpu: Gpu,
+  strokes: Strokes,
+  brushes: PaintRaster,
+) {
   const groups = createRasterCache<Group>(gpu, "r8unorm", (target) => ({
     target,
     ops: [],
@@ -87,20 +76,20 @@ export function createMaskRaster(gpu: Gpu, strokes: Strokes) {
   /** The brush with an open stroke as its readers see it: its raster with the stroke laid over. */
   let view: Target | undefined;
   /** Each mask layer's coverage as its last update left it: its brush's, its group's, or none. */
-  const shown = new Map<string, Brush | Group | undefined>();
+  const shown = new Map<string, Target | Group | undefined>();
   const updated = new Set<string>();
   const gradientAdd = effect(gpu, gradientShader, { blend: add });
   const gradientSubtract = effect(gpu, gradientShader, { blend: subtract });
   const brushAdd = effect(gpu, brushShader, { blend: add });
   const brushSubtract = effect(gpu, brushShader, { blend: subtract });
 
-  function coverageOf(brush: Brush) {
-    return view && strokes.isOpen(brush.target) ? view : brush.target;
+  function coverageOf(brush: Target) {
+    return view && strokes.isOpen(brush) ? view : brush;
   }
 
   /** Redraws the view of a brush's open stroke where the stroke changed, or all of it once the stroke opened. */
-  function show(brush: Brush, changed: Rect | undefined) {
-    const [width, height] = brush.target.size;
+  function show(brush: Target, changed: Rect | undefined) {
+    const [width, height] = brush.size;
     if (view && (view.size[0] !== width || view.size[1] !== height)) {
       view.color.dispose();
       view = undefined;
@@ -110,33 +99,19 @@ export function createMaskRaster(gpu: Gpu, strokes: Strokes) {
       format: "r8unorm",
       clearColor: [0, 0, 0, 0],
     });
-    strokes.resolve(view, brush.target, changed ?? [0, 0, width, height]);
+    strokes.resolve(view, brush, changed ?? [0, 0, width, height]);
   }
 
-  /** Brings one brush's coverage up to date: appended points stamp, any other change draws every stroke again. */
-  function updateBrush(id: string, list: readonly BrushStroke[], size: Size) {
-    const brush = brushes.reserve(id, size);
-    const applied = brush.strokes;
-    if (applied === list) {
-      return brush;
+  /** Brings one brush's coverage up to date, and its view while its last stroke is open. */
+  function updateBrush(id: string, mask: BrushMask, size: Size) {
+    const drawn = brushes.draw(id, mask, size);
+    if (
+      drawn &&
+      strokes.isOpen(drawn.target) &&
+      (drawn.opened || drawn.changed)
+    ) {
+      show(drawn.target, drawn.opened ? undefined : drawn.changed);
     }
-    const grows = applied.length > 0 && extendsStrokes(applied, list);
-    if (!grows) {
-      strokes.discard(brush.target);
-      strokes.clear(brush.target);
-    }
-    const drawn = strokes.draw(
-      brush.target,
-      list,
-      grows ? applied.length - 1 : 0,
-      grows ? brush.dabs : 0,
-    );
-    brush.dabs = drawn.dabs;
-    brush.strokes = list;
-    if (strokes.isOpen(brush.target) && (drawn.opened || drawn.changed)) {
-      show(brush, drawn.opened ? undefined : drawn.changed);
-    }
-    return brush;
   }
 
   /** The pass that adds or subtracts one op's coverage, or nothing for a brush without strokes. */
@@ -185,7 +160,7 @@ export function createMaskRaster(gpu: Gpu, strokes: Strokes) {
     const ops = [own, ...active];
     for (const op of ops) {
       if (op.mask.kind === "brush" && covers(op)) {
-        updateBrush(op.id, op.mask.strokes, size);
+        updateBrush(op.id, op.mask, size);
       }
     }
     if (own.mask.kind !== "brush") {

@@ -162,6 +162,10 @@ export function setLayer(
 
 export function setLayerMask(document: EditorDocument, id: string, mask: Mask) {
   const next = parse(maskSchema, mask, "Invalid mask");
+  if (next.kind === "brush" && next.raster !== undefined) {
+    // Settled pixels come from the document's own settling, never from outside.
+    document.resources.paint(next.raster);
+  }
   editLayer(document, id, (layer) => {
     if (layer.kind !== "mask") {
       throw Error("Select a mask layer.");
@@ -174,7 +178,7 @@ function brushLayer(layer: Layer) {
   if (layer.kind !== "mask" || layer.mask.kind !== "brush") {
     throw Error("Select a brush mask.");
   }
-  return { layer, strokes: layer.mask.strokes };
+  return { layer, mask: layer.mask, strokes: layer.mask.strokes };
 }
 
 /** Starts a stroke on a brush mask; group it with the points that follow. */
@@ -185,11 +189,8 @@ export function paintStroke(
 ) {
   const painted = parse(strokeSchema, stroke, "Invalid stroke");
   editLayer(document, id, (item) => {
-    const { layer, strokes } = brushLayer(item);
-    return {
-      ...layer,
-      mask: { kind: "brush", strokes: [...strokes, painted] },
-    };
+    const { layer, mask, strokes } = brushLayer(item);
+    return { ...layer, mask: { ...mask, strokes: [...strokes, painted] } };
   });
 }
 
@@ -201,7 +202,7 @@ export function extendStroke(
 ) {
   const added = parse(strokePoints, points, "Invalid stroke points");
   editLayer(document, id, (item) => {
-    const { layer, strokes } = brushLayer(item);
+    const { layer, mask, strokes } = brushLayer(item);
     const last = strokes.at(-1);
     if (!last) {
       throw Error("Start a stroke before extending it.");
@@ -209,7 +210,7 @@ export function extendStroke(
     const stroke = { ...last, points: [...last.points, ...added] };
     return {
       ...layer,
-      mask: { kind: "brush", strokes: [...strokes.slice(0, -1), stroke] },
+      mask: { ...mask, strokes: [...strokes.slice(0, -1), stroke] },
     };
   });
 }

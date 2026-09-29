@@ -4,6 +4,7 @@ import {
   createResources,
   type EditorDocument,
   type ProcessingLayer,
+  paintingOf,
   type Scene,
   walkLayers,
 } from "@/core/document";
@@ -55,8 +56,9 @@ export function snapshotScene(document: EditorDocument) {
   };
   const paint = new Map<string, Blob>();
   for (const { layer } of walkLayers(scene.layers)) {
-    if (layer.kind === "paint" && layer.raster) {
-      paint.set(layer.raster, document.resources.paint(layer.raster));
+    const raster = paintingOf(layer)?.raster;
+    if (raster) {
+      paint.set(raster, document.resources.paint(raster));
     }
   }
   return { json, sources: new Map([[source, file]]), paint };
@@ -219,12 +221,13 @@ export async function openScene(
   try {
     resources.add(sourceFile, decoded, image.source);
     for (const { layer } of walkLayers(layers)) {
-      if (layer.kind === "paint" && layer.raster) {
-        const pixels = files.get(layer.raster);
+      const raster = paintingOf(layer)?.raster;
+      if (raster) {
+        const pixels = files.get(raster);
         if (!pixels) {
           throw Error("The scene's paint is missing.");
         }
-        resources.addPaint(pixels, layer.raster);
+        resources.addPaint(pixels, raster);
       }
     }
     return createDocument(

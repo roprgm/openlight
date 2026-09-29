@@ -105,11 +105,15 @@ export type BrushStroke = {
 };
 /** A stroke that paints a color, `#rrggbb` sRGB; erasing removes paint whatever its color. */
 export type PaintStroke = BrushStroke & { readonly color: string };
-/** Coverage painted with strokes; the renderer rasterizes them into a cached texture. */
-export type BrushMask = {
-  readonly kind: "brush";
-  readonly strokes: readonly BrushStroke[];
+/** What strokes painted, a paint layer's color or a brush mask's coverage. */
+export type Painting<S extends BrushStroke = BrushStroke> = {
+  /** The document resource of pixels earlier strokes settled into, which `strokes` draw over. */
+  readonly raster?: string;
+  /** The latest strokes, which undo takes back by drawing the rest over `raster` again. */
+  readonly strokes: readonly S[];
 };
+/** Coverage painted with strokes; the renderer rasterizes them into a cached texture. */
+export type BrushMask = { readonly kind: "brush" } & Painting;
 /** One non-destructive repair: a painted shape filled from a donor at `offset` source pixels away. */
 export type HealPatch = {
   readonly id: string;
@@ -135,14 +139,7 @@ export type ProcessingLayer = {
   | { readonly kind: "fill"; readonly fill: Fill }
   | { readonly kind: "lut"; readonly lut: LookupTable }
   | { readonly kind: "heal"; readonly patches: readonly HealPatch[] }
-  | {
-      readonly kind: "paint";
-      readonly blend: Blend;
-      /** The document resource of pixels earlier strokes settled into, which `strokes` draw over. */
-      readonly raster?: string;
-      /** The latest strokes, which undo takes back by drawing the rest over `raster` again. */
-      readonly strokes: readonly PaintStroke[];
-    }
+  | ({ readonly kind: "paint"; readonly blend: Blend } & Painting<PaintStroke>)
   | {
       readonly kind: "mask";
       readonly operation: "add" | "subtract";

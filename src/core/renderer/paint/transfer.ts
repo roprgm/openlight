@@ -7,19 +7,28 @@ const bandRows = 256;
 
 const copy = weakMemo((gpu: Gpu) => effect(gpu, copyShader));
 
+/** `GPUMapMode.READ`, which the page's WebGPU types leave out. */
+const mapRead = 1;
+
+/** Bytes a row of an rgba8 or r8 raster takes. */
+function rowBytes({ size, format }: Target) {
+  return size[0] * (format === "r8unorm" ? 1 : 4);
+}
+
 /**
- * Reads an rgba8 raster band by band and deflates its bytes, rows tightly packed. Nothing may draw into
- * the raster until it resolves, since each band is read after the last.
+ * Reads an rgba8 or r8 raster band by band and deflates its bytes, rows tightly packed. One mapped
+ * buffer takes every band in turn. Nothing may draw into the raster until it resolves, since each band
+ * is read after the last.
  */
 export async function readRaster(gpu: Gpu, raster: Target) {
   const device = gpu.gpu;
   const [width, height] = raster.size;
-  const rowBytes = width * 4;
+  const packed = rowBytes(raster);
   // Buffer copies take rows aligned to 256 bytes.
-  const stride = Math.ceil(rowBytes / 256) * 256;
+  const stride = Math.ceil(packed / 256) * 256;
   const buffer = gpu.device.createBuffer({
     size: stride * Math.min(bandRows, height),
-    usage: ["copy_dst", "copy_src"],
+    usage: ["copy_dst", "map_read"],
   });
   const compression = new CompressionStream("deflate-raw");
   const writer = compression.writable.getWriter();
@@ -34,12 +43,14 @@ export async function readRaster(gpu: Gpu, raster: Target) {
         [width, rows],
       );
       device.queue.submit([encoder.finish()]);
-      const read = new Uint8Array(await buffer.read(stride * rows));
-      const band = new Uint8Array(rowBytes * rows);
+      await buffer.gpu.mapAsync(mapRead, 0, stride * rows);
+      const read = new Uint8Array(buffer.gpu.getMappedRange(0, stride * rows));
+      const band = new Uint8Array(packed * rows);
       for (let row = 0; row < rows; row++) {
         const start = row * stride;
-        band.set(read.subarray(start, start + rowBytes), row * rowBytes);
+        band.set(read.subarray(start, start + packed), row * packed);
       }
+      buffer.gpu.unmap();
       await writer.write(band);
     }
     await writer.close();
@@ -53,16 +64,16 @@ export async function readRaster(gpu: Gpu, raster: Target) {
 }
 
 /**
- * Inflates bytes `readRaster` wrote into an rgba8 raster of the same size, band by band. Render targets
- * take no copies, so each band lands in a staging texture that draws into the raster.
+ * Inflates bytes `readRaster` wrote into a raster of the same size and format, band by band. Render
+ * targets take no copies, so each band lands in a staging texture that draws into the raster.
  */
 export async function writeRaster(gpu: Gpu, raster: Target, pixels: Blob) {
   const [width, height] = raster.size;
-  const rowBytes = width * 4;
-  const band = new Uint8Array(rowBytes * Math.min(bandRows, height));
+  const packed = rowBytes(raster);
+  const band = new Uint8Array(packed * Math.min(bandRows, height));
   const staging = gpu.device.createTexture({
-    size: [width, band.length / rowBytes],
-    format: "rgba8unorm",
+    size: [width, band.length / packed],
+    format: raster.format,
     usage: ["texture_binding", "copy_dst"],
   });
   let filled = 0;
@@ -75,7 +86,7 @@ export async function writeRaster(gpu: Gpu, raster: Target, pixels: Blob) {
     gpu.gpu.queue.writeTexture(
       { texture: staging.gpu },
       band,
-      { bytesPerRow: rowBytes },
+      { bytesPerRow: packed },
       [width, rows],
     );
     const pass = copy(gpu).set({
@@ -106,16 +117,16 @@ export async function writeRaster(gpu: Gpu, raster: Target, pixels: Blob) {
         filled += taken;
         offset += taken;
         if (filled === band.length) {
-          draw(band.length / rowBytes);
+          draw(band.length / packed);
           filled = 0;
         }
       }
     }
-    if (filled % rowBytes !== 0) {
+    if (filled % packed !== 0) {
       throw Error("The paint doesn't match the photo's size.");
     }
     if (filled) {
-      draw(filled / rowBytes);
+      draw(filled / packed);
     }
     if (y !== height) {
       throw Error("The paint doesn't match the photo's size.");

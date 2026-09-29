@@ -265,6 +265,66 @@ test("strokes settle into pixels, undo takes them back, and scenes keep them", a
   });
 });
 
+test("a brush mask settles into pixels like paint, and undo and scene files keep them", async ({
+  page,
+}) => {
+  test.setTimeout(120_000);
+  await openPhoto(page);
+  const mask = () =>
+    page.evaluate(() => {
+      const [, layer] = window.openlight.getState().scene?.layers ?? [];
+      return layer?.kind === "mask" && layer.mask.kind === "brush"
+        ? { raster: layer.mask.raster, strokes: layer.mask.strokes.length }
+        : undefined;
+    });
+  // Short strokes down the image, through a mask that brightens by a stop.
+  const paint = (count: number) =>
+    page.evaluate((count) => {
+      const api = window.openlight;
+      const [, layer] = api.getState().scene?.layers ?? [];
+      const id = layer?.id ?? api.addLayer("mask");
+      api.setLayerMask(id, {
+        kind: "brush",
+        strokes: Array.from({ length: count }, (_, i) => {
+          const [x, y] = [100 + (i % 10) * 100, 80 + Math.floor(i / 10) * 60];
+          return {
+            mode: "paint" as const,
+            size: 30,
+            feather: 0.5,
+            flow: 1,
+            points: [
+              [x, y, 1],
+              [x + 40, y, 1],
+            ] as [number, number, number][],
+          };
+        }),
+      });
+      api.setAdjustments({ exposure: 1 }, id);
+    }, count);
+  const inside = async () =>
+    (await readImage(page, undefined, [[620, 80]])).samples?.[0];
+  await paint(99);
+  expect(await mask()).toEqual({ raster: undefined, strokes: 99 });
+  const before = await inside();
+  expect(before?.[0]).toBeGreaterThan(gray[0] + 20);
+  await paint(100);
+  await expect.poll(mask).toMatchObject({ strokes: 0 });
+  const raster = (await mask())?.raster;
+  expect(raster).toEqual(expect.any(String));
+  expect(await inside()).toEqual(before);
+  await page.evaluate(() => window.openlight.undo());
+  expect(await mask()).toEqual({ raster: undefined, strokes: 99 });
+  await page.evaluate(() => window.openlight.redo());
+  expect(await mask()).toEqual({ raster, strokes: 0 });
+  expect(await inside()).toEqual(before);
+  await page.evaluate(async () => {
+    const scene = await window.openlight.exportScene();
+    await window.openlight.openFile(scene);
+  });
+  await expect.poll(mask).toEqual({ raster, strokes: 0 });
+  expect(await inside()).toEqual(before);
+});
+
 test("Photoshop's keys switch the brush, its colors, feather, flow, and opacity, and a right click sizes it", async ({
   page,
 }) => {

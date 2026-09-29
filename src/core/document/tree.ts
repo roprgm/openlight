@@ -2,7 +2,7 @@ import type { EditorDocument } from "./index";
 import type {
   Layer,
   MaskLayer,
-  PaintLayer,
+  Painting,
   ProcessingLayer,
   Scene,
 } from "./scene";
@@ -55,9 +55,20 @@ export function maskModifiers(layer: MaskLayer) {
   );
 }
 
-/** Whether a paint layer holds any paint: settled pixels or strokes over them. */
-export function hasPaint(layer: PaintLayer) {
-  return layer.raster !== undefined || layer.strokes.length > 0;
+/** Whether a painting holds anything: settled pixels or strokes over them. */
+export function hasPaint(painting: Painting) {
+  return painting.raster !== undefined || painting.strokes.length > 0;
+}
+
+/** What a paint layer or brush mask painted; other layers paint nothing. */
+export function paintingOf(layer: Layer): Painting | undefined {
+  if (layer.kind === "paint") {
+    return layer;
+  }
+  if (layer.kind === "mask" && layer.mask.kind === "brush") {
+    return layer.mask;
+  }
+  return undefined;
 }
 
 function withChildren<L extends Layer>(

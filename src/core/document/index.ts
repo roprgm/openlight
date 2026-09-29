@@ -3,7 +3,7 @@ import { validateFrame } from "@/core/image/frame";
 import { createHistory } from "./history";
 import { createResources } from "./resources";
 import type { Mask, MaskModifier, Scene } from "./scene";
-import { findLayer, walkLayers } from "./tree";
+import { findLayer, paintingOf, walkLayers } from "./tree";
 
 export type {
   Adjustments,
@@ -25,6 +25,7 @@ export type {
   Mask,
   MaskLayer,
   MaskModifier,
+  Painting,
   PaintLayer,
   PaintStroke,
   ProcessingLayer,
@@ -41,6 +42,7 @@ export {
   hasPaint,
   locateLayer,
   maskModifiers,
+  paintingOf,
   updateLayer,
   walkLayers,
 } from "./tree";
@@ -86,12 +88,13 @@ function equal(a: unknown, b: unknown): boolean {
   );
 }
 
-/** The resources a scene names: its image source and the pixels its paint settled into. */
+/** The resources a scene names: its image source and the pixels its paintings settled into. */
 function resourceIds(scene: Scene) {
   const ids = [scene.layers[0].source];
   for (const { layer } of walkLayers(scene.layers)) {
-    if (layer.kind === "paint" && layer.raster) {
-      ids.push(layer.raster);
+    const raster = paintingOf(layer)?.raster;
+    if (raster) {
+      ids.push(raster);
     }
   }
   return ids;

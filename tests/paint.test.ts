@@ -11,6 +11,7 @@ import {
   type Blend,
   createDocument,
   createResources,
+  findLayer,
   type PaintStroke,
   updateLayer,
 } from "@/core/document";
@@ -21,7 +22,9 @@ import {
   brushLimits,
   deleteLayer,
   duplicateLayer,
+  paintStroke,
   setLayer,
+  setLayerMask,
 } from "@/features/layers/edits";
 import {
   addPaintStroke,
@@ -180,6 +183,43 @@ test("settled paint stays while the history names it and goes after", async () =
     expect(await document.resources.paint(first).text()).toBe("first");
     document.history.clear();
     expect(() => document.resources.paint(first)).toThrow("unavailable");
+  } finally {
+    document.dispose();
+    gpu.dispose();
+  }
+});
+
+test("a brush mask settles like paint: its pixels stay while history names them, and none come from outside", async () => {
+  const { gpu, document } = await open();
+  const { color: _, ...coverage } = stroke;
+  try {
+    const mask = addLayer(document, createMask({ kind: "brush", strokes: [] }));
+    paintStroke(document, mask, coverage);
+    const raster = document.resources.addPaint(new Blob(["coverage"]));
+    document.replace(
+      updateLayer(document.scene.getState(), mask, (layer) =>
+        layer.kind === "mask" && layer.mask.kind === "brush"
+          ? { ...layer, mask: { ...layer.mask, raster, strokes: [] } }
+          : layer,
+      ),
+    );
+    // A stroke keeps the settled pixels under it, and undo still reaches them.
+    paintStroke(document, mask, coverage);
+    const layer = () => findLayer(document.scene.getState().layers, mask);
+    expect(layer()).toMatchObject({ mask: { raster, strokes: [coverage] } });
+    document.history.undo();
+    expect(layer()).toMatchObject({ mask: { raster, strokes: [] } });
+    expect(await document.resources.paint(raster).text()).toBe("coverage");
+    expect(() =>
+      setLayerMask(document, mask, {
+        kind: "brush",
+        raster: "made-up",
+        strokes: [],
+      }),
+    ).toThrow("unavailable");
+    deleteLayer(document, mask);
+    document.history.clear();
+    expect(() => document.resources.paint(raster)).toThrow("unavailable");
   } finally {
     document.dispose();
     gpu.dispose();
