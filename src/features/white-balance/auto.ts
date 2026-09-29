@@ -1,21 +1,27 @@
 import type { Gpu } from "vgpu";
 import type { EditorDocument } from "@/core/document";
 import { clamp } from "@/lib/math";
-import { type Cast, castOf, measureLight, type Rgb } from "./cast";
+import { castOf, measureLight, type Rgb } from "./cast";
 import {
   setIncrementalBalance,
   setWhiteBalance,
   whiteBalanceLimits,
 } from "./edits";
 
-/** How a cast moves per unit of a temperature and a tint control. */
-type Response = { temperature: Cast; tint: Cast };
+/**
+ * Light between tungsten and daylight follows the Planckian locus, where a blackbody gains 0.22 stops
+ * of green per stop of warmth in the working space. Temperature controls move along it.
+ */
+const locusGreen = 0.22;
+/**
+ * A photo is seldom off the locus, while colored edges often mislead the estimate's green, so tint
+ * takes a quarter of the green the locus doesn't explain.
+ */
+const tintShare = 0.25;
 
-// A RAW photo's cast in stops per mired and per unit of tint, fitted on six cameras' as-shot developments.
-const raw: Response = {
-  temperature: { warmth: -0.01, green: -0.0023 },
-  tint: { warmth: -0.003, green: -0.006 },
-};
+// A RAW photo's warmth in stops per mired and green per unit of tint, fitted on six cameras.
+const rawWarmthPerMired = -0.01;
+const rawGreenPerTint = -0.006;
 
 // Each channel's gain in log odds per unit of the incremental controls: the first-order terms of
 // adjustWhiteBalance in prepare.wgsl. Temperature bends harder toward blue than toward yellow.
@@ -28,20 +34,10 @@ function moved([r, g, b]: Rgb, level: Rgb) {
   return castOf([r * (1 - level[0]), g * (1 - level[1]), b * (1 - level[2])]);
 }
 
-/** The temperature and tint changes that cancel `cast` under a linear response. */
-function correction(cast: Cast, { temperature, tint }: Response) {
-  const determinant =
-    temperature.warmth * tint.green - tint.warmth * temperature.green;
-  return [
-    (tint.warmth * cast.green - cast.warmth * tint.green) / determinant,
-    (temperature.green * cast.warmth - temperature.warmth * cast.green) /
-      determinant,
-  ] as const;
-}
-
 /**
- * Neutralizes the photo's cast, measured before any edit, as one edit: a RAW photo's own balance moves
- * from As Shot, and any other photo's incremental temperature and tint replace their values.
+ * Neutralizes the photo's cast, measured before any edit, as one edit: temperature takes all of the
+ * warmth, tint a share of the green off the locus. A RAW photo's own balance moves from As Shot; any
+ * other photo's incremental temperature and tint replace their values.
  */
 export async function autoWhiteBalance(document: EditorDocument, gpu: Gpu) {
   const image = document.scene.getState().layers[0];
@@ -51,26 +47,29 @@ export async function autoWhiteBalance(document: EditorDocument, gpu: Gpu) {
     return;
   }
   const cast = castOf(light.stops);
+  const green = tintShare * (cast.green - locusGreen * cast.warmth);
   if (source.raw) {
     const { asShot } = source.raw;
     const limits = whiteBalanceLimits(asShot);
-    const [mireds, tint] = correction(cast, raw);
+    const mireds = 1e6 / asShot.temperature - cast.warmth / rawWarmthPerMired;
     setWhiteBalance(document, {
       temperature: clamp(
-        1e6 / Math.max(1e6 / asShot.temperature + mireds, 1),
+        1e6 / Math.max(mireds, 1),
         limits.temperature.min,
         limits.temperature.max,
       ),
-      tint: clamp(asShot.tint + tint, limits.tint.min, limits.tint.max),
+      tint: clamp(
+        asShot.tint - green / rawGreenPerTint,
+        limits.tint.min,
+        limits.tint.max,
+      ),
     });
     return;
   }
-  const [temperature, tint] = correction(cast, {
-    temperature: moved(cast.warmth > 0 ? cooling : warming, light.level),
-    tint: moved(tinting, light.level),
-  });
+  const temperature = moved(cast.warmth > 0 ? cooling : warming, light.level);
+  const tint = moved(tinting, light.level);
   setIncrementalBalance(document, image.id, {
-    incrementalTemperature: clamp(temperature, -100, 100),
-    incrementalTint: clamp(tint, -100, 100),
+    incrementalTemperature: clamp(-cast.warmth / temperature.warmth, -100, 100),
+    incrementalTint: clamp(-green / tint.green, -100, 100),
   });
 }

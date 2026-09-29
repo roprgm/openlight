@@ -3,7 +3,8 @@ import { luminance } from "../../core/image/color.wgsl";
 // Gray edge (van de Weijer, Gevers, and Gijsenij, 2007): differences between neighboring surfaces
 // average to the light's color, so a large colored area counts only at its edges. One workgroup walks
 // a grid of samples and reduces it to the light's color in stops, beside each channel's level where
-// the edges are. Without usable edges, the mean color decides both.
+// the edges are. Without usable edges, the mean color decides both. Brighter pixels weigh more, since
+// shadows take their color from whatever light fills them.
 const samples = vec2u(512u, 320u);
 const threads = 256u;
 // A high norm leans on the strongest edges.
@@ -42,13 +43,14 @@ fn usable(color: vec4f) -> bool {
     if (!usable(here)) {
       continue;
     }
-    color += vec4f(here.rgb, 1.0);
+    let weight = luminance(here.rgb);
+    color += vec4f(here.rgb, 1.0) * weight;
     let right = sample(min(point + vec2u(1u, 0u), samples - 1u));
     let below = sample(min(point + vec2u(0u, 1u), samples - 1u));
     if (usable(right) && usable(below)) {
       let across = right.rgb - here.rgb;
       let down = below.rgb - here.rgb;
-      let strength = pow(sqrt(across * across + down * down), vec3f(norm));
+      let strength = pow(sqrt(across * across + down * down), vec3f(norm)) * weight;
       edge += strength;
       level += strength * here.rgb;
     }
