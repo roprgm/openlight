@@ -4,9 +4,10 @@ import { pcg3d } from "@vgpu/wgsl-std/hash";
 import { luminance } from "../../core/image/color.wgsl";
 
 // Film grain: soft particles of random tone scattered in source pixels, so every render of the
-// photo shows the same grain. Size scales the particles; roughness varies their radius and mixes in
-// coarser clumps and finer grit. The grain moves the encoded luminance, most in the midtones, and
-// scales the channels together so color holds.
+// photo shows the same grain. Particles lie at four fixed spacings, one to eight pixels apart, that
+// never move: size slides a window across them, so finer grain fades as coarser grain comes in, and
+// roughness widens it to mix in neighboring spacings and varies the particles' radius. The grain
+// moves the encoded luminance, most in the midtones, and scales the channels together so color holds.
 struct Params {
   amount: f32,
   size: f32,
@@ -45,17 +46,27 @@ fn particles(point: vec2f, octave: u32, roughness: f32) -> f32 {
   return sum / sqrt(pi * radius2 / 21.0);
 }
 
+const octaves = 4u;
+
 fn grain(point: vec2f) -> f32 {
   let roughness = params.roughness / 100.0;
-  // Particles from one to six source pixels apart.
-  let cell = 1.0 + 5.0 * pow(params.size / 100.0, 1.3);
-  let clumps = roughness;
-  let grit = 0.5 * roughness;
-  // Grit packs particles twice as close, but no closer than about a pixel.
-  let sum = particles(point / cell, 0u, roughness) +
-    clumps * particles(point / (cell * 2.2), 1u, roughness) +
-    grit * particles(point / max(cell * 0.5, 0.8), 2u, roughness);
-  return sum / sqrt(1.0 + clumps * clumps + grit * grit);
+  // The window's center and width, in octaves.
+  let center = f32(octaves - 1u) * params.size / 100.0;
+  let width = 0.35 + 0.65 * roughness;
+  var sum = 0.0;
+  var power = 0.0;
+  for (var octave = 0u; octave < octaves; octave++) {
+    let weight = exp(-0.5 * pow((f32(octave) - center) / width, 2.0));
+    if (weight < 0.02) {
+      continue;
+    }
+    // Each spacing doubles the last; an offset keeps their cells from sharing edges.
+    let cells = point / exp2(f32(octave)) + vec2f(0.37, 0.71) * f32(octave);
+    sum += weight * particles(cells, octave, roughness);
+    power += weight * weight;
+  }
+  // Independent octaves of unit variance add up to the square root of their weights' squares.
+  return sum / sqrt(power);
 }
 
 @fragment fn fs_main(@builtin(position) position: vec4f) -> @location(0) vec4f {

@@ -23,6 +23,14 @@ function deviation(values: readonly number[]) {
   return Math.sqrt(mean(values.map((value) => (value - center) ** 2)));
 }
 
+function correlation(a: readonly number[], b: readonly number[]) {
+  const [ma, mb] = [mean(a), mean(b)];
+  const covariance = mean(
+    a.map((value, index) => (value - ma) * (b[index] - mb)),
+  );
+  return covariance / (deviation(a) * deviation(b));
+}
+
 test("grain textures a gray image without shifting its tone, holds through a crop, and undoes", async ({
   page,
 }) => {
@@ -54,6 +62,14 @@ test("grain textures a gray image without shifting its tone, holds through a cro
   const heavy = await exportRed(page);
   expect(deviation(heavy)).toBeGreaterThan(3 * deviation(light));
   expect(Math.abs(mean(heavy) - 128)).toBeLessThan(1);
+  expect(await exportRed(page)).toEqual(heavy);
+
+  // A little more size fades coarser grain in over the same particles rather than stretching them.
+  const size = page.getByRole("textbox", { name: "Size", exact: true });
+  await size.fill("30");
+  await size.press("Enter");
+  expect(correlation(await exportRed(page), heavy)).toBeGreaterThan(0.9);
+  await page.getByRole("button", { name: "Undo", exact: true }).click();
   expect(await exportRed(page)).toEqual(heavy);
 
   // A centered square crop of the 256 × 128 image keeps source columns 64 to 191.
