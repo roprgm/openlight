@@ -20,7 +20,7 @@ Image processing runs on your own GPU with WebGPU. Photos never leave your devic
 
 **Layers and masks**
 
-- Draggable effect layers: Details, Exposure, Color Mixer, Vignette, Grain, Color, which paints one color with Photoshop blend modes, and LUT, which grades the photo with a 3D LUT from a `.cube` file.
+- Draggable effect layers: Details, Exposure, Color Mixer, Vignette, Grain, Color, which paints one color with Photoshop blend modes, Paint, which holds brush strokes in any colors with the same modes, and LUT, which grades the photo with a 3D LUT from a `.cube` file.
 - Linear and radial masks with their own adjustments and child effects.
 - Add and Subtract submasks, from a mask's actions menu, to shape its coverage.
 
@@ -28,7 +28,8 @@ Image processing runs on your own GPU with WebGPU. Photos never leave your devic
 
 - Healing paints patches from an automatic or manually positioned donor. Repairs remain editable and each patch builds on the previous result.
 - Brush, linear, and radial gradient tools on the rail draw masks on top of the stack; their options sit in the bar over the image.
-- Brush masks with size, feather, flow, pen pressure, and Alt to erase.
+- The Brush paints colors on a Paint layer or coverage on a brush mask, with size, feather, flow, pen pressure, and Alt to erase. Colors come as a primary and a secondary: X swaps them, D resets them to black and white, and I picks one from the screen where the browser offers it.
+- A photo holds up to 10 brush layers, Paint layers and brush masks together; each keeps a raster only as large as the area its strokes reach.
 - The mask overlay shows until a mask changes the image, then the image shows the mask; the overlay button beside the mask's adjustments, or O, shows or hides it for every mask.
 - Edits preview at a reduced resolution while you drag, then render in full.
 

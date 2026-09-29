@@ -5,8 +5,12 @@ import {
   useEffect,
   useState,
 } from "react";
+import { findLayer, type Layer } from "@/core/document";
 import { clamp } from "@/lib/math";
 import { useDocument, useScene } from "./session";
+
+/** What the brush paints: color on a paint layer, or coverage on a brush mask. */
+export type BrushMode = "color" | "mask";
 
 export type BrushSettings = {
   /** Diameter in source pixels. */
@@ -15,7 +19,24 @@ export type BrushSettings = {
   feather: number;
   flow: number;
   erase: boolean;
+  mode: BrushMode;
+  /** The primary color, which strokes paint, and the secondary, as `#rrggbb`. */
+  colors: readonly [string, string];
 };
+
+/** Black over white, as Photoshop starts. */
+export const defaultColors = ["#000000", "#ffffff"] as const;
+
+/** The mode that paints on `layer`, if the brush can paint on it. */
+export function brushMode(layer: Layer | undefined): BrushMode | undefined {
+  if (layer?.kind === "paint") {
+    return "color";
+  }
+  if (layer?.kind === "mask" && layer.mask.kind === "brush") {
+    return "mask";
+  }
+  return undefined;
+}
 
 const BrushTool = createContext<{
   settings: BrushSettings;
@@ -37,7 +58,10 @@ export function useBrushTool() {
   return tool;
 }
 
-/** Brush settings outlive strokes and tool switches; they start relative to the image size. */
+/**
+ * Brush settings outlive strokes and tool switches; they start relative to the image size. The mode
+ * follows the selection onto a paint layer or brush mask, so the brush paints what is selected.
+ */
 export function BrushProvider({ children }: { children: ReactNode }) {
   const document = useDocument();
   const sourceId = useScene((scene) => scene.layers[0].source);
@@ -54,9 +78,23 @@ export function BrushProvider({ children }: { children: ReactNode }) {
     feather: 0.5,
     flow: 1,
     erase: false,
+    mode: "mask",
+    colors: defaultColors,
   });
   const [alt, setAlt] = useState(false);
   const [preview, setPreview] = useState(false);
+  useEffect(
+    () =>
+      document.selection.subscribe(({ layerId }) => {
+        const mode = brushMode(
+          findLayer(document.scene.getState().layers, layerId),
+        );
+        if (mode) {
+          setSettings((settings) => ({ ...settings, mode }));
+        }
+      }),
+    [document],
+  );
   useEffect(() => {
     const controller = new AbortController();
     const { signal } = controller;

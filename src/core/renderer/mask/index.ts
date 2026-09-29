@@ -12,7 +12,9 @@ import {
   type MaskLayer,
   type MaskModifier,
   maskModifiers,
+  type PaintStroke,
 } from "@/core/document";
+import { parseColor } from "@/core/image/blend";
 import { gradientParams } from "@/core/renderer/blend";
 import brushShader from "./brush.wgsl";
 import copyShader from "./copy.wgsl";
@@ -33,11 +35,14 @@ export type Raster = {
 };
 /** A region of the source in whole pixels. */
 type Region = { origin: [number, number]; size: [number, number] };
-/** One brush's own coverage over the region its strokes paint, stamped as they grow. */
+/** Coverage strokes stamp white into one channel; paint strokes stamp their color with coverage as alpha. */
+type Stroke = BrushStroke | PaintStroke;
+type Format = "r8unorm" | "rgba8unorm";
+/** One brush's own coverage or paint over the region its strokes reach, stamped as they grow. */
 type Brush = {
   target: Target;
   origin: [number, number];
-  strokes: readonly BrushStroke[];
+  strokes: readonly Stroke[];
   /** Dabs already stamped from the last stroke. */
   dabs: number;
 };
@@ -49,7 +54,7 @@ type Group = {
 
 /** The tiles that the paint strokes can reach within the source, or nothing when none reach it. */
 export function paintedRegion(
-  strokes: readonly BrushStroke[],
+  strokes: readonly Stroke[],
   size: Size,
 ): Region | undefined {
   let left = Number.POSITIVE_INFINITY;
@@ -113,17 +118,22 @@ function covers(op: MaskModifier) {
   );
 }
 
-function sameStroke(a: BrushStroke, b: BrushStroke) {
+function strokeColor(stroke: Stroke) {
+  return "color" in stroke ? stroke.color : undefined;
+}
+
+function sameStroke(a: Stroke, b: Stroke) {
   return (
     a.mode === b.mode &&
     a.size === b.size &&
     a.feather === b.feather &&
-    a.flow === b.flow
+    a.flow === b.flow &&
+    strokeColor(a) === strokeColor(b)
   );
 }
 
 /** Whether `next` only appends points to `previous`, sharing every earlier point. */
-function extendsStroke(previous: BrushStroke, next: BrushStroke) {
+function extendsStroke(previous: Stroke, next: Stroke) {
   return (
     previous === next ||
     (sameStroke(previous, next) &&
@@ -133,10 +143,7 @@ function extendsStroke(previous: BrushStroke, next: BrushStroke) {
 }
 
 /** Whether `after` only appends strokes or points to `before`. */
-function extendsStrokes(
-  before: readonly BrushStroke[],
-  after: readonly BrushStroke[],
-) {
+function extendsStrokes(before: readonly Stroke[], after: readonly Stroke[]) {
   return (
     after.length >= before.length &&
     before.every((stroke, i) =>
@@ -159,19 +166,27 @@ function sameOps(a: readonly MaskModifier[], b: readonly MaskModifier[]) {
   );
 }
 
-const over: BlendOptions = { color: { src: "one", dst: "one-minus-src" } };
-const out: BlendOptions = { color: { src: "zero", dst: "one-minus-src" } };
+// Premultiplied: paint lays its share over what is there; erase removes that share of it.
+const over: BlendOptions = {
+  color: { src: "one", dst: "one-minus-src-alpha" },
+  alpha: { src: "one", dst: "one-minus-src-alpha" },
+};
+const out: BlendOptions = {
+  color: { src: "zero", dst: "one-minus-src-alpha" },
+  alpha: { src: "zero", dst: "one-minus-src-alpha" },
+};
+const white = [1, 1, 1] as const;
 const add: BlendOptions = { color: { src: "one", dst: "one" } };
 const subtract: BlendOptions = {
   color: { src: "one", dst: "one", op: "reverse-subtract" },
 };
 
 /**
- * Rasterizes brush coverage into r8unorm textures at source resolution. Each brush owns the
- * coverage of its strokes over the tiles they reach, stamped incrementally as they grow and
- * replayed when earlier content changes; a mask shaped by children combines its own coverage with
- * theirs in a second texture over the whole source, rebuilt whenever any of them changes. Strokes
- * stay the document's truth; textures are caches.
+ * Rasterizes brush coverage into r8unorm textures, and paint into premultiplied rgba8unorm ones, at
+ * source resolution. Each brush owns the coverage of its strokes over the tiles they reach, stamped
+ * incrementally as they grow and replayed when earlier content changes; a mask shaped by children
+ * combines its own coverage with theirs in a second texture over the whole source, rebuilt whenever
+ * any of them changes. Strokes stay the document's truth; textures are caches.
  */
 export function createMaskRaster(gpu: Gpu) {
   const brushes = new Map<string, Brush>();
@@ -190,16 +205,19 @@ export function createMaskRaster(gpu: Gpu) {
   const copy = effect(gpu, copyShader);
   let stamped = 0;
 
+  /** Clears to transparent, so paint rasters start empty; coverage reads only red. */
+  function brushTarget(
+    size: readonly [number, number],
+    format: GPUTextureFormat,
+  ) {
+    return target(gpu, { size: [...size], format, clearColor: [0, 0, 0, 0] });
+  }
+
   function clear(target: Target) {
     frame(gpu, (frame) => frame.pass({ target, clear: true }, () => {}));
   }
 
-  function stampDabs(
-    brush: Brush,
-    dabList: readonly Dab[],
-    feather: number,
-    mode: BrushStroke["mode"],
-  ) {
+  function stampDabs(brush: Brush, dabList: readonly Dab[], stroke: Stroke) {
     const { target, origin } = brush;
     const [width, height] = target.size;
     for (let start = 0; start < dabList.length; start += chunk) {
@@ -225,8 +243,15 @@ export function createMaskRaster(gpu: Gpu) {
         continue;
       }
       dabs.write(data);
-      const pass = mode === "paint" ? paint : erase;
-      pass.set({ params: { count: batch.length, feather } });
+      const pass = stroke.mode === "paint" ? paint : erase;
+      const color = strokeColor(stroke);
+      pass.set({
+        params: {
+          count: batch.length,
+          feather: stroke.feather,
+          color: color ? parseColor(color) : white,
+        },
+      });
       // One frame per chunk: buffer and uniform writes land in queue order, before the pass that reads them.
       frame(gpu, (frame) =>
         frame.pass({ target, clear: false, scissor: [x, y, w, h] }, pass),
@@ -238,7 +263,7 @@ export function createMaskRaster(gpu: Gpu) {
   /** Stamps strokes from `fromStroke` on, skipping `skipDabs` of that first one; returns the last stroke's dab count. */
   function stampStrokes(
     brush: Brush,
-    strokes: readonly BrushStroke[],
+    strokes: readonly Stroke[],
     fromStroke = 0,
     skipDabs = 0,
   ) {
@@ -249,12 +274,7 @@ export function createMaskRaster(gpu: Gpu) {
       }
       const all = strokeDabs(stroke);
       count = all.length;
-      stampDabs(
-        brush,
-        i === fromStroke ? all.slice(skipDabs) : all,
-        stroke.feather,
-        stroke.mode,
-      );
+      stampDabs(brush, i === fromStroke ? all.slice(skipDabs) : all, stroke);
     });
     return count;
   }
@@ -283,7 +303,7 @@ export function createMaskRaster(gpu: Gpu) {
   /** Moves a brush onto `region`, keeping what it has stamped when the region still holds it. */
   function place(brush: Brush, region: Region, keep: boolean) {
     const previous = brush.target;
-    brush.target = target(gpu, { size: region.size, format: "r8unorm" });
+    brush.target = brushTarget(region.size, previous.format);
     const offset = [
       brush.origin[0] - region.origin[0],
       brush.origin[1] - region.origin[1],
@@ -309,8 +329,9 @@ export function createMaskRaster(gpu: Gpu) {
    */
   function updateBrush(
     id: string,
-    strokes: readonly BrushStroke[],
+    strokes: readonly Stroke[],
     size: Size,
+    format: Format = "r8unorm",
   ): Brush | undefined {
     const region = paintedRegion(strokes, size);
     let brush = brushes.get(id);
@@ -321,7 +342,7 @@ export function createMaskRaster(gpu: Gpu) {
     }
     if (!brush) {
       brush = {
-        target: target(gpu, { size: region.size, format: "r8unorm" }),
+        target: brushTarget(region.size, format),
         origin: region.origin,
         strokes: [],
         dabs: 0,
@@ -421,6 +442,10 @@ export function createMaskRaster(gpu: Gpu) {
     brush(id: string, strokes: readonly BrushStroke[], size: Size) {
       return region(updateBrush(id, strokes, size));
     },
+    /** Brings a paint layer's raster up to date; nothing when no stroke paints inside the source. */
+    paint(id: string, strokes: readonly PaintStroke[], size: Size) {
+      return region(updateBrush(id, strokes, size, "rgba8unorm"));
+    },
     /** Brings the layer's rasters up to date and returns the coverage its composition samples, if any. */
     update(layer: MaskLayer, size: Size): Raster | undefined {
       const [own, ...children] = maskOps(layer);
@@ -464,10 +489,12 @@ export function createMaskRaster(gpu: Gpu) {
           ...[...brushes].map(([id, { target }]) => ({
             id,
             size: [...target.size],
+            format: target.format,
           })),
           ...[...groups].map(([id, { target }]) => ({
             id: `${id}/group`,
             size: [...target.size],
+            format: target.format,
           })),
         ],
       };

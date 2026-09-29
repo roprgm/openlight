@@ -53,6 +53,29 @@ export function validateDepth(layers: readonly Layer[]) {
   }
 }
 
+/** Brush masks and paint layers each cache a raster of up to the photo's size, so a photo holds a few. */
+export const maxBrushLayers = 10;
+
+/** The brush masks, submasks included, and paint layers among `layers` and their children. */
+export function brushLayerCount(layers: readonly Layer[]) {
+  let count = 0;
+  for (const { layer } of walkLayers(layers)) {
+    if (
+      layer.kind === "paint" ||
+      (layer.kind === "mask" && layer.mask.kind === "brush")
+    ) {
+      count++;
+    }
+  }
+  return count;
+}
+
+function validateBrushLayers(layers: readonly Layer[]) {
+  if (brushLayerCount(layers) > maxBrushLayers) {
+    throw Error(`A photo holds up to ${maxBrushLayers} brush layers.`);
+  }
+}
+
 /** Above a sibling, inside a processing layer, or on top of the root stack. */
 export type LayerPlacement = { above: string } | { inside: string };
 
@@ -100,6 +123,7 @@ export function addLayer(
     layers.toSpliced(index ?? layers.length, 0, layer),
   );
   validateDepth(next.layers);
+  validateBrushLayers(next.layers);
   document.history.commit();
   document.edit(next);
   document.selectLayer(layer.id);
@@ -202,6 +226,7 @@ export function duplicateLayer(document: EditorDocument, id: string) {
     layers.toSpliced(layers.findIndex((item) => item.id === id) + 1, 0, layer),
   );
   validateDepth(next.layers);
+  validateBrushLayers(next.layers);
   document.history.commit();
   document.edit(next);
   document.selectLayer(layer.id);

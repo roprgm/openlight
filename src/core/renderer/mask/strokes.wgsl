@@ -1,8 +1,10 @@
 // Accumulates a chunk of dabs like successive layers of paint: each dab covers its share of what is left.
-// The pass blends the result into the mask, so chunks and strokes compose exactly.
+// The pass blends the premultiplied result into the raster, so chunks and strokes compose exactly.
 struct Params {
   count: u32,
   feather: f32,
+  // The stroke's color; white for coverage, whose single channel keeps only red.
+  color: vec3f,
 }
 @group(0) @binding(0) var<storage, read> dabs: array<vec4f>;
 @group(0) @binding(1) var<uniform> params: Params;
@@ -17,5 +19,6 @@ struct Params {
     let weight = 1.0 - smoothstep(inner, radius, length(position.xy - dab.xy));
     remaining *= 1.0 - dab.w * weight;
   }
-  return vec4f(1.0 - remaining, 0.0, 0.0, 1.0);
+  let coverage = 1.0 - remaining;
+  return vec4f(params.color * coverage, coverage);
 }

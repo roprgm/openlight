@@ -17,11 +17,10 @@ import { RadialGradientIcon } from "@/components/icons/radial-gradient";
 import { CropEditor } from "@/features/crop/view";
 import { HealOptions } from "@/features/heal/options";
 import { HealOverlay } from "@/features/heal/overlay";
-import { BrushOptions } from "@/features/layers/brush-options";
-import { BrushOverlay } from "@/features/layers/brush-overlay";
 import { addLayer } from "@/features/layers/edits";
 import { GradientOverlay } from "@/features/layers/gradient-overlay";
 import { useShortcuts } from "@/hooks/use-shortcuts";
+import { BrushCanvas, BrushToolOptions } from "./brush";
 import { ExportMode } from "./export";
 import { createLayer } from "./layers";
 
@@ -92,8 +91,8 @@ export const tools = [
     key: "b",
     Icon: BrushIcon,
     group: "edit",
-    Canvas: BrushOverlay,
-    Options: BrushOptions,
+    Canvas: BrushCanvas,
+    Options: BrushToolOptions,
   },
   {
     id: "linear",

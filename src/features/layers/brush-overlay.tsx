@@ -12,15 +12,25 @@ function isBrushMask(layer: Layer): layer is MaskLayer {
 }
 
 /** Keeps a brush mask selected; an untouched new mask disappears on leaving. */
-export function BrushOverlay() {
+export function BrushOverlay({
+  canCreate,
+  onLeave,
+}: {
+  /** Whether a mask may be added when none is selected; without, strokes wait for a selected one. */
+  canCreate: boolean;
+  /** The selection moved off brush masks. */
+  onLeave: () => void;
+}) {
   const document = useDocument();
   const tool = useMaskTool();
   const brush = useBrushTool();
   const painting = useRef<string | undefined>(undefined);
   const selectedBrush = useToolLayer({
     accepts: isBrushMask,
-    create: () => tool.create({ kind: "brush", strokes: [] }),
-    leave: () => tool.edit(),
+    create: canCreate
+      ? () => tool.create({ kind: "brush", strokes: [] })
+      : undefined,
+    leave: onLeave,
     // A chosen nesting starts a new brush even over a selected one.
     fresh: tool.pending?.shape === "brush",
   });

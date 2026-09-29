@@ -64,6 +64,8 @@ Create an empty Heal effect with `addLayer("heal")`.
 
 `addHealPatch(id, stroke, offset)` appends a Healing patch and returns its ID. `stroke` is a painted `BrushStroke`, and `offset` is `[sourceX - targetX, sourceY - targetY]` in source pixels. `setHealSource(id, patchId, offset)` changes a donor. Patches replay in order from the accumulated composite below; the tool supplies automatic donors.
 
+Create an empty Paint layer with `addLayer("paint")`. `addPaintStroke(id, stroke)` appends a `BrushStroke` with a `color`, `#rrggbb` sRGB: a painting stroke lays that color over the layer's earlier paint, and an erasing one removes paint whatever its color. `setPaintBlend(id, blend)` blends the layer's paint over the image below with the modes `setFill` takes, on encoded values as Photoshop does. A photo holds up to 10 brush layers, counting Paint layers and brush masks; adding more throws.
+
 For RAW sources, `setWhiteBalance({ temperature, tint })` sets absolute Kelvin and DNG tint, preserving unspecified values. Temperature accepts 2000–25000 K and tint accepts -150–150, extending either range to include the file's As Shot value. `setWhiteBalance()` restores that value (the decoder's daylight fallback if camera multipliers are unavailable). Non-RAW sources and invalid values throw. Incremental temperature/tint remain separate RGB adjustments.
 
 `autoWhiteBalance()` neutralizes the photo's color cast as one edit and resolves once it is made. The GPU measures the cast of the source before any edit, as its edges' average color, so calling it again gives the same balance. A RAW photo's white balance moves from As Shot; any other photo's incremental temperature and tint are replaced. When another photo opens first, it resolves without an edit.
@@ -82,7 +84,7 @@ Direct mask children of another mask modify coverage instead of processing image
 
 | Method | Behavior |
 | --- | --- |
-| `addLayer(kind, placement?)` | Adds `"exposure"`, `"color-mixer"`, `"details"`, `"vignette"`, `"grain"`, `"fill"`, `"heal"`, or `"mask"`; selects and returns its ID. A `"lut"` layer comes from a `.cube` file instead. `{ inside: id }` appends a child to a processing layer; `{ above: id }` inserts directly above that layer among its siblings; without a placement, the layer goes on top of the root stack. Exposure starts at +1 EV, Vignette at intensity 50, Grain at amount 25; Color Mixer, Details, Healing, and masks start neutral. |
+| `addLayer(kind, placement?)` | Adds `"exposure"`, `"color-mixer"`, `"details"`, `"vignette"`, `"grain"`, `"fill"`, `"heal"`, `"paint"`, or `"mask"`; selects and returns its ID. A `"lut"` layer comes from a `.cube` file instead. `{ inside: id }` appends a child to a processing layer; `{ above: id }` inserts directly above that layer among its siblings; without a placement, the layer goes on top of the root stack. Exposure starts at +1 EV, Vignette at intensity 50, Grain at amount 25; Color Mixer, Details, Healing, and masks start neutral. |
 | `selectLayer(id)` | Selects any layer. |
 | `setLayer(id, change)` | Updates processing-layer `name`, `visible`, or `opacity` (0–1). |
 | `setExposure(id, value)` | Sets an Exposure layer to -5…5 EV. |

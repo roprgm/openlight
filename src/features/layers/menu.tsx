@@ -17,7 +17,13 @@ import {
   type MaskLayer,
   type ProcessingLayer,
 } from "@/core/document";
-import { deleteLayer, duplicateLayer, moveLayer } from "./edits";
+import {
+  brushLayerCount,
+  deleteLayer,
+  duplicateLayer,
+  maxBrushLayers,
+  moveLayer,
+} from "./edits";
 import { useMaskTool } from "./mask-tool";
 
 /** Mounted only while the menu is open, so rows do not track siblings and containers. */
@@ -40,6 +46,8 @@ function LayerActionItems({
       !findLayer([layer], item.id),
   );
   const bottom = !parent ? 1 : 0;
+  const duplicable =
+    brushLayerCount(layers) + brushLayerCount([layer]) <= maxBrushLayers;
   function moveOut() {
     if (!parent) {
       return;
@@ -91,7 +99,10 @@ function LayerActionItems({
         </Submenu>
       )}
       <MenuSeparator />
-      <MenuItem onClick={() => onSelect(duplicateLayer(document, layer.id))}>
+      <MenuItem
+        disabled={!duplicable}
+        onClick={() => onSelect(duplicateLayer(document, layer.id))}
+      >
         Duplicate
       </MenuItem>
       <MenuItem onClick={() => deleteLayer(document, layer.id)}>

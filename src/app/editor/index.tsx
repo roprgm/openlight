@@ -2,7 +2,7 @@ import { Button } from "@roprgm/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@roprgm/ui/tooltip";
 import type { ReactNode } from "react";
 import type { Workspace } from "@/app/workspace";
-import { BrushProvider } from "@/components/editor/brush-tool";
+import { BrushProvider, useBrushTool } from "@/components/editor/brush-tool";
 import { Image } from "@/components/editor/image";
 import {
   EditorFrame,
@@ -116,6 +116,7 @@ function ExportButton() {
 function MaskTools({ children }: { children: ReactNode }) {
   const document = useDocument();
   const { setTool } = useTool();
+  const brush = useBrushTool();
   // A mask from the rail goes on top of the stack; one chosen from a mask's Add or Subtract menu goes inside it.
   function addMask(mask: Mask, nesting: Nesting) {
     const layer = createMask(mask, nesting.operation);
@@ -129,6 +130,9 @@ function MaskTools({ children }: { children: ReactNode }) {
     <MaskToolProvider
       onCreate={addMask}
       onTool={(shape) => {
+        if (shape === "brush") {
+          brush.update({ mode: "mask" });
+        }
         const tool = tools.find((entry) => entry.id === shape);
         if (tool) {
           setTool(tool);
@@ -172,9 +176,9 @@ function DocumentEditor({
 }) {
   return (
     <ToolProvider>
-      <MaskTools>
-        <HealingTools>
-          <BrushProvider>
+      <BrushProvider>
+        <MaskTools>
+          <HealingTools>
             <EditorHeader
               file={state.file}
               open={<OpenButton onOpen={onOpen} />}
@@ -199,9 +203,9 @@ function DocumentEditor({
               failure={state.failure}
               onDismiss={onDismissFailure}
             />
-          </BrushProvider>
-        </HealingTools>
-      </MaskTools>
+          </HealingTools>
+        </MaskTools>
+      </BrushProvider>
     </ToolProvider>
   );
 }

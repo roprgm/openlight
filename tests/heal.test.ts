@@ -85,7 +85,7 @@ test("heal patches reuse brush rasters, scale with the proxy, undo, and release 
     await renderer.update(document.scene.getState(), id, true);
     expect(renderer.fullImage().size).toEqual([64, 48]);
     expect(renderer.inspect().rasters).toEqual([
-      { id: `layer/${id}/${patch}`, size: [256, 192] },
+      { id: `layer/${id}/${patch}`, size: [256, 192], format: "r8unorm" },
     ]);
     const stamped = renderer.inspect().stamped;
     extendHealPatch(document, id, [[120, 80, 1]]);

@@ -30,6 +30,7 @@ export type Workload =
   | "layer-stack"
   | "fill"
   | "lut"
+  | "paint"
   | "heal"
   | "heal-empty"
   | "heal-proxy"
@@ -223,6 +224,19 @@ export async function benchmarkRendering(
       lut: benchmarkLut(),
     });
   }
+  if (workload === "paint") {
+    effects.push({
+      ...common,
+      id: "benchmark-paint",
+      name: "Paint",
+      kind: "paint",
+      blend: "soft-light",
+      strokes: brushStrokes(size).map((stroke, index) => ({
+        ...stroke,
+        color: ["#f0763c", "#3c8ef0", "#f0d23c", "#000000"][index],
+      })),
+    });
+  }
   if (
     workload === "heal" ||
     workload === "heal-empty" ||
@@ -391,9 +405,10 @@ export async function benchmarkRendering(
           sum + size[0] * size[1] * (format === "rgba32float" ? 16 : 8),
         0,
       ),
-      // Brush rasters are r8unorm at source resolution over the tiles their strokes reach, outside the graph.
+      // Brush rasters are r8unorm, and paint rgba8unorm, at source resolution over the tiles their strokes reach, outside the graph.
       rasterBytes: storage.rasters.reduce(
-        (sum, { size }) => sum + size[0] * size[1],
+        (sum, { size, format }) =>
+          sum + size[0] * size[1] * (format === "rgba8unorm" ? 4 : 1),
         0,
       ),
       image: [...new Uint8Array(await blob.arrayBuffer())],

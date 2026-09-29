@@ -15,11 +15,13 @@ import { createLoaderRegistry } from "@/app/loaders/registry";
 import { createSceneLoader, writeSceneFile } from "@/app/loaders/scene";
 import type {
   Adjustments,
+  Blend,
   BrushStroke,
   Details,
   Fill,
   Grain,
   Mask,
+  PaintStroke,
   Preview,
   ToneCurve,
   Vignette,
@@ -53,6 +55,7 @@ import {
   setMaskOperation,
 } from "@/features/layers/edits";
 import { defaultGradient } from "@/features/layers/gradient";
+import { addPaintStroke, setPaintBlend } from "@/features/paint/edits";
 import { defaultCurve } from "@/features/tone-curves/curve";
 import { setToneCurve } from "@/features/tone-curves/edits";
 import { setVignette } from "@/features/vignette/edits";
@@ -147,6 +150,10 @@ export function createControls(
       addHealPatch(workspace.getDocument(), id, stroke, offset),
     setHealSource: (id: string, patchId: string, offset: Point) =>
       setHealSource(workspace.getDocument(), id, patchId, offset),
+    addPaintStroke: (id: string, stroke: PaintStroke) =>
+      addPaintStroke(workspace.getDocument(), id, stroke),
+    setPaintBlend: (id: string, blend: Blend) =>
+      setPaintBlend(workspace.getDocument(), id, blend),
     addLayer(kind: DefaultEffect | "mask", placement?: LayerPlacement) {
       const document = workspace.getDocument();
       if (kind !== "mask") {

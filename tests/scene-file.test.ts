@@ -98,6 +98,19 @@ test("scene files reopen the photo with every layer for further editing", async 
       { mode: "paint", size: 4, feather: 0.2, flow: 1, points: [[40, 20, 1]] },
       [-6, 2],
     );
+    const paint = api.addLayer("paint");
+    api.addPaintStroke(paint, {
+      mode: "paint",
+      size: 5,
+      feather: 0.3,
+      flow: 1,
+      color: "#ff8800",
+      points: [
+        [12, 6, 1],
+        [30, 9, 0.7],
+      ],
+    });
+    api.setPaintBlend(paint, "overlay");
     api.setFill({ color: "#123456", blend: "soft-light" });
     const fill = api.getState().scene?.layers.at(-1)?.id ?? "";
     api.setLayer(fill, { name: "Warm", opacity: 0.5, visible: false });

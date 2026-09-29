@@ -2,6 +2,7 @@ import type { Gpu, Target, Timer } from "vgpu";
 import {
   type BrushStroke,
   type MaskLayer,
+  type PaintLayer,
   type Scene,
   walkLayers,
 } from "@/core/document";
@@ -45,6 +46,8 @@ export type Composition = {
   retain: (id: string) => void;
   /** Rasterized coverage of a mask that paints with brushes, prepared before composition. */
   coverage: (layer: MaskLayer) => Raster | undefined;
+  /** Rasterized paint of a paint layer, prepared before composition. */
+  paint: (layer: PaintLayer) => Raster | undefined;
   brush: (id: string, strokes: readonly BrushStroke[]) => Raster | undefined;
 };
 
@@ -111,11 +114,17 @@ export function createRenderer(
     }
     const active = new Set<string>();
     const developed = raw?.render() ?? source;
-    // Every mask updates once, bypassed or not, so a hidden mask keeps its cache; child masks only shape their parent's coverage.
-    const coverage = new Map<string, Raster | undefined>();
+    // Every mask and paint layer updates once, bypassed or not, so a hidden one keeps its cache; child masks only shape their parent's coverage.
+    const rasters = new Map<string, Raster | undefined>();
     for (const { layer, parent } of walkLayers(scene.layers)) {
       if (layer.kind === "mask" && parent?.kind !== "mask") {
-        coverage.set(layer.id, raster.update(layer, developed.size));
+        rasters.set(layer.id, raster.update(layer, developed.size));
+      }
+      if (layer.kind === "paint") {
+        rasters.set(
+          layer.id,
+          raster.paint(layer.id, layer.strokes, developed.size),
+        );
       }
     }
     const image =
@@ -123,7 +132,8 @@ export function createRenderer(
     const images = compose(image, scene, {
       inputId,
       retain: (id) => active.add(id),
-      coverage: (layer) => coverage.get(layer.id),
+      coverage: (layer) => rasters.get(layer.id),
+      paint: (layer) => rasters.get(layer.id),
       brush: (id, strokes) => raster.brush(id, strokes, developed.size),
     });
     for (const id of instances) {

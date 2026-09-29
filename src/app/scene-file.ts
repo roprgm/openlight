@@ -25,6 +25,7 @@ import {
   maskSchema,
 } from "@/features/layers/model";
 import { lutSchema } from "@/features/lut/model";
+import { paintShape } from "@/features/paint/model";
 import { curveSchema } from "@/features/tone-curves/curve";
 import { defaultVignette, vignetteSchema } from "@/features/vignette/model";
 import { whiteBalanceSchema } from "@/features/white-balance/edits";
@@ -100,6 +101,7 @@ function processingLayer(children: z.ZodMiniType<readonly ProcessingLayer[]>) {
         kind: z.literal("heal"),
         patches: z.array(healPatchSchema),
       }),
+      z.object({ ...base, kind: z.literal("paint"), ...paintShape }),
       z.object({
         ...base,
         kind: z.literal("mask"),

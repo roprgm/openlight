@@ -19,6 +19,7 @@ import { fill } from "@/features/fill/pass";
 import { grain } from "@/features/grain/pass";
 import { heal } from "@/features/heal/pass";
 import { lut } from "@/features/lut/pass";
+import { paint } from "@/features/paint/pass";
 import { toneCurves } from "@/features/tone-curves/pass";
 import { vignette } from "@/features/vignette/pass";
 
@@ -88,6 +89,14 @@ function composeLayer(
       break;
     case "lut":
       edited = pipeline(below, [lut(layer.lut, `${name}/lut`)]);
+      break;
+    case "paint":
+      edited = paint(
+        below,
+        composition.paint(layer),
+        layer.blend,
+        `${name}/paint`,
+      );
       break;
     case "heal": {
       const result = heal(below, layer.patches, name, composition);

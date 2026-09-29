@@ -25,6 +25,8 @@ export type {
   Mask,
   MaskLayer,
   MaskModifier,
+  PaintLayer,
+  PaintStroke,
   ProcessingLayer,
   RadialGradient,
   Scene,

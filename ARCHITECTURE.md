@@ -21,6 +21,7 @@ Where the code lives and the rules that keep it in place. Keep this file true: w
 | `app/editor/empty.tsx` | The editor before a document opens: welcome or loading status, and the placeholder sidebar. |
 | `app/editor/sidebar.tsx` | Sidebar sections in order: `EditorSidebar` with a document, `PlaceholderSidebar` without one. |
 | `app/editor/tools.tsx`, `tool-rail.tsx` | The tools and the desktop rail. A tool brings a `Canvas` overlay, `Options` for the bar over the image or the dock, or its own `View`. |
+| `app/editor/brush.tsx` | The Brush tool: the paint or mask canvas its mode picks, and its options. |
 | `app/editor/dock.tsx` | The mobile dock's tabs and what it shows: the layer stack, a tool's options, or the selected layer's dials. |
 | `app/editor/renderer.ts` | Composes feature passes into the preview and export pipelines. |
 | `app/editor/mask-overlay.tsx` | The only writer of the mask overlay, derived from the selection. |
@@ -77,6 +78,6 @@ Dependencies point downward. Features do not import each other; `app/` connects 
 - Layers process in stack order; the image layer's adjustments and tone curve run last, on the composite.
 - Preserve HDR headroom through exposure, curves, and vibrance. Exposure clips negatives and applies one luminance gain to all channels.
 - The adjustment shader's parameters use UI units; its fitted constants are calibration data.
-- Strokes are scene content; the renderer caches their rasterized coverage over the tiles they reach and stamps only appended dabs.
+- Strokes are scene content; the renderer caches their rasterized coverage, or a Paint layer's premultiplied 8-bit color, over the tiles they reach and stamps only appended dabs. A photo holds up to 10 brush layers, since each may keep a raster as large as the source.
 - Open history groups render a reduced proxy. Every render image carries `scale`, its source pixels per texel; shaders that take document coordinates or radii apply it.
 - TIFF and camera RAW decode through `raw-webgpu`; OpenLight adapts its resources to document ownership.

@@ -103,6 +103,8 @@ export type BrushStroke = {
   readonly flow: number;
   readonly points: readonly StrokePoint[];
 };
+/** A stroke that paints a color, `#rrggbb` sRGB; erasing removes paint whatever its color. */
+export type PaintStroke = BrushStroke & { readonly color: string };
 /** Coverage painted with strokes; the renderer rasterizes them into a cached texture. */
 export type BrushMask = {
   readonly kind: "brush";
@@ -134,6 +136,11 @@ export type ProcessingLayer = {
   | { readonly kind: "lut"; readonly lut: LookupTable }
   | { readonly kind: "heal"; readonly patches: readonly HealPatch[] }
   | {
+      readonly kind: "paint";
+      readonly blend: Blend;
+      readonly strokes: readonly PaintStroke[];
+    }
+  | {
       readonly kind: "mask";
       readonly operation: "add" | "subtract";
       readonly mask: Mask;
@@ -142,6 +149,7 @@ export type ProcessingLayer = {
     }
 );
 export type MaskLayer = Extract<ProcessingLayer, { kind: "mask" }>;
+export type PaintLayer = Extract<ProcessingLayer, { kind: "paint" }>;
 /** A child mask that adds to or subtracts from its parent's coverage. */
 export type MaskModifier = Pick<
   MaskLayer,
