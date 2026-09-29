@@ -180,3 +180,24 @@ test("tone adjustments preserve ramps, colors and alpha, compose, and reset", as
   expect(result.reloadMatches).toBe(true);
   expect(result.resetMatches).toBe(true);
 });
+
+test("a gradient recovers +3 EV photo exposure without clipping between layers", async ({
+  page,
+}) => {
+  await page.goto("/tests/gpu.html");
+  const result = await page.evaluate(async () => {
+    const path = "/tests/exposure-gpu.ts";
+    const { recoverExposure } = (await import(
+      path
+    )) as typeof import("./exposure-gpu");
+    return recoverExposure();
+  });
+  expect(result.errors).toEqual([]);
+  for (const exposed of result.exposed) {
+    expect(exposed).toEqual([2, 4, 6, 0.75]);
+  }
+  expect(result.recovered[0]).toEqual(result.original[0]);
+  expect(result.recovered[2]).toEqual(result.exposed[2]);
+  expect(result.recovered[1][2]).toBeGreaterThan(1);
+  expect(result.recovered[1][3]).toBe(0.75);
+});

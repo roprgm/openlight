@@ -140,8 +140,8 @@ function composeLayers(
 
 /**
  * Pure layer composition shares the same graph for preview, crop, and export.
- * Layers process the source; the image layer's adjustments and curve then tone the composite,
- * so a local exposure still sees the light a global exposure would push past white.
+ * The image layer develops the photo first; layers above it process that floating-point result.
+ * Display and export encode only after composition, so later layers can recover HDR headroom.
  */
 export function createEditorRenderer(
   gpu: Gpu,
@@ -158,14 +158,19 @@ export function createEditorRenderer(
       const [sourceLayer, ...layers] = scene.layers;
       const name = `layer/${sourceLayer.id}`;
       composition.retain(name);
-      const children = composeLayers(image, sourceLayer.children, composition);
-      const composite = composeLayers(children.image, layers, composition);
-      const adjusted = pipeline(composite.image, [
+      const adjusted = pipeline(image, [
         adjustments(sourceLayer.adjustments, name),
       ]);
-      const full = pipeline(adjusted, [
+      const developed = pipeline(adjusted, [
         toneCurves(sourceLayer.toneCurve, `${name}/curves`),
       ]);
+      const children = composeLayers(
+        developed,
+        sourceLayer.children,
+        composition,
+      );
+      const composite = composeLayers(children.image, layers, composition);
+      const full = composite.image;
       const [original, output] = transformImages(
         [input(source.image), full],
         scene.frame,

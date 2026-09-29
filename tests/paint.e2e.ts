@@ -405,3 +405,28 @@ for (const mode of ["paint", "mask"] as const) {
     });
   }
 }
+
+test("photo exposure, contrast, and curves leave the selected paint color unchanged", async ({
+  page,
+}) => {
+  await openPhoto(page);
+  await page.evaluate(() => {
+    const api = window.openlight;
+    api.setAdjustments({ exposure: 3, contrast: 97 });
+    api.setToneCurve([
+      { x: 0, y: 0 },
+      { x: 0.5, y: 0.8 },
+      { x: 1, y: 1 },
+    ]);
+    const id = api.addLayer("paint");
+    api.addPaintStroke(id, {
+      color: "#b95050",
+      mode: "paint",
+      size: 791,
+      feather: 0.5,
+      flow: 1,
+      points: [[600, 400, 1]],
+    });
+  });
+  expect((await samples(page))[0]).toEqual([185, 80, 80, 255]);
+});
