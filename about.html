@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="dark" />
+    <meta name="theme-color" content="#171717" />
+    <link rel="icon" href="/logo.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="canonical" href="https://openlight.app/about" />
+    <title>About OpenLight | How to edit photos in your browser</title>
+    <meta name="description" content="What OpenLight is and how to use it: open a photo or camera RAW file, adjust it, edit parts of it with masks, heal, crop, and export, all in your browser." />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="OpenLight" />
+    <meta property="og:title" content="About OpenLight | How to edit photos in your browser" />
+    <meta property="og:description" content="What OpenLight is and how to use it: open a photo or camera RAW file, adjust it, edit parts of it with masks, heal, crop, and export, all in your browser." />
+    <meta property="og:url" content="https://openlight.app/about" />
+    <meta property="og:image" content="https://openlight.app/og.png" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <link rel="stylesheet" href="/src/index.css" />
+  </head>
+  <body class="overflow-auto">
+    <main class="mx-auto flex max-w-xl flex-col gap-8 px-6 py-16 text-muted">
+      <header class="flex flex-col items-start gap-1.5">
+        <a href="/" class="mb-1.5 rounded-md focus-ring" aria-label="Open the editor">
+          <img alt="" class="w-12" height="48" src="/logo.svg" width="48" />
+        </a>
+        <h1 class="text-2xl font-bold text-foreground">About OpenLight</h1>
+        <p>A free, open-source photo editor that runs in your browser.</p>
+        <a href="/" class="mt-3 rounded-xs text-foreground underline decoration-disabled underline-offset-4 transition-colors hover:decoration-foreground focus-ring">Open the editor</a>
+      </header>
+
+      <section class="flex flex-col gap-2">
+        <h2 class="font-semibold text-foreground">What it is</h2>
+        <p>
+          OpenLight edits photos on your own graphics card with WebGPU, so they never leave your device: there is no upload,
+          no account, and nothing to install. It covers the everyday work of a desktop RAW editor: tone and color
+          adjustments, local adjustments with masks, healing, cropping, and export.
+        </p>
+      </section>
+
+      <section class="flex flex-col gap-2">
+        <h2 class="font-semibold text-foreground">How to use it</h2>
+        <ol class="flex list-decimal flex-col gap-2 pl-4">
+          <li>
+            <strong class="font-medium text-foreground">Open a photo.</strong> Drop an image on the editor or choose a
+            file. OpenLight opens JPEG, PNG, WebP, AVIF, GIF, BMP, SVG, HEIC, TIFF, and camera RAW and DNG files, and
+            imports Camera Raw XMP settings.
+          </li>
+          <li>
+            <strong class="font-medium text-foreground">Adjust it.</strong> Adjust (A) sets exposure, contrast,
+            highlights, shadows, whites, blacks, white balance, vibrance, and saturation, then the tone curve and the
+            Color Mixer.
+          </li>
+          <li>
+            <strong class="font-medium text-foreground">Edit parts of it.</strong> Brush (B), Linear gradient (L), and
+            Radial gradient (R) draw a mask with its own adjustments. Add effect adds Details, Exposure, Color Mixer,
+            Vignette, Grain, Color, or LUT layers, which you can drag to reorder.
+          </li>
+          <li>
+            <strong class="font-medium text-foreground">Remove distractions.</strong> Healing (H) paints over a spot and
+            fills it from another part of the photo. Each patch stays editable.
+          </li>
+          <li>
+            <strong class="font-medium text-foreground">Crop and straighten.</strong> Crop (C) sets an aspect ratio,
+            rotates, straightens, and flips.
+          </li>
+          <li>
+            <strong class="font-medium text-foreground">Compare.</strong> Hold \ to see the original. Undo with ⌘Z or
+            Ctrl+Z, and redo with Shift.
+          </li>
+          <li>
+            <strong class="font-medium text-foreground">Export.</strong> Export (E) saves PNG, JPEG, or WebP at the size
+            and quality you choose, or saves a scene with the photo and every edit to continue later.
+          </li>
+        </ol>
+        <p>If you close the tab, your latest photo stays in the browser, ready to recover on your next visit.</p>
+      </section>
+
+      <section class="flex flex-col gap-2">
+        <h2 class="font-semibold text-foreground">Requirements</h2>
+        <p>
+          OpenLight needs WebGPU, which recent versions of Chrome, Edge, Safari, and Firefox provide. It works on
+          computers and phones. HEIC needs a browser that decodes HEVC.
+        </p>
+      </section>
+
+      <section class="flex flex-col gap-2">
+        <h2 class="font-semibold text-foreground">For developers and agents</h2>
+        <p>
+          Every edit is also available to scripts through <code>window.openlight</code> and, in browsers with WebMCP,
+          to AI agents as tools. The
+          <a href="https://github.com/roprgm/openlight/blob/main/API.md" class="rounded-xs text-foreground underline decoration-disabled underline-offset-4 transition-colors hover:decoration-foreground focus-ring">API reference</a>
+          and <a href="/llms.txt" class="rounded-xs text-foreground underline decoration-disabled underline-offset-4 transition-colors hover:decoration-foreground focus-ring">llms.txt</a>
+          describe them.
+        </p>
+      </section>
+
+      <section class="flex flex-col gap-2">
+        <h2 class="font-semibold text-foreground">Open source</h2>
+        <p>
+          OpenLight is MIT-licensed. Its source code, issues, and contributions are on
+          <a href="https://github.com/roprgm/openlight" class="rounded-xs text-foreground underline decoration-disabled underline-offset-4 transition-colors hover:decoration-foreground focus-ring">GitHub</a>.
+        </p>
+      </section>
+    </main>
+  </body>
+</html>

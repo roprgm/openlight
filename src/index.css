@@ -6,6 +6,14 @@
   --font-sans: "Geist Variable", system-ui, sans-serif;
   /* Around and between the editor's panels, darker than the lines in a list. */
   --color-edge: oklch(0% 0 0);
+  /* The editor replacing the splash, whose centered welcome sits elsewhere. */
+  --animate-fade-in: fade-in 200ms ease-out;
+
+  @keyframes fade-in {
+    from {
+      opacity: 0;
+    }
+  }
 }
 
 /* `optional` never swaps after first paint, so the font can't cause layout shift. */

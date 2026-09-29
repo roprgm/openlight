@@ -3,6 +3,7 @@
 > OpenLight is a free, open-source photo editor that runs entirely in the browser on WebGPU. Photos stay on the device. Every editing action is also exposed as a JavaScript API on `window.openlight`, so an AI agent with browser access can open, edit, and export images programmatically.
 
 Site: https://openlight.app
+About and how to use it: https://openlight.app/about
 Source (MIT): https://github.com/roprgm/openlight
 
 ## Features

@@ -1,7 +1,39 @@
 import { Tab, TabList, Tabs } from "@roprgm/ui/tabs";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@roprgm/ui/tooltip";
+import type { ReactNode } from "react";
 import { GithubIcon } from "@/components/icons/github";
+import { InfoIcon } from "@/components/icons/info";
 import { type Tool, tools, useTool } from "./tools";
+
+/** Opens in a new tab, leaving the photo open. */
+function RailLink({
+  href,
+  label,
+  children,
+}: {
+  href: string;
+  label: string;
+  children: ReactNode;
+}) {
+  return (
+    <Tooltip>
+      <TooltipTrigger
+        render={
+          <a
+            href={href}
+            target="_blank"
+            rel="noreferrer"
+            aria-label={label}
+            className="grid place-items-center rounded-md p-1.5 text-muted transition-colors hover:bg-hover hover:text-foreground"
+          />
+        }
+      >
+        {children}
+      </TooltipTrigger>
+      <TooltipContent side="right">{label}</TooltipContent>
+    </Tooltip>
+  );
+}
 
 /** Icon tabs in a column at the window's left edge; tooltips carry the label and shortcut. Without a handler the tabs are inert. */
 export function ToolTabList({
@@ -39,22 +71,17 @@ export function ToolTabList({
           </Tooltip>
         ))}
       </TabList>
-      <Tooltip>
-        <TooltipTrigger
-          render={
-            <a
-              href="https://github.com/roprgm/openlight"
-              target="_blank"
-              rel="noreferrer"
-              aria-label="OpenLight on GitHub"
-              className="mt-auto grid place-items-center rounded-md p-1.5 text-muted transition-colors hover:bg-hover hover:text-foreground"
-            />
-          }
+      <div className="mt-auto flex flex-col gap-1">
+        <RailLink href="/about" label="About OpenLight">
+          <InfoIcon className="size-5" />
+        </RailLink>
+        <RailLink
+          href="https://github.com/roprgm/openlight"
+          label="OpenLight on GitHub"
         >
           <GithubIcon className="size-5" />
-        </TooltipTrigger>
-        <TooltipContent side="right">OpenLight on GitHub</TooltipContent>
-      </Tooltip>
+        </RailLink>
+      </div>
     </Tabs>
   );
 }

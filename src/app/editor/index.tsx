@@ -235,7 +235,7 @@ function EditorContent({
 }
 export function Editor(props: EditorProps) {
   return (
-    <main className="flex h-dvh flex-col">
+    <main className="flex h-dvh flex-col motion-safe:animate-fade-in">
       <EditorContent {...props} />
     </main>
   );

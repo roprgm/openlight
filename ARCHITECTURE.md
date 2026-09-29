@@ -7,6 +7,8 @@ Where the code lives and the rules that keep it in place. Keep this file true: w
 | Path | Owns |
 | --- | --- |
 | `src/main.tsx` | Mounts the GPU provider and the app. |
+| `index.html`, `about.html` | The two pages. `index.html` repeats the splash's markup so it paints, and crawlers read it, before the script runs; `about.html` is static, without script. |
+| `app/splash.tsx` | The splash: shown until the editor mounts, and without WebGPU. |
 | `app/index.tsx` | The app: workspace, file drop, draft notice. |
 | `app/workspace` | The open document, its replacement, and loading state. A replacement loads beside the open document and takes its place only once it opens; a failure leaves the open document in place. |
 | `app/loaders` | Image, scene file, Camera Raw XMP, and `.cube` LUT loaders. A loader reads one file format and opens a document or edits the open one through the same edits the UI uses. |
