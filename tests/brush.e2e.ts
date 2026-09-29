@@ -158,6 +158,9 @@ test.describe("on a touch phone", () => {
     await page
       .locator('input[type="file"]')
       .setInputFiles("tests/fixtures/photo.svg");
+    await expect(
+      page.getByRole("slider", { name: "Exposure", exact: true }),
+    ).toHaveAttribute("aria-valuetext", "0.00");
     await page.getByRole("tab", { name: "Brush", exact: true }).click();
     const bounds = await box(page.getByLabel("Brush canvas", { exact: true }));
     const zoom = page.getByRole("button", { name: /^\d+%$/ });
