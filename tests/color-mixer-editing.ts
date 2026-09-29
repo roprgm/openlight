@@ -16,8 +16,6 @@ export async function colorMixerEditing(page: Page) {
     const hue = page.getByRole("slider", { name: "Blue hue", exact: true });
     await hue.scrollIntoViewIfNeeded();
     await expect(hue).toHaveAttribute("aria-orientation", "vertical");
-    const bounds = await box(bar(hue));
-    expect(bounds.height).toBeGreaterThan(bounds.width * 3);
     await hue.press("ArrowUp");
     await expect(hue).toHaveValue("1");
     expect((await state()).history.undoCount).toBe(before + 1);

@@ -119,9 +119,6 @@ test("without IndexedDB a notice suggests scene files and editing still works", 
   await expect(exposure).toHaveValue("1.00");
   await notice.getByRole("button", { name: "Dismiss" }).click();
   await expect(notice).toHaveCount(0);
-  // The autosave after that edit fails the same way without bringing the notice back.
-  await page.waitForTimeout(2000);
-  await expect(notice).toHaveCount(0);
   await expect(
     page.evaluate(() => window.openlight.recoverDraft()),
   ).rejects.toThrow("IndexedDB is unavailable.");

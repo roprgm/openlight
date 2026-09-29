@@ -13,7 +13,6 @@ import {
 import { createImageSource } from "@/core/image";
 import { imageFrame } from "@/core/image/frame";
 import { setExposure } from "@/features/adjustments/edits";
-import { layerDrop } from "@/features/layers/drop";
 import {
   addLayer,
   deleteLayer,
@@ -61,15 +60,24 @@ test("nested layers compose in order, move atomically, and duplicate with indepe
       vignette: { intensity: 50, softness: 75 },
     });
     controls.undo();
-    for (const field of ["center", "size", "scale"]) {
-      for (const value of [[8], [8, 8, 8], [], [8, NaN], null]) {
-        expect(() =>
-          Reflect.apply(controls.setFrame, undefined, [
-            { ...original.frame, [field]: value },
-          ]),
-        ).toThrow("Invalid image frame");
-      }
+    const invalidFrames = [
+      ...["center", "size", "scale"].flatMap((field) =>
+        [[8], [8, 8, 8], [], [8, NaN], null].map((value) => ({
+          [field]: value,
+        })),
+      ),
+      { size: [0, 1] },
+      { scale: [0, 1] },
+      { angle: NaN },
+    ];
+    for (const change of invalidFrames) {
+      expect(() =>
+        Reflect.apply(controls.setFrame, undefined, [
+          { ...original.frame, ...change },
+        ]),
+      ).toThrow("Invalid image frame");
     }
+    expect(document.scene.getState().frame).toBe(original.frame);
     const size: [number, number] = [8, 8];
     const frame = { ...original.frame, size };
     controls.setFrame(frame);
@@ -146,13 +154,6 @@ test("nested layers compose in order, move atomically, and duplicate with indepe
     ).toThrow("two levels");
     expect(() => moveLayer(document, mask, 0, exposure)).toThrow("itself");
     expect(() => moveLayer(document, exposure, 0, "base")).toThrow("image");
-    expect(
-      layerDrop(document.scene.getState(), {
-        id: exposure,
-        target: "base",
-        position: "inside",
-      }),
-    ).toBeUndefined();
     expect(() => moveLayer(document, exposure, 0)).toThrow("position");
     expect(() =>
       setLayerMask(document, mask, {

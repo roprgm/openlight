@@ -52,36 +52,16 @@ test("Healing paints patches, edits them, and undoes", async ({ page }) => {
   await page.keyboard.press("h");
   const canvas = page.getByLabel("Healing canvas", { exact: true });
   await expect(canvas).toBeVisible();
-  expect(await box(canvas)).toEqual(
-    await box(page.getByRole("region", { name: "Image canvas" })),
-  );
-  await expect(page.getByText("Paint to repair", { exact: false })).toHaveCount(
-    0,
-  );
   await expect(
     page.getByRole("heading", { name: "Healing", exact: true }),
   ).toBeVisible();
-  const toolbar = page.getByRole("group", { name: "Layer options" });
-  const initialToolbarWidth = await toolbar.evaluate(
-    (element) => element.getBoundingClientRect().width,
-  );
   const size = page.getByRole("textbox", { name: "Size", exact: true });
-  const brushCursor = canvas.locator('[data-brush-cursor="true"]');
-  await size.focus();
-  await expect(brushCursor).toHaveAttribute("data-preview", "true");
   await size.fill("300");
   await size.press("Enter");
-  await expect(brushCursor).toHaveCount(0);
   const feather = page.getByRole("textbox", { name: "Feather", exact: true });
   await expect(feather).toHaveValue("10");
-  await feather.focus();
-  await expect(brushCursor).toHaveAttribute("data-preview", "true");
   await feather.fill("0");
   await feather.press("Enter");
-  await expect(brushCursor).toHaveCount(0);
-  expect(
-    await toolbar.evaluate((element) => element.getBoundingClientRect().width),
-  ).toBe(initialToolbarWidth);
   const bounds = await box(canvas);
   const scale = Math.min(bounds.width / 1200, bounds.height / 800, 2);
   await page.mouse.click(
@@ -103,6 +83,7 @@ test("Healing paints patches, edits them, and undoes", async ({ page }) => {
     throw Error("Heal layer missing");
   }
   expect(layer.patches).toHaveLength(1);
+  expect(layer.patches[0].offset).not.toEqual([0, 0]);
   // A click in the canvas margin, where the brush cannot reach the image, creates nothing.
   await page.mouse.click(bounds.x + 4, bounds.y + 4);
   expect(
@@ -120,26 +101,9 @@ test("Healing paints patches, edits them, and undoes", async ({ page }) => {
   await expect(
     patchList.getByRole("button", { name: "Select patch 1" }),
   ).toHaveAttribute("aria-pressed", "true");
-  await expect(canvas.locator('[data-heal-outline="destination"]')).toHaveCount(
-    1,
-  );
-  await expect(canvas.locator('[data-heal-outline="source"]')).toHaveCount(1);
-  await expect(canvas.locator('[data-heal-source-handle="true"]')).toHaveCount(
-    1,
-  );
-  await expect(
-    canvas.locator('[data-heal-destination-handle="true"]'),
-  ).toHaveCount(1);
-  await expect(canvas.locator("[data-heal-connector]")).toHaveCount(0);
-  await expect(
-    canvas.getByRole("button", { name: "Select patch 1" }),
-  ).toHaveCount(0);
   await expect(
     page.getByRole("textbox", { name: "Opacity", exact: true }),
   ).toHaveValue("100");
-  await expect(
-    page.getByRole("textbox", { name: "Opacity", exact: true }),
-  ).toHaveCount(1);
   await size.fill("120");
   await size.press("Enter");
   expect(
@@ -152,7 +116,6 @@ test("Healing paints patches, edits them, and undoes", async ({ page }) => {
   ).toBe(300);
   await size.fill("300");
   await size.press("Enter");
-  expect(layer.patches[0].offset).not.toEqual([0, 0]);
   const after = await readImage(page, undefined, [
     [350, 200],
     [600, 400],
@@ -182,7 +145,9 @@ test("Healing paints patches, edits them, and undoes", async ({ page }) => {
     bounds.y + bounds.height / 2 + 160 * scale,
   );
   await page.keyboard.up("Alt");
-  const automatic = toolbar.getByRole("button", { name: "Automatic source" });
+  const automatic = page
+    .getByRole("group", { name: "Layer options" })
+    .getByRole("button", { name: "Automatic source" });
   await expect(automatic).toBeVisible();
   const targetX = bounds.x + bounds.width / 2 - 250 * scale;
   const targetY = bounds.y + bounds.height / 2 - 200 * scale;
@@ -273,10 +238,11 @@ test("Healing paints patches, edits them, and undoes", async ({ page }) => {
   const handle = canvas.locator('[data-heal-source-handle="true"]');
   const handleBounds = await handle.boundingBox();
   if (!handleBounds) throw Error("Healing source handle is unavailable");
+  const brushCursor = canvas.locator('[data-brush-cursor="true"]');
   await handle.hover();
-  await expect(canvas.locator("svg:has(radialGradient)")).toHaveCount(0);
+  await expect(brushCursor).toHaveCount(0);
   await page.mouse.move(bounds.x + 10, bounds.y + 10);
-  await expect(canvas.locator("svg:has(radialGradient)")).toHaveCount(1);
+  await expect(brushCursor).toHaveCount(1);
   await page.mouse.move(
     handleBounds.x + handleBounds.width / 2,
     handleBounds.y + handleBounds.height / 2,

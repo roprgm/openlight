@@ -11,7 +11,7 @@ export const sceneExtension = ".openlight";
 /** Sources are stored, so only `scene.json` inflates; a scene with 7,000 stroke points is about 200 kB. */
 const inflateLimit = 256 * 2 ** 20;
 
-export function isSceneFile(file: File) {
+function isSceneFile(file: File) {
   return file.name.toLowerCase().endsWith(sceneExtension);
 }
 

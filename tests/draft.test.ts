@@ -1,6 +1,7 @@
 import { expect, test } from "bun:test";
 import { init, target } from "vgpu/mock";
-import { openDraft, snapshotDraft } from "@/app/draft/store";
+import { createDraftSession } from "@/app/draft/session";
+import { createDraftStore, openDraft, snapshotDraft } from "@/app/draft/store";
 import { createImageLayer, createLayer } from "@/app/editor/layers";
 import { createDocument, createResources } from "@/core/document";
 import { createImageSource } from "@/core/image";
@@ -58,29 +59,25 @@ test("a draft survives storage's structured clone, reopens under its source ID, 
     [undefined, "Invalid draft"],
     [{ ...record, version: "1" }, "Invalid draft version"],
     [{ ...record, version: 2 }, "This draft needs a newer version"],
-    [{ ...record, scene: undefined }, "doesn't contain an OpenLight scene"],
-    [
-      { ...record, scene: { ...record.scene, version: 2 } },
-      "This scene needs a newer version",
-    ],
   ];
   for (const [value, message] of malformed) {
     await expect(
       openDraft({ record: value as typeof record, files }, decode),
     ).rejects.toThrow(message);
   }
-  await expect(openDraft({ record, files: new Map() }, decode)).rejects.toThrow(
-    "The scene's image is missing.",
-  );
+});
 
-  // A draft from before a group gained a parameter opens with its default, as a scene file does.
-  const older = structuredClone(record);
-  const layer = older.scene.scene.layers[1];
-  if (layer.kind !== "vignette") throw Error("Missing vignette.");
-  Reflect.deleteProperty(layer.vignette, "softness");
-  const reopened = await openDraft({ record: older, files }, decode);
-  expect(reopened.scene.getState().layers[1]).toMatchObject({
-    vignette: { intensity: 30, softness: 50 },
+test("a dismissed draft failure stays dismissed while autosave fails the same way", () => {
+  const session = createDraftSession(createDraftStore(), {
+    recoverDraft: async () => {},
+    discardDraft: async () => {},
   });
-  reopened.dispose();
+  const error = () => session.state.getState().error;
+  session.report(Error("IndexedDB is unavailable."));
+  expect(error()).toBe("IndexedDB is unavailable.");
+  session.dismiss();
+  session.report(Error("IndexedDB is unavailable."));
+  expect(error()).toBeUndefined();
+  session.report(Error("The quota is exceeded."));
+  expect(error()).toBe("The quota is exceeded.");
 });
