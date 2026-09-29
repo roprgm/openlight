@@ -1,4 +1,7 @@
-import { expect, test } from "./fixtures";
+import type { Locator } from "@playwright/test";
+import { expect, openPhoto, test } from "./fixtures";
+import { readImage } from "./images";
+import { box, drag } from "./pointer";
 
 function luminance(rgb: number[]) {
   return rgb[0] * 0.2627 + rgb[1] * 0.678 + rgb[2] * 0.0593;
@@ -68,4 +71,75 @@ test("color mixing preserves luminance, neutrals, alpha and HDR, isolates ranges
       expect(Math.abs(a - b)).toBeLessThan(0.035);
     }
   }
+});
+
+test("color mixer switches channels, groups vertical drags, exports selected colors and resets", async ({
+  page,
+}) => {
+  const state = () => page.evaluate(() => window.openlight.getState());
+  // Base UI keeps a slider's range input inside its thumb, on the bar a person drags.
+  const bar = (slider: Locator) =>
+    slider.locator('xpath=ancestor::*[@data-slot="slider-track"]');
+  await openPhoto(page);
+  await page.getByRole("button", { name: "Add effect", exact: true }).click();
+  await page
+    .getByRole("menuitem", { name: "Color Mixer", exact: true })
+    .click();
+  const before = (await state()).history.undoCount;
+  const hue = page.getByRole("slider", { name: "Blue hue", exact: true });
+  await hue.scrollIntoViewIfNeeded();
+  await expect(hue).toHaveAttribute("aria-orientation", "vertical");
+  await hue.press("ArrowUp");
+  await expect(hue).toHaveValue("1");
+  expect((await state()).history.undoCount).toBe(before + 1);
+  await page.keyboard.press("ControlOrMeta+z");
+  await expect(hue).toHaveValue("0");
+  const beforeTabs = await state();
+  await page.getByRole("tab", { name: "Hue", exact: true }).press("ArrowRight");
+  await expect(
+    page.getByRole("tab", { name: "Saturation", exact: true }),
+  ).toHaveAttribute("aria-selected", "true");
+  expect(await state()).toEqual(beforeTabs);
+  const saturation = page.getByRole("slider", {
+    name: "Blue saturation",
+    exact: true,
+  });
+  const track = await box(bar(saturation));
+  await drag(
+    page,
+    [track.x + track.width / 2, track.y + track.height / 2],
+    [track.x + track.width / 2, track.y + track.height / 4],
+  );
+  const dragged = (await state()).colorMixer.saturation[5];
+  expect(dragged).toBeGreaterThan(0);
+  expect((await state()).history.undoCount).toBe(before + 1);
+  await page.keyboard.press("ControlOrMeta+z");
+  await expect(saturation).toHaveValue("0");
+  await page.keyboard.press("ControlOrMeta+Shift+z");
+  await expect(saturation).toHaveValue(String(dragged));
+  const numeric = page.getByRole("textbox", {
+    name: "Blue saturation value",
+    exact: true,
+  });
+  await numeric.fill("-100");
+  await numeric.press("Enter");
+  await expect(saturation).toHaveValue("-100");
+  const { samples } = await readImage(page, undefined, [[350, 200]]);
+  const pixel = samples?.[0] ?? [];
+  for (const channel of pixel.slice(0, 3)) {
+    expect(Math.abs(channel - 79)).toBeLessThanOrEqual(2);
+  }
+  expect(pixel[3]).toBe(255);
+  await page.getByRole("tab", { name: "Luminance", exact: true }).click();
+  await expect(
+    page.getByRole("slider", { name: "Blue luminance", exact: true }),
+  ).toHaveValue("0");
+  await page.getByRole("tab", { name: "Saturation", exact: true }).click();
+  await expect(saturation).toHaveValue("-100");
+  await saturation.locator("..").dblclick();
+  await expect(saturation).toHaveValue("0");
+  await page.keyboard.press("ControlOrMeta+z");
+  await expect(saturation).toHaveValue("-100");
+  await page.keyboard.press("ControlOrMeta+Shift+z");
+  await expect(saturation).toHaveValue("0");
 });

@@ -23,7 +23,7 @@ test("commands validate their input, return the layer they edit, and reset as on
   );
   const workspace = createWorkspace();
   await workspace.open("photo.png", async () => document);
-  const { run } = createControls(gpu, workspace);
+  const { run, setVignette } = createControls(gpu, workspace);
   const opened = document.scene.getState();
   const undoCount = () => document.history.status.getState().undoCount;
 
@@ -33,6 +33,11 @@ test("commands validate their input, return the layer they edit, and reset as on
   expect(() => run({ type: "set-vignette", intensity: 101 })).toThrow(
     "Invalid set-vignette intensity",
   );
+  // The edit that would create the layer fails, so the layer is not left behind.
+  expect(() => setVignette({ intensity: 101 })).toThrow(
+    "Invalid vignette adjustment",
+  );
+  expect(document.scene.getState()).toBe(opened);
   expect(undoCount()).toBe(0);
 
   expect(run({ type: "set-adjustments", exposure: 1 })).toEqual({

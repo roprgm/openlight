@@ -20,6 +20,13 @@ export async function drag(
   await page.mouse.up();
 }
 
+/** Zooms the canvas under the pointer as a Control-wheel gesture does. */
+export async function zoom(page: Page, factor: number) {
+  await page.keyboard.down("Control");
+  await page.mouse.wheel(0, -Math.log(factor) * 100);
+  await page.keyboard.up("Control");
+}
+
 /** Chooses from OpenLight's custom select surface through the visible UI. */
 export async function choose(page: Page, select: Locator, option: string) {
   await select.click();

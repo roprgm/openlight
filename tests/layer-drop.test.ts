@@ -79,6 +79,11 @@ test.each<[string, LayerDrop, ReturnType<typeof layerDrop>]>([
     undefined,
   ],
   [
+    "into a nested layer",
+    { id: "top", target: "exposure", position: "inside" },
+    undefined,
+  ],
+  [
     "a parent into another mask",
     { id: "mask", target: "other", position: "inside" },
     undefined,

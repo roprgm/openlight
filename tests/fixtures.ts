@@ -1,6 +1,17 @@
-import { test as base, expect } from "@playwright/test";
+import { test as base, expect, type Page } from "@playwright/test";
 
 export { expect };
+
+/** Opens the test photo and waits for its controls. */
+export async function openPhoto(page: Page) {
+  await page.goto("/");
+  await page
+    .locator('input[type="file"]')
+    .setInputFiles("tests/fixtures/photo.svg");
+  await expect(
+    page.getByRole("textbox", { name: "Exposure", exact: true }),
+  ).toHaveValue("0.00");
+}
 
 export const test = base.extend<{ browserErrors: undefined }>({
   browserErrors: [

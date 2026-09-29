@@ -1,5 +1,5 @@
 import type { Page } from "@playwright/test";
-import { expect, test } from "./fixtures";
+import { expect, openPhoto, test } from "./fixtures";
 import { readImage, readPreview } from "./images";
 import { box, drag } from "./pointer";
 
@@ -27,13 +27,7 @@ test("paint a brush mask, adjust it in the sidebar, erase, and undo", async ({
     const { center } = await readPreview(page);
     return center[0] > center[1] + 30;
   }
-  await page.goto("/");
-  await page
-    .locator('input[type="file"]')
-    .setInputFiles("tests/fixtures/photo.svg");
-  await expect(
-    page.getByRole("textbox", { name: "Exposure", exact: true }),
-  ).toHaveValue("0.00");
+  await openPhoto(page);
   const original = await samples(page);
   await page.getByRole("tab", { name: "Brush", exact: true }).click();
   const canvas = page.getByLabel("Brush canvas", { exact: true });
