@@ -29,8 +29,8 @@ test("a settle that finds nothing to settle waits for the next render instead of
       settles++;
       // Stops a runaway loop, so the test fails rather than hangs.
       return settles < 50
-        ? Promise.resolve(undefined)
-        : new Promise<undefined>(() => {});
+        ? Promise.resolve(false)
+        : new Promise<boolean>(() => {});
     },
     subscribe: () => () => {},
   };

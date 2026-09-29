@@ -52,8 +52,3 @@ export function walkDabs(
   }
   return { dabs, walk: { points: stroke.points.length, travelled, next } };
 }
-
-/** Every dab of a stroke. */
-export function strokeDabs(stroke: BrushStroke) {
-  return walkDabs(stroke).dabs;
-}

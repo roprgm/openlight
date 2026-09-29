@@ -6,12 +6,7 @@ import type { BrushStroke, StrokePoint } from "@/core/document";
 import { createDocument, createResources, findLayer } from "@/core/document";
 import { createImageSource } from "@/core/image";
 import { imageFrame } from "@/core/image/frame";
-import {
-  type Dab,
-  type DabWalk,
-  strokeDabs,
-  walkDabs,
-} from "@/core/renderer/strokes/dabs";
+import { type Dab, type DabWalk, walkDabs } from "@/core/renderer/strokes/dabs";
 import { setAdjustments } from "@/features/adjustments/edits";
 import {
   addLayer,
@@ -35,31 +30,31 @@ test("dabs follow the stroke sixteen times per diameter with interpolated pressu
   const wide = { ...stroke, size: 32 };
   // Four dabs stand for one a quarter diameter apart, together leaving as much uncovered.
   const laid = (flow: number) => 1 - (1 - flow) ** (1 / 4);
-  expect(strokeDabs(wide)).toEqual([[10, 10, 16, laid(0.5)]]);
-  const line = strokeDabs({
+  expect(walkDabs(wide).dabs).toEqual([[10, 10, 16, laid(0.5)]]);
+  const line = walkDabs({
     ...wide,
     points: [
       [10, 10, 1],
       [20, 10, 0.5],
       [30, 10, 0],
     ],
-  });
+  }).dabs;
   expect(line).toHaveLength(11);
   expect(line[0]).toEqual([10, 10, 16, laid(0.5)]);
   expect(line[5]).toEqual([20, 10, 16, laid(0.25)]);
   expect(line[10][0]).toBeCloseTo(30);
   expect(line[10][3]).toBeCloseTo(0);
   // Small brushes keep a dab per pixel, each laying a share to match.
-  const small = strokeDabs({
+  const small = walkDabs({
     ...stroke,
     points: [
       [10, 10, 1],
       [20, 10, 1],
     ],
-  });
+  }).dabs;
   expect(small).toHaveLength(11);
   expect(small[0][3]).toBeCloseTo(1 - 0.5 ** 0.5);
-  expect(strokeDabs({ ...stroke, points: [] })).toEqual([]);
+  expect(walkDabs({ ...stroke, points: [] }).dabs).toEqual([]);
 });
 
 test("a walk goes on where it stopped as a stroke grows, landing the dabs a whole walk would", () => {
@@ -70,7 +65,7 @@ test("a walk goes on where it stopped as a stroke grows, landing the dabs a whol
     [50, 31, 0.9],
     [52, 60, 0.2],
   ];
-  const whole = strokeDabs({ ...stroke, size: 20, points });
+  const whole = walkDabs({ ...stroke, size: 20, points }).dabs;
   const walked: Dab[] = [];
   let walk: DabWalk | undefined;
   for (let end = 1; end <= points.length; end++) {
@@ -194,8 +189,8 @@ test("brush strokes stamp incrementally, replay after undo, and render a proxy d
     expect(renderer.inspect().rasters.map((raster) => raster.id)).toEqual([
       mask,
       child,
-      `${gradient}/group`,
       "stroke view",
+      `${gradient}/group`,
       "stroke buffer",
     ]);
     expect(renderer.coverage(child)?.target.size).toEqual([32, 16]);

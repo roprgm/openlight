@@ -1,4 +1,6 @@
+import { useRef } from "react";
 import { useStore } from "zustand";
+import { BrushCanvas } from "@/components/editor/brush-canvas";
 import {
   type BrushMode,
   brushMode,
@@ -7,34 +9,68 @@ import {
 import { CanvasHint } from "@/components/editor/canvas-hint";
 import { useDesktopLayout } from "@/components/editor/layout";
 import { useDocument, useScene } from "@/components/editor/session";
-import { findLayer } from "@/core/document";
+import { useToolLayer } from "@/components/editor/tool-layer";
+import { findLayer, type Layer } from "@/core/document";
 import { BrushOptions } from "@/features/layers/brush-options";
-import { BrushOverlay } from "@/features/layers/brush-overlay";
 import {
   addLayer,
   brushLayerCounts,
   brushLimit,
   brushLimits,
+  extendStroke,
+  paintStroke,
 } from "@/features/layers/edits";
 import { useMaskTool } from "@/features/layers/mask-tool";
 import { PaintColors } from "@/features/paint/colors";
-import { PaintOverlay } from "@/features/paint/overlay";
+import { addPaintStroke, extendPaintStroke } from "@/features/paint/edits";
 import { createLayer } from "./layers";
 
-/** The canvas that paints the mode's kind of layer, adding one when none is selected unless the photo is full. */
-function ModeCanvas({ mode, full }: { mode: BrushMode; full: boolean }) {
+/** Paints color or mask coverage on the selected layer, dropping an untouched new one on leaving. */
+function BrushOverlay({ mode, full }: { mode: BrushMode; full: boolean }) {
   const document = useDocument();
   const tool = useMaskTool();
-  const leave = () => tool.edit();
-  if (mode === "mask") {
-    return <BrushOverlay canCreate={!full} onLeave={leave} />;
-  }
+  const brush = useBrushTool();
+  const painting = useRef<string | undefined>(undefined);
+  const selected = useToolLayer({
+    accepts: (layer: Layer): layer is Layer => brushMode(layer) === mode,
+    create: full
+      ? undefined
+      : () => {
+          if (mode === "mask") {
+            tool.create({ kind: "brush", strokes: [] });
+          } else {
+            addLayer(document, createLayer("paint"));
+          }
+        },
+    leave: () => tool.edit(),
+    // A chosen nesting starts a new brush even over a selected one.
+    fresh: mode === "mask" && tool.pending?.shape === "brush",
+  });
   return (
-    <PaintOverlay
-      canCreate={!full}
-      create={() => addLayer(document, createLayer("paint"))}
-      onLeave={leave}
-      onDone={leave}
+    <BrushCanvas
+      label={mode === "mask" ? "Brush canvas" : "Paint canvas"}
+      erase={brush.erase}
+      onStart={(stroke) => {
+        const id = selected()?.id;
+        if (!id) return false;
+        painting.current = id;
+        if (mode === "mask") {
+          paintStroke(document, id, stroke);
+        } else {
+          addPaintStroke(document, id, {
+            ...stroke,
+            color: brush.settings.colors[0],
+          });
+        }
+        return true;
+      }}
+      onExtend={(points) => {
+        const id = painting.current;
+        if (!id) return;
+        const extend = mode === "mask" ? extendStroke : extendPaintStroke;
+        extend(document, id, points);
+      }}
+      onDone={() => tool.edit()}
     />
   );
 }
@@ -56,7 +92,7 @@ export function BrushToolCanvas() {
   );
   return (
     <>
-      <ModeCanvas mode={mode} full={full} />
+      <BrushOverlay key={mode} mode={mode} full={full} />
       {full && selected !== mode && (
         <CanvasHint>
           {brushLimit(mode)}: select one to paint on, or delete one.

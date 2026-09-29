@@ -1,13 +1,5 @@
+import { type BlendOptions, effect, frame, type Gpu, type Target } from "vgpu";
 import {
-  type BlendOptions,
-  effect,
-  frame,
-  type Gpu,
-  type Target,
-  target,
-} from "vgpu";
-import {
-  type BrushMask,
   hasPaint,
   type MaskLayer,
   type MaskModifier,
@@ -17,7 +9,6 @@ import { gradientParams } from "@/core/renderer/blend";
 import { input, type RenderInput } from "@/core/renderer/node";
 import { type PaintRaster, paintingSize } from "@/core/renderer/paint";
 import { createRasterCache } from "@/core/renderer/raster-cache";
-import type { Rect, Strokes } from "@/core/renderer/strokes";
 import brushShader from "./brush.wgsl";
 import gradientShader from "./gradient.wgsl";
 
@@ -64,17 +55,11 @@ const subtract: BlendOptions = {
  * coverage with theirs in a second texture, rebuilt whenever any of them changes. Gradients alone
  * need no texture: the mix pass computes them.
  */
-export function createMaskRaster(
-  gpu: Gpu,
-  strokes: Strokes,
-  brushes: PaintRaster,
-) {
+export function createMaskRaster(gpu: Gpu, brushes: PaintRaster) {
   const groups = createRasterCache<Group>(gpu, "r8unorm", (target) => ({
     target,
     ops: [],
   }));
-  /** The brush with an open stroke as its readers see it: its raster with the stroke laid over. */
-  let view: Target | undefined;
   /** Each mask layer's coverage as its last update left it: its brush's, its group's, or none. */
   const shown = new Map<string, Target | Group | undefined>();
   const updated = new Set<string>();
@@ -82,37 +67,6 @@ export function createMaskRaster(
   const gradientSubtract = effect(gpu, gradientShader, { blend: subtract });
   const brushAdd = effect(gpu, brushShader, { blend: add });
   const brushSubtract = effect(gpu, brushShader, { blend: subtract });
-
-  function coverageOf(brush: Target) {
-    return view && strokes.isOpen(brush) ? view : brush;
-  }
-
-  /** Redraws the view of a brush's open stroke where the stroke changed, or all of it once the stroke opened. */
-  function show(brush: Target, changed: Rect | undefined) {
-    const [width, height] = brush.size;
-    if (view && (view.size[0] !== width || view.size[1] !== height)) {
-      view.color.dispose();
-      view = undefined;
-    }
-    view ??= target(gpu, {
-      size: [width, height],
-      format: "r8unorm",
-      clearColor: [0, 0, 0, 0],
-    });
-    strokes.resolve(view, brush, changed ?? [0, 0, width, height]);
-  }
-
-  /** Brings one brush's coverage up to date, and its view while its last stroke is open. */
-  function updateBrush(id: string, mask: BrushMask, size: Size) {
-    const drawn = brushes.draw(id, mask, size);
-    if (
-      drawn &&
-      strokes.isOpen(drawn.target) &&
-      (drawn.opened || drawn.changed)
-    ) {
-      show(drawn.target, drawn.opened ? undefined : drawn.changed);
-    }
-  }
 
   /** The pass that adds or subtracts one op's coverage, or nothing for a brush without strokes. */
   function opPass(op: MaskModifier, scale: Size) {
@@ -122,13 +76,13 @@ export function createMaskRaster(
         params: { ...gradientParams(op.mask), opacity: op.opacity, scale },
       });
     }
-    const brush = covers(op) ? brushes.get(op.id) : undefined;
+    const brush = covers(op) ? brushes.coverage(op.id) : undefined;
     if (!brush) {
       return undefined;
     }
     const pass = op.operation === "add" ? brushAdd : brushSubtract;
     return pass.set({
-      coverage: coverageOf(brush).color,
+      coverage: brush.target.color,
       params: { opacity: op.opacity },
     });
   }
@@ -142,7 +96,9 @@ export function createMaskRaster(
     if (sameOps(group.ops, ops)) {
       return group;
     }
-    strokes.clear(group.target);
+    frame(gpu, (frame) =>
+      frame.pass({ target: group.target, clear: true }, () => {}),
+    );
     for (const op of ops) {
       const pass = opPass(op, scale);
       if (pass) {
@@ -163,7 +119,7 @@ export function createMaskRaster(
     const ops = [own, ...active];
     for (const op of ops) {
       if (op.mask.kind === "brush" && covers(op)) {
-        updateBrush(op.id, op.mask, size);
+        brushes.draw(op.id, op.mask, size);
       }
     }
     if (own.mask.kind !== "brush") {
@@ -197,9 +153,9 @@ export function createMaskRaster(
       if (!raster) {
         return undefined;
       }
-      return input("ops" in raster ? raster.target : coverageOf(raster));
+      return "ops" in raster ? input(raster.target) : brushes.coverage(id);
     },
-    /** Releases the rasters that no update used since the previous sweep, and the view with the last brush. */
+    /** Releases the rasters that no update used since the previous sweep, including their painting views. */
     sweep() {
       for (const id of shown.keys()) {
         if (!updated.has(id)) {
@@ -209,25 +165,11 @@ export function createMaskRaster(
       updated.clear();
       brushes.sweep();
       groups.sweep();
-      if (!brushes.size) {
-        view?.color.dispose();
-        view = undefined;
-      }
     },
-    inspect() {
-      return [
-        ...brushes.inspect(),
-        ...groups.inspect("/group"),
-        ...(view
-          ? [{ id: "stroke view", size: [...view.size], format: view.format }]
-          : []),
-      ];
-    },
+    inspect: () => [...brushes.inspect(), ...groups.inspect("/group")],
     dispose() {
       brushes.dispose();
       groups.dispose();
-      view?.color.dispose();
-      view = undefined;
       shown.clear();
     },
   };

@@ -27,6 +27,7 @@ import {
   setLayer,
   setLayerMask,
 } from "@/features/layers/edits";
+import { defaultGradient } from "@/features/layers/gradient";
 import {
   addPaintStroke,
   extendPaintStroke,
@@ -138,6 +139,15 @@ test("a photo holds up to 4 paint layers and, apart, 10 brush masks", async () =
     expect(() =>
       addLayer(document, createMask({ kind: "brush", strokes: [] })),
     ).toThrow("up to 10 brush masks");
+    const gradient = addLayer(
+      document,
+      createMask(defaultGradient([1024, 768])),
+    );
+    const before = document.scene.getState();
+    expect(() =>
+      setLayerMask(document, gradient, { kind: "brush", strokes: [] }),
+    ).toThrow("up to 10 brush masks");
+    expect(document.scene.getState()).toBe(before);
     // Other layers still fit.
     addLayer(document, createLayer("exposure"));
   } finally {

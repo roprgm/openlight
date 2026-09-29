@@ -87,7 +87,7 @@ export function brushExcess(layers: readonly Layer[]) {
   return over && `${brushLimit(over)}.`;
 }
 
-function validateBrushLayers(layers: readonly Layer[]) {
+export function validateBrushLayers(layers: readonly Layer[]) {
   const excess = brushExcess(layers);
   if (excess) {
     throw Error(excess);
@@ -166,12 +166,14 @@ export function setLayerMask(document: EditorDocument, id: string, mask: Mask) {
     // Settled pixels come from the document's own settling, never from outside.
     document.resources.paint(next.raster);
   }
-  editLayer(document, id, (layer) => {
+  const scene = updateLayer(document.scene.getState(), id, (layer) => {
     if (layer.kind !== "mask") {
       throw Error("Select a mask layer.");
     }
     return { ...layer, mask: next };
   });
+  validateBrushLayers(scene.layers);
+  document.edit(scene);
 }
 
 function brushLayer(layer: Layer) {

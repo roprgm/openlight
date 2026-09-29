@@ -372,3 +372,36 @@ test("Photoshop's keys switch the brush, its colors, feather, flow, and opacity,
   await page.keyboard.press("Escape");
   await expect(page.getByRole("dialog")).toHaveCount(0);
 });
+
+for (const mode of ["paint", "mask"] as const) {
+  for (const action of ["append", "undo", "close"] as const) {
+    test(`${mode} settling remains atomic when ${action} happens during readback`, async ({
+      page,
+    }) => {
+      await page.goto("/tests/gpu.html");
+      const result = await page.evaluate(
+        async ({ mode, action }) => {
+          const path = "/tests/settle-gpu.ts";
+          const { editDuringSettle } = (await import(
+            path
+          )) as typeof import("./settle-gpu");
+          return editDuringSettle(mode, action);
+        },
+        { mode, action },
+      );
+      expect(result.errors).toEqual([]);
+      expect(result.historyUnchanged).toBe(true);
+      expect(result.accepted).toBe(action === "append");
+      expect(result.error).toBeLessThan(0.002);
+      if (action === "append") {
+        expect(result.raster).toEqual(expect.any(String));
+        expect(result.strokes).toBe(1);
+        expect(result.stamped).toBe(101);
+      } else {
+        expect(result.unchanged).toBe(true);
+        expect(result.raster).toBeUndefined();
+        expect(result.strokes).toBe(action === "undo" ? 99 : 100);
+      }
+    });
+  }
+}

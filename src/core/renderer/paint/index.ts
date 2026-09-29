@@ -1,4 +1,4 @@
-import type { Gpu, Target } from "vgpu";
+import { type Gpu, type Target, target } from "vgpu";
 import {
   hasPaint,
   type Painting,
@@ -64,6 +64,13 @@ function holds(
   );
 }
 
+/** Pixels and the stroke prefix they replace, accepted only while the painting still has that prefix. */
+type SettledPainting = {
+  base?: string;
+  strokes: readonly Stroke[];
+  pixels: Blob;
+};
+export type AcceptPainting = (settled: SettledPainting) => string | undefined;
 export type PaintRaster = ReturnType<typeof createPaintRaster>;
 
 /**
@@ -77,6 +84,21 @@ export function createPaintRaster(
   strokes: Strokes,
   format: "rgba8unorm" | "r8unorm",
 ) {
+  // Coverage readers need the open stroke laid over its raster; paint composes the two separately.
+  let view: Target | undefined;
+  function show(brush: Target, changed?: Rect) {
+    const [width, height] = brush.size;
+    if (view && (view.size[0] !== width || view.size[1] !== height)) {
+      view.color.dispose();
+      view = undefined;
+    }
+    view ??= target(gpu, {
+      size: [width, height],
+      format: "r8unorm",
+      clearColor: [0, 0, 0, 0],
+    });
+    strokes.resolve(view, brush, changed ?? [0, 0, width, height]);
+  }
   const rasters = createRasterCache<Raster>(
     gpu,
     format,
@@ -85,8 +107,10 @@ export function createPaintRaster(
   );
   return {
     get: (id: string) => rasters.get(id)?.target,
-    get size() {
-      return rasters.size;
+    /** Coverage with the latest stroke laid over it, read after every painting drew. */
+    coverage(id: string) {
+      const raster = rasters.get(id)?.target;
+      return raster && input(view && strokes.isOpen(raster) ? view : raster);
     },
     /** Whether a painting's raster must load its settled pixels before it can draw the strokes. */
     needsBase(
@@ -103,15 +127,10 @@ export function createPaintRaster(
       Object.assign(raster, { base, strokes: none, walk: undefined });
     },
     /**
-     * Brings a painting's raster up to date once its settled pixels loaded, and returns it, with whether
-     * its last stroke opened now and where the stroke buffer changed; nothing without paint. `source` is
-     * the photo's size.
+     * Brings a painting's raster and coverage view up to date once its settled pixels loaded.
+     * `source` is the photo's size.
      */
-    draw(
-      id: string,
-      painting: Painting,
-      source: Size,
-    ): { target: Target; opened: boolean; changed?: Rect } | undefined {
+    draw(id: string, painting: Painting, source: Size) {
       if (!hasPaint(painting) && !rasters.get(id)) {
         return undefined;
       }
@@ -130,10 +149,10 @@ export function createPaintRaster(
         });
       }
       if (raster.strokes === painting.strokes) {
-        return { target, opened: false };
+        return;
       }
       const drawn = raster.strokes.length;
-      const { walk, ...changes } = strokes.draw(
+      const { walk, opened, changed } = strokes.draw(
         target,
         painting.strokes,
         Math.max(drawn - 1, 0),
@@ -141,7 +160,13 @@ export function createPaintRaster(
         paintingScale(source),
       );
       Object.assign(raster, { strokes: painting.strokes, walk });
-      return { target, ...changes };
+      if (
+        format === "r8unorm" &&
+        strokes.isOpen(target) &&
+        (opened || changed)
+      ) {
+        show(target, opened ? undefined : changed);
+      }
     },
     /** What a paint layer composes. Read it once every layer drew: drawing one can close another's stroke. */
     input(layer: PaintLayer): PaintInput | undefined {
@@ -158,29 +183,43 @@ export function createPaintRaster(
     },
     /**
      * Reads a painting's raster, its settled pixels with every stroke laid in, so they settle into new
-     * pixels; `commit` records that the raster now holds them alone. Nothing may draw meanwhile.
+     * pixels. Accepting them replaces the scene's stroke prefix and records its new raster base together.
+     * Nothing may draw until both finish.
      */
-    async settle(id: string) {
+    async settle(id: string, accept: AcceptPainting) {
       const raster = rasters.get(id);
-      if (!raster) {
-        return undefined;
+      if (!raster?.strokes.length) {
+        return false;
       }
       if (strokes.isOpen(raster.target)) {
         strokes.close();
       }
       const { base, strokes: settled } = raster;
       const pixels = await readRaster(gpu, raster.target);
-      return {
-        base,
-        strokes: settled,
-        pixels,
-        commit(base: string) {
-          Object.assign(raster, { base, strokes: none, walk: undefined });
-        },
-      };
+      const accepted = accept({ base, strokes: settled, pixels });
+      if (accepted === undefined) {
+        return false;
+      }
+      Object.assign(raster, { base: accepted, strokes: none, walk: undefined });
+      return true;
     },
-    sweep: rasters.sweep,
-    inspect: () => rasters.inspect(),
-    dispose: rasters.dispose,
+    sweep() {
+      rasters.sweep();
+      if (!rasters.size) {
+        view?.color.dispose();
+        view = undefined;
+      }
+    },
+    inspect: () => [
+      ...rasters.inspect(),
+      ...(view
+        ? [{ id: "stroke view", size: [...view.size], format: view.format }]
+        : []),
+    ],
+    dispose() {
+      rasters.dispose();
+      view?.color.dispose();
+      view = undefined;
+    },
   };
 }

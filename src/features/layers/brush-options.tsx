@@ -21,41 +21,38 @@ const modes = [
   ["erase", "Erase", "Remove paint", "Hold Alt"],
 ] as const;
 
-function Chips({
+function Chips<T extends string>({
   label,
   menu,
   items,
+  value,
+  onChange,
 }: {
   label: string;
   menu: boolean;
-  items: readonly {
-    id: string;
-    label: string;
-    hint: string;
-    shortcut?: string;
-    pressed: boolean;
-    onClick: () => void;
-  }[];
+  items: readonly (readonly [T, string, string, string?])[];
+  value: T;
+  onChange: (value: T) => void;
 }) {
   return (
     <fieldset
       aria-label={label}
       className="flex gap-0.5 rounded-full bg-hover p-0.5"
     >
-      {items.map((item) => (
-        <Tooltip key={item.id}>
+      {items.map(([id, label, hint, shortcut]) => (
+        <Tooltip key={id}>
           <TooltipTrigger
             render={
               <Chip
-                aria-pressed={item.pressed}
+                aria-pressed={id === value}
                 className={cn("h-6", menu && "flex-1 justify-center")}
-                onClick={item.onClick}
+                onClick={() => onChange(id)}
               >
-                {item.label}
+                {label}
               </Chip>
             }
           />
-          <TooltipContent shortcut={item.shortcut}>{item.hint}</TooltipContent>
+          <TooltipContent shortcut={shortcut}>{hint}</TooltipContent>
         </Tooltip>
       ))}
     </fieldset>
@@ -104,26 +101,17 @@ export function BrushOptions({ colors }: { colors?: ReactNode }) {
       <Chips
         label="Brush paints"
         menu={menu}
-        items={targets.map(([mode, label, hint]) => ({
-          id: mode,
-          label,
-          hint,
-          pressed: settings.mode === mode,
-          onClick: () => update({ mode }),
-        }))}
+        items={targets}
+        value={settings.mode}
+        onChange={(mode) => update({ mode })}
       />
       {shownColors}
       <Chips
         label="Brush mode"
         menu={menu}
-        items={modes.map(([mode, label, hint, shortcut]) => ({
-          id: mode,
-          label,
-          hint,
-          shortcut,
-          pressed: erase === (mode === "erase"),
-          onClick: () => update({ erase: mode === "erase" }),
-        }))}
+        items={modes}
+        value={stroke}
+        onChange={(mode) => update({ erase: mode === "erase" })}
       />
       {parameters.map(({ id, ...parameter }) => (
         <Slider key={id} {...parameter} variant={variant} />

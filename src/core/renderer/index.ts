@@ -13,7 +13,11 @@ import { createRenderGraph } from "./graph";
 import { createMaskRaster } from "./mask";
 import { createPatchRaster, type PatchInput } from "./mask/patches";
 import { input, type RenderImage, type RenderInput } from "./node";
-import { createPaintRaster, type PaintInput } from "./paint";
+import {
+  type AcceptPainting,
+  createPaintRaster,
+  type PaintInput,
+} from "./paint";
 import { createProxy } from "./proxy";
 import { createStrokes } from "./strokes";
 
@@ -98,7 +102,7 @@ export function createRenderer(
   const graph = createRenderGraph(gpu, timer);
   const strokes = createStrokes(gpu);
   const brushes = createPaintRaster(gpu, strokes, "r8unorm");
-  const masks = createMaskRaster(gpu, strokes, brushes);
+  const masks = createMaskRaster(gpu, brushes);
   const patches = createPatchRaster(gpu, strokes);
   const paints = createPaintRaster(gpu, strokes, "rgba8unorm");
   const proxy = createProxy(gpu);
@@ -203,6 +207,8 @@ export function createRenderer(
       if (settling) {
         await settling;
       }
+      if (disposed) return;
+      if (next) continue;
       const selected = scene.layers[0].whiteBalance ?? resource.raw?.asShot;
       if (raw && selected && !sameBalance(balance, selected)) {
         await raw.prepare(selected);
@@ -296,13 +302,16 @@ export function createRenderer(
     update,
     /**
      * Reads a paint layer's raster once renders in flight finish, holding back the next ones, so its
-     * strokes can settle into pixels; see the mask raster's `settle`.
+     * strokes, scene, and cached raster settle together before rendering resumes.
      */
-    async settle(id: string) {
+    async settle(id: string, accept: AcceptPainting) {
       while (pending || settling) {
         await (pending ?? settling);
       }
-      const read = paintRaster(id).settle(id);
+      if (disposed) return false;
+      const read = paintRaster(id).settle(id, (painting) =>
+        disposed ? undefined : accept(painting),
+      );
       settling = read;
       try {
         return await read;

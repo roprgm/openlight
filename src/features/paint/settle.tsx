@@ -21,41 +21,40 @@ type Renderer = ReturnType<typeof useRenderer>;
  * the same, and undo still reaches every stroke through the history's earlier scenes and the pixels they
  * name.
  */
-export async function settlePaint(
+export function settlePaint(
   document: EditorDocument,
   renderer: Pick<Renderer, "settle">,
   id: string,
 ) {
-  const settled = await renderer.settle(id);
-  if (!settled?.strokes.length || document.closed) {
-    return false;
-  }
-  const scene = document.scene.getState();
-  const layer = findLayer(scene.layers, id);
-  const painting = layer && paintingOf(layer);
-  if (
-    painting?.raster !== settled.base ||
-    settled.strokes.some((stroke, i) => stroke !== painting?.strokes[i])
-  ) {
-    return false;
-  }
-  const raster = document.resources.addPaint(settled.pixels);
-  const count = settled.strokes.length;
-  // The renderer learns first, so the scene that names the pixels finds them already drawn.
-  settled.commit(raster);
-  document.replace(
-    updateLayer(scene, id, (item) => {
-      if (item.kind === "paint") {
-        return { ...item, raster, strokes: item.strokes.slice(count) };
-      }
-      if (item.kind === "mask" && item.mask.kind === "brush") {
-        const strokes = item.mask.strokes.slice(count);
-        return { ...item, mask: { ...item.mask, raster, strokes } };
-      }
-      return item;
-    }),
-  );
-  return true;
+  return renderer.settle(id, (settled) => {
+    if (document.closed) {
+      return undefined;
+    }
+    const scene = document.scene.getState();
+    const layer = findLayer(scene.layers, id);
+    const painting = layer && paintingOf(layer);
+    if (
+      painting?.raster !== settled.base ||
+      settled.strokes.some((stroke, i) => stroke !== painting?.strokes[i])
+    ) {
+      return undefined;
+    }
+    const raster = document.resources.addPaint(settled.pixels);
+    const count = settled.strokes.length;
+    document.replace(
+      updateLayer(scene, id, (item) => {
+        if (item.kind === "paint") {
+          return { ...item, raster, strokes: item.strokes.slice(count) };
+        }
+        if (item.kind === "mask" && item.mask.kind === "brush") {
+          const strokes = item.mask.strokes.slice(count);
+          return { ...item, mask: { ...item.mask, raster, strokes } };
+        }
+        return item;
+      }),
+    );
+    return raster;
+  });
 }
 
 function crowded(scene: Scene) {

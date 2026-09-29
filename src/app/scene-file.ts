@@ -21,6 +21,7 @@ import { defaultDetails, detailsSchema } from "@/features/details/model";
 import { defaultFill, fillSchema } from "@/features/fill/model";
 import { defaultGrain, grainSchema } from "@/features/grain/model";
 import { healPatchSchema } from "@/features/heal/model";
+import { validateBrushLayers } from "@/features/layers/edits";
 import {
   layerSettings,
   maskOperation,
@@ -197,6 +198,7 @@ export async function openScene(
     throw Error("This scene needs a newer version of OpenLight.");
   }
   const { sources, scene } = parse(savedSchema, saved, "Invalid scene");
+  validateBrushLayers(scene.layers);
   const [image, ...layers] = scene.layers;
   const source = sources[image.source];
   const data = files.get(image.source);
