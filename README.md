@@ -29,7 +29,7 @@ Image processing runs on your own GPU with WebGPU. Photos never leave your devic
 - Healing paints patches from an automatic or manually positioned donor. Repairs remain editable and each patch builds on the previous result.
 - Brush, linear, and radial gradient tools on the rail draw masks on top of the stack; their options sit in the bar over the image.
 - The Brush paints colors on a Paint layer or coverage on a brush mask, with size, feather, flow, pen pressure, and Alt to erase. Colors come as a primary and a secondary: X swaps them, D resets them to black and white, and I picks one from the screen where the browser offers it.
-- A photo holds up to 10 brush layers, Paint layers and brush masks together, since each keeps a raster the size of the photo.
+- A photo holds up to 4 Paint layers and 10 brush masks, since each keeps a raster the size of the photo. A Paint layer's strokes settle into pixels every 100 strokes, so undo stays quick however much you paint, and still reaches back through them.
 - The mask overlay shows until a mask changes the image, then the image shows the mask; the overlay button beside the mask's adjustments, or O, shows or hides it for every mask.
 - Edits preview at a reduced resolution while you drag, then render in full.
 

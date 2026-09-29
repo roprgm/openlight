@@ -17,13 +17,7 @@ import {
   type MaskLayer,
   type ProcessingLayer,
 } from "@/core/document";
-import {
-  brushLayerCount,
-  deleteLayer,
-  duplicateLayer,
-  maxBrushLayers,
-  moveLayer,
-} from "./edits";
+import { brushExcess, deleteLayer, duplicateLayer, moveLayer } from "./edits";
 import { useMaskTool } from "./mask-tool";
 
 /** Mounted only while the menu is open, so rows do not track siblings and containers. */
@@ -46,8 +40,7 @@ function LayerActionItems({
       !findLayer([layer], item.id),
   );
   const bottom = !parent ? 1 : 0;
-  const duplicable =
-    brushLayerCount(layers) + brushLayerCount([layer]) <= maxBrushLayers;
+  const duplicable = !brushExcess([...layers, layer]);
   function moveOut() {
     if (!parent) {
       return;

@@ -12,6 +12,7 @@ import {
   type MaskLayer,
   type MaskModifier,
   maskModifiers,
+  type PaintLayer,
   type PaintStroke,
 } from "@/core/document";
 import { parseColor } from "@/core/image/blend";
@@ -21,6 +22,7 @@ import brushShader from "./brush.wgsl";
 import { type Dab, strokeDabs } from "./dabs";
 import gradientShader from "./gradient.wgsl";
 import strokeShader from "./strokes.wgsl";
+import { readRaster, writeRaster } from "./transfer";
 
 /** Dabs per pass: every fragment in the chunk's bounds loops over them. */
 const chunk = 64;
@@ -34,7 +36,10 @@ type Brush = {
   strokes: readonly Stroke[];
   /** Dabs already stamped from the last stroke. */
   dabs: number;
+  /** A paint raster's settled pixels, which its strokes draw over. */
+  base?: string;
 };
+const none: readonly Stroke[] = [];
 /** A mask's own coverage combined with the children that shape it. */
 type Group = {
   target: Target;
@@ -234,17 +239,14 @@ export function createMaskRaster(gpu: Gpu) {
   /** Brings one brush's coverage up to date: appended points stamp, any other change replays every stroke. */
   function updateBrush(
     id: string,
-    strokes: readonly Stroke[],
+    strokes: readonly BrushStroke[],
     size: Size,
-    format?: GPUTextureFormat,
   ) {
-    const brush = reserve(
-      brushes,
-      id,
-      size,
-      (target) => ({ target, strokes: [], dabs: 0 }),
-      format,
-    );
+    const brush = reserve(brushes, id, size, (target) => ({
+      target,
+      strokes: [],
+      dabs: 0,
+    }));
     const applied = brush.strokes;
     if (applied === strokes) {
       return brush;
@@ -262,6 +264,29 @@ export function createMaskRaster(gpu: Gpu) {
     }
     brush.strokes = strokes;
     return brush;
+  }
+
+  function reservePaint(id: string, size: Size) {
+    return reserve(
+      brushes,
+      id,
+      size,
+      (target) => ({ target, strokes: none, dabs: 0 }),
+      "rgba8unorm",
+    );
+  }
+
+  /** Whether a paint raster holds `base` and strokes that only grow into `strokes`. */
+  function holds(
+    brush: Brush | undefined,
+    base: string | undefined,
+    strokes: readonly Stroke[],
+  ): brush is Brush {
+    return (
+      brush !== undefined &&
+      brush.base === base &&
+      (brush.strokes === strokes || extendsStrokes(brush.strokes, strokes))
+    );
   }
 
   /** The pass that adds or subtracts one op's coverage, or nothing for a brush without strokes. */
@@ -317,16 +342,68 @@ export function createMaskRaster(gpu: Gpu) {
     brush(id: string, strokes: readonly BrushStroke[], size: Size) {
       return input(updateBrush(id, strokes, size).target);
     },
+    /** Whether a paint layer's raster must load its settled pixels before it can draw the layer's strokes. */
+    needsBase(layer: PaintLayer): layer is PaintLayer & { raster: string } {
+      return (
+        layer.raster !== undefined &&
+        !holds(brushes.get(layer.id), layer.raster, layer.strokes)
+      );
+    },
+    /** Loads a paint layer's settled pixels; the next update draws its strokes over them. */
+    async loadBase(id: string, base: string, pixels: Blob, size: Size) {
+      const brush = reservePaint(id, size);
+      await writeRaster(gpu, brush.target, pixels);
+      Object.assign(brush, { base, strokes: none, dabs: 0 });
+    },
     /**
-     * Brings a paint layer's raster up to date. It is allocated with the layer's first stroke and kept,
-     * cleared if need be, while the layer lasts, so painting and undoing never reallocate it.
+     * Brings a paint layer's raster up to date: its settled pixels, loaded first, and its strokes over
+     * them. The raster comes with the layer's first paint and stays, cleared if need be, while the layer
+     * lasts, so painting and undoing never reallocate it.
      */
-    paint(id: string, strokes: readonly PaintStroke[], size: Size) {
-      if (!strokes.length && !brushes.has(id)) {
+    paint({ id, raster: base, strokes }: PaintLayer, size: Size) {
+      if (base === undefined && !strokes.length && !brushes.has(id)) {
         return undefined;
       }
-      const brush = updateBrush(id, strokes, size, "rgba8unorm");
-      return strokes.length ? input(brush.target) : undefined;
+      const brush = reservePaint(id, size);
+      if (!holds(brush, base, strokes)) {
+        if (base !== undefined) {
+          throw Error("Load the paint's settled pixels first.");
+        }
+        clear(brush.target);
+        Object.assign(brush, { base, strokes: none, dabs: 0 });
+      }
+      if (brush.strokes !== strokes) {
+        brush.dabs = stampStrokes(
+          brush.target,
+          strokes,
+          Math.max(brush.strokes.length - 1, 0),
+          brush.strokes.length ? brush.dabs : 0,
+        );
+        brush.strokes = strokes;
+      }
+      return base !== undefined || strokes.length
+        ? input(brush.target)
+        : undefined;
+    },
+    /**
+     * Reads a paint layer's raster, its settled pixels with every stroke drawn, so they settle into new
+     * pixels; `commit` records that the raster now holds them alone. Nothing may draw meanwhile.
+     */
+    async settle(id: string) {
+      const brush = brushes.get(id);
+      if (!brush) {
+        return undefined;
+      }
+      const { base, strokes } = brush;
+      const pixels = await readRaster(gpu, brush.target);
+      return {
+        base,
+        strokes,
+        pixels,
+        commit(base: string) {
+          Object.assign(brush, { base, strokes: none, dabs: 0 });
+        },
+      };
     },
     /** Brings the layer's rasters up to date and returns the coverage its composition samples, if any. */
     update(layer: MaskLayer, size: Size): RenderInput | undefined {

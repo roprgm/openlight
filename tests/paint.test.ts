@@ -7,14 +7,15 @@ import {
   createDocument,
   createResources,
   type PaintStroke,
+  updateLayer,
 } from "@/core/document";
 import { createImageSource } from "@/core/image";
 import { imageFrame } from "@/core/image/frame";
 import {
   addLayer,
+  brushLimits,
   deleteLayer,
   duplicateLayer,
-  maxBrushLayers,
   setLayer,
 } from "@/features/layers/edits";
 import {
@@ -106,21 +107,71 @@ test("a paint layer stamps colored strokes into one raster the size of the photo
   }
 });
 
-test(`a photo holds up to ${maxBrushLayers} paint layers and brush masks`, async () => {
+test("a photo holds up to 4 paint layers and, apart, 10 brush masks", async () => {
   const { gpu, document } = await open();
   try {
     const paint = addLayer(document, createLayer("paint"));
-    for (let i = 1; i < maxBrushLayers; i++) {
-      addLayer(document, createMask({ kind: "brush", strokes: [] }));
+    for (let i = 1; i < brushLimits.color; i++) {
+      addLayer(document, createLayer("paint"));
     }
     const full = document.scene.getState();
+    expect(() => addLayer(document, createLayer("paint"))).toThrow(
+      "up to 4 paint layers",
+    );
+    expect(() => duplicateLayer(document, paint)).toThrow("paint layers");
+    expect(document.scene.getState()).toBe(full);
+    for (let i = 0; i < brushLimits.mask; i++) {
+      addLayer(document, createMask({ kind: "brush", strokes: [] }));
+    }
     expect(() =>
       addLayer(document, createMask({ kind: "brush", strokes: [] })),
-    ).toThrow(`up to ${maxBrushLayers} brush layers`);
-    expect(() => duplicateLayer(document, paint)).toThrow("brush layers");
-    expect(document.scene.getState()).toBe(full);
+    ).toThrow("up to 10 brush masks");
     // Other layers still fit.
     addLayer(document, createLayer("exposure"));
+  } finally {
+    document.dispose();
+    gpu.dispose();
+  }
+});
+
+test("settled paint stays while the history names it and goes after", async () => {
+  const { gpu, document } = await open();
+  try {
+    const paint = addLayer(document, createLayer("paint"));
+    addPaintStroke(document, paint, stroke);
+    const settle = (pixels: string) => {
+      const raster = document.resources.addPaint(new Blob([pixels]));
+      document.replace(
+        updateLayer(document.scene.getState(), paint, (layer) => ({
+          ...layer,
+          raster,
+          strokes: [],
+        })),
+      );
+      return raster;
+    };
+    const first = settle("first");
+    const undoCount = document.history.status.getState().undoCount;
+    // Settling shows nothing new, so it records no step.
+    expect(undoCount).toBe(2);
+    addPaintStroke(document, paint, stroke);
+    const second = settle("second");
+    // The stroke's step names the first pixels, so they stay; nothing names them once it goes.
+    expect(await document.resources.paint(first).text()).toBe("first");
+    document.history.undo();
+    expect(document.scene.getState().layers[1]).toMatchObject({
+      raster: first,
+      strokes: [],
+    });
+    document.history.clear();
+    setLayer(document, paint, { name: "Glow" });
+    expect(() => document.resources.paint(second)).toThrow("unavailable");
+    expect(await document.resources.paint(first).text()).toBe("first");
+    // Deleting the layer keeps them for undo, until that step goes too.
+    deleteLayer(document, paint);
+    expect(await document.resources.paint(first).text()).toBe("first");
+    document.history.clear();
+    expect(() => document.resources.paint(first)).toThrow("unavailable");
   } finally {
     document.dispose();
     gpu.dispose();

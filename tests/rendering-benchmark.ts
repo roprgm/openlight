@@ -290,7 +290,7 @@ export async function benchmarkRendering(
     ],
   };
   function create(clock?: Timer) {
-    const renderer = createEditorRenderer(gpu, source, clock);
+    const renderer = createEditorRenderer(gpu, source, { timer: clock });
     // Half a device pixel per source pixel, as a fitted view of a large photo, renders at a factor of 2.
     renderer.setDisplayScale(proxy ? 0.5 : 1);
     return renderer;

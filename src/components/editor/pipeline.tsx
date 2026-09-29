@@ -39,6 +39,7 @@ type RendererProviderProps = {
   createRenderer: (
     gpu: Gpu,
     source: ImageSource,
+    options: { paintPixels: (id: string) => Blob },
   ) => ReturnType<typeof createRenderer>;
 };
 
@@ -51,8 +52,11 @@ export function RendererProvider({
   const sourceId = useScene((scene) => scene.layers[0].source);
   const source = document.resources.get(sourceId);
   const renderer = useDisposable(
-    () => createRenderer(gpu, source),
-    [gpu, source, createRenderer],
+    () =>
+      createRenderer(gpu, source, {
+        paintPixels: (id) => document.resources.paint(id),
+      }),
+    [gpu, document, source, createRenderer],
   );
   const [error, setError] = useState<string>();
 

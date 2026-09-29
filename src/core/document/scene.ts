@@ -138,6 +138,9 @@ export type ProcessingLayer = {
   | {
       readonly kind: "paint";
       readonly blend: Blend;
+      /** The document resource of pixels earlier strokes settled into, which `strokes` draw over. */
+      readonly raster?: string;
+      /** The latest strokes, which undo takes back by drawing the rest over `raster` again. */
       readonly strokes: readonly PaintStroke[];
     }
   | {

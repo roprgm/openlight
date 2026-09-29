@@ -73,12 +73,18 @@ function sameBalance(a: WhiteBalance | undefined, b: WhiteBalance | undefined) {
   return a?.temperature === b?.temperature && a?.tint === b?.tint;
 }
 
-/** Owns scene passes, mask rasters, the proxy, and intermediate textures for one decoded source. */
+/**
+ * Owns scene passes, mask and paint rasters, the proxy, and intermediate textures for one decoded
+ * source. `paintPixels` gives the settled pixels a paint layer's `raster` names.
+ */
 export function createRenderer(
   gpu: Gpu,
   resource: ImageSource,
   compose: SceneProcessing,
   timer?: Timer,
+  paintPixels: (id: string) => Blob = () => {
+    throw Error("This renderer has no settled paint.");
+  },
 ) {
   const source = resource.image;
   const graph = createRenderGraph(gpu, timer);
@@ -99,6 +105,8 @@ export function createRenderer(
   let last: RenderRequest | undefined;
   let next: RenderRequest | undefined;
   let pending: Promise<void> | undefined;
+  /** A paint raster being read to settle, which nothing may draw into meanwhile. */
+  let settling: Promise<unknown> | undefined;
   let disposed = false;
   let instances = new Set<string>();
   function render(request: RenderRequest) {
@@ -120,10 +128,7 @@ export function createRenderer(
         rasters.set(layer.id, raster.update(layer, developed.size));
       }
       if (layer.kind === "paint") {
-        rasters.set(
-          layer.id,
-          raster.paint(layer.id, layer.strokes, developed.size),
-        );
+        rasters.set(layer.id, raster.paint(layer, developed.size));
       }
     }
     const image =
@@ -155,12 +160,28 @@ export function createRenderer(
       listener();
     }
   }
-  /** Only calibration crosses the worker; each renderer owns its GPU RAW pass. */
+  /** Paint layers whose rasters must load settled pixels before they draw. */
+  function stalePaint(scene: Scene) {
+    const stale = [];
+    for (const { layer } of walkLayers(scene.layers)) {
+      if (layer.kind === "paint" && raster.needsBase(layer)) {
+        stale.push(layer);
+      }
+    }
+    return stale;
+  }
+  /**
+   * Renders the latest request once what it waits for is ready: a settle, a RAW development, whose
+   * calibration alone crosses the worker, or settled paint to load.
+   */
   async function develop() {
     while (next && !disposed) {
       const request = next;
       next = undefined;
       const { scene } = request;
+      if (settling) {
+        await settling;
+      }
       const selected = scene.layers[0].whiteBalance ?? resource.raw?.asShot;
       if (raw && selected && !sameBalance(balance, selected)) {
         await raw.prepare(selected);
@@ -169,6 +190,13 @@ export function createRenderer(
         }
         balance = selected;
         version++;
+      }
+      for (const layer of stalePaint(scene)) {
+        const pixels = paintPixels(layer.raster);
+        await raster.loadBase(layer.id, layer.raster, pixels, source.size);
+        if (disposed) {
+          return;
+        }
       }
       if (!next) {
         render(request);
@@ -185,7 +213,8 @@ export function createRenderer(
       throw Error("Renderer is closed.");
     }
     const factor = interactive ? Math.max(1, Math.floor(1 / displayScale)) : 1;
-    if (!resource.raw) {
+    // Renders wait, in order, for a settle, a RAW development, or settled paint to load.
+    if (!raw && !pending && !settling && !stalePaint(scene).length) {
       render({ scene, inputId, factor });
       return;
     }
@@ -230,6 +259,22 @@ export function createRenderer(
       };
     },
     update,
+    /**
+     * Reads a paint layer's raster once renders in flight finish, holding back the next ones, so its
+     * strokes can settle into pixels; see the mask raster's `settle`.
+     */
+    async settle(id: string) {
+      while (pending || settling) {
+        await (pending ?? settling);
+      }
+      const read = raster.settle(id);
+      settling = read;
+      try {
+        return await read;
+      } finally {
+        settling = undefined;
+      }
+    },
     dispose() {
       if (disposed) {
         return;

@@ -92,3 +92,88 @@ test("paint colors on a layer, swap them, erase, blend, and switch to a mask", a
     expect(await kinds()).toEqual(["image", "paint"]);
   });
 });
+
+test("strokes settle into pixels, undo takes them back, and scenes keep them", async ({
+  page,
+}) => {
+  test.setTimeout(120_000);
+  await page.goto("/");
+  await page
+    .locator('input[type="file"]')
+    .setInputFiles("tests/fixtures/photo.svg");
+  await expect(
+    page.getByRole("textbox", { name: "Exposure", exact: true }),
+  ).toHaveValue("0.00");
+  const layer = () =>
+    page.evaluate(() => {
+      const [, paint] = window.openlight.getState().scene?.layers ?? [];
+      return paint?.kind === "paint"
+        ? { raster: paint.raster, strokes: paint.strokes.length }
+        : undefined;
+    });
+  // Short strokes down the image, red then blue, the last across the center.
+  const paint = (from: number, to: number) =>
+    page.evaluate(
+      ([from, to]) => {
+        const [, layer] = window.openlight.getState().scene?.layers ?? [];
+        const id = layer?.id ?? window.openlight.addLayer("paint");
+        for (let i = from; i < to; i++) {
+          const x = i === 99 ? 580 : 100 + (i % 10) * 100;
+          const y = i === 99 ? 400 : 80 + Math.floor(i / 10) * 60;
+          window.openlight.addPaintStroke(id, {
+            mode: "paint",
+            size: 30,
+            feather: 0.5,
+            flow: 1,
+            color: i === 99 ? "#0000ff" : "#ff0000",
+            points: [
+              [x, y, 1],
+              [x + 40, y, 1],
+            ],
+          });
+        }
+      },
+      [from, to] as const,
+    );
+  await paint(0, 99);
+  expect(await layer()).toEqual({ raster: undefined, strokes: 99 });
+  const before = await samples(page);
+  expect(before[0]).toEqual(gray);
+
+  await test.step("the hundredth stroke settles every stroke into pixels", async () => {
+    await paint(99, 100);
+    await expect.poll(layer).toMatchObject({ strokes: 0 });
+    expect((await layer())?.raster).toEqual(expect.any(String));
+    const settled = await samples(page);
+    expect(settled[0][2]).toBeGreaterThan(200);
+    expect(settled[1]).toEqual(before[1]);
+  });
+
+  await test.step("undo goes back to the strokes, and redo to the pixels", async () => {
+    const settled = await samples(page);
+    await page.evaluate(() => window.openlight.undo());
+    expect(await layer()).toEqual({ raster: undefined, strokes: 99 });
+    expect(await samples(page)).toEqual(before);
+    await page.evaluate(() => window.openlight.redo());
+    expect(await samples(page)).toEqual(settled);
+  });
+
+  await test.step("a stroke over the pixels undoes by loading them again", async () => {
+    const settled = await samples(page);
+    await paint(100, 101);
+    expect((await layer())?.strokes).toBe(1);
+    await page.evaluate(() => window.openlight.undo());
+    expect(await samples(page)).toEqual(settled);
+  });
+
+  await test.step("a scene file keeps the pixels", async () => {
+    const settled = await samples(page);
+    const raster = (await layer())?.raster;
+    await page.evaluate(async () => {
+      const scene = await window.openlight.exportScene();
+      await window.openlight.openFile(scene);
+    });
+    await expect.poll(layer).toEqual({ raster, strokes: 0 });
+    expect(await samples(page)).toEqual(settled);
+  });
+});

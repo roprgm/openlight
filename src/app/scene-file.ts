@@ -53,7 +53,13 @@ export function snapshotScene(document: EditorDocument) {
     sources: { [source]: { name: file.name, type: file.type } },
     scene,
   };
-  return { json, files: new Map([[source, file]]) };
+  const files = new Map<string, Blob>([[source, file]]);
+  for (const { layer } of walkLayers(scene.layers)) {
+    if (layer.kind === "paint" && layer.raster) {
+      files.set(layer.raster, document.resources.paint(layer.raster));
+    }
+  }
+  return { json, files };
 }
 
 const id = z.string().check(z.minLength(1));
@@ -179,7 +185,8 @@ const savedSchema = z.extend(header, {
 
 /**
  * Opens a saved scene as a new document, validating every value as the edit that made it.
- * Scene files and drafts both open through here; `files` holds each source's bytes by ID.
+ * Scene files and drafts both open through here; `files` holds each source's bytes, and the pixels
+ * each paint layer settled into, by ID.
  */
 export async function openScene(
   saved: unknown,
@@ -211,6 +218,15 @@ export async function openScene(
   const resources = createResources();
   try {
     resources.add(sourceFile, decoded, image.source);
+    for (const { layer } of walkLayers(layers)) {
+      if (layer.kind === "paint" && layer.raster) {
+        const pixels = files.get(layer.raster);
+        if (!pixels) {
+          throw Error("The scene's paint is missing.");
+        }
+        resources.addPaint(pixels, layer.raster);
+      }
+    }
     return createDocument(
       {
         frame: scene.frame,

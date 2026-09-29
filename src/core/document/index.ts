@@ -3,7 +3,7 @@ import { validateFrame } from "@/core/image/frame";
 import { createHistory } from "./history";
 import { createResources } from "./resources";
 import type { Mask, MaskModifier, Scene } from "./scene";
-import { findLayer } from "./tree";
+import { findLayer, walkLayers } from "./tree";
 
 export type {
   Adjustments,
@@ -85,18 +85,27 @@ function equal(a: unknown, b: unknown): boolean {
   );
 }
 
+/** The resources a scene names: its image source and the pixels its paint settled into. */
+function resourceIds(scene: Scene) {
+  const ids = [scene.layers[0].source];
+  for (const { layer } of walkLayers(scene.layers)) {
+    if (layer.kind === "paint" && layer.raster) {
+      ids.push(layer.raster);
+    }
+  }
+  return ids;
+}
+
 /** One independent editing session. No React, decoders, or file workflows. */
 export function createDocument(initial: Scene, resources = createResources()) {
   const scene = createStore(() => initial);
   const selection = createStore(() => ({ layerId: initial.layers[0].id }));
-  const { update, ...history } = createHistory(
+  const { update, replace, ...history } = createHistory(
     scene,
     equal,
     100,
     (retained) => {
-      resources.retain(
-        new Set(retained.map((state) => state.layers[0].source)),
-      );
+      resources.retain(new Set(retained.flatMap(resourceIds)));
     },
   );
   const unsubscribe = scene.subscribe((state) => {
@@ -138,6 +147,16 @@ export function createDocument(initial: Scene, resources = createResources()) {
       }
       validateFrame(next.frame);
       update(next);
+    },
+    /**
+     * Replaces the current scene in place, for a change that shows nothing new, such as paint strokes
+     * settling into pixels; history stays as it was.
+     */
+    replace(next: Scene) {
+      if (closed) {
+        throw new Error("Document is closed.");
+      }
+      replace(next);
     },
     /** Whether the document was disposed, so work that outlived it can drop its result. */
     get closed() {

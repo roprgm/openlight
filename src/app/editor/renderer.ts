@@ -146,7 +146,10 @@ function composeLayers(
 export function createEditorRenderer(
   gpu: Gpu,
   source: ImageSource,
-  timer?: Timer,
+  {
+    timer,
+    paintPixels,
+  }: { timer?: Timer; paintPixels?: (id: string) => Blob } = {},
 ) {
   return createRenderer(
     gpu,
@@ -178,5 +181,6 @@ export function createEditorRenderer(
       };
     },
     timer,
+    paintPixels,
   );
 }

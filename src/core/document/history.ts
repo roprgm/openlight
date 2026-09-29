@@ -82,6 +82,11 @@ export function createHistory<T extends object>(
       }
       publish();
     },
+    /** Changes the current state in place, as a change that shows nothing new; undo and redo stay as they were. */
+    replace(next: T) {
+      state.setState(next, true);
+      publish();
+    },
     /** Returns whether this call opened the group; nested callers leave it to the opener. */
     begin() {
       const opened = group === undefined;

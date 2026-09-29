@@ -53,26 +53,41 @@ export function validateDepth(layers: readonly Layer[]) {
   }
 }
 
-/** Brush masks and paint layers each cache a raster of up to the photo's size, so a photo holds a few. */
-export const maxBrushLayers = 10;
+/**
+ * Each paint layer keeps an rgba8 raster the size of the photo and each brush mask an r8 one, so a
+ * photo holds a few of each.
+ */
+export const brushLimits = { color: 4, mask: 10 } as const;
+const limitNames = { color: "paint layers", mask: "brush masks" };
 
-/** The brush masks, submasks included, and paint layers among `layers` and their children. */
-export function brushLayerCount(layers: readonly Layer[]) {
-  let count = 0;
+/** The paint layers and brush masks, submasks included, among `layers` and their children. */
+export function brushLayerCounts(layers: readonly Layer[]) {
+  const counts = { color: 0, mask: 0 };
   for (const { layer } of walkLayers(layers)) {
-    if (
-      layer.kind === "paint" ||
-      (layer.kind === "mask" && layer.mask.kind === "brush")
-    ) {
-      count++;
+    if (layer.kind === "paint") {
+      counts.color++;
+    } else if (layer.kind === "mask" && layer.mask.kind === "brush") {
+      counts.mask++;
     }
   }
-  return count;
+  return counts;
+}
+
+/** Why `layers` are more than a photo holds, if they are. */
+export function brushExcess(layers: readonly Layer[]) {
+  const counts = brushLayerCounts(layers);
+  const over = (["color", "mask"] as const).find(
+    (mode) => counts[mode] > brushLimits[mode],
+  );
+  return (
+    over && `A photo holds up to ${brushLimits[over]} ${limitNames[over]}.`
+  );
 }
 
 function validateBrushLayers(layers: readonly Layer[]) {
-  if (brushLayerCount(layers) > maxBrushLayers) {
-    throw Error(`A photo holds up to ${maxBrushLayers} brush layers.`);
+  const excess = brushExcess(layers);
+  if (excess) {
+    throw Error(excess);
   }
 }
 

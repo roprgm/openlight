@@ -22,6 +22,7 @@ import { HealingProvider } from "@/features/heal/mode";
 import { addLayer } from "@/features/layers/edits";
 import { MaskToolProvider, type Nesting } from "@/features/layers/mask-tool";
 import { CanvasToolbar } from "@/features/layers/toolbar";
+import { PaintSettling } from "@/features/paint/settle";
 import { useShortcuts } from "@/hooks/use-shortcuts";
 import { blurActive } from "@/lib/dom";
 import { ComparisonControl } from "./comparison-control";
@@ -203,6 +204,7 @@ function DocumentEditor({
               failure={state.failure}
               onDismiss={onDismissFailure}
             />
+            <PaintSettling />
           </HealingTools>
         </MaskTools>
       </BrushProvider>

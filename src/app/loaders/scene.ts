@@ -15,7 +15,10 @@ export function isSceneFile(file: File) {
   return file.name.toLowerCase().endsWith(sceneExtension);
 }
 
-/** The document as a ZIP archive: a deflated `scene.json` and each source's bytes at `sources/<id>`. */
+/**
+ * The document as a ZIP archive: a deflated `scene.json`, each source's bytes at `sources/<id>`, and
+ * the already deflated pixels paint settled into at `paint/<id>`.
+ */
 export async function writeSceneFile(document: EditorDocument) {
   const { json, files } = snapshotScene(document);
   const { writeZip } = await import("@/lib/zip");
@@ -25,10 +28,13 @@ export async function writeSceneFile(document: EditorDocument) {
       data: new Blob([JSON.stringify(json)]),
       deflate: true,
     },
-    ...[...files].map(([id, file]) => ({ name: `sources/${id}`, data: file })),
+    ...[...files].map(([id, data]) => ({
+      name: `${id in json.sources ? "sources" : "paint"}/${id}`,
+      data,
+    })),
   ]);
-  const [file] = files.values();
-  const name = file.name.replace(/\.[^.]*$/, "") || "scene";
+  const [source] = Object.values(json.sources);
+  const name = source.name.replace(/\.[^.]*$/, "") || "scene";
   return new File([archive], `${name}${sceneExtension}`);
 }
 
@@ -43,9 +49,12 @@ export async function openSceneFile(
     throw Error("This file doesn't contain an OpenLight scene.");
   }
   const files = new Map(
-    [...entries].flatMap(([name, data]) =>
-      name.startsWith("sources/") ? [[name.slice(8), data] as const] : [],
-    ),
+    [...entries].flatMap(([name, data]) => {
+      const [folder, id] = name.split("/");
+      return (folder === "sources" || folder === "paint") && id
+        ? [[id, data] as const]
+        : [];
+    }),
   );
   return openScene(JSON.parse(await json.text()), files, decode);
 }
