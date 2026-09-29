@@ -1,15 +1,17 @@
 import { expect, test } from "bun:test";
 import { init, target } from "vgpu/mock";
-import { addLut, createImageLayer, createMask } from "@/app/editor/layers";
+import {
+  createImageLayer,
+  createLutLayer,
+  createMask,
+} from "@/app/editor/layers";
 import { createEditorRenderer } from "@/app/editor/renderer";
-import { createDocument, createResources, findLayer } from "@/core/document";
+import { createDocument, createResources } from "@/core/document";
 import { createImageSource } from "@/core/image";
 import { imageFrame } from "@/core/image/frame";
-import { setAdjustments } from "@/features/adjustments/edits";
-import { addLayer, setLayer } from "@/features/layers/edits";
+import { addLayer } from "@/features/layers/edits";
 import { defaultGradient } from "@/features/layers/gradient";
 import { readCube, readCubeFile } from "@/features/lut/cube";
-import { setLut } from "@/features/lut/edits";
 
 /** A two-point LUT that swaps red and blue, rows listed with red varying fastest. */
 const swap = [
@@ -24,9 +26,9 @@ const swap = [
 ];
 
 test("a .cube file reads into a 3D table with its title, domain, and row order, and a broken one says why", async () => {
-  const lut = readCube(
+  const { name, lut } = readCube(
     [
-      "\uFEFF# Created by hand",
+      "﻿# Created by hand",
       'TITLE "Red and blue swapped"',
       "",
       "LUT_3D_SIZE 2",
@@ -38,8 +40,8 @@ test("a .cube file reads into a 3D table with its title, domain, and row order, 
     ].join("\r\n"),
     "swap",
   );
+  expect(name).toBe("Red and blue swapped");
   expect(lut).toMatchObject({
-    name: "Red and blue swapped",
     size: 2,
     domain: [
       [0, 0, 0],
@@ -47,8 +49,8 @@ test("a .cube file reads into a 3D table with its title, domain, and row order, 
     ],
   });
   // Red varies fastest: the second row answers pure red, the fifth pure blue.
-  expect([...lut.table.subarray(3, 6)]).toEqual([0, 0, 1]);
-  expect([...lut.table.subarray(12, 15)]).toEqual([1, 0, 0]);
+  expect(lut.table.slice(3, 6)).toEqual([0, 0, 1]);
+  expect(lut.table.slice(12, 15)).toEqual([1, 0, 0]);
   const untitled = await readCubeFile(
     new File(
       [["LUT_3D_SIZE 2", "LUT_3D_INPUT_RANGE -0.5 1.5", ...swap].join("\n")],
@@ -57,10 +59,12 @@ test("a .cube file reads into a 3D table with its title, domain, and row order, 
   );
   expect(untitled).toMatchObject({
     name: "Warm film",
-    domain: [
-      [-0.5, -0.5, -0.5],
-      [1.5, 1.5, 1.5],
-    ],
+    lut: {
+      domain: [
+        [-0.5, -0.5, -0.5],
+        [1.5, 1.5, 1.5],
+      ],
+    },
   });
   const broken: [string[], string][] = [
     [swap, "Line 1: the table starts before LUT_3D_SIZE."],
@@ -83,7 +87,7 @@ test("a .cube file reads into a 3D table with its title, domain, and row order, 
   }
 });
 
-test("a LUT layer renders its table, nests in a mask, follows a replacement's name, and keeps its file only while history uses it", async () => {
+test("a LUT layer renders its table inside a mask", async () => {
   const gpu = await init();
   const source = createImageSource(
     target(gpu, { size: [16, 8], format: "rgba16float" }),
@@ -93,58 +97,22 @@ test("a LUT layer renders its table, nests in a mask, follows a replacement's na
   const document = createDocument(
     {
       frame: imageFrame(source.image.size),
-      layers: [{ ...createImageLayer(sourceId, "Photo"), id: "base" }],
+      layers: [createImageLayer(sourceId, "Photo")],
     },
     resources,
   );
-  const renderer = createEditorRenderer(gpu, source, resources.getLut);
-  const read = (lines: string[], name: string) =>
-    readCube(["LUT_3D_SIZE 2", ...lines].join("\n"), name);
-  const swapFile = new File([], "swap.cube");
-  const layer = (id: string) => findLayer(document.scene.getState().layers, id);
-  const lutOf = (id: string) => {
-    const item = layer(id);
-    if (item?.kind !== "lut") throw Error("Missing LUT layer.");
-    return item.lut;
-  };
+  const renderer = createEditorRenderer(gpu, source);
   try {
     const mask = addLayer(document, createMask(defaultGradient([16, 8])));
-    const nested = addLut(document, swapFile, read(swap, "Swap"), {
+    const { name, lut } = readCube(["LUT_3D_SIZE 2", ...swap].join("\n"), "");
+    const layer = addLayer(document, createLutLayer(name, lut), {
       inside: mask,
     });
-    expect(layer(nested)).toMatchObject({ kind: "lut", name: "Swap" });
     await renderer.update(document.scene.getState());
     expect(renderer.inspect().passes).toEqual([
-      `layer/${nested}/lut`,
+      `layer/${layer}/lut`,
       `layer/${mask}/mix`,
     ]);
-
-    const identity = read(
-      Array.from({ length: 8 }, (_, i) => `${i & 1} ${(i >> 1) & 1} ${i >> 2}`),
-      "Identity",
-    );
-    const replaced = resources.addLut(new File([], "identity.cube"), identity);
-    setLut(document, nested, replaced);
-    expect(layer(nested)).toMatchObject({ lut: replaced, name: "Identity" });
-    setLayer(document, nested, { name: "Neutral" });
-    setLut(document, nested, resources.addLut(swapFile, read(swap, "Swap")));
-    expect(layer(nested)).toMatchObject({ name: "Neutral" });
-    expect(() => setLut(document, mask, replaced)).toThrow("Select a LUT");
-    expect(() => setLut(document, nested, "missing")).toThrow("unavailable");
-
-    // A LUT stays while undo or redo can reach it and goes once a new edit drops that branch.
-    const top = lutOf(addLut(document, swapFile, read(swap, "Top")));
-    document.history.undo();
-    expect(resources.getLut(top).name).toBe("Top");
-    setAdjustments(document, { exposure: 1 });
-    expect(() => resources.getLut(top)).toThrow("unavailable");
-    expect(resources.getLut(replaced).name).toBe("Identity");
-
-    // Adding while a gesture is open commits it first, so the new table is kept.
-    document.history.begin();
-    setAdjustments(document, { exposure: 0.5 });
-    const grouped = lutOf(addLut(document, swapFile, read(swap, "Grouped")));
-    expect(resources.getLut(grouped).name).toBe("Grouped");
   } finally {
     renderer.dispose();
     document.dispose();

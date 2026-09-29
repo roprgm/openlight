@@ -24,7 +24,6 @@ export function App() {
       <Editor
         state={state}
         onOpen={controls.openFiles}
-        onFailure={workspace.reportFailure}
         onDismissFailure={workspace.dismissFailure}
         draft={recovery}
       />

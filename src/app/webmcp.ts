@@ -58,7 +58,9 @@ function sourceSize(document: EditorDocument) {
   return document.resources.get(image.source).image.size;
 }
 
-/** The open photo as an agent reads it; brush strokes and healing patches are counted, not listed. */
+const omitted = new Set(["strokes", "patches", "table"]);
+
+/** The open photo as an agent reads it; brush strokes, healing patches, and LUT tables are counted, not listed. */
 function describe(workspace: Workspace, controls: Controls) {
   const { file, failure, scene, selectedLayerId, preview, history } =
     controls.getState();
@@ -74,7 +76,7 @@ function describe(workspace: Workspace, controls: Controls) {
     history,
   };
   return JSON.stringify(state, (key, value) =>
-    Array.isArray(value) && (key === "strokes" || key === "patches")
+    Array.isArray(value) && omitted.has(key)
       ? `${value.length} omitted`
       : value,
   );

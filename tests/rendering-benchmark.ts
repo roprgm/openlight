@@ -4,6 +4,7 @@ import { createImageLayer } from "@/app/editor/layers";
 import { createEditorRenderer } from "@/app/editor/renderer";
 import type {
   BrushStroke,
+  LookupTable,
   Mask,
   ProcessingLayer,
   Scene,
@@ -11,7 +12,6 @@ import type {
 } from "@/core/document";
 import { createImageSource } from "@/core/image";
 import { imageFrame } from "@/core/image/frame";
-import type { LookupTable } from "@/core/image/lut";
 import { defaultAdjustments } from "@/features/adjustments/model";
 import { createHistogram } from "@/features/histogram/histogram";
 import { defaultCurve } from "@/features/tone-curves/curve";
@@ -84,15 +84,13 @@ function benchmarkMask(workload: Workload, size: [number, number]): Mask {
 /** A 33-point LUT that warms highlights and cools shadows, as a creative grade does. */
 function benchmarkLut(): LookupTable {
   const size = 33;
-  const table = new Float32Array(3 * size ** 3);
-  for (let index = 0; index < size ** 3; index++) {
+  const table = Array.from({ length: size ** 3 }, (_, index) => {
     const r = (index % size) / (size - 1);
     const g = (Math.floor(index / size) % size) / (size - 1);
     const b = Math.floor(index / size ** 2) / (size - 1);
-    table.set([r ** 0.9, g, b ** 1.1], 3 * index);
-  }
+    return [r ** 0.9, g, b ** 1.1];
+  }).flat();
   return {
-    name: "Benchmark",
     size,
     domain: [
       [0, 0, 0],
@@ -222,7 +220,7 @@ export async function benchmarkRendering(
       id: "benchmark-lut",
       name: "LUT",
       kind: "lut",
-      lut: "benchmark-table",
+      lut: benchmarkLut(),
     });
   }
   if (
@@ -277,9 +275,8 @@ export async function benchmarkRendering(
       ...effects,
     ],
   };
-  const lut = benchmarkLut();
   function create(clock?: Timer) {
-    const renderer = createEditorRenderer(gpu, source, () => lut, clock);
+    const renderer = createEditorRenderer(gpu, source, clock);
     // Half a device pixel per source pixel, as a fitted view of a large photo, renders at a factor of 2.
     renderer.setDisplayScale(proxy ? 0.5 : 1);
     return renderer;

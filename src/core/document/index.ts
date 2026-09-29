@@ -3,7 +3,7 @@ import { validateFrame } from "@/core/image/frame";
 import { createHistory } from "./history";
 import { createResources } from "./resources";
 import type { Mask, MaskModifier, Scene } from "./scene";
-import { findLayer, layerLuts } from "./tree";
+import { findLayer } from "./tree";
 
 export type {
   Adjustments,
@@ -21,6 +21,7 @@ export type {
   ImageLayer,
   Layer,
   LinearGradient,
+  LookupTable,
   Mask,
   MaskLayer,
   MaskModifier,
@@ -35,7 +36,6 @@ export {
   adjustmentTarget,
   editLayer,
   findLayer,
-  layerLuts,
   locateLayer,
   maskModifiers,
   updateLayer,
@@ -93,12 +93,7 @@ export function createDocument(initial: Scene, resources = createResources()) {
     100,
     (retained) => {
       resources.retain(
-        new Set(
-          retained.flatMap((state) => [
-            state.layers[0].source,
-            ...layerLuts(state.layers),
-          ]),
-        ),
+        new Set(retained.map((state) => state.layers[0].source)),
       );
     },
   );

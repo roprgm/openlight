@@ -1,12 +1,12 @@
-import type { LookupTable } from "@/core/image/lut";
+import type { LookupTable } from "@/core/document";
+import { lutSizes } from "./model";
 
 type Rgb = [number, number, number];
 
-/** Editors write sizes up to 65; two points already span the domain. */
-const maxSize = 65;
+export const cubeExtension = ".cube";
 
 export function isCubeFile(file: File) {
-  return /\.cube$/i.test(file.name);
+  return file.name.toLowerCase().endsWith(cubeExtension);
 }
 
 function numbers(tokens: readonly string[], count: number, at: string) {
@@ -28,14 +28,17 @@ function rgb(tokens: readonly string[], at: string): Rgb {
  * Reads an Adobe or Resolve `.cube` 3D LUT: keywords, then `LUT_3D_SIZE`³ rows of RGB with red
  * varying fastest. Other keywords are skipped; `name` stands in for a missing TITLE.
  */
-export function readCube(text: string, name: string): LookupTable {
+export function readCube(
+  text: string,
+  name: string,
+): { name: string; lut: LookupTable } {
+  const [minSize, maxSize] = lutSizes;
   let title = name;
   let min: Rgb = [0, 0, 0];
   let max: Rgb = [1, 1, 1];
   let size = 0;
-  let table: Float32Array<ArrayBuffer> | undefined;
-  let filled = 0;
-  const lines = text.replace(/^\uFEFF/, "").split(/\r?\n|\r/);
+  const table: number[] = [];
+  const lines = text.replace(/^﻿/, "").split(/\r?\n|\r/);
   for (const [index, line] of lines.entries()) {
     const [keyword, ...tokens] = line.trim().split(/\s+/);
     const at = `Line ${index + 1}`;
@@ -54,16 +57,15 @@ export function readCube(text: string, name: string): LookupTable {
       case "LUT_1D_SIZE":
         throw Error("This is a 1D LUT; choose a 3D LUT.");
       case "LUT_3D_SIZE":
-        if (table) {
+        if (size) {
           throw Error(`${at}: LUT_3D_SIZE appears twice.`);
         }
         [size] = numbers(tokens, 1, at);
-        if (!Number.isInteger(size) || size < 2 || size > maxSize) {
+        if (!Number.isInteger(size) || size < minSize || size > maxSize) {
           throw Error(
-            `${at}: LUT_3D_SIZE must be a whole number from 2 to 65.`,
+            `${at}: LUT_3D_SIZE must be a whole number from ${minSize} to ${maxSize}.`,
           );
         }
-        table = new Float32Array(3 * size ** 3);
         break;
       case "DOMAIN_MIN":
         min = rgb(tokens, at);
@@ -81,28 +83,27 @@ export function readCube(text: string, name: string): LookupTable {
         if (/^[a-z_]/i.test(keyword)) {
           break;
         }
-        if (!table) {
+        if (!size) {
           throw Error(`${at}: the table starts before LUT_3D_SIZE.`);
         }
-        if (filled === table.length) {
+        if (table.length === 3 * size ** 3) {
           throw Error(`${at}: LUT_3D_SIZE ${size} needs ${size ** 3} rows.`);
         }
-        table.set(rgb([keyword, ...tokens], at), filled);
-        filled += 3;
+        table.push(...rgb([keyword, ...tokens], at));
     }
   }
-  if (!table) {
+  if (!size) {
     throw Error("LUT_3D_SIZE is missing, so this isn't a 3D LUT.");
   }
-  if (filled < table.length) {
+  if (table.length < 3 * size ** 3) {
     throw Error(
-      `LUT_3D_SIZE ${size} needs ${size ** 3} rows; found ${filled / 3}.`,
+      `LUT_3D_SIZE ${size} needs ${size ** 3} rows; found ${table.length / 3}.`,
     );
   }
   if (min.some((low, channel) => low >= max[channel])) {
     throw Error("DOMAIN_MIN must be below DOMAIN_MAX in every channel.");
   }
-  return { name: title, size, domain: [min, max], table };
+  return { name: title, lut: { size, domain: [min, max], table } };
 }
 
 /** Reads a `.cube` file, named after its TITLE or else the file. */

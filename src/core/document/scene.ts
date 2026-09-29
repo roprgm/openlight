@@ -57,6 +57,15 @@ export type Fill = {
   readonly blend: Blend;
 };
 
+type Rgb = readonly [number, number, number];
+/** A 3D color lookup table: `size`³ output colors for inputs spread evenly across `domain`. */
+export type LookupTable = {
+  readonly size: number;
+  readonly domain: readonly [min: Rgb, max: Rgb];
+  /** RGB triplets, with the red input varying fastest, then green, then blue. */
+  readonly table: readonly number[];
+};
+
 export type ImageLayer = {
   readonly kind: "image";
   readonly id: string;
@@ -122,8 +131,7 @@ export type ProcessingLayer = {
   | { readonly kind: "grain"; readonly grain: Grain }
   | { readonly kind: "color-mixer"; readonly colorMixer: ColorMixer }
   | { readonly kind: "fill"; readonly fill: Fill }
-  /** A 3D LUT from the document's resources, by ID. */
-  | { readonly kind: "lut"; readonly lut: string }
+  | { readonly kind: "lut"; readonly lut: LookupTable }
   | { readonly kind: "heal"; readonly patches: readonly HealPatch[] }
   | {
       readonly kind: "mask";

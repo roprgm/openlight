@@ -1,47 +1,30 @@
 import { useRef } from "react";
 import { useDocument } from "@/components/editor/session";
 import type { EffectLayer } from "@/core/document";
-import { findLayer } from "@/core/document";
 import { LayersControls, LayersSection } from "@/features/layers/controls";
-import { addLayer, type LayerPlacement } from "@/features/layers/edits";
-import { readCubeFile } from "@/features/lut/cube";
-import { LutInput } from "@/features/lut/input";
+import { addLayer } from "@/features/layers/edits";
+import { cubeExtension } from "@/features/lut/cube";
 import { AdjustPanel } from "./adjust";
 import { ImageHistogram } from "./histogram";
-import { addLut, createLayer, effectKinds } from "./layers";
-import { useReportFailure } from "./open";
+import { createLayer, effectKinds, newLayerPlacement } from "./layers";
+import { FileInput, useOpen } from "./open";
 
-/** The layer stack with the effects the app offers; a new effect goes inside a selected root mask or above the selection. */
+/** The layer stack with the effects the app offers; a LUT comes from a `.cube` file, opened as a drop would be. */
 export function EditorLayers({ fill }: { fill?: boolean }) {
   const document = useDocument();
-  const reportFailure = useReportFailure();
-  const lutInput = useRef<HTMLInputElement>(null);
-  function placement(): LayerPlacement {
-    const scene = document.scene.getState();
-    const selected = document.selection.getState().layerId;
-    const layer = findLayer(scene.layers, selected);
-    return layer?.kind === "mask" && scene.layers.includes(layer)
-      ? { inside: selected }
-      : { above: selected };
-  }
+  const open = useOpen();
+  const cube = useRef<HTMLInputElement>(null);
   function add(kind: EffectLayer["kind"]) {
     if (kind === "lut") {
-      lutInput.current?.click();
+      cube.current?.click();
       return;
     }
-    addLayer(document, createLayer(kind), placement());
-  }
-  async function addLutFile(file: File) {
-    try {
-      addLut(document, file, await readCubeFile(file), placement());
-    } catch (error) {
-      reportFailure(file.name, error);
-    }
+    addLayer(document, createLayer(kind), newLayerPlacement(document));
   }
   return (
     <>
       <LayersControls effects={effectKinds} onAdd={add} fill={fill} />
-      <LutInput ref={lutInput} onChoose={addLutFile} />
+      <FileInput ref={cube} accept={cubeExtension} onOpen={open} />
     </>
   );
 }

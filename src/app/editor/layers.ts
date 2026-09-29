@@ -5,24 +5,25 @@ import { GrainIcon } from "@/components/icons/grain";
 import { HealIcon } from "@/components/icons/heal";
 import { LutIcon } from "@/components/icons/lut";
 import { VignetteIcon } from "@/components/icons/vignette";
-import type {
-  EditorDocument,
-  EffectLayer,
-  ImageLayer,
-  Layer,
-  Mask,
-  MaskLayer,
-  ProcessingLayer,
+import {
+  type EditorDocument,
+  type EffectLayer,
+  findLayer,
+  type ImageLayer,
+  type Layer,
+  type LookupTable,
+  type Mask,
+  type MaskLayer,
+  type ProcessingLayer,
 } from "@/core/document";
 import type { WhiteBalance } from "@/core/image";
-import type { LookupTable } from "@/core/image/lut";
 import { defaultAdjustments } from "@/features/adjustments/model";
 import { defaultMixer, isNeutral } from "@/features/color-mixer/model";
 import { defaultDetails } from "@/features/details/model";
 import { defaultFill } from "@/features/fill/model";
 import { defaultGrain } from "@/features/grain/model";
 import type { EffectKind } from "@/features/layers/controls";
-import { addLayer, type LayerPlacement } from "@/features/layers/edits";
+import type { LayerPlacement } from "@/features/layers/edits";
 import { defaultCurve } from "@/features/tone-curves/curve";
 import { defaultVignette } from "@/features/vignette/model";
 
@@ -91,23 +92,21 @@ export function createLayer(kind: DefaultEffect): EffectLayer {
   }
 }
 
-/** Keeps a table read from `file` with the document and adds a layer named after it; returns the layer's ID. */
-export function addLut(
-  document: EditorDocument,
-  file: File,
-  table: LookupTable,
-  placement?: LayerPlacement,
-) {
-  // An open group commits first: releasing it would drop a table no layer uses yet.
-  document.history.commit();
-  const lut = document.resources.addLut(file, table);
-  const layer: ProcessingLayer = {
-    ...baseLayer(),
-    kind: "lut",
-    name: table.name,
-    lut,
-  };
-  return addLayer(document, layer, placement);
+export function createLutLayer(
+  name: string,
+  lut: LookupTable,
+): Extract<EffectLayer, { kind: "lut" }> {
+  return { ...baseLayer(), kind: "lut", name, lut };
+}
+
+/** Where a new effect goes: inside a selected root mask, or above the selection. */
+export function newLayerPlacement(document: EditorDocument): LayerPlacement {
+  const scene = document.scene.getState();
+  const selected = document.selection.getState().layerId;
+  const layer = findLayer(scene.layers, selected);
+  return layer?.kind === "mask" && scene.layers.includes(layer)
+    ? { inside: selected }
+    : { above: selected };
 }
 
 const maskNames: Record<Mask["kind"], string> = {

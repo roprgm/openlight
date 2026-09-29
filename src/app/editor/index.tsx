@@ -33,7 +33,7 @@ import { ImageHistogram } from "./histogram";
 import { HistoryControls } from "./history";
 import { createMask } from "./layers";
 import { MaskOverlaySync } from "./mask-overlay";
-import { FailureContext, OpenButton, OpenStatus } from "./open";
+import { OpenButton, OpenContext, OpenStatus } from "./open";
 import { createEditorRenderer } from "./renderer";
 import { EditorSidebar } from "./sidebar";
 import { ToolRail } from "./tool-rail";
@@ -164,12 +164,10 @@ type ReadyState = Extract<
 function DocumentEditor({
   state,
   onOpen,
-  onFailure,
   onDismissFailure,
 }: {
   state: ReadyState;
   onOpen: (files: File[]) => void;
-  onFailure: (file: string, error: unknown) => void;
   onDismissFailure: () => void;
 }) {
   return (
@@ -189,13 +187,13 @@ function DocumentEditor({
               <ComparisonControl />
               <ExportButton />
             </EditorHeader>
-            <FailureContext value={onFailure}>
+            <OpenContext value={onOpen}>
               <DockProvider>
                 <EditorFrame rail={<ToolRail />} tabs={<DockTabs />}>
                   <ToolView />
                 </EditorFrame>
               </DockProvider>
-            </FailureContext>
+            </OpenContext>
             <OpenStatus
               opening={state.opening}
               failure={state.failure}
@@ -211,15 +209,12 @@ function DocumentEditor({
 type EditorProps = {
   state: ReturnType<Workspace["state"]["getState"]>;
   onOpen: (files: File[]) => void;
-  /** A file the editor reads into the open document, such as a LUT, failed. */
-  onFailure: (file: string, error: unknown) => void;
   onDismissFailure: () => void;
   draft?: Recovery;
 };
 function EditorContent({
   state,
   onOpen,
-  onFailure,
   onDismissFailure,
   draft,
 }: EditorProps) {
@@ -232,7 +227,6 @@ function EditorContent({
         <DocumentEditor
           state={state}
           onOpen={onOpen}
-          onFailure={onFailure}
           onDismissFailure={onDismissFailure}
         />
       </RendererProvider>

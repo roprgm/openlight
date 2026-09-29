@@ -9,7 +9,7 @@ Where the code lives and the rules that keep it in place. Keep this file true: w
 | `src/main.tsx` | Mounts the GPU provider and the app. |
 | `app/index.tsx` | The app: workspace, file drop, draft notice. |
 | `app/workspace` | The open document, its replacement, and loading state. A replacement loads beside the open document and takes its place only once it opens; a failure leaves the open document in place. |
-| `app/loaders` | Image, scene file, Camera Raw XMP, and `.cube` LUT loaders. |
+| `app/loaders` | Image, scene file, Camera Raw XMP, and `.cube` LUT loaders. A loader reads one file format and opens a document or edits the open one through the same edits the UI uses. |
 | `app/draft` | The draft autosaved in the browser. |
 | `app/controls.ts` | `window.openlight`, documented in [API.md](API.md). |
 | `app/commands.ts` | The commands: serializable, validated edits that `run`, WebMCP, and other callers share; see [API.md](API.md#commands). |
@@ -28,7 +28,7 @@ Where the code lives and the rules that keep it in place. Keep this file true: w
 | `components/editor` | Editor primitives: layout, panel, dock, parameters, viewport, document and renderer contexts, brush input. |
 | `components/ui` | What [`@roprgm/ui`](https://ui.roprgm.com) lacks; see [DESIGN.md](DESIGN.md). |
 | `core/document` | Scene contract, layer tree, history, resources. |
-| `core/image` | Image sources, decoding, geometry, color, and the lookup-table type LUTs read into. |
+| `core/image` | Image sources, decoding, geometry, color. |
 | `core/renderer` | Render nodes, graph execution, masks, proxy, transform, display. |
 | `features/<name>` | One capability: usually `model.ts` (parameters, defaults), `edits.ts`, `pass.ts` with its `.wgsl`, and `controls.tsx`. |
 | `lib` | Utilities independent of OpenLight. |
@@ -56,7 +56,7 @@ Dependencies point downward. Features do not import each other; `app/` connects 
 ## Engine and React
 
 - Document edits and rendering run without React, a mounted UI, or an implicit active document: pass workspace, document, and GPU explicitly. Feature processing imports without its panel.
-- Each document owns a vanilla Zustand scene store, history, and resources: its image sources and LUT tables with their files. Scenes hold immutable, serializable content and the IDs of those resources; files, tables, and GPU resources stay outside history, and a resource goes once no state in history uses it.
+- Each document owns a vanilla Zustand scene store, history, and image resources. Scenes hold immutable, serializable content and image-source IDs; files and GPU resources stay outside history.
 - UI controls, `window.openlight`, and commands call the same edits. A slider or curve gesture is one edit; cancelling restores the previous scene. Preview settings and navigation stay outside history.
 - The engine owns GPU resources, rendering, and derived data such as histogram bins; frame data stays out of React state. Every resource owner disposes what it creates.
 
@@ -72,7 +72,7 @@ Dependencies point downward. Features do not import each other; `app/` connects 
 - Use `vgpu` for GPU work and `vgpu-react` for bindings. Create pipelines once per engine and reuse them. Keep `.wgsl` beside its owner.
 - The working space is linear Rec.2020 in `rgba16float`. Decoders convert into it and display converts out; passes preserve format and primaries unless they explicitly convert.
 - A LUT layer converts explicitly: its table expects display-referred sRGB, so it receives the working color as the display shows it, headroom above white clipped, and its output returns to linear Rec.2020.
-- A node's storage arrays upload when the array changes; one passed again, such as a LUT's table, keeps its buffer, which the graph owns and releases with the layer.
+- A node's storage arrays upload when the array changes; passing the same array, such as a LUT's table, keeps its buffer.
 - Layers process in stack order; the image layer's adjustments and tone curve run last, on the composite.
 - Preserve HDR headroom through exposure, curves, and vibrance. Exposure clips negatives and applies one luminance gain to all channels.
 - The adjustment shader's parameters use UI units; its fitted constants are calibration data.

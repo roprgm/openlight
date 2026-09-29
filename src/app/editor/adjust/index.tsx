@@ -3,7 +3,6 @@ import { Slider } from "@roprgm/ui/slider";
 import { type ReactNode, useCallback, useState } from "react";
 import { useStore } from "zustand";
 import { effectKinds } from "@/app/editor/layers";
-import { useReportFailure } from "@/app/editor/open";
 import { DockChips, DockControls } from "@/components/editor/dock";
 import { PanelBody, PanelHeader } from "@/components/editor/panel";
 import type { Parameter } from "@/components/editor/parameter";
@@ -39,7 +38,6 @@ import { GrainControls, grainParameters } from "@/features/grain/controls";
 import { HealControls } from "@/features/heal/controls";
 import { Histogram } from "@/features/histogram";
 import { OverlayToggle } from "@/features/layers/overlay-toggle";
-import { LutControls } from "@/features/lut/controls";
 import { defaultCurve } from "@/features/tone-curves/curve";
 import { setToneCurve } from "@/features/tone-curves/edits";
 import { ToneCurves } from "@/features/tone-curves/tone-curves";
@@ -117,14 +115,6 @@ function exposureParameter(
   };
 }
 
-/** A replacement file that can't be read shows beside the document, as a failed open does. */
-function LayerLut({ layer }: { layer: Kind<"lut"> }) {
-  const reportFailure = useReportFailure();
-  return (
-    <LutControls id={layer.id} lut={layer.lut} onFailure={reportFailure} />
-  );
-}
-
 function SelectedControls({ layer }: { layer: Layer }) {
   const document = useDocument();
   switch (layer.kind) {
@@ -153,7 +143,7 @@ function SelectedControls({ layer }: { layer: Layer }) {
     case "fill":
       return <FillControls id={layer.id} fill={layer.fill} />;
     case "lut":
-      return <LayerLut layer={layer} />;
+      return null;
     case "heal":
       return <HealControls id={layer.id} patches={layer.patches} />;
     case "exposure": {
@@ -374,11 +364,7 @@ function SelectedDials({
         </DockControls>
       );
     case "lut":
-      return (
-        <DockControls header={<DockTitle layer={layer} />}>
-          <LayerLut layer={layer} />
-        </DockControls>
-      );
+      return <DockControls header={<DockTitle layer={layer} />} />;
     case "heal":
       return (
         <DockControls header={<DockTitle layer={layer} />}>

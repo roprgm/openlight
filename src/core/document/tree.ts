@@ -18,17 +18,6 @@ export function* walkLayers(
   }
 }
 
-/** The IDs of the LUTs these layers use, each once. */
-export function layerLuts(layers: readonly Layer[]) {
-  const ids = new Set<string>();
-  for (const { layer } of walkLayers(layers)) {
-    if (layer.kind === "lut") {
-      ids.add(layer.lut);
-    }
-  }
-  return ids;
-}
-
 export function locateLayer(layers: readonly Layer[], id: string) {
   for (const location of walkLayers(layers)) {
     if (location.layer.id === id) {
