@@ -135,6 +135,10 @@ export function createDocument(initial: Scene, resources = createResources()) {
       validateFrame(next.frame);
       update(next);
     },
+    /** Whether the document was disposed, so work that outlived it can drop its result. */
+    get closed() {
+      return closed;
+    },
     dispose() {
       if (closed) {
         return;

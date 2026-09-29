@@ -45,7 +45,7 @@ import {
   vignetteParameters,
 } from "@/features/vignette/controls";
 import {
-  useWhiteBalanceParameters,
+  useWhiteBalance,
   WhiteBalanceControls,
 } from "@/features/white-balance/controls";
 import { useEditGesture } from "@/hooks/use-edit-gesture";
@@ -120,16 +120,13 @@ function SelectedControls({ layer }: { layer: Layer }) {
     case "details":
       return <DetailsControls id={layer.id} details={layer.details} />;
     case "image":
+    case "mask":
       return (
         <>
           <AdjustmentControls
             id={layer.id}
             adjustments={layer.adjustments}
-            temperature={
-              document.resources.get(layer.source).raw && (
-                <WhiteBalanceControls />
-              )
-            }
+            whiteBalance={<WhiteBalanceControls layer={layer} />}
           />
           <div className="px-3.5 pb-3.5">
             <LayerCurve id={layer.id} toneCurve={layer.toneCurve} />
@@ -152,15 +149,6 @@ function SelectedControls({ layer }: { layer: Layer }) {
         </section>
       );
     }
-    case "mask":
-      return (
-        <>
-          <AdjustmentControls id={layer.id} adjustments={layer.adjustments} />
-          <div className="px-3.5 pb-3.5">
-            <LayerCurve id={layer.id} toneCurve={layer.toneCurve} />
-          </div>
-        </>
-      );
   }
 }
 
@@ -216,7 +204,7 @@ function AdjustmentDials({
   action: ReactNode;
 }) {
   const document = useDocument();
-  const whiteBalance = useWhiteBalanceParameters();
+  const whiteBalance = useWhiteBalance(layer);
   const header = (
     <DockChips
       label="Adjustment group"
@@ -252,16 +240,35 @@ function AdjustmentDials({
   }
   const adjustments = (controls: Parameters<typeof adjustmentParameters>[3]) =>
     adjustmentParameters(document, layer.id, layer.adjustments, controls);
-  // A RAW image's own white balance takes the place of the incremental temperature and tint.
-  const balance = layer.kind === "image" && whiteBalance;
-  let parameters = adjustments(tone);
   if (group === "color") {
-    parameters = balance
-      ? [...balance, ...adjustments(color.slice(2))]
-      : adjustments(color);
+    return (
+      <DockControls
+        header={header}
+        action={
+          <>
+            {whiteBalance.auto && (
+              <Button
+                variant="ghost"
+                size="sm"
+                aria-label="Auto white balance"
+                onClick={whiteBalance.auto}
+              >
+                Auto
+              </Button>
+            )}
+            {action}
+          </>
+        }
+        parameters={[...whiteBalance.parameters, ...adjustments(color)]}
+      />
+    );
   }
   return (
-    <DockControls header={header} action={action} parameters={parameters} />
+    <DockControls
+      header={header}
+      action={action}
+      parameters={adjustments(tone)}
+    />
   );
 }
 

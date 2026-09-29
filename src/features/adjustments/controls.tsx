@@ -6,17 +6,13 @@ import type { Adjustments, EditorDocument } from "@/core/document";
 import { setAdjustments } from "./edits";
 import { adjustmentLimits, defaultAdjustments } from "./model";
 
-const stops: Partial<Record<keyof Adjustments, string[]>> = {
-  incrementalTemperature: ["#4a6fc3", "#c3b84a"],
-  incrementalTint: ["#5ab34a", "#b34ab3"],
-  saturation: [
-    "#7b7d85",
-    "#868686 50%",
-    "#7fa066 68%",
-    "#b8a75c 84%",
-    "#c25a48",
-  ],
-};
+const saturationStops = [
+  "#7b7d85",
+  "#868686 50%",
+  "#7fa066 68%",
+  "#b8a75c 84%",
+  "#c25a48",
+];
 
 export const tone = [
   ["exposure", "Exposure"],
@@ -26,9 +22,8 @@ export const tone = [
   ["whites", "Whites"],
   ["blacks", "Blacks"],
 ] as const;
+/** White balance, which leads the color group, has its own controls. */
 export const color = [
-  ["incrementalTemperature", "Temp"],
-  ["incrementalTint", "Tint"],
   ["vibrance", "Vibrance"],
   ["saturation", "Saturation"],
 ] as const;
@@ -45,7 +40,10 @@ export function adjustmentParameters(
     label,
     value: adjustments[name],
     step: name === "exposure" ? 0.01 : 1,
-    stops: name === "vibrance" ? stops.saturation : stops[name],
+    stops:
+      name === "vibrance" || name === "saturation"
+        ? saturationStops
+        : undefined,
     min: -adjustmentLimits[name],
     max: adjustmentLimits[name],
     defaultValue: defaultAdjustments[name],
@@ -68,25 +66,21 @@ function AdjustmentSliders({
   );
 }
 
-/** The temperature slot replaces the incremental temperature and tint sliders. */
+/** Tone, then the white balance's controls, then color. */
 export function AdjustmentControls({
   id,
   adjustments,
-  temperature,
+  whiteBalance,
 }: {
   id: string;
   adjustments: Readonly<Adjustments>;
-  temperature?: ReactNode;
+  whiteBalance: ReactNode;
 }) {
   return (
     <section className="flex flex-col gap-1.5 p-3.5">
       <AdjustmentSliders id={id} adjustments={adjustments} controls={tone} />
-      {temperature}
-      <AdjustmentSliders
-        id={id}
-        adjustments={adjustments}
-        controls={temperature ? color.slice(2) : color}
-      />
+      {whiteBalance}
+      <AdjustmentSliders id={id} adjustments={adjustments} controls={color} />
     </section>
   );
 }

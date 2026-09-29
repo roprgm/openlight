@@ -54,6 +54,7 @@ import { defaultCurve } from "@/features/tone-curves/curve";
 import { setToneCurve } from "@/features/tone-curves/edits";
 import { setVignette } from "@/features/vignette/edits";
 import { defaultVignette } from "@/features/vignette/model";
+import { autoWhiteBalance } from "@/features/white-balance/auto";
 import { setWhiteBalance } from "@/features/white-balance/edits";
 import { type Command, runCommand } from "./commands";
 import {
@@ -106,6 +107,7 @@ export function createControls(
       setAdjustments(workspace.getDocument(), change, id),
     setWhiteBalance: (change?: Partial<WhiteBalance>) =>
       setWhiteBalance(workspace.getDocument(), change),
+    autoWhiteBalance: () => autoWhiteBalance(workspace.getDocument(), gpu),
     setToneCurve: (curve?: ToneCurve, id?: string) =>
       setToneCurve(workspace.getDocument(), curve, id),
     setColorMixer(color: MixerColor, change: MixerChange, id?: string) {
