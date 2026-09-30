@@ -196,8 +196,8 @@ test("a gradient recovers +3 EV photo exposure without clipping between layers",
   for (const exposed of result.exposed) {
     expect(exposed).toEqual([2, 4, 6, 0.75]);
   }
-  expect(result.recovered[0]).toEqual(result.original[0]);
-  expect(result.recovered[2]).toEqual(result.exposed[2]);
+  expect(result.recovered[0]).toEqual([0.25, 0.5, 0.75, 0.75]);
+  expect(result.recovered[2]).toEqual([2, 4, 6, 0.75]);
   expect(result.recovered[1][2]).toBeGreaterThan(1);
   expect(result.recovered[1][3]).toBe(0.75);
 });

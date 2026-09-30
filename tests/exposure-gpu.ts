@@ -38,7 +38,6 @@ export async function recoverExposure() {
     ]);
   }
   try {
-    const original = await samples();
     setAdjustments(document, { exposure: 3 });
     const exposed = await samples();
     const mask = addLayer(
@@ -47,7 +46,7 @@ export async function recoverExposure() {
     );
     setAdjustments(document, { exposure: -3 }, mask);
     const recovered = await samples();
-    return { original, exposed, recovered, errors };
+    return { exposed, recovered, errors };
   } finally {
     renderer.dispose();
     document.dispose();

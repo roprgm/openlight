@@ -109,7 +109,7 @@ export async function editDuringSettle(
     await gpu.gpu.queue.onSubmittedWorkDone();
     await gpu.settled();
     const scene = document.scene.getState();
-    let error = 0;
+    let error: number | undefined;
     if (action !== "close") {
       await renderer.update(scene);
       await reference.update(before);

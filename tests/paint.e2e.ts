@@ -393,7 +393,9 @@ for (const [mode, action] of [
     expect(result.errors).toEqual([]);
     expect(result.historyUnchanged).toBe(true);
     expect(result.accepted).toBe(action === "append");
-    expect(result.error).toBeLessThan(0.002);
+    if (action !== "close") {
+      expect(result.error).toBeLessThan(0.002);
+    }
     if (action === "append") {
       expect(result.raster).toEqual(expect.any(String));
       expect(result.strokes).toBe(1);

@@ -8,7 +8,7 @@ import { addLayer } from "@/features/layers/edits";
 import { addPaintStroke } from "@/features/paint/edits";
 import { settleAt, watchSettling } from "@/features/paint/settle";
 
-test("a settle that finds nothing to settle waits for the next render instead of trying again at once", async () => {
+test("an unsuccessful settle does not retry on its own", async () => {
   const gpu = await init();
   const source = createImageSource(
     target(gpu, { size: [64, 64], format: "rgba16float" }),
@@ -22,7 +22,7 @@ test("a settle that finds nothing to settle waits for the next render instead of
     },
     resources,
   );
-  // A renderer already disposed, as one is once another photo opens: it holds no raster to read.
+  // A renderer that cannot accept the settle, as after another photo opens.
   let settles = 0;
   const renderer = {
     settle: () => {
@@ -36,8 +36,8 @@ test("a settle that finds nothing to settle waits for the next render instead of
   };
   const stop = watchSettling(document, renderer);
   try {
-    document.history.begin();
     const paint = addLayer(document, createLayer("paint"));
+    document.history.begin();
     for (let i = 0; i < settleAt; i++) {
       addPaintStroke(document, paint, {
         mode: "paint",
@@ -48,9 +48,10 @@ test("a settle that finds nothing to settle waits for the next render instead of
         points: [[10, 10, 1]],
       });
     }
-    // The gesture ends, which checks the crowded layer once.
+    expect(settles).toBe(0);
+    // Ending the gesture checks the crowded layer once.
     document.history.commit();
-    await new Promise((resolve) => setTimeout(resolve, 20));
+    await new Promise((resolve) => setTimeout(resolve, 0));
     expect(settles).toBe(1);
   } finally {
     stop();
