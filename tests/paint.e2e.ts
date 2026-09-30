@@ -1,21 +1,11 @@
 import type { Page } from "@playwright/test";
-import { expect, test } from "./fixtures";
+import { expect, openPhoto, test } from "./fixtures";
 import { readImage } from "./images";
 import { box, choose, drag } from "./pointer";
 
 const gray = [128, 128, 128, 255];
 
-/** Opens the gray test photo, 1200 × 800, in a wide window. */
-async function openPhoto(page: Page) {
-  await page.setViewportSize({ width: 1440, height: 1000 });
-  await page.goto("/");
-  await page
-    .locator('input[type="file"]')
-    .setInputFiles("tests/fixtures/photo.svg");
-  await expect(
-    page.getByRole("textbox", { name: "Exposure", exact: true }),
-  ).toHaveValue("0.00");
-}
+test.use({ viewport: { width: 1440, height: 1000 } });
 
 const brushBar = (page: Page) =>
   page.getByRole("group", { name: "Layer options" });
