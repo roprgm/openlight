@@ -99,8 +99,9 @@ function ExportButton() {
       <TooltipTrigger
         render={
           <Button
+            size="sm"
             aria-pressed={exporting}
-            className="ml-1 px-4 aria-pressed:bg-raised-hover pointer-coarse:h-10"
+            className="ml-1 aria-pressed:bg-raised-hover pointer-coarse:h-8"
             onClick={() => setTool(exporting ? tools[0] : exportTool)}
           >
             Export
