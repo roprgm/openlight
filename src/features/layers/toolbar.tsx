@@ -27,6 +27,7 @@ function LayerOptions({ layer }: { layer: ProcessingLayer }) {
         min={0}
         max={100}
         defaultValue={100}
+        origin={0}
         format={(value) => `${value}%`}
         valueWidth={3}
         variant={barSlider(density)}
@@ -98,8 +99,9 @@ export function CanvasToolbar({ children }: { children?: ReactNode }) {
       {...gesture}
       // No wrapping, so running out of room overflows, which is what the steps above measure. A button or
       // group at either end nests its corners 4px in; a text label first, such as a slider's, needs 8px
-      // more, and a slider last 6px more, since a compact slider's value pulls 4px past its cell.
-      className="absolute top-3 left-3 flex min-w-0 max-w-[calc(100%-1.5rem)] items-center gap-x-2.5 overflow-hidden whitespace-nowrap rounded-full surface-panel bg-level-4/80 p-1 backdrop-blur-sm [&>:first-child:not(button,fieldset)]:ml-2 [&>:last-child:not(button,fieldset)]:mr-1.5"
+      // more, and a slider last 6px more, since a compact slider's value pulls 4px past its cell. On phones
+      // the histogram floats at the top right, 11rem wide, so the bar stops 0.5rem short of it.
+      className="absolute top-3 left-3 flex min-w-0 max-w-[calc(100%-13rem)] items-center gap-x-2.5 overflow-hidden whitespace-nowrap rounded-full surface-panel bg-level-4/80 p-1 backdrop-blur-sm md:max-w-[calc(100%-1.5rem)] [&>:first-child:not(button,fieldset)]:ml-2 [&>:last-child:not(button,fieldset)]:mr-1.5"
     >
       <Density value={step === 0 ? "full" : "compact"}>
         {inlineTool}

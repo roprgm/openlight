@@ -17,7 +17,14 @@ import {
   type MaskLayer,
   type ProcessingLayer,
 } from "@/core/document";
-import { deleteLayer, duplicateLayer, moveLayer } from "./edits";
+import {
+  brushExcess,
+  brushLayerCounts,
+  brushLimits,
+  deleteLayer,
+  duplicateLayer,
+  moveLayer,
+} from "./edits";
 import { useMaskTool } from "./mask-tool";
 
 /** Mounted only while the menu is open, so rows do not track siblings and containers. */
@@ -40,6 +47,7 @@ function LayerActionItems({
       !findLayer([layer], item.id),
   );
   const bottom = !parent ? 1 : 0;
+  const duplicable = !brushExcess([...layers, layer]);
   function moveOut() {
     if (!parent) {
       return;
@@ -91,7 +99,10 @@ function LayerActionItems({
         </Submenu>
       )}
       <MenuSeparator />
-      <MenuItem onClick={() => onSelect(duplicateLayer(document, layer.id))}>
+      <MenuItem
+        disabled={!duplicable}
+        onClick={() => onSelect(duplicateLayer(document, layer.id))}
+      >
         Duplicate
       </MenuItem>
       <MenuItem onClick={() => deleteLayer(document, layer.id)}>
@@ -115,6 +126,9 @@ const nestings = [
 function NestingItems({ layer }: { layer: MaskLayer }) {
   const document = useDocument();
   const tool = useMaskTool();
+  const full = useScene(
+    (scene) => brushLayerCounts(scene.layers).mask >= brushLimits.mask,
+  );
   return nestings.map(([operation, label]) => (
     <Submenu key={operation}>
       <SubmenuTrigger>{label}</SubmenuTrigger>
@@ -122,6 +136,7 @@ function NestingItems({ layer }: { layer: MaskLayer }) {
         {shapes.map(([shape, name]) => (
           <MenuItem
             key={shape}
+            disabled={shape === "brush" && full}
             onClick={() => {
               document.selectLayer(layer.id);
               tool.add(layer.id, operation, shape);

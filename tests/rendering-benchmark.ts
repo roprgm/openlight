@@ -30,6 +30,7 @@ export type Workload =
   | "layer-stack"
   | "fill"
   | "lut"
+  | "paint"
   | "heal"
   | "heal-empty"
   | "heal-proxy"
@@ -47,7 +48,13 @@ function summarize(values: number[]) {
   };
 }
 
-/** Wavy strokes across the image, three painted and one erased, dabbed every quarter diameter. */
+const rasterPixelBytes: Record<string, number> = {
+  r8unorm: 1,
+  r16float: 2,
+  rgba8unorm: 4,
+};
+
+/** Wavy strokes across the image, three painted and one erased. */
 function brushStrokes(size: [number, number]): BrushStroke[] {
   return [0.25, 0.45, 0.65, 0.45].map((row, index) => ({
     mode: index === 3 ? "erase" : "paint",
@@ -223,6 +230,19 @@ export async function benchmarkRendering(
       lut: benchmarkLut(),
     });
   }
+  if (workload === "paint") {
+    effects.push({
+      ...common,
+      id: "benchmark-paint",
+      name: "Paint",
+      kind: "paint",
+      blend: "soft-light",
+      strokes: brushStrokes(size).map((stroke, index) => ({
+        ...stroke,
+        color: ["#f0763c", "#3c8ef0", "#f0d23c", "#000000"][index],
+      })),
+    });
+  }
   if (
     workload === "heal" ||
     workload === "heal-empty" ||
@@ -276,7 +296,7 @@ export async function benchmarkRendering(
     ],
   };
   function create(clock?: Timer) {
-    const renderer = createEditorRenderer(gpu, source, clock);
+    const renderer = createEditorRenderer(gpu, source, { timer: clock });
     // Half a device pixel per source pixel, as a fitted view of a large photo, renders at a factor of 2.
     renderer.setDisplayScale(proxy ? 0.5 : 1);
     return renderer;
@@ -391,9 +411,10 @@ export async function benchmarkRendering(
           sum + size[0] * size[1] * (format === "rgba32float" ? 16 : 8),
         0,
       ),
-      // Brush rasters are r8unorm at source resolution, outside the graph.
+      // Brush rasters, paint, and the stroke buffer, at source resolution, outside the graph.
       rasterBytes: storage.rasters.reduce(
-        (sum, { size }) => sum + size[0] * size[1],
+        (sum, { size, format }) =>
+          sum + size[0] * size[1] * rasterPixelBytes[format],
         0,
       ),
       image: [...new Uint8Array(await blob.arrayBuffer())],

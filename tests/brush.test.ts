@@ -2,11 +2,11 @@ import { expect, mock, test } from "bun:test";
 import { init, target } from "vgpu/mock";
 import { createImageLayer, createMask } from "@/app/editor/layers";
 import { createEditorRenderer } from "@/app/editor/renderer";
-import type { BrushStroke } from "@/core/document";
+import type { BrushStroke, StrokePoint } from "@/core/document";
 import { createDocument, createResources, findLayer } from "@/core/document";
 import { createImageSource } from "@/core/image";
 import { imageFrame } from "@/core/image/frame";
-import { strokeDabs } from "@/core/renderer/mask/dabs";
+import { type Dab, type DabWalk, walkDabs } from "@/core/renderer/strokes/dabs";
 import { setAdjustments } from "@/features/adjustments/edits";
 import {
   addLayer,
@@ -26,22 +26,57 @@ const stroke: BrushStroke = {
   points: [[10, 10, 1]],
 };
 
-test("dabs follow the stroke at a quarter diameter with interpolated pressure", () => {
-  expect(strokeDabs(stroke)).toEqual([[10, 10, 4, 0.5]]);
-  const line = strokeDabs({
-    ...stroke,
+test("dabs follow the stroke sixteen times per diameter with interpolated pressure, laying what one every quarter would", () => {
+  const wide = { ...stroke, size: 32 };
+  // Four dabs stand for one a quarter diameter apart, together leaving as much uncovered.
+  const laid = (flow: number) => 1 - (1 - flow) ** (1 / 4);
+  expect(walkDabs(wide).dabs).toEqual([[10, 10, 16, laid(0.5)]]);
+  const line = walkDabs({
+    ...wide,
     points: [
       [10, 10, 1],
       [20, 10, 0.5],
       [30, 10, 0],
     ],
-  });
+  }).dabs;
   expect(line).toHaveLength(11);
-  expect(line[0]).toEqual([10, 10, 4, 0.5]);
-  expect(line[5]).toEqual([20, 10, 4, 0.25]);
+  expect(line[0]).toEqual([10, 10, 16, laid(0.5)]);
+  expect(line[5]).toEqual([20, 10, 16, laid(0.25)]);
   expect(line[10][0]).toBeCloseTo(30);
   expect(line[10][3]).toBeCloseTo(0);
-  expect(strokeDabs({ ...stroke, points: [] })).toEqual([]);
+  // Small brushes keep a dab per pixel, each laying a share to match.
+  const small = walkDabs({
+    ...stroke,
+    points: [
+      [10, 10, 1],
+      [20, 10, 1],
+    ],
+  }).dabs;
+  expect(small).toHaveLength(11);
+  expect(small[0][3]).toBeCloseTo(1 - 0.5 ** 0.5);
+  expect(walkDabs({ ...stroke, points: [] }).dabs).toEqual([]);
+});
+
+test("a walk goes on where it stopped as a stroke grows, landing the dabs a whole walk would", () => {
+  const points: StrokePoint[] = [
+    [10, 10, 1],
+    [23, 14, 0.8],
+    [31, 30, 0.4],
+    [50, 31, 0.9],
+    [52, 60, 0.2],
+  ];
+  const whole = walkDabs({ ...stroke, size: 20, points }).dabs;
+  const walked: Dab[] = [];
+  let walk: DabWalk | undefined;
+  for (let end = 1; end <= points.length; end++) {
+    const step = walkDabs(
+      { ...stroke, size: 20, points: points.slice(0, end) },
+      walk,
+    );
+    walked.push(...step.dabs);
+    walk = step.walk;
+  }
+  expect(walked).toEqual(whole);
 });
 
 test("brush strokes stamp incrementally, replay after undo, and render a proxy during gestures", async () => {
@@ -81,19 +116,24 @@ test("brush strokes stamp incrementally, replay after undo, and render a proxy d
     expect(renderer.inspect()).toMatchObject({
       passes: [`layer/${mask}/exposure`, `layer/${mask}/raster`],
       stamped: 1,
-      rasters: [{ id: mask, size: [64, 32] }],
+      // The open stroke waits in the stroke buffer, and the mask reads it laid over its raster in the view.
+      rasters: [
+        { id: mask, size: [32, 16], format: "r8unorm" },
+        { id: "stroke view", size: [32, 16], format: "r8unorm" },
+        { id: "stroke buffer", size: [32, 16], format: "r16float" },
+      ],
     });
-    expect(renderer.coverage(mask)?.size).toEqual([64, 32]);
-    // A 20 px extension adds ten dabs; earlier ones are not stamped again.
+    expect(renderer.coverage(mask)?.target.size).toEqual([32, 16]);
+    // A 20 px extension adds twenty dabs; earlier ones are not stamped again.
     extendStroke(document, mask, [[30, 10, 1]]);
     await render(true);
-    expect(renderer.inspect().stamped).toBe(11);
+    expect(renderer.inspect().stamped).toBe(21);
     expect(renderer.outputImage().size).toEqual([64, 32]);
     // The display scale sets the proxy: a quarter of a device pixel per source pixel means a quarter-size render.
     renderer.setDisplayScale(0.25);
     await render(true);
     expect(renderer.outputImage().size).toEqual([16, 8]);
-    expect(renderer.inspect().stamped).toBe(11);
+    expect(renderer.inspect().stamped).toBe(21);
     document.history.commit();
     expect(document.history.status.getState().editing).toBe(false);
     await render();
@@ -103,11 +143,11 @@ test("brush strokes stamp incrementally, replay after undo, and render a proxy d
     expect(notify).toHaveBeenCalledTimes(rendered);
     paintStroke(document, mask, { ...stroke, mode: "erase" });
     await render();
-    expect(renderer.inspect().stamped).toBe(12);
+    expect(renderer.inspect().stamped).toBe(22);
     // Undo removes the last stroke, which rebuilds the raster from the remaining one.
     document.history.undo();
     await render();
-    expect(renderer.inspect().stamped).toBe(23);
+    expect(renderer.inspect().stamped).toBe(43);
     const layer = findLayer(document.scene.getState().layers, mask);
     expect(layer?.kind === "mask" && layer.mask.kind === "brush").toBe(true);
     if (layer?.kind === "mask" && layer.mask.kind === "brush") {
@@ -149,9 +189,11 @@ test("brush strokes stamp incrementally, replay after undo, and render a proxy d
     expect(renderer.inspect().rasters.map((raster) => raster.id)).toEqual([
       mask,
       child,
+      "stroke view",
       `${gradient}/group`,
+      "stroke buffer",
     ]);
-    expect(renderer.coverage(child)?.size).toEqual([64, 32]);
+    expect(renderer.coverage(child)?.target.size).toEqual([32, 16]);
     // Erasing inside the child stamps its own raster only, and the group recombines.
     const stampedBefore = renderer.inspect().stamped;
     paintStroke(document, child, { ...stroke, mode: "erase" });

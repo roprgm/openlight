@@ -1,6 +1,6 @@
-/** Fields that own their keys, so page shortcuts and held keys leave them alone. */
+/** Fields that own their keys, so page shortcuts and held keys leave them alone; range and color inputs only pick. */
 export const typingFields =
-  'input:not([type="range"]), textarea, select, dialog, [role="dialog"]';
+  'input:not([type="range"], [type="color"]), textarea, select, dialog, [role="dialog"]';
 
 export function isTyping(target: EventTarget | null, fields = typingFields) {
   return (

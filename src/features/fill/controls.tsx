@@ -2,8 +2,8 @@ import { Select } from "@roprgm/ui/select";
 import { useEffect, useRef } from "react";
 import { useDocument } from "@/components/editor/session";
 import type { Fill } from "@/core/document";
+import { blends } from "@/core/image/blend";
 import { setFill } from "./edits";
-import { blends } from "./model";
 
 export function FillControls({ id, fill }: { id: string; fill: Fill }) {
   const document = useDocument();

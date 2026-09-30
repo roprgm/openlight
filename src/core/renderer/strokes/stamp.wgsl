@@ -1,5 +1,5 @@
 // Accumulates a chunk of dabs like successive layers of paint: each dab covers its share of what is left.
-// The pass blends the result into the mask, so chunks and strokes compose exactly.
+// The pass blends the coverage into its target, so chunks and strokes compose exactly.
 struct Params {
   count: u32,
   feather: f32,
@@ -17,5 +17,5 @@ struct Params {
     let weight = 1.0 - smoothstep(inner, radius, length(position.xy - dab.xy));
     remaining *= 1.0 - dab.w * weight;
   }
-  return vec4f(1.0 - remaining, 0.0, 0.0, 1.0);
+  return vec4f(1.0 - remaining);
 }

@@ -19,6 +19,7 @@ import { fill } from "@/features/fill/pass";
 import { grain } from "@/features/grain/pass";
 import { heal } from "@/features/heal/pass";
 import { lut } from "@/features/lut/pass";
+import { paint } from "@/features/paint/pass";
 import { toneCurves } from "@/features/tone-curves/pass";
 import { vignette } from "@/features/vignette/pass";
 
@@ -89,6 +90,14 @@ function composeLayer(
     case "lut":
       edited = pipeline(below, [lut(layer.lut, `${name}/lut`)]);
       break;
+    case "paint":
+      edited = paint(
+        below,
+        composition.paint(layer),
+        layer.blend,
+        `${name}/paint`,
+      );
+      break;
     case "heal": {
       const result = heal(below, layer.patches, name, composition);
       edited = result.image;
@@ -131,13 +140,16 @@ function composeLayers(
 
 /**
  * Pure layer composition shares the same graph for preview, crop, and export.
- * Layers process the source; the image layer's adjustments and curve then tone the composite,
- * so a local exposure still sees the light a global exposure would push past white.
+ * The image layer develops the photo first; layers above it process that floating-point result.
+ * Display and export encode only after composition, so later layers can recover HDR headroom.
  */
 export function createEditorRenderer(
   gpu: Gpu,
   source: ImageSource,
-  timer?: Timer,
+  {
+    timer,
+    paintPixels,
+  }: { timer?: Timer; paintPixels?: (id: string) => Blob } = {},
 ) {
   return createRenderer(
     gpu,
@@ -146,14 +158,19 @@ export function createEditorRenderer(
       const [sourceLayer, ...layers] = scene.layers;
       const name = `layer/${sourceLayer.id}`;
       composition.retain(name);
-      const children = composeLayers(image, sourceLayer.children, composition);
-      const composite = composeLayers(children.image, layers, composition);
-      const adjusted = pipeline(composite.image, [
+      const adjusted = pipeline(image, [
         adjustments(sourceLayer.adjustments, name),
       ]);
-      const full = pipeline(adjusted, [
+      const developed = pipeline(adjusted, [
         toneCurves(sourceLayer.toneCurve, `${name}/curves`),
       ]);
+      const children = composeLayers(
+        developed,
+        sourceLayer.children,
+        composition,
+      );
+      const composite = composeLayers(children.image, layers, composition);
+      const full = composite.image;
       const [original, output] = transformImages(
         [input(source.image), full],
         scene.frame,
@@ -169,5 +186,6 @@ export function createEditorRenderer(
       };
     },
     timer,
+    paintPixels,
   );
 }

@@ -1,5 +1,5 @@
 import { z } from "zod/mini";
-import { unit } from "@/lib/parse";
+import { hexColor, unit } from "@/lib/parse";
 
 /** Finite source-pixel coordinates and a pressure from 0 to 1. */
 export const strokePoints = z
@@ -13,3 +13,5 @@ export const strokeSchema = z.object({
   flow: unit,
   points: strokePoints,
 });
+
+export const paintStrokeSchema = z.extend(strokeSchema, { color: hexColor });

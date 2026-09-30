@@ -4,7 +4,9 @@ import {
   createResources,
   type EditorDocument,
   type ProcessingLayer,
+  paintingOf,
   type Scene,
+  settledPixels,
   walkLayers,
 } from "@/core/document";
 import type { ImageSource } from "@/core/image";
@@ -19,12 +21,14 @@ import { defaultDetails, detailsSchema } from "@/features/details/model";
 import { defaultFill, fillSchema } from "@/features/fill/model";
 import { defaultGrain, grainSchema } from "@/features/grain/model";
 import { healPatchSchema } from "@/features/heal/model";
+import { validateBrushLayers } from "@/features/layers/edits";
 import {
   layerSettings,
   maskOperation,
   maskSchema,
 } from "@/features/layers/model";
 import { lutSchema } from "@/features/lut/model";
+import { paintShape } from "@/features/paint/model";
 import { curveSchema } from "@/features/tone-curves/curve";
 import { defaultVignette, vignetteSchema } from "@/features/vignette/model";
 import { whiteBalanceSchema } from "@/features/white-balance/edits";
@@ -41,7 +45,7 @@ export type SceneJson = {
   scene: Scene;
 };
 
-/** The document's scene and the source files it references, read without rendering. */
+/** The document's scene, the source file it references, and the pixels its paint settled into, read without rendering. */
 export function snapshotScene(document: EditorDocument) {
   const scene = document.scene.getState();
   const { source } = scene.layers[0];
@@ -52,7 +56,11 @@ export function snapshotScene(document: EditorDocument) {
     sources: { [source]: { name: file.name, type: file.type } },
     scene,
   };
-  return { json, files: new Map([[source, file]]) };
+  return {
+    json,
+    sources: new Map([[source, file]]),
+    paint: settledPixels(document, scene),
+  };
 }
 
 const id = z.string().check(z.minLength(1));
@@ -100,6 +108,7 @@ function processingLayer(children: z.ZodMiniType<readonly ProcessingLayer[]>) {
         kind: z.literal("heal"),
         patches: z.array(healPatchSchema),
       }),
+      z.object({ ...base, kind: z.literal("paint"), ...paintShape }),
       z.object({
         ...base,
         kind: z.literal("mask"),
@@ -177,7 +186,8 @@ const savedSchema = z.extend(header, {
 
 /**
  * Opens a saved scene as a new document, validating every value as the edit that made it.
- * Scene files and drafts both open through here; `files` holds each source's bytes by ID.
+ * Scene files and drafts both open through here; `files` holds each source's bytes, and the pixels
+ * each paint layer settled into, by ID.
  */
 export async function openScene(
   saved: unknown,
@@ -188,6 +198,7 @@ export async function openScene(
     throw Error("This scene needs a newer version of OpenLight.");
   }
   const { sources, scene } = parse(savedSchema, saved, "Invalid scene");
+  validateBrushLayers(scene.layers);
   const [image, ...layers] = scene.layers;
   const source = sources[image.source];
   const data = files.get(image.source);
@@ -209,6 +220,16 @@ export async function openScene(
   const resources = createResources();
   try {
     resources.add(sourceFile, decoded, image.source);
+    for (const { layer } of walkLayers(layers)) {
+      const raster = paintingOf(layer)?.raster;
+      if (raster) {
+        const pixels = files.get(raster);
+        if (!pixels) {
+          throw Error("The scene's paint is missing.");
+        }
+        resources.addPaint(pixels, raster);
+      }
+    }
     return createDocument(
       {
         frame: scene.frame,

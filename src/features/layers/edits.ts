@@ -53,6 +53,47 @@ export function validateDepth(layers: readonly Layer[]) {
   }
 }
 
+/**
+ * Each paint layer keeps an rgba8 raster at half the photo's resolution and each brush mask an r8
+ * one, so a photo holds a few of each.
+ */
+export const brushLimits = { color: 4, mask: 10 } as const;
+const brushLimitNames = { color: "paint layers", mask: "brush masks" };
+
+/** The most a photo holds of paint layers or of brush masks, as a sentence without its period. */
+export function brushLimit(mode: keyof typeof brushLimits) {
+  return `A photo holds up to ${brushLimits[mode]} ${brushLimitNames[mode]}`;
+}
+
+/** The paint layers and brush masks, submasks included, among `layers` and their children. */
+export function brushLayerCounts(layers: readonly Layer[]) {
+  const counts = { color: 0, mask: 0 };
+  for (const { layer } of walkLayers(layers)) {
+    if (layer.kind === "paint") {
+      counts.color++;
+    } else if (layer.kind === "mask" && layer.mask.kind === "brush") {
+      counts.mask++;
+    }
+  }
+  return counts;
+}
+
+/** Why `layers` are more than a photo holds, if they are. */
+export function brushExcess(layers: readonly Layer[]) {
+  const counts = brushLayerCounts(layers);
+  const over = (["color", "mask"] as const).find(
+    (mode) => counts[mode] > brushLimits[mode],
+  );
+  return over && `${brushLimit(over)}.`;
+}
+
+export function validateBrushLayers(layers: readonly Layer[]) {
+  const excess = brushExcess(layers);
+  if (excess) {
+    throw Error(excess);
+  }
+}
+
 /** Above a sibling, inside a processing layer, or on top of the root stack. */
 export type LayerPlacement = { above: string } | { inside: string };
 
@@ -100,6 +141,7 @@ export function addLayer(
     layers.toSpliced(index ?? layers.length, 0, layer),
   );
   validateDepth(next.layers);
+  validateBrushLayers(next.layers);
   document.history.commit();
   document.edit(next);
   document.selectLayer(layer.id);
@@ -120,19 +162,25 @@ export function setLayer(
 
 export function setLayerMask(document: EditorDocument, id: string, mask: Mask) {
   const next = parse(maskSchema, mask, "Invalid mask");
-  editLayer(document, id, (layer) => {
+  if (next.kind === "brush" && next.raster !== undefined) {
+    // Settled pixels come from the document's own settling, never from outside.
+    document.resources.paint(next.raster);
+  }
+  const scene = updateLayer(document.scene.getState(), id, (layer) => {
     if (layer.kind !== "mask") {
       throw Error("Select a mask layer.");
     }
     return { ...layer, mask: next };
   });
+  validateBrushLayers(scene.layers);
+  document.edit(scene);
 }
 
 function brushLayer(layer: Layer) {
   if (layer.kind !== "mask" || layer.mask.kind !== "brush") {
     throw Error("Select a brush mask.");
   }
-  return { layer, strokes: layer.mask.strokes };
+  return { layer, mask: layer.mask, strokes: layer.mask.strokes };
 }
 
 /** Starts a stroke on a brush mask; group it with the points that follow. */
@@ -143,11 +191,8 @@ export function paintStroke(
 ) {
   const painted = parse(strokeSchema, stroke, "Invalid stroke");
   editLayer(document, id, (item) => {
-    const { layer, strokes } = brushLayer(item);
-    return {
-      ...layer,
-      mask: { kind: "brush", strokes: [...strokes, painted] },
-    };
+    const { layer, mask, strokes } = brushLayer(item);
+    return { ...layer, mask: { ...mask, strokes: [...strokes, painted] } };
   });
 }
 
@@ -159,7 +204,7 @@ export function extendStroke(
 ) {
   const added = parse(strokePoints, points, "Invalid stroke points");
   editLayer(document, id, (item) => {
-    const { layer, strokes } = brushLayer(item);
+    const { layer, mask, strokes } = brushLayer(item);
     const last = strokes.at(-1);
     if (!last) {
       throw Error("Start a stroke before extending it.");
@@ -167,7 +212,7 @@ export function extendStroke(
     const stroke = { ...last, points: [...last.points, ...added] };
     return {
       ...layer,
-      mask: { kind: "brush", strokes: [...strokes.slice(0, -1), stroke] },
+      mask: { ...mask, strokes: [...strokes.slice(0, -1), stroke] },
     };
   });
 }
@@ -202,6 +247,7 @@ export function duplicateLayer(document: EditorDocument, id: string) {
     layers.toSpliced(layers.findIndex((item) => item.id === id) + 1, 0, layer),
   );
   validateDepth(next.layers);
+  validateBrushLayers(next.layers);
   document.history.commit();
   document.edit(next);
   document.selectLayer(layer.id);

@@ -7,6 +7,9 @@ struct Params {
   mode: u32,
   feather: f32,
   opacity: f32,
+  // The patch's coverage covers only the tiles its stroke reaches, from this corner.
+  coverageOrigin: vec2f,
+  coverageSize: vec2f,
 }
 @group(0) @binding(0) var source: texture_2d<f32>;
 @group(0) @binding(1) var coverage: texture_2d<f32>;
@@ -18,7 +21,7 @@ fn color(p: vec2f) -> vec4f {
   return textureSampleLevel(source, linearSampler, p / params.dimensions, 0.0);
 }
 fn mask(p: vec2f) -> f32 {
-  return textureSampleLevel(coverage, linearSampler, p / params.dimensions, 0.0).r;
+  return textureSampleLevel(coverage, linearSampler, (p - params.coverageOrigin) / params.coverageSize, 0.0).r;
 }
 fn difference(p: vec2f) -> vec3f {
   // A smooth log gain matches color without subtracting bright-boundary differences
@@ -67,7 +70,7 @@ fn patchCoverage(
     if (any(p < params.origin) || any(p > params.origin + params.extent)) {
       return original;
     }
-    let amount = patchCoverage(coverage, linearSampler, p, params.dimensions, params.feather) * params.opacity;
+    let amount = patchCoverage(coverage, linearSampler, p - params.coverageOrigin, params.coverageSize, params.feather) * params.opacity;
     let donor = p + params.offset;
     if (amount == 0.0 || any(donor < vec2f(0.5)) || any(donor > params.dimensions - 0.5)) {
       return original;

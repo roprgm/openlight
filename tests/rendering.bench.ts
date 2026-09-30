@@ -18,6 +18,7 @@ for (const workload of [
   "layer-stack",
   "fill",
   "lut",
+  "paint",
   "heal",
   "heal-empty",
   "heal-proxy",

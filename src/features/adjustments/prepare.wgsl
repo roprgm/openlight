@@ -1,5 +1,3 @@
-import { luminance } from "../../core/image/color.wgsl";
-
 export struct Adjustments {
   exposure: f32,
   incrementalTemperature: f32,
@@ -13,26 +11,9 @@ export struct Adjustments {
   saturation: f32,
 }
 
-// Source preparation in linear Rec.2020; retain the calibrated constants.
-
-// Fitted exposure of a gray level. Light above 1.0 is headroom and scales linearly with the stops.
-fn exposeGray(light: f32, stops: f32) -> f32 {
-  let bounded = min(light, 1.0);
-  let headroom = (light - bounded) * exp2(stops);
-  if stops < 0.0 {
-    return headroom + exp2(stops * 1.09) * pow(bounded, exp2(-stops * 0.14));
-  }
-  let gain = mix(vec2f(1.11, -0.11) * min(stops, 1.0), vec2f(4.05, -0.63), max(stops - 1.0, 0.0) / 4.0);
-  return headroom + 1.0 - pow(1.0 - pow(bounded, exp2(gain.y)), exp2(gain.x));
-}
-
-// Every channel scales by the gain of the pixel's luminance, so hue holds at any exposure.
-// Negatives, from wide-gamut sources or noise below black, clip here.
+// Exposure scales linear light, including values outside the display range, so opposite stops cancel.
 export fn adjustExposure(color: vec3f, stops: f32) -> vec3f {
-  let clipped = max(color, vec3f(0.0));
-  let light = luminance(clipped);
-  if light <= 0.0 { return clipped; }
-  return clipped * (exposeGray(light, stops) / light);
+  return color * exp2(stops);
 }
 
 fn adjustWhiteBalance(color: vec3f, temperature: f32, tint: f32) -> vec3f {

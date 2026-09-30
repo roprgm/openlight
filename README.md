@@ -20,7 +20,7 @@ Image processing runs on your own GPU with WebGPU. Photos never leave your devic
 
 **Layers and masks**
 
-- Draggable effect layers: Details, Exposure, Color Mixer, Vignette, Grain, Color, which paints one color with Photoshop blend modes, and LUT, which grades the photo with a 3D LUT from a `.cube` file.
+- Draggable effect layers: Details, Exposure, Color Mixer, Vignette, Grain, Color, which paints one color with Photoshop blend modes, Paint, which holds brush strokes in any colors with the same modes, and LUT, which grades the photo with a 3D LUT from a `.cube` file.
 - Linear and radial masks with their own adjustments and child effects.
 - Add and Subtract submasks, from a mask's actions menu, to shape its coverage.
 
@@ -28,7 +28,9 @@ Image processing runs on your own GPU with WebGPU. Photos never leave your devic
 
 - Healing paints patches from an automatic or manually positioned donor. Repairs remain editable and each patch builds on the previous result.
 - Brush, linear, and radial gradient tools on the rail draw masks on top of the stack; their options sit in the bar over the image.
-- Brush masks with size, feather, flow, pen pressure, and Alt to erase.
+- The Brush paints colors on a Paint layer or coverage on a brush mask, with size, feather, flow, pen pressure, and Alt to erase. Its primary and secondary colors sit at the foot of the tool rail, as in Photoshop.
+- Photoshop's keys: B on the Brush switches Color and Mask; X swaps the colors, or paint and erase on a mask; D resets them to black and white; I picks one from the screen where the browser offers it; `[` and `]` size the brush and Shift with them its feather; digits set the flow and Shift with them the layer's opacity. A right click opens size and feather where you paint.
+- A photo holds up to 4 Paint layers and 10 brush masks, since each keeps a raster at half the photo's resolution. A Paint layer's or brush mask's strokes settle into pixels every 100 strokes, so undo stays quick however much you paint, and still reaches back through them.
 - The mask overlay shows until a mask changes the image, then the image shows the mask; the overlay button beside the mask's adjustments, or O, shows or hides it for every mask.
 - Edits preview at a reduced resolution while you drag, then render in full.
 

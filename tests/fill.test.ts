@@ -9,10 +9,10 @@ import {
 import { createEditorRenderer } from "@/app/editor/renderer";
 import { createDocument, createResources, findLayer } from "@/core/document";
 import { createImageSource } from "@/core/image";
+import { parseColor } from "@/core/image/blend";
 import { imageFrame } from "@/core/image/frame";
 import { setAdjustments } from "@/features/adjustments/edits";
 import { setFill } from "@/features/fill/edits";
-import { parseColor } from "@/features/fill/model";
 import { addLayer, setLayer } from "@/features/layers/edits";
 import { defaultGradient } from "@/features/layers/gradient";
 

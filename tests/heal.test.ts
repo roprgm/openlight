@@ -85,7 +85,7 @@ test("heal patches reuse brush rasters, scale with the proxy, undo, and release 
     await renderer.update(document.scene.getState(), id, true);
     expect(renderer.fullImage().size).toEqual([64, 48]);
     expect(renderer.inspect().rasters).toEqual([
-      { id: `layer/${id}/${patch}`, size: [256, 192] },
+      { id: `layer/${id}/${patch}`, size: [256, 192], format: "r8unorm" },
     ]);
     const stamped = renderer.inspect().stamped;
     extendHealPatch(document, id, [[120, 80, 1]]);
@@ -128,6 +128,45 @@ test("heal patches reuse brush rasters, scale with the proxy, undo, and release 
     deleteLayer(document, id);
     await renderer.update(document.scene.getState());
     expect(renderer.inspect().rasters).toEqual([]);
+  } finally {
+    renderer.dispose();
+    document.dispose();
+    gpu.dispose();
+  }
+});
+
+test("a heal patch's raster covers only the tiles its stroke reaches, growing with it", async () => {
+  const gpu = await init();
+  const source = createImageSource(
+    target(gpu, { size: [2048, 1536], format: "rgba16float" }),
+  );
+  const resources = createResources();
+  const sourceId = resources.add(new File([], "photo.png"), source);
+  const document = createDocument(
+    {
+      frame: imageFrame(source.image.size),
+      layers: [createImageLayer(sourceId, "Photo")],
+    },
+    resources,
+  );
+  const renderer = createEditorRenderer(gpu, source);
+  const raster = () => renderer.inspect().rasters.map(({ size }) => size);
+  try {
+    const id = addLayer(document, createLayer("heal"));
+    document.history.begin();
+    addHealPatch(
+      document,
+      id,
+      { ...dab, size: 30, points: [[1000, 700, 1]] },
+      [80, 0],
+    );
+    await renderer.update(document.scene.getState(), undefined, true);
+    // One 256 px tile rather than the whole photo.
+    expect(raster()).toEqual([[256, 256]]);
+    extendHealPatch(document, id, [[1100, 700, 1]]);
+    await renderer.update(document.scene.getState(), undefined, true);
+    expect(raster()).toEqual([[512, 256]]);
+    document.history.commit();
   } finally {
     renderer.dispose();
     document.dispose();

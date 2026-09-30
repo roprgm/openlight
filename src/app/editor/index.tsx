@@ -2,7 +2,7 @@ import { Button } from "@roprgm/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@roprgm/ui/tooltip";
 import type { ReactNode } from "react";
 import type { Workspace } from "@/app/workspace";
-import { BrushProvider } from "@/components/editor/brush-tool";
+import { BrushProvider, useBrushTool } from "@/components/editor/brush-tool";
 import { Image } from "@/components/editor/image";
 import {
   EditorFrame,
@@ -22,8 +22,10 @@ import { HealingProvider } from "@/features/heal/mode";
 import { addLayer } from "@/features/layers/edits";
 import { MaskToolProvider, type Nesting } from "@/features/layers/mask-tool";
 import { CanvasToolbar } from "@/features/layers/toolbar";
+import { PaintSettling } from "@/features/paint/settle";
 import { useShortcuts } from "@/hooks/use-shortcuts";
 import { blurActive } from "@/lib/dom";
+import { BrushKeys } from "./brush-keys";
 import { ComparisonControl } from "./comparison-control";
 import { ComparisonDivider } from "./comparison-divider";
 import { DockPanel, DockProvider, DockTabs } from "./dock";
@@ -97,8 +99,9 @@ function ExportButton() {
       <TooltipTrigger
         render={
           <Button
+            size="sm"
             aria-pressed={exporting}
-            className="ml-1 px-4 aria-pressed:bg-raised-hover pointer-coarse:h-10"
+            className="ml-1 aria-pressed:bg-raised-hover pointer-coarse:h-8"
             onClick={() => setTool(exporting ? tools[0] : exportTool)}
           >
             Export
@@ -116,6 +119,7 @@ function ExportButton() {
 function MaskTools({ children }: { children: ReactNode }) {
   const document = useDocument();
   const { setTool } = useTool();
+  const brush = useBrushTool();
   // A mask from the rail goes on top of the stack; one chosen from a mask's Add or Subtract menu goes inside it.
   function addMask(mask: Mask, nesting: Nesting) {
     const layer = createMask(mask, nesting.operation);
@@ -129,6 +133,9 @@ function MaskTools({ children }: { children: ReactNode }) {
     <MaskToolProvider
       onCreate={addMask}
       onTool={(shape) => {
+        if (shape === "brush") {
+          brush.update({ mode: "mask" });
+        }
         const tool = tools.find((entry) => entry.id === shape);
         if (tool) {
           setTool(tool);
@@ -171,10 +178,10 @@ function DocumentEditor({
   onDismissFailure: () => void;
 }) {
   return (
-    <ToolProvider>
-      <MaskTools>
-        <HealingTools>
-          <BrushProvider>
+    <BrushProvider>
+      <ToolProvider>
+        <MaskTools>
+          <HealingTools>
             <EditorHeader
               file={state.file}
               open={<OpenButton onOpen={onOpen} />}
@@ -199,10 +206,12 @@ function DocumentEditor({
               failure={state.failure}
               onDismiss={onDismissFailure}
             />
-          </BrushProvider>
-        </HealingTools>
-      </MaskTools>
-    </ToolProvider>
+            <PaintSettling />
+            <BrushKeys />
+          </HealingTools>
+        </MaskTools>
+      </ToolProvider>
+    </BrushProvider>
   );
 }
 

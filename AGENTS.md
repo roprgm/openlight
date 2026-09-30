@@ -2,7 +2,7 @@
 
 A professional photo editor with little, readable code: Vite, React, [vgpu](https://vgpu.sh) on WebGPU, Bun, and Biome.
 
-[ARCHITECTURE.md](ARCHITECTURE.md) maps the code and its layer rules; start there to find what a request touches. [CONTEXT.md](CONTEXT.md) names domain terms, [DESIGN.md](DESIGN.md) covers UI patterns, [REVIEW.md](REVIEW.md) covers reviewing and verifying a change, and [API.md](API.md) documents `window.openlight`.
+Start with [ARCHITECTURE.md](ARCHITECTURE.md) to find the affected code and its layer rules. [CONTEXT.md](CONTEXT.md) names domain terms. For UI changes, read [DESIGN.md](DESIGN.md) for the library and editor components. [REVIEW.md](REVIEW.md) covers verification, and [API.md](API.md) documents `window.openlight`.
 
 ## Setup
 
@@ -31,12 +31,12 @@ Run the first three on code changes; CI runs them too. Run browser tests for wha
 - File names use kebab-case. Prefer named exports; use `@/` across folders and relative imports within one.
 - Files read from small to large: define a function above the functions that use it.
 - Comment only what the code cannot say.
-- Keep Tailwind classes inline and use `cva` for variants. Text has one size; express hierarchy with color and weight.
+- Keep Tailwind classes inline; use `cva` for local variants when needed.
 
 ## Quality
 
 - Code quality comes first and technical debt is not accepted: no workarounds, dead code, or TODOs in place of a fix. When the right fix is larger than the request, say so instead of patching around it.
-- Find where the behavior lives and change it there, with the fewest lines that solve it well. Add no tests, helpers, abstractions, or docs the request does not need.
+- Change behavior at its owner and keep the diff within the request. Preserve unrelated UI and behavior. Add only the tests, helpers, abstractions, or docs the change needs.
 - Give each module, component, and function one responsibility. Start with direct functions and library calls; prefer a few repeated lines over coupling unrelated behavior.
 - Drive behavior from the state that causes it, such as props or document state, never from incidental DOM structure, selectors, or timing.
 - Keep control flow linear with guard clauses and `const`. Avoid nested ternaries and dense logic in JSX.

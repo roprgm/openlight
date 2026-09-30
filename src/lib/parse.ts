@@ -45,3 +45,7 @@ export const range = (min: number, max: number) =>
   z.number().check(z.minimum(min), z.maximum(max));
 export const unit = range(0, 1);
 export const point = z.tuple([z.number(), z.number()]);
+/** A `#rrggbb` color, stored lowercase. */
+export const hexColor = z
+  .string()
+  .check(z.regex(/^#[0-9a-f]{6}$/i), z.toLowerCase());

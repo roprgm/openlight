@@ -40,6 +40,7 @@ import { Histogram } from "@/features/histogram";
 import { setLayer } from "@/features/layers/edits";
 import { OverlayToggle } from "@/features/layers/overlay-toggle";
 import { LutCurves } from "@/features/lut/curves";
+import { PaintControls } from "@/features/paint/controls";
 import { defaultCurve } from "@/features/tone-curves/curve";
 import { setToneCurve } from "@/features/tone-curves/edits";
 import { ToneCurves } from "@/features/tone-curves/tone-curves";
@@ -171,6 +172,8 @@ function SelectedControls({ layer }: { layer: Layer }) {
     }
     case "heal":
       return <HealControls id={layer.id} patches={layer.patches} />;
+    case "paint":
+      return <PaintControls layer={layer} />;
     case "exposure": {
       const { id, ...parameter } = exposureParameter(document, layer);
       return (
@@ -401,6 +404,12 @@ function SelectedDials({
           <div className="max-h-48 overflow-y-auto">
             <HealControls id={layer.id} patches={layer.patches} />
           </div>
+        </DockControls>
+      );
+    case "paint":
+      return (
+        <DockControls header={<DockTitle layer={layer} />}>
+          <PaintControls layer={layer} />
         </DockControls>
       );
   }

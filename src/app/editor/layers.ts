@@ -1,3 +1,4 @@
+import { BrushIcon } from "@/components/icons/brush";
 import { ColorMixerIcon } from "@/components/icons/color-mixer";
 import { DetailsIcon } from "@/components/icons/details";
 import { ExposureIcon } from "@/components/icons/exposure";
@@ -9,6 +10,7 @@ import {
   type EditorDocument,
   type EffectLayer,
   findLayer,
+  hasPaint,
   type ImageLayer,
   type Layer,
   type LookupTable,
@@ -63,6 +65,7 @@ export const effectKinds = [
   { kind: "fill", label: "Color", addable: true },
   { kind: "lut", label: "LUT", Icon: LutIcon, addable: true },
   { kind: "heal", label: "Healing", Icon: HealIcon, addable: false },
+  { kind: "paint", label: "Paint", Icon: BrushIcon, addable: false },
 ] as const satisfies readonly EffectKind[];
 
 /** Effects that start from defaults; a LUT layer needs its table first. */
@@ -89,6 +92,8 @@ export function createLayer(kind: DefaultEffect): EffectLayer {
       return { ...base, kind, fill: { ...defaultFill } };
     case "heal":
       return { ...base, kind, patches: [] };
+    case "paint":
+      return { ...base, kind, blend: "normal", strokes: [] };
   }
 }
 
@@ -150,6 +155,8 @@ function effectNeutral(layer: ProcessingLayer): boolean {
       return false;
     case "heal":
       return layer.patches.length === 0;
+    case "paint":
+      return !hasPaint(layer);
     case "mask":
       return true;
   }

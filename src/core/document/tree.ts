@@ -1,5 +1,11 @@
 import type { EditorDocument } from "./index";
-import type { Layer, MaskLayer, ProcessingLayer, Scene } from "./scene";
+import type {
+  Layer,
+  MaskLayer,
+  Painting,
+  ProcessingLayer,
+  Scene,
+} from "./scene";
 
 type LayerLocation = {
   layer: Layer;
@@ -47,6 +53,22 @@ export function maskModifiers(layer: MaskLayer) {
     (child): child is MaskLayer =>
       child.kind === "mask" && child.visible && child.opacity > 0,
   );
+}
+
+/** Whether a painting holds anything: settled pixels or strokes over them. */
+export function hasPaint(painting: Painting) {
+  return painting.raster !== undefined || painting.strokes.length > 0;
+}
+
+/** What a paint layer or brush mask painted; other layers paint nothing. */
+export function paintingOf(layer: Layer): Painting | undefined {
+  if (layer.kind === "paint") {
+    return layer;
+  }
+  if (layer.kind === "mask" && layer.mask.kind === "brush") {
+    return layer.mask;
+  }
+  return undefined;
 }
 
 function withChildren<L extends Layer>(

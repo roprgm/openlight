@@ -2,14 +2,24 @@ import type { Gpu, Target, Timer } from "vgpu";
 import {
   type BrushStroke,
   type MaskLayer,
+  type PaintLayer,
+  paintingOf,
   type Scene,
   walkLayers,
 } from "@/core/document";
 import type { ImageSource, WhiteBalance } from "@/core/image";
+import type { Point } from "@/core/image/frame";
 import { createRenderGraph } from "./graph";
 import { createMaskRaster } from "./mask";
+import { createPatchRaster, type PatchInput } from "./mask/patches";
 import { input, type RenderImage, type RenderInput } from "./node";
+import {
+  type AcceptPainting,
+  createPaintRaster,
+  type PaintInput,
+} from "./paint";
 import { createProxy } from "./proxy";
+import { createStrokes } from "./strokes";
 
 export { maskInput, mixAdjustment } from "./blend";
 export {
@@ -21,6 +31,7 @@ export {
   renderCoverage,
   type View,
 } from "./display";
+export type { PatchInput } from "./mask/patches";
 export {
   input,
   merge,
@@ -35,6 +46,7 @@ export {
   sourceSize,
   split,
 } from "./node";
+export type { PaintInput } from "./paint";
 export { transformImages } from "./transform";
 export { createRenderGraph };
 
@@ -44,7 +56,10 @@ export type Composition = {
   retain: (id: string) => void;
   /** Rasterized coverage of a mask that paints with brushes, prepared before composition. */
   coverage: (layer: MaskLayer) => RenderInput | undefined;
-  brush: (id: string, strokes: readonly BrushStroke[]) => RenderInput;
+  /** Rasterized paint of a paint layer, prepared before composition. */
+  paint: (layer: PaintLayer) => PaintInput | undefined;
+  /** Rasterized coverage of an effect's own stroke, such as a Healing patch. */
+  patch: (id: string, stroke: BrushStroke) => PatchInput;
 };
 
 /** App composition describes requested outputs; the engine owns their storage. */
@@ -70,16 +85,26 @@ function sameBalance(a: WhiteBalance | undefined, b: WhiteBalance | undefined) {
   return a?.temperature === b?.temperature && a?.tint === b?.tint;
 }
 
-/** Owns scene passes, mask rasters, the proxy, and intermediate textures for one decoded source. */
+/**
+ * Owns scene passes, mask and paint rasters, the proxy, and intermediate textures for one decoded
+ * source. `paintPixels` gives the settled pixels a paint layer's or brush mask's `raster` names.
+ */
 export function createRenderer(
   gpu: Gpu,
   resource: ImageSource,
   compose: SceneProcessing,
   timer?: Timer,
+  paintPixels: (id: string) => Blob = () => {
+    throw Error("This renderer has no settled paint.");
+  },
 ) {
   const source = resource.image;
   const graph = createRenderGraph(gpu, timer);
-  const raster = createMaskRaster(gpu);
+  const strokes = createStrokes(gpu);
+  const brushes = createPaintRaster(gpu, strokes, "r8unorm");
+  const masks = createMaskRaster(gpu, brushes);
+  const patches = createPatchRaster(gpu, strokes);
+  const paints = createPaintRaster(gpu, strokes, "rgba8unorm");
   const proxy = createProxy(gpu);
   const release = resource.retain();
   const raw = resource.raw?.createPass();
@@ -96,6 +121,8 @@ export function createRenderer(
   let last: RenderRequest | undefined;
   let next: RenderRequest | undefined;
   let pending: Promise<void> | undefined;
+  /** A paint raster being read to settle, which nothing may draw into meanwhile. */
+  let settling: Promise<unknown> | undefined;
   let disposed = false;
   let instances = new Set<string>();
   function render(request: RenderRequest) {
@@ -110,11 +137,13 @@ export function createRenderer(
     }
     const active = new Set<string>();
     const developed = raw?.render() ?? source;
-    // Every mask updates once, bypassed or not, so a hidden mask keeps its cache; child masks only shape their parent's coverage.
-    const coverage = new Map<string, RenderInput | undefined>();
+    // Every mask and paint layer updates once, bypassed or not, so a hidden one keeps its raster; child masks only shape their parent's coverage.
     for (const { layer, parent } of walkLayers(scene.layers)) {
       if (layer.kind === "mask" && parent?.kind !== "mask") {
-        coverage.set(layer.id, raster.update(layer, developed.size));
+        masks.update(layer, developed.size);
+      }
+      if (layer.kind === "paint") {
+        paints.draw(layer.id, layer, developed.size);
       }
     }
     const image =
@@ -122,14 +151,19 @@ export function createRenderer(
     const images = compose(image, scene, {
       inputId,
       retain: (id) => active.add(id),
-      coverage: (layer) => coverage.get(layer.id),
-      brush: (id, strokes) => raster.brush(id, strokes, developed.size),
+      coverage: (layer) => masks.coverage(layer.id),
+      paint: (layer) => paints.input(layer),
+      patch: (id, stroke) => patches.patch(id, stroke, developed.size),
     });
     for (const id of instances) {
       if (!active.has(id)) graph.release(`${id}/`);
     }
     instances = active;
-    raster.sweep();
+    // The stroke buffer goes last, once the others let go of the strokes they left open.
+    masks.sweep();
+    patches.sweep();
+    paints.sweep();
+    strokes.sweep();
     const targets = graph.render([
       images.original,
       images.full,
@@ -145,12 +179,36 @@ export function createRenderer(
       listener();
     }
   }
-  /** Only calibration crosses the worker; each renderer owns its GPU RAW pass. */
+  /** The raster of a paint layer's color or of a brush mask's coverage. */
+  function paintRaster(id: string) {
+    return paints.get(id) ? paints : brushes;
+  }
+  /** Paintings whose rasters must load settled pixels before they draw. */
+  function stalePaint(scene: Scene) {
+    const stale = [];
+    for (const { layer } of walkLayers(scene.layers)) {
+      const painting = paintingOf(layer);
+      const rasters = layer.kind === "paint" ? paints : brushes;
+      if (painting && rasters.needsBase(layer.id, painting)) {
+        stale.push({ id: layer.id, raster: painting.raster, rasters });
+      }
+    }
+    return stale;
+  }
+  /**
+   * Renders the latest request once what it waits for is ready: a settle, a RAW development, whose
+   * calibration alone crosses the worker, or settled paint to load.
+   */
   async function develop() {
     while (next && !disposed) {
       const request = next;
       next = undefined;
       const { scene } = request;
+      if (settling) {
+        await settling;
+      }
+      if (disposed) return;
+      if (next) continue;
       const selected = scene.layers[0].whiteBalance ?? resource.raw?.asShot;
       if (raw && selected && !sameBalance(balance, selected)) {
         await raw.prepare(selected);
@@ -159,6 +217,12 @@ export function createRenderer(
         }
         balance = selected;
         version++;
+      }
+      for (const { id, raster, rasters } of stalePaint(scene)) {
+        await rasters.loadBase(id, raster, paintPixels(raster), source.size);
+        if (disposed) {
+          return;
+        }
       }
       if (!next) {
         render(request);
@@ -175,7 +239,8 @@ export function createRenderer(
       throw Error("Renderer is closed.");
     }
     const factor = interactive ? Math.max(1, Math.floor(1 / displayScale)) : 1;
-    if (!resource.raw) {
+    // Renders wait, in order, for a settle, a RAW development, or settled paint to load.
+    if (!raw && !pending && !settling && !stalePaint(scene).length) {
       render({ scene, inputId, factor });
       return;
     }
@@ -195,21 +260,47 @@ export function createRenderer(
     return pending;
   }
 
+  function releaseResources() {
+    graph.dispose();
+    masks.dispose();
+    patches.dispose();
+    paints.dispose();
+    strokes.dispose();
+    proxy.dispose();
+    raw?.dispose();
+    release();
+  }
+
   return {
     originalImage: () => original,
     fullImage: () => full,
     outputImage: () => output,
     inputImage: (id: string) =>
       inspected?.id === id ? inspected.image : undefined,
-    /** The rasterized coverage of a mask layer, for the display overlay. */
-    coverage: (id: string) => raster.get(id)?.target,
+    /**
+     * A raster by ID and where it sits in the photo: a mask's coverage, for the display overlay and
+     * thumbnails, a Healing patch's, or a paint layer's.
+     */
+    coverage(id: string): { target: Target; origin: Point } | undefined {
+      const target = masks.coverage(id)?.target ?? paints.get(id);
+      return target ? { target, origin: [0, 0] } : patches.raster(id);
+    },
     /** Device pixels shown per source pixel; interactive renders reduce the source to about this density. */
     setDisplayScale(scale: number) {
       if (Number.isFinite(scale) && scale > 0) {
         displayScale = scale;
       }
     },
-    inspect: () => ({ ...graph.inspect(), ...raster.inspect() }),
+    inspect: () => ({
+      ...graph.inspect(),
+      stamped: strokes.stamped(),
+      rasters: [
+        ...masks.inspect(),
+        ...patches.inspect(),
+        ...paints.inspect(),
+        ...strokes.inspect(),
+      ],
+    }),
     subscribe(listener: () => void) {
       listeners.add(listener);
       if (rendered) {
@@ -220,17 +311,38 @@ export function createRenderer(
       };
     },
     update,
+    /**
+     * Reads a paint layer's raster once renders in flight finish, holding back the next ones, so its
+     * strokes, scene, and cached raster settle together before rendering resumes.
+     */
+    async settle(id: string, accept: AcceptPainting) {
+      while (pending || settling) {
+        await (pending ?? settling);
+      }
+      if (disposed) return false;
+      const read = paintRaster(id).settle(id, (painting) =>
+        disposed ? undefined : accept(painting),
+      );
+      settling = read;
+      try {
+        return await read;
+      } finally {
+        settling = undefined;
+      }
+    },
     dispose() {
       if (disposed) {
         return;
       }
       disposed = true;
       listeners.clear();
-      graph.dispose();
-      raster.dispose();
-      proxy.dispose();
-      raw?.dispose();
-      release();
+      // Banded transfers keep their targets until their last GPU operation finishes.
+      const finishing = pending ?? settling;
+      if (finishing) {
+        void finishing.then(releaseResources, releaseResources);
+      } else {
+        releaseResources();
+      }
     },
   };
 }

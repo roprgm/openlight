@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
 import { init, target } from "vgpu/mock";
 import { createControls } from "@/app/controls";
-import { createImageLayer } from "@/app/editor/layers";
+import { createImageLayer, createLayer, createMask } from "@/app/editor/layers";
 import { openSceneFile } from "@/app/loaders/scene";
 import { createWorkspace } from "@/app/workspace";
 import { createDocument, createResources } from "@/core/document";
@@ -98,6 +98,19 @@ test("scene files reopen the photo with every layer for further editing", async 
       { mode: "paint", size: 4, feather: 0.2, flow: 1, points: [[40, 20, 1]] },
       [-6, 2],
     );
+    const paint = api.addLayer("paint");
+    api.addPaintStroke(paint, {
+      mode: "paint",
+      size: 5,
+      feather: 0.3,
+      flow: 1,
+      color: "#ff8800",
+      points: [
+        [12, 6, 1],
+        [30, 9, 0.7],
+      ],
+    });
+    api.setPaintBlend(paint, "overlay");
     api.setFill({ color: "#123456", blend: "soft-light" });
     const fill = api.getState().scene?.layers.at(-1)?.id ?? "";
     api.setLayer(fill, { name: "Warm", opacity: 0.5, visible: false });
@@ -197,9 +210,29 @@ test("scene files reopen the photo with every layer for further editing", async 
         "The table needs three values per entry",
       ],
     ];
+    for (const [kind, count, message] of [
+      ["paint", 5, "up to 4 paint layers"],
+      ["mask", 11, "up to 10 brush masks"],
+    ] as const) {
+      const layers = Array.from({ length: count }, () =>
+        kind === "paint"
+          ? createLayer("paint")
+          : createMask({ kind: "brush", strokes: [] }),
+      );
+      invalid.push([
+        await archive({
+          ...json,
+          scene: { ...json.scene, layers: [json.scene.layers[0], ...layers] },
+        }),
+        message,
+      ]);
+    }
+    const decodedBefore = raw.decoded.length;
     for (const [value, message] of invalid) {
       await expect(openSceneFile(value, raw.decode)).rejects.toThrow(message);
     }
+
+    expect(raw.decoded).toHaveLength(decodedBefore);
 
     // A parameter missing from a group takes its default, as in a file older than that parameter.
     const vignette = json.scene.layers.find(

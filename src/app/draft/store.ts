@@ -8,7 +8,7 @@ import { parse } from "@/lib/parse";
 /** Raised only when older drafts can no longer open as written; the scene inside keeps its own version. */
 const version = 1;
 
-/** The latest document: the scene JSON a scene file holds, while its source files live in their own store by ID. */
+/** The latest document: the scene JSON a scene file holds, while the files it names live in their own store by ID. */
 const recordSchema = z.object(
   {
     version: z.int().check(z.minimum(1)),
@@ -22,8 +22,11 @@ export type Draft = { record: DraftRecord; files: ReadonlyMap<string, Blob> };
 
 /** A draft of the document shown as `name`, captured synchronously so the document may change or close meanwhile. */
 export function snapshotDraft(document: EditorDocument, name: string) {
-  const { json, files } = snapshotScene(document);
-  return { record: { version, name, scene: json }, files };
+  const { json, sources, paint } = snapshotScene(document);
+  return {
+    record: { version, name, scene: json },
+    files: new Map<string, Blob>([...sources, ...paint]),
+  };
 }
 
 /** Storage returns whatever an earlier version wrote, so the record is parsed where it is read; the scene opens later. */
@@ -49,7 +52,8 @@ interface DraftDatabase extends DBSchema {
 }
 
 /**
- * One draft in IndexedDB: the record under a single key, and source files keyed by source ID.
+ * One draft in IndexedDB: the record under a single key, and the files its scene names, its source
+ * and the pixels paint settled into, keyed by ID.
  * Operations run one at a time in call order, so a discard never races a save.
  */
 export function createDraftStore(name = "openlight") {
@@ -82,7 +86,7 @@ export function createDraftStore(name = "openlight") {
   }
 
   return {
-    /** Keeps source files already stored under their ID and deletes the ones the draft no longer uses. */
+    /** Keeps files already stored under their ID and deletes the ones the draft no longer uses. */
     save({ record, files }: Draft) {
       return run(async (database) => {
         const transaction = database.transaction(
@@ -103,14 +107,14 @@ export function createDraftStore(name = "openlight") {
         ]);
       });
     },
-    /** The draft's display name, without reading its source files. */
+    /** The draft's display name, without reading its files. */
     peek() {
       return run(async (database) => {
         const record = await database.get("draft", "latest");
         return record && { name: readRecord(record).name };
       });
     },
-    /** The record with every stored source file; a save leaves only the files the draft uses. */
+    /** The record with every stored file; a save leaves only the files the draft uses. */
     read() {
       return run(async (database): Promise<Draft | undefined> => {
         const transaction = database.transaction(["draft", "sources"]);

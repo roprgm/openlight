@@ -1,6 +1,6 @@
 import type { Gpu, Target } from "vgpu";
 import { createEditorRenderer } from "@/app/editor/renderer";
-import type { EditorDocument } from "@/core/document";
+import { type EditorDocument, settledPixels } from "@/core/document";
 import type { Point } from "@/core/image/frame";
 import { renderBitmap } from "@/core/renderer";
 
@@ -82,7 +82,17 @@ export async function exportImage(
 ) {
   const scene = document.scene.getState();
   const source = document.resources.get(scene.layers[0].source);
-  const renderer = createEditorRenderer(gpu, source);
+  // Taken with the scene: another photo may close the document before the renderer loads them.
+  const pixels = settledPixels(document, scene);
+  const renderer = createEditorRenderer(gpu, source, {
+    paintPixels: (id) => {
+      const blob = pixels.get(id);
+      if (!blob) {
+        throw Error("Settled paint is unavailable.");
+      }
+      return blob;
+    },
+  });
   try {
     await renderer.update(scene);
     // The renderer retains the source until encoding finishes.
