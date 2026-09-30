@@ -1,3 +1,4 @@
+import { DragToggle } from "@roprgm/ui/drag-toggle";
 import { IconButton } from "@roprgm/ui/icon-button";
 import { ListItem, ListItemAction } from "@roprgm/ui/list-item";
 import { Menu, MenuContent, MenuItem, MenuTrigger } from "@roprgm/ui/menu";
@@ -10,6 +11,7 @@ import {
   type ReactNode,
   useCallback,
   useEffect,
+  useRef,
   useState,
 } from "react";
 import { useStore } from "zustand";
@@ -265,6 +267,7 @@ export function LayersControls({
   const document = useDocument();
   const layers = useScene((scene) => scene.layers);
   const tool = useMaskTool();
+  const grouped = useRef(false);
   // Choosing a mask edits it with the tool of its shape; anything else leaves editing.
   const select = useCallback(
     (id: string) => {
@@ -282,6 +285,14 @@ export function LayersControls({
     }
   }
   useShortcuts({ delete: remove, backspace: remove });
+  // A drag across the eyes undoes as one change.
+  function groupToggles(dragging: boolean) {
+    if (dragging) {
+      grouped.current = document.history.begin();
+    } else if (grouped.current) {
+      document.history.commit();
+    }
+  }
   function drop(target: TreeDrop) {
     const position = layerDrop(document.scene.getState(), target);
     if (position) {
@@ -323,15 +334,17 @@ export function LayersControls({
         onDrop={drop}
         label={(id) => findLayer(layers, id)?.name ?? id}
       >
-        {layers.toReversed().map((layer) => (
-          <LayerRow
-            key={layer.id}
-            layer={layer}
-            depth={0}
-            effects={effects}
-            onSelect={select}
-          />
-        ))}
+        <DragToggle onDraggingChange={groupToggles}>
+          {layers.toReversed().map((layer) => (
+            <LayerRow
+              key={layer.id}
+              layer={layer}
+              depth={0}
+              effects={effects}
+              onSelect={select}
+            />
+          ))}
+        </DragToggle>
       </TreeDrag>
     </LayersSection>
   );
