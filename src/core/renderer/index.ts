@@ -260,6 +260,17 @@ export function createRenderer(
     return pending;
   }
 
+  function releaseResources() {
+    graph.dispose();
+    masks.dispose();
+    patches.dispose();
+    paints.dispose();
+    strokes.dispose();
+    proxy.dispose();
+    raw?.dispose();
+    release();
+  }
+
   return {
     originalImage: () => original,
     fullImage: () => full,
@@ -325,14 +336,13 @@ export function createRenderer(
       }
       disposed = true;
       listeners.clear();
-      graph.dispose();
-      masks.dispose();
-      patches.dispose();
-      paints.dispose();
-      strokes.dispose();
-      proxy.dispose();
-      raw?.dispose();
-      release();
+      // Banded transfers keep their targets until their last GPU operation finishes.
+      const finishing = pending ?? settling;
+      if (finishing) {
+        void finishing.then(releaseResources, releaseResources);
+      } else {
+        releaseResources();
+      }
     },
   };
 }

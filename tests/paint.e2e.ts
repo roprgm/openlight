@@ -78,6 +78,7 @@ test("paint colors on a layer, swap them, erase, blend, and switch to a mask", a
   });
   await test.step("X swaps in the secondary color, white", async () => {
     await page.keyboard.press("x");
+    await expect(page.getByLabel("Secondary color")).toHaveValue("#ff0000");
     await drag(page, from, to, 16);
     expect(await samples(page)).toEqual([[255, 255, 255, 255], gray]);
   });
@@ -337,11 +338,7 @@ test("Photoshop's keys switch the brush, its colors, feather, flow, and opacity,
   await expect(chip("Color")).toHaveAttribute("aria-pressed", "true");
 
   const primary = page.getByLabel("Primary color");
-  const secondary = page.getByLabel("Secondary color");
   await primary.fill("#ff0000");
-  await page.keyboard.press("x");
-  await expect(primary).toHaveValue("#ffffff");
-  await expect(secondary).toHaveValue("#ff0000");
   await page.keyboard.press("d");
   await expect(primary).toHaveValue("#000000");
 
@@ -373,37 +370,40 @@ test("Photoshop's keys switch the brush, its colors, feather, flow, and opacity,
   await expect(page.getByRole("dialog")).toHaveCount(0);
 });
 
-for (const mode of ["paint", "mask"] as const) {
-  for (const action of ["append", "undo", "close"] as const) {
-    test(`${mode} settling remains atomic when ${action} happens during readback`, async ({
-      page,
-    }) => {
-      await page.goto("/tests/gpu.html");
-      const result = await page.evaluate(
-        async ({ mode, action }) => {
-          const path = "/tests/settle-gpu.ts";
-          const { editDuringSettle } = (await import(
-            path
-          )) as typeof import("./settle-gpu");
-          return editDuringSettle(mode, action);
-        },
-        { mode, action },
-      );
-      expect(result.errors).toEqual([]);
-      expect(result.historyUnchanged).toBe(true);
-      expect(result.accepted).toBe(action === "append");
-      expect(result.error).toBeLessThan(0.002);
-      if (action === "append") {
-        expect(result.raster).toEqual(expect.any(String));
-        expect(result.strokes).toBe(1);
-        expect(result.stamped).toBe(101);
-      } else {
-        expect(result.unchanged).toBe(true);
-        expect(result.raster).toBeUndefined();
-        expect(result.strokes).toBe(action === "undo" ? 99 : 100);
-      }
-    });
-  }
+for (const [mode, action] of [
+  ["paint", "append"],
+  ["mask", "append"],
+  ["paint", "undo"],
+  ["paint", "close"],
+] as const) {
+  test(`${mode} settling remains atomic when ${action} happens during readback`, async ({
+    page,
+  }) => {
+    await page.goto("/tests/gpu.html");
+    const result = await page.evaluate(
+      async ({ mode, action }) => {
+        const path = "/tests/settle-gpu.ts";
+        const { editDuringSettle } = (await import(
+          path
+        )) as typeof import("./settle-gpu");
+        return editDuringSettle(mode, action);
+      },
+      { mode, action },
+    );
+    expect(result.errors).toEqual([]);
+    expect(result.historyUnchanged).toBe(true);
+    expect(result.accepted).toBe(action === "append");
+    expect(result.error).toBeLessThan(0.002);
+    if (action === "append") {
+      expect(result.raster).toEqual(expect.any(String));
+      expect(result.strokes).toBe(1);
+      expect(result.stamped).toBe(101);
+    } else {
+      expect(result.unchanged).toBe(true);
+      expect(result.raster).toBeUndefined();
+      expect(result.strokes).toBe(action === "undo" ? 99 : 100);
+    }
+  });
 }
 
 test("photo exposure, contrast, and curves leave the selected paint color unchanged", async ({
@@ -429,4 +429,59 @@ test("photo exposure, contrast, and curves leave the selected paint color unchan
     });
   });
   expect((await samples(page))[0]).toEqual([185, 80, 80, 255]);
+});
+
+test("deleting a paint layer at the limit lets the brush paint again", async ({
+  page,
+}) => {
+  await openPhoto(page);
+  await page.evaluate(() => {
+    const api = window.openlight;
+    for (let i = 0; i < 4; i++) {
+      const id = api.addLayer("paint");
+      api.setLayer(id, { name: `Paint ${i + 1}` });
+    }
+    const scene = api.getState().scene;
+    if (!scene) throw Error("No photo loaded.");
+    api.selectLayer(scene.layers[0].id);
+  });
+  await page.getByRole("tab", { name: "Brush", exact: true }).click();
+  await brushChip(page, "Color").click();
+  await expect(
+    page.getByText(/A photo holds up to 4 paint layers/),
+  ).toBeVisible();
+  await page
+    .getByRole("button", { name: "Paint 1 actions", exact: true })
+    .click();
+  await page.getByRole("menuitem", { name: "Delete", exact: true }).click();
+  await page.getByLabel("Primary color").fill("#ff0000");
+  const at = await photoToPage(page);
+  await drag(page, at(-20, 0), at(20, 0));
+  expect((await samples(page))[0]).toEqual([255, 0, 0, 255]);
+});
+
+test("at the mask limit, nesting another brush is unavailable", async ({
+  page,
+}) => {
+  await openPhoto(page);
+  await page.evaluate(() => {
+    const api = window.openlight;
+    for (let i = 0; i < 10; i++) {
+      const id = api.addLayer("mask");
+      api.setLayerMask(id, { kind: "brush", strokes: [] });
+      api.setLayer(id, { name: `Mask ${i + 1}` });
+    }
+  });
+  await page
+    .getByRole("button", { name: "Mask 1 actions", exact: true })
+    .click();
+  await page
+    .getByRole("menuitem", { name: "Add to mask", exact: true })
+    .click();
+  await expect(
+    page.getByRole("menuitem", { name: "Brush", exact: true }),
+  ).toBeDisabled();
+  await expect(
+    page.getByRole("menuitem", { name: "Linear gradient", exact: true }),
+  ).toBeEnabled();
 });

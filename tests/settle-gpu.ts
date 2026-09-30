@@ -17,9 +17,13 @@ export async function editDuringSettle(
   const gpu = await init();
   const errors: string[] = [];
   gpu.onError((error) => errors.push(error.message));
+  gpu.gpu.addEventListener("uncapturederror", (event) =>
+    errors.push(event.error.message),
+  );
+  const height = action === "close" ? 1200 : 64;
   const source = createImageSource(
     target(gpu, {
-      size: [64, 64],
+      size: [64, height],
       format: "rgba16float",
       clearColor: [0.2, 0.2, 0.2, 1],
     }),
@@ -68,7 +72,7 @@ export async function editDuringSettle(
       size: 8,
       feather: 0.5,
       flow: 0.01,
-      points: [[32, 32, 1] as const],
+      points: [[32, height / 2, 1] as const],
     };
     const paint = () =>
       mode === "paint"
@@ -102,6 +106,8 @@ export async function editDuringSettle(
     release();
     const accepted = await settling;
     await pending;
+    await gpu.gpu.queue.onSubmittedWorkDone();
+    await gpu.settled();
     const scene = document.scene.getState();
     let error = 0;
     if (action !== "close") {

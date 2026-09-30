@@ -1,5 +1,5 @@
-import { useEffect } from "react";
-import { findLayer, type Layer } from "@/core/document";
+import { useEffect, useRef } from "react";
+import { findLayer, type Layer, type Scene } from "@/core/document";
 import { useDocument } from "./session";
 
 /**
@@ -20,6 +20,8 @@ export function useToolLayer<L extends Layer>({
   fresh?: boolean;
 }) {
   const document = useDocument();
+  const before = useRef<Scene | undefined>(undefined);
+  const canCreate = create !== undefined;
   function selected() {
     const layer = findLayer(
       document.scene.getState().layers,
@@ -28,11 +30,12 @@ export function useToolLayer<L extends Layer>({
     return layer && accepts(layer) ? layer : undefined;
   }
   useEffect(() => {
-    const before =
-      create && (fresh || !selected()) ? document.scene.getState() : undefined;
-    if (before) {
-      create?.();
+    if (create && (fresh || !selected())) {
+      before.current = document.scene.getState();
+      create();
     }
+  }, [canCreate, fresh]);
+  useEffect(() => {
     const unsubscribe = document.selection.subscribe(() => {
       if (!selected()) {
         leave();
@@ -40,8 +43,8 @@ export function useToolLayer<L extends Layer>({
     });
     return () => {
       unsubscribe();
-      if (before) {
-        document.history.drop(before);
+      if (before.current) {
+        document.history.drop(before.current);
       }
     };
   }, []);
