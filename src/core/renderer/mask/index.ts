@@ -1,22 +1,26 @@
-import { type BlendOptions, effect, frame, type Gpu, type Target } from "vgpu";
 import {
   hasPaint,
+  isRangeMask,
   type MaskLayer,
   type MaskModifier,
   maskModifiers,
+  type RangeMask,
 } from "@/core/document";
-import { gradientParams } from "@/core/renderer/blend";
-import { input, type RenderInput } from "@/core/renderer/node";
+import { parseColor } from "@/core/image/blend";
+import { gradientParams, isGradient, operations } from "@/core/renderer/blend";
+import { generate, merge, node, type RenderImage } from "@/core/renderer/node";
 import { type PaintRaster, paintingSize } from "@/core/renderer/paint";
-import { createRasterCache } from "@/core/renderer/raster-cache";
-import brushShader from "./brush.wgsl";
+import combineShader from "./combine.wgsl";
+import emptyShader from "./empty.wgsl";
 import gradientShader from "./gradient.wgsl";
+import rangeShader from "./range.wgsl";
 
 type Size = readonly [number, number];
-/** A mask's own coverage combined with the children that shape it. */
-type Group = {
-  target: Target;
-  ops: readonly MaskModifier[];
+
+/** Where a render keeps what a mask's coverage made: pass instances to keep, and coverage to show. */
+type CoverageOutputs = {
+  retain: (instance: string) => void;
+  show: (id: string, coverage: RenderImage) => void;
 };
 
 /** A mask's own coverage followed by the children that shape it, in stored order. */
@@ -27,150 +31,128 @@ function maskOps(layer: MaskLayer): readonly MaskModifier[] {
   ];
 }
 
-/** Whether an op can cover pixels: a gradient always does, a brush once it has paint. */
-function covers(op: MaskModifier) {
-  return op.mask.kind !== "brush" || hasPaint(op.mask);
+/** Uniform fields for a range, its UI units scaled to 0..1. */
+function rangeParams(mask: RangeMask) {
+  if (mask.kind === "luminance-range") {
+    const { low, high, smoothness } = mask;
+    return { kind: 1, range: [low, high, smoothness, 0].map((v) => v / 100) };
+  }
+  return {
+    kind: 2,
+    range: [...parseColor(mask.color), mask.tolerance / 100],
+  };
 }
 
-function sameOps(a: readonly MaskModifier[], b: readonly MaskModifier[]) {
-  return (
-    a.length === b.length &&
-    a.every(
-      (op, i) =>
-        op.mask === b[i].mask &&
-        op.operation === b[i].operation &&
-        op.opacity === b[i].opacity,
-    )
-  );
-}
-
-const add: BlendOptions = { color: { src: "one", dst: "one" } };
-const subtract: BlendOptions = {
-  color: { src: "one", dst: "one", op: "reverse-subtract" },
+const linear: GPUSamplerDescriptor = {
+  minFilter: "linear",
+  magFilter: "linear",
 };
 
 /**
- * Brings masks' coverage together at half the photo's resolution, as paintings keep theirs. A brush paints its coverage as a paint layer
- * paints color, into an r8unorm raster of `brushes`; a mask shaped by children combines its own
- * coverage with theirs in a second texture, rebuilt whenever any of them changes. Gradients alone
- * need no texture: the mix pass computes them.
+ * Mask coverage. A brush paints its coverage as a paint layer paints color, into a cached r8 raster
+ * of `brushes`. A mask that only gradients shape needs no texture: the mix pass computes it. Any
+ * other mask folds its children's coverage into its own in the render graph, one pass per child in
+ * stored order, at the image's resolution when a range takes part, since a range follows the photo's
+ * edges, and at the brushes' otherwise.
  */
-export function createMaskRaster(gpu: Gpu, brushes: PaintRaster) {
-  const groups = createRasterCache<Group>(gpu, "r8unorm", (target) => ({
-    target,
-    ops: [],
-  }));
-  /** Each mask layer's coverage as its last update left it: its brush's, its group's, or none. */
-  const shown = new Map<string, Target | Group | undefined>();
-  const updated = new Set<string>();
-  const gradientAdd = effect(gpu, gradientShader, { blend: add });
-  const gradientSubtract = effect(gpu, gradientShader, { blend: subtract });
-  const brushAdd = effect(gpu, brushShader, { blend: add });
-  const brushSubtract = effect(gpu, brushShader, { blend: subtract });
-
-  /** The pass that adds or subtracts one op's coverage, or nothing for a brush without strokes. */
-  function opPass(op: MaskModifier, scale: Size) {
-    if (op.mask.kind !== "brush") {
-      const pass = op.operation === "add" ? gradientAdd : gradientSubtract;
-      return pass.set({
-        params: { ...gradientParams(op.mask), opacity: op.opacity, scale },
-      });
-    }
-    const brush = covers(op) ? brushes.coverage(op.id) : undefined;
-    if (!brush) {
-      return undefined;
-    }
-    const pass = op.operation === "add" ? brushAdd : brushSubtract;
-    return pass.set({
-      coverage: brush.target.color,
-      params: { opacity: op.opacity },
-    });
-  }
-
-  /** Combines a mask's own coverage with its children's in stored order, once any of them changed. */
-  function updateGroup(id: string, ops: readonly MaskModifier[], source: Size) {
-    const size = paintingSize(source);
-    const group = groups.reserve(id, size);
-    // Gradients evaluate at photo pixels, and the group keeps the brushes' resolution.
-    const scale = [source[0] / size[0], source[1] / size[1]] as const;
-    if (sameOps(group.ops, ops)) {
-      return group;
-    }
-    frame(gpu, (frame) =>
-      frame.pass({ target: group.target, clear: true }, () => {}),
-    );
-    for (const op of ops) {
-      const pass = opPass(op, scale);
-      if (pass) {
-        // One frame per pass: uniform writes land in queue order, before the pass that reads them.
-        frame(gpu, (frame) =>
-          frame.pass({ target: group.target, clear: false }, pass),
-        );
-      }
-    }
-    group.ops = ops;
-    return group;
-  }
-
-  /** Brings a mask layer's rasters up to date and returns the one that holds its coverage, if any. */
-  function updateLayer(layer: MaskLayer, size: Size) {
-    const [own, ...children] = maskOps(layer);
-    const active = children.filter(covers);
-    const ops = [own, ...active];
-    for (const op of ops) {
-      if (op.mask.kind === "brush" && covers(op)) {
-        brushes.draw(op.id, op.mask, size);
-      }
-    }
-    if (own.mask.kind !== "brush") {
-      // Gradient children combine in the mix pass; a painted brush child needs a raster.
-      return active.some((op) => op.mask.kind === "brush")
-        ? updateGroup(layer.id, ops, size)
-        : undefined;
-    }
-    if (active.length === 0) {
-      // Nothing shapes the brush, so its own coverage is the mask's; without strokes the layer is bypassed.
-      return covers(own) ? brushes.get(own.id) : undefined;
-    }
-    if (!covers(own) && !active.some((op) => op.operation === "add")) {
-      return undefined;
-    }
-    return updateGroup(layer.id, ops, size);
-  }
-
+export function createMaskCoverage(brushes: PaintRaster) {
   return {
-    /** Brings a mask layer's rasters up to date; `coverage` reads them once every layer has. */
-    update(layer: MaskLayer, size: Size) {
-      shown.set(layer.id, updateLayer(layer, size));
-      updated.add(layer.id);
-    },
     /**
-     * A mask layer's coverage, or a brush's own, if any. Read it once every layer updated: drawing one
-     * brush can close another's stroke.
+     * Draws the brushes of a mask and of the children that shape it, painted or not, so an emptied
+     * brush keeps its cleared raster while it lasts. `size` is the photo's.
      */
-    coverage(id: string): RenderInput | undefined {
-      const raster = shown.has(id) ? shown.get(id) : brushes.get(id);
-      if (!raster) {
-        return undefined;
-      }
-      return "ops" in raster ? input(raster.target) : brushes.coverage(id);
-    },
-    /** Releases the rasters that no update used since the previous sweep, including their painting views. */
-    sweep() {
-      for (const id of shown.keys()) {
-        if (!updated.has(id)) {
-          shown.delete(id);
+    update(layer: MaskLayer, size: Size) {
+      for (const { id, mask } of maskOps(layer)) {
+        if (mask.kind === "brush") {
+          brushes.draw(id, mask, size);
         }
       }
-      updated.clear();
-      brushes.sweep();
-      groups.sweep();
     },
-    inspect: () => [...brushes.inspect(), ...groups.inspect("/group")],
-    dispose() {
-      brushes.dispose();
-      groups.dispose();
-      shown.clear();
+    /**
+     * A mask's coverage over `below`, the image it applies to, or nothing when the mix pass computes
+     * it or, as for a brush yet to paint with nothing added, it covers nothing. Read it once every mask
+     * updated.
+     */
+    coverage(
+      layer: MaskLayer,
+      below: RenderImage,
+      { retain, show }: CoverageOutputs,
+    ): RenderImage | undefined {
+      const ops = maskOps(layer);
+      const [own, ...children] = ops;
+      const ranged = ops.some(({ mask }) => isRangeMask(mask));
+      const painted = ops.some(
+        ({ mask }) => mask.kind === "brush" && hasPaint(mask),
+      );
+      if (isGradient(own.mask) && !ranged && !painted) {
+        return undefined;
+      }
+      const size = ranged ? below.size : paintingSize(below.size);
+      const scale = [
+        (below.scale[0] * below.size[0]) / size[0],
+        (below.scale[1] * below.size[1]) / size[1],
+      ] as const;
+      const output = { size, format: "r8unorm" as const, scale };
+      /** One op's own coverage, or nothing for a brush yet to paint. */
+      function covered(name: string, { id, mask }: MaskModifier) {
+        if (mask.kind === "brush") {
+          return hasPaint(mask) ? brushes.coverage(id) : undefined;
+        }
+        if (isGradient(mask)) {
+          return generate(
+            output,
+            node(`${name}/gradient`, gradientShader, {
+              set: { params: { ...gradientParams(mask), scale } },
+            }),
+          );
+        }
+        const range = merge(
+          { image: below },
+          node(`${name}/range`, rangeShader, {
+            ...output,
+            set: { params: rangeParams(mask) },
+          }),
+        );
+        show(id, range);
+        return range;
+      }
+      const name = (id: string) => {
+        retain(`mask/${id}`);
+        return `mask/${id}`;
+      };
+      let group = covered(name(layer.id), own);
+      for (const child of children) {
+        const coverage = covered(name(child.id), child);
+        // A brush yet to paint takes no part, and a group that covers nothing yet only takes additions.
+        if (!coverage || (!group && child.operation !== "add")) {
+          continue;
+        }
+        const start =
+          group ??
+          generate(output, node(`${name(layer.id)}/empty`, emptyShader));
+        group = merge(
+          { group: start, coverage },
+          node(`${name(child.id)}/combine`, combineShader, {
+            ...output,
+            samplers: { coverageSampler: linear },
+            set: {
+              params: {
+                operation: operations[child.operation],
+                opacity: child.opacity,
+              },
+            },
+          }),
+        );
+      }
+      if (group) {
+        show(layer.id, group);
+      }
+      return group;
     },
+    /** A brush's raster with its open stroke laid over it, if it has one. */
+    brush: (id: string) => brushes.coverage(id),
+    sweep: () => brushes.sweep(),
+    inspect: () => brushes.inspect(),
+    dispose: () => brushes.dispose(),
   };
 }

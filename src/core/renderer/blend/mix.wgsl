@@ -1,4 +1,4 @@
-import { gradientCoverage } from "./coverage.wgsl";
+import { combineCoverage, gradientCoverage } from "./coverage.wgsl";
 
 struct Params {
  opacity: f32,
@@ -10,8 +10,7 @@ struct Params {
  modifierCount: u32,
  // Source pixels per texel, so a reduced proxy evaluates gradients at the same document positions.
  scale: vec2f,
- // 1 returns the edited image with coverage as alpha, for measuring what a mask affects; 2 returns the
- // coverage alone.
+ // 1 returns the edited image with coverage as alpha, for measuring what a mask affects.
  mode: u32,
 }
 @group(0) @binding(0) var original: texture_2d<f32>;
@@ -27,13 +26,11 @@ struct Params {
   let at = position.xy * params.scale;
   coverage = gradientCoverage(at, params.first, params.second, params.kind, params.feather, params.angle);
   for (var i = 0u; i < params.modifierCount; i++) {
-   let points = modifiers[i * 2u];
-   let settings = modifiers[i * 2u + 1u];
-   coverage = clamp(coverage + gradientCoverage(at, points.xy, points.zw, u32(settings.y), settings.z, settings.w) * settings.x, 0.0, 1.0);
+   let points = modifiers[i * 3u];
+   let settings = modifiers[i * 3u + 1u];
+   let child = gradientCoverage(at, points.xy, points.zw, u32(settings.y), settings.z, settings.w);
+   coverage = combineCoverage(coverage, child, u32(modifiers[i * 3u + 2u].x), settings.x);
   }
- }
- if (params.mode == 2u) {
-  return vec4f(coverage, 0.0, 0.0, 1.0);
  }
  if (params.mode == 1u) {
   return vec4f(after.rgb, before.a * coverage);

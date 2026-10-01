@@ -7,6 +7,7 @@ import {
   type ColorRange,
   createDocument,
   createResources,
+  findLayer,
   type LuminanceRange,
 } from "@/core/document";
 import { createImageSource } from "@/core/image";
@@ -71,7 +72,7 @@ test("commands validate their input, return the layer they edit, and reset as on
   expect(document.scene.getState()).toEqual(edited);
 });
 
-test("range commands narrow a mask to tones or a color and validate the range", async () => {
+test("range masks select tones or a color, validate their bounds, and intersect other masks", async () => {
   const gpu = await init();
   const source = createImageSource(
     target(gpu, { size: [32, 16], format: "rgba16float" }),
@@ -87,35 +88,44 @@ test("range commands narrow a mask to tones or a color and validate the range", 
   );
   const workspace = createWorkspace();
   await workspace.open("photo.png", async () => document);
-  const { run } = createControls(gpu, workspace);
-  const mask = () => document.scene.getState().layers.at(-1);
+  const api = createControls(gpu, workspace);
+  const layer = (id: string) => findLayer(document.scene.getState().layers, id);
 
   const shadows: LuminanceRange = {
-    kind: "luminance",
+    kind: "luminance-range",
     low: 0,
     high: 30,
     smoothness: 10,
   };
-  const { layerId = "" } = run({
+  const { layerId = "" } = api.run({
     type: "add-mask",
-    mask: { kind: "full" },
-    range: shadows,
+    mask: shadows,
     adjustments: { exposure: 1 },
   });
-  expect(mask()).toMatchObject({
-    id: layerId,
+  expect(layer(layerId)).toMatchObject({
     name: "Luminance Range",
-    mask: { kind: "full" },
-    range: shadows,
+    mask: shadows,
+    adjustments: { exposure: 1 },
   });
   expect(() =>
-    run({ type: "set-mask-range", layerId, range: { ...shadows, low: 40 } }),
+    api.run({ type: "add-mask", mask: { ...shadows, low: 40 } }),
   ).toThrow("A luminance range needs low at or below high");
 
-  const sky: ColorRange = { kind: "color", color: "#6FA8DC", tolerance: 30 };
-  run({ type: "set-mask-range", layerId, range: sky });
-  expect(mask()).toMatchObject({ range: { ...sky, color: "#6fa8dc" } });
-  run({ type: "set-mask-range", layerId });
-  expect(mask()).not.toHaveProperty("range");
-  expect(document.history.status.getState().undoCount).toBe(3);
+  // A color range inside the luminance range keeps only the shadows of that color.
+  const blue: ColorRange = {
+    kind: "color-range",
+    color: "#6FA8DC",
+    tolerance: 30,
+  };
+  const child = api.addLayer("mask", { inside: layerId });
+  api.setLayerMask(child, blue);
+  api.setMaskOperation(child, "intersect");
+  expect(layer(child)).toMatchObject({
+    mask: { ...blue, color: "#6fa8dc" },
+    operation: "intersect",
+  });
+  expect(() =>
+    Reflect.apply(api.setMaskOperation, undefined, [child, "union"]),
+  ).toThrow("Invalid mask operation");
+  expect(document.history.status.getState().undoCount).toBe(4);
 });

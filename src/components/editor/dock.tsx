@@ -177,11 +177,10 @@ export function DockControls({
           value
         </p>
       )}
-      {/* The header centers while the action leaves it room, then moves aside, where chips scroll. */}
-      <div className="grid h-12 shrink-0 grid-cols-[1fr_auto_1fr] items-center px-3">
-        <div className="col-start-2 flex min-w-0 justify-center">{top}</div>
+      <div className="relative flex h-12 shrink-0 items-center justify-center px-3">
+        <div className="flex min-w-0 max-w-full justify-center">{top}</div>
         {(picked || action) && (
-          <div className="col-start-3 flex items-center justify-self-end">
+          <div className="absolute inset-y-0 right-3 flex items-center">
             {picked ? (
               <Button variant="ghost" size="sm" onClick={() => setPick(null)}>
                 Done

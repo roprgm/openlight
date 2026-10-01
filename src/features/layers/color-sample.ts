@@ -1,7 +1,7 @@
 import { compute, type Gpu, type Target } from "vgpu";
 import type { Point } from "@/core/image/frame";
 import { weakMemo } from "@/lib/weak-memo";
-import shader from "./sample.wgsl";
+import shader from "./color-sample.wgsl";
 
 const samplePass = weakMemo((gpu: Gpu) =>
   compute(gpu, shader, { entry: "sample" }),

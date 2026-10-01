@@ -40,8 +40,8 @@ export function MaskOverlaySync() {
         // A mask inside a mask has no effects of its own; its group decides.
         const group =
           location?.parent?.kind === "mask" ? location.parent : layer;
-        // A full mask has no tool to draw it, so selecting it is editing it.
-        const edited = editing || layer.mask.kind === "full";
+        // A luminance range has no tool on the canvas, so selecting it is editing it.
+        const edited = editing || layer.mask.kind === "luminance-range";
         if (
           overlay === "shown" ||
           (overlay === "auto" && edited && maskNeutral(group))

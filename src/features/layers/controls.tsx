@@ -1,7 +1,13 @@
 import { DragToggle } from "@roprgm/ui/drag-toggle";
 import { IconButton } from "@roprgm/ui/icon-button";
 import { ListItem, ListItemAction } from "@roprgm/ui/list-item";
-import { Menu, MenuContent, MenuItem, MenuTrigger } from "@roprgm/ui/menu";
+import {
+  Menu,
+  MenuContent,
+  MenuItem,
+  MenuSeparator,
+  MenuTrigger,
+} from "@roprgm/ui/menu";
 import { ScrollArea } from "@roprgm/ui/scroll-area";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@roprgm/ui/tooltip";
 import { cn } from "cn";
@@ -258,26 +264,22 @@ export function LayersSection({
 export function LayersControls({
   effects,
   onAdd,
-  addItems,
   fill,
 }: {
   effects: readonly EffectKind[];
   onAdd: (kind: EffectLayer["kind"]) => void;
-  /** More of the Add menu, after the effects. */
-  addItems?: ReactNode;
   fill?: boolean;
 }) {
   const document = useDocument();
   const layers = useScene((scene) => scene.layers);
   const tool = useMaskTool();
   const grouped = useRef(false);
-  // Choosing a mask edits it with the tool of its shape; anything else, a full mask included, leaves editing.
+  // Choosing a mask edits it with the tool of its shape; anything else leaves editing.
   const select = useCallback(
     (id: string) => {
       document.selectLayer(id);
       const layer = findLayer(document.scene.getState().layers, id);
-      const shape = layer?.kind === "mask" ? layer.mask.kind : undefined;
-      tool.edit(shape === "full" ? undefined : shape);
+      tool.edit(layer?.kind === "mask" ? layer.mask.kind : undefined);
     },
     [document, tool.edit],
   );
@@ -327,7 +329,13 @@ export function LayersControls({
                   {label}
                 </MenuItem>
               ))}
-            {addItems}
+            <MenuSeparator />
+            <MenuItem onClick={() => tool.add("luminance-range")}>
+              Luminance Range
+            </MenuItem>
+            <MenuItem onClick={() => tool.add("color-range")}>
+              Color Range
+            </MenuItem>
           </MenuContent>
         </Menu>
       }

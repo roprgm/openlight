@@ -116,13 +116,16 @@ const shapes = [
   ["linear", "Linear gradient"],
   ["radial", "Radial gradient"],
   ["brush", "Brush"],
+  ["luminance-range", "Luminance range"],
+  ["color-range", "Color range"],
 ] as const;
 const nestings = [
   ["add", "Add to mask"],
   ["subtract", "Subtract from mask"],
+  ["intersect", "Intersect with mask"],
 ] as const;
 
-/** Chooses the shape of the next mask and nests it inside this one, adding or subtracting coverage. */
+/** Chooses the shape of the next mask and nests it inside this one, combined with its coverage. */
 function NestingItems({ layer }: { layer: MaskLayer }) {
   const document = useDocument();
   const tool = useMaskTool();
@@ -139,7 +142,7 @@ function NestingItems({ layer }: { layer: MaskLayer }) {
             disabled={shape === "brush" && full}
             onClick={() => {
               document.selectLayer(layer.id);
-              tool.add(layer.id, operation, shape);
+              tool.add(shape, { parentId: layer.id, operation });
             }}
           >
             {name}

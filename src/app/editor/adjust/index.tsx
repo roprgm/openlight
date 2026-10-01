@@ -40,10 +40,6 @@ import { Histogram } from "@/features/histogram";
 import { setLayer } from "@/features/layers/edits";
 import { OverlayToggle } from "@/features/layers/overlay-toggle";
 import { LutCurves } from "@/features/lut/curves";
-import {
-  MaskRangeControls,
-  MaskRangeDials,
-} from "@/features/mask-range/controls";
 import { PaintControls } from "@/features/paint/controls";
 import { defaultCurve } from "@/features/tone-curves/curve";
 import { setToneCurve } from "@/features/tone-curves/edits";
@@ -147,7 +143,6 @@ function SelectedControls({ layer }: { layer: Layer }) {
     case "mask":
       return (
         <>
-          {layer.kind === "mask" && <MaskRangeControls layer={layer} />}
           <AdjustmentControls
             id={layer.id}
             adjustments={layer.adjustments}
@@ -227,9 +222,7 @@ const groups = [
   ["color", "Color"],
   ["curve", "Curve"],
 ] as const;
-/** A mask also has a range, which narrows it. */
-const maskGroups = [...groups, ["range", "Range"]] as const;
-type Group = (typeof maskGroups)[number][0];
+type Group = (typeof groups)[number][0];
 
 /** An image or mask in the dock: its tone, color, or curve, one group at a time. */
 function AdjustmentDials({
@@ -245,20 +238,15 @@ function AdjustmentDials({
 }) {
   const document = useDocument();
   const whiteBalance = useWhiteBalance(layer);
-  // The image has no range, so it shows its light where a mask showed its range.
-  const shown = group === "range" && layer.kind !== "mask" ? "light" : group;
   const header = (
     <DockChips
       label="Adjustment group"
-      items={layer.kind === "mask" ? maskGroups : groups}
-      value={shown}
+      items={groups}
+      value={group}
       onChange={onGroupChange}
     />
   );
-  if (shown === "range" && layer.kind === "mask") {
-    return <MaskRangeDials layer={layer} header={header} />;
-  }
-  if (shown === "curve") {
+  if (group === "curve") {
     return (
       <DockControls
         tall
@@ -285,7 +273,7 @@ function AdjustmentDials({
   }
   const adjustments = (controls: Parameters<typeof adjustmentParameters>[3]) =>
     adjustmentParameters(document, layer.id, layer.adjustments, controls);
-  if (shown === "color") {
+  if (group === "color") {
     return (
       <DockControls
         header={header}

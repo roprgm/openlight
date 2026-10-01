@@ -1,10 +1,6 @@
 // Coverage of one gradient at a source-pixel position: 1 at a linear start or inside a radial
-// ellipse, 0 past the linear end or the feathered radial edge. Kind 1 is linear, 2 radial, and 3 the
-// full image.
+// ellipse, 0 past the linear end or the feathered radial edge. Kind 1 is linear, 2 radial.
 export fn gradientCoverage(position: vec2f, first: vec2f, second: vec2f, kind: u32, feather: f32, angle: f32) -> f32 {
- if (kind == 3u) {
-  return 1.0;
- }
  if (kind == 2u) {
   let delta = position - first;
   let local = vec2f(cos(angle) * delta.x + sin(angle) * delta.y, -sin(angle) * delta.x + cos(angle) * delta.y);
@@ -12,4 +8,14 @@ export fn gradientCoverage(position: vec2f, first: vec2f, second: vec2f, kind: u
  }
  let direction = second - first;
  return 1.0 - clamp(dot(position - first, direction) / dot(direction, direction), 0.0, 1.0);
+}
+
+// A child mask's coverage applied to its group's, at the child's opacity: operation 0 adds, 1
+// subtracts, and 2 intersects, keeping the group only where the child covers.
+export fn combineCoverage(group: f32, child: f32, operation: u32, opacity: f32) -> f32 {
+ if (operation == 2u) {
+  return group * (1.0 - opacity * (1.0 - child));
+ }
+ let sign = select(1.0, -1.0, operation == 1u);
+ return clamp(group + sign * opacity * child, 0.0, 1.0);
 }

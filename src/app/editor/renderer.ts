@@ -1,20 +1,14 @@
 import type { Gpu, Timer } from "vgpu";
-import {
-  type MaskLayer,
-  maskModifiers,
-  type ProcessingLayer,
-} from "@/core/document";
+import { maskModifiers, type ProcessingLayer } from "@/core/document";
 import type { ImageSource } from "@/core/image";
 import {
   type Composition,
-  type Coverage,
   createRenderer,
   input,
   maskInput,
   mixAdjustment,
   pipeline,
   type RenderImage,
-  rangeCoverage,
   transformImages,
 } from "@/core/renderer";
 import { exposure } from "@/features/adjustments/exposure";
@@ -34,29 +28,6 @@ type Branch = {
   input?: RenderImage;
 };
 
-/**
- * What a mask covers. A range selects from the image below, so the graph rasterizes a ranged mask
- * for it to blend through and for the overlay and thumbnails to show.
- */
-function maskCoverage(
-  layer: MaskLayer,
-  below: RenderImage,
-  name: string,
-  composition: Composition,
-): Coverage {
-  const shape = {
-    mask: layer.mask,
-    modifiers: maskModifiers(layer),
-    raster: composition.coverage(layer),
-  };
-  const ranged = layer.range && rangeCoverage(name, below, shape, layer.range);
-  if (!ranged) {
-    return shape;
-  }
-  composition.showCoverage(layer.id, ranged);
-  return { ...shape, raster: ranged };
-}
-
 function composeLayer(
   below: RenderImage,
   layer: ProcessingLayer,
@@ -73,10 +44,9 @@ function composeLayer(
   if (bypassed && !inspected) {
     return { image: below };
   }
+  const masks = layer.kind === "mask" ? maskModifiers(layer) : [];
   const coverage =
-    layer.kind === "mask"
-      ? maskCoverage(layer, below, name, composition)
-      : undefined;
+    layer.kind === "mask" ? composition.coverage(layer, below) : undefined;
   let input: RenderImage | undefined;
   let edited = below;
   switch (layer.kind) {
@@ -93,7 +63,7 @@ function composeLayer(
     case "mask": {
       const adjusted = pipeline(below, [adjustments(layer.adjustments, name)]);
       if (layer.id === composition.inputId) {
-        input = coverage && maskInput(name, adjusted, coverage);
+        input = maskInput(name, adjusted, layer.mask, masks, coverage);
       }
       edited = pipeline(adjusted, [
         toneCurves(layer.toneCurve, `${name}/curves`),
@@ -146,6 +116,8 @@ function composeLayer(
     below,
     children.image,
     bypassed ? 0 : layer.opacity,
+    layer.kind === "mask" ? layer.mask : undefined,
+    masks,
     coverage,
   );
   return { image, input: input ?? children.input };

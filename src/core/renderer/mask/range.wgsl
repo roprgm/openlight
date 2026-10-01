@@ -1,19 +1,15 @@
 import { srgbToLinear3 } from "@vgpu/wgsl-std/color";
 import { luminance, rec2020ToSrgb, toOklab } from "../../image/color.wgsl";
 
-// A mask's coverage narrowed by its range: the coverage of its shape, sampled from a raster of any
-// resolution, or without one the whole image, times how much the range keeps of the image below.
+// A range mask's coverage: how much it keeps of each pixel of the image below its group.
 struct Params {
  // 1 is luminance, with low, high, and smoothness from 0 to 1; 2 is color, with the sRGB color in xyz
  // and tolerance from 0 to 1.
  kind: u32,
  range: vec4f,
- shaped: u32,
 }
 @group(0) @binding(0) var image: texture_2d<f32>;
-@group(0) @binding(1) var shape: texture_2d<f32>;
-@group(0) @binding(2) var shapeSampler: sampler;
-@group(0) @binding(3) var<uniform> params: Params;
+@group(0) @binding(1) var<uniform> params: Params;
 
 // CIE lightness of a working color, 0 black to 1 white; headroom above white counts as white.
 fn lightness(color: vec3f) -> f32 {
@@ -38,11 +34,5 @@ fn kept(color: vec3f) -> f32 {
 }
 
 @fragment fn fs_main(@builtin(position) position: vec4f) -> @location(0) vec4f {
- let color = textureLoad(image, vec2i(position.xy), 0).rgb;
- var covered = 1.0;
- if (params.shaped != 0u) {
-  let uv = position.xy / vec2f(textureDimensions(image));
-  covered = textureSampleLevel(shape, shapeSampler, uv, 0.0).r;
- }
- return vec4f(covered * kept(color), 0.0, 0.0, 1.0);
+ return vec4f(kept(textureLoad(image, vec2i(position.xy), 0).rgb), 0.0, 0.0, 1.0);
 }

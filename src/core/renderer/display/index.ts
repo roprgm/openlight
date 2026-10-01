@@ -106,7 +106,7 @@ export function createDisplay(gpu: Gpu) {
         coverage: (overlay?.coverage ?? blank).color,
         overlay: {
           ...gradientParams(overlay?.mask),
-          ...(overlay?.coverage ? { kind: 4 } : {}),
+          ...(overlay?.coverage ? { kind: 3 } : {}),
           modifierCount: overlay
             ? gradientModifiers(overlay.modifiers).length
             : 0,

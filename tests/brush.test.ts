@@ -15,6 +15,7 @@ import {
   paintStroke,
   setLayer,
   setLayerMask,
+  setMaskOperation,
 } from "@/features/layers/edits";
 import { defaultGradient } from "@/features/layers/gradient";
 
@@ -185,15 +186,21 @@ test("brush strokes stamp incrementally, replay after undo, and render a proxy d
     expect(renderer.inspect().passes).toContain(
       `layer/${gradient}/raster-input`,
     );
-    // The child keeps its own coverage for its preview; the gradient combines it into a second texture.
+    // The child keeps its own coverage for its preview; the graph folds it into the gradient's.
     expect(renderer.inspect().rasters.map((raster) => raster.id)).toEqual([
       mask,
       child,
       "stroke view",
-      `${gradient}/group`,
       "stroke buffer",
     ]);
+    expect(renderer.inspect().passes).toEqual(
+      expect.arrayContaining([
+        `mask/${gradient}/gradient`,
+        `mask/${child}/combine`,
+      ]),
+    );
     expect(renderer.coverage(child)?.target.size).toEqual([32, 16]);
+    expect(renderer.coverage(gradient)?.target.size).toEqual([32, 16]);
     // Erasing inside the child stamps its own raster only, and the group recombines.
     const stampedBefore = renderer.inspect().stamped;
     paintStroke(document, child, { ...stroke, mode: "erase" });
@@ -218,6 +225,71 @@ test("brush strokes stamp incrementally, replay after undo, and render a proxy d
     }
     expect(() => extendStroke(document, gradient, [[1, 1, 1]])).toThrow(
       "brush",
+    );
+  } finally {
+    renderer.dispose();
+    document.dispose();
+    gpu.dispose();
+  }
+});
+
+test("a brush yet to paint takes no part in its group", async () => {
+  const gpu = await init();
+  const source = createImageSource(
+    target(gpu, { size: [64, 32], format: "rgba16float" }),
+  );
+  const resources = createResources();
+  const sourceId = resources.add(new File([], "photo.png"), source);
+  const document = createDocument(
+    {
+      frame: imageFrame(source.image.size),
+      layers: [createImageLayer(sourceId, "Photo")],
+    },
+    resources,
+  );
+  const renderer = createEditorRenderer(gpu, source);
+  const passes = async () => {
+    await renderer.update(document.scene.getState());
+    return renderer.inspect().passes;
+  };
+  try {
+    const brush = addLayer(
+      document,
+      createMask({ kind: "brush", strokes: [] }),
+    );
+    setAdjustments(document, { exposure: 1 }, brush);
+    const gradient = addLayer(
+      document,
+      createMask(defaultGradient([64, 32]), "subtract"),
+      { inside: brush },
+    );
+    // Taking away from nothing leaves nothing, so the mask is bypassed.
+    expect(await passes()).toEqual([]);
+    // Adding to it starts from nothing covered.
+    setMaskOperation(document, gradient, "add");
+    expect(await passes()).toEqual(
+      expect.arrayContaining([
+        `mask/${brush}/empty`,
+        `mask/${gradient}/combine`,
+        `layer/${brush}/raster`,
+      ]),
+    );
+    // Intersecting a gradient, it leaves the gradient whole until it paints.
+    const shaped = addLayer(document, createMask(defaultGradient([64, 32])));
+    setAdjustments(document, { exposure: 1 }, shaped);
+    const child = addLayer(
+      document,
+      createMask({ kind: "brush", strokes: [] }, "intersect"),
+      { inside: shaped },
+    );
+    expect(await passes()).toContain(`layer/${shaped}/mix`);
+    paintStroke(document, child, stroke);
+    expect(await passes()).toEqual(
+      expect.arrayContaining([
+        `mask/${shaped}/gradient`,
+        `mask/${child}/combine`,
+        `layer/${shaped}/raster`,
+      ]),
     );
   } finally {
     renderer.dispose();

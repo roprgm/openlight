@@ -16,7 +16,6 @@ import {
   type LookupTable,
   type Mask,
   type MaskLayer,
-  type MaskRange,
   type ProcessingLayer,
 } from "@/core/document";
 import type { WhiteBalance } from "@/core/image";
@@ -119,31 +118,22 @@ const maskNames: Record<Mask["kind"], string> = {
   linear: "Linear Gradient",
   radial: "Radial Gradient",
   brush: "Brush",
-  full: "Full Image",
-};
-const rangeNames: Record<MaskRange["kind"], string> = {
-  luminance: "Luminance Range",
-  color: "Color Range",
+  "luminance-range": "Luminance Range",
+  "color-range": "Color Range",
 };
 
-/** A mask layer named after its shape, or after its range when it covers the full image. */
 export function createMask(
   mask: Mask,
   operation: MaskLayer["operation"] = "add",
-  range?: MaskRange,
 ): MaskLayer {
   return {
     ...baseLayer(),
     kind: "mask",
-    name:
-      mask.kind === "full" && range
-        ? rangeNames[range.kind]
-        : maskNames[mask.kind],
+    name: maskNames[mask.kind],
     operation,
     adjustments: { ...defaultAdjustments },
     toneCurve: defaultCurve,
     mask,
-    ...(range && { range }),
   };
 }
 

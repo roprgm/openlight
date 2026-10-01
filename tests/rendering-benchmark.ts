@@ -6,7 +6,6 @@ import type {
   BrushStroke,
   LookupTable,
   Mask,
-  MaskRange,
   ProcessingLayer,
   Scene,
   StrokePoint,
@@ -28,6 +27,7 @@ export type Workload =
   | "masked-exposure"
   | "radial-exposure"
   | "brush-exposure"
+  | "brush-group"
   | "luminance-range"
   | "color-range"
   | "layer-stack"
@@ -83,28 +83,21 @@ function benchmarkMask(workload: Workload, size: [number, number]): Mask {
       feather: 0.5,
     };
   }
-  if (workload === "brush-exposure") {
+  if (workload === "brush-exposure" || workload === "brush-group") {
     return { kind: "brush", strokes: brushStrokes(size) };
   }
-  if (workload === "luminance-range" || workload === "color-range") {
-    return { kind: "full" };
+  // What the Add menu's range masks select at first: the brighter half, or a sky blue.
+  if (workload === "luminance-range") {
+    return { kind: "luminance-range", low: 50, high: 100, smoothness: 25 };
+  }
+  if (workload === "color-range") {
+    return { kind: "color-range", color: "#6fa8dc", tolerance: 30 };
   }
   return {
     kind: "linear",
     start: [0, size[1] * 0.2],
     end: [0, size[1] * 0.8],
   };
-}
-
-/** What the Add menu's range masks select at first: the brighter half, or a sky blue. */
-function benchmarkRange(workload: Workload): MaskRange | undefined {
-  if (workload === "luminance-range") {
-    return { kind: "luminance", low: 50, high: 100, smoothness: 25 };
-  }
-  if (workload === "color-range") {
-    return { kind: "color", color: "#6fa8dc", tolerance: 30 };
-  }
-  return undefined;
 }
 
 /** A 33-point LUT that warms highlights and cools shadows, as a creative grade does. */
@@ -188,22 +181,24 @@ export async function benchmarkRendering(
     workload === "masked-exposure" ||
     workload === "radial-exposure" ||
     workload === "brush-exposure" ||
+    workload === "brush-group" ||
     workload === "luminance-range" ||
     workload === "color-range" ||
     workload === "layer-stack"
   ) {
-    const range = benchmarkRange(workload);
-    effects.push({
-      ...common,
-      id: "benchmark-gradient",
-      name: "Gradient",
-      kind: "mask",
-      operation: "add",
+    const mask = {
       adjustments: defaultAdjustments,
       toneCurve: defaultCurve,
+      kind: "mask",
+    } as const;
+    effects.push({
+      ...common,
+      ...mask,
+      id: "benchmark-gradient",
+      name: "Gradient",
+      operation: "add",
       opacity: 0.75,
       mask: benchmarkMask(workload, size),
-      ...(range && { range }),
       children: [
         {
           ...common,
@@ -212,6 +207,19 @@ export async function benchmarkRendering(
           kind: "exposure",
           exposure: 1,
         },
+        // A brush that a gradient takes away from, so the group combines its children.
+        ...(workload === "brush-group"
+          ? [
+              {
+                ...common,
+                ...mask,
+                id: "benchmark-subtract",
+                name: "Linear Gradient",
+                operation: "subtract",
+                mask: benchmarkMask("masked-exposure", size),
+              } as const,
+            ]
+          : []),
       ],
     });
   }

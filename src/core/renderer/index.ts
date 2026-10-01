@@ -10,9 +10,9 @@ import {
 import type { ImageSource, WhiteBalance } from "@/core/image";
 import type { Point } from "@/core/image/frame";
 import { createRenderGraph } from "./graph";
-import { createMaskRaster } from "./mask";
+import { createMaskCoverage } from "./mask";
 import { createPatchRaster, type PatchInput } from "./mask/patches";
-import { input, type RenderImage, type RenderInput } from "./node";
+import { input, type RenderImage } from "./node";
 import {
   type AcceptPainting,
   createPaintRaster,
@@ -21,12 +21,7 @@ import {
 import { createProxy } from "./proxy";
 import { createStrokes } from "./strokes";
 
-export {
-  type Coverage,
-  maskInput,
-  mixAdjustment,
-  rangeCoverage,
-} from "./blend";
+export { maskInput, mixAdjustment } from "./blend";
 export {
   type Clipping,
   type CoverageRegion,
@@ -59,10 +54,11 @@ export type Composition = {
   inputId?: string;
   /** Keep one stable composition instance and its render-graph resources reusable. */
   retain: (id: string) => void;
-  /** Rasterized coverage of a mask that paints with brushes, prepared before composition. */
-  coverage: (layer: MaskLayer) => RenderInput | undefined;
-  /** Renders a mask's coverage that only the graph can compute, such as a range's, as the mask's raster. */
-  showCoverage: (id: string, coverage: RenderImage) => void;
+  /**
+   * A mask's coverage over `below`, the image it applies to, when a brush or range takes part;
+   * gradients alone leave it to the mix pass.
+   */
+  coverage: (layer: MaskLayer, below: RenderImage) => RenderImage | undefined;
   /** Rasterized paint of a paint layer, prepared before composition. */
   paint: (layer: PaintLayer) => PaintInput | undefined;
   /** Rasterized coverage of an effect's own stroke, such as a Healing patch. */
@@ -109,7 +105,7 @@ export function createRenderer(
   const graph = createRenderGraph(gpu, timer);
   const strokes = createStrokes(gpu);
   const brushes = createPaintRaster(gpu, strokes, "r8unorm");
-  const masks = createMaskRaster(gpu, brushes);
+  const masks = createMaskCoverage(brushes);
   const patches = createPatchRaster(gpu, strokes);
   const paints = createPaintRaster(gpu, strokes, "rgba8unorm");
   const proxy = createProxy(gpu);
@@ -121,7 +117,7 @@ export function createRenderer(
   let rendered = false;
   let output = source;
   let inspected: { id: string; image: Target } | undefined;
-  /** Mask coverage the graph rendered, by layer ID. */
+  /** Mask coverage the graph rendered for the overlay and thumbnails, by layer ID. */
   let shown = new Map<string, Target>();
   let balance = resource.raw?.asShot;
   /** Counts developments, so the proxy follows white-balance changes. */
@@ -161,8 +157,11 @@ export function createRenderer(
     const images = compose(image, scene, {
       inputId,
       retain: (id) => active.add(id),
-      coverage: (layer) => masks.coverage(layer.id),
-      showCoverage: (id, coverage) => covered.set(id, coverage),
+      coverage: (layer, below) =>
+        masks.coverage(layer, below, {
+          retain: (id) => active.add(id),
+          show: (id, coverage) => covered.set(id, coverage),
+        }),
       paint: (layer) => paints.input(layer),
       patch: (id, stroke) => patches.patch(id, stroke, developed.size),
     });
@@ -297,8 +296,7 @@ export function createRenderer(
      * thumbnails, a Healing patch's, or a paint layer's.
      */
     coverage(id: string): { target: Target; origin: Point } | undefined {
-      const target =
-        shown.get(id) ?? masks.coverage(id)?.target ?? paints.get(id);
+      const target = shown.get(id) ?? masks.brush(id)?.target ?? paints.get(id);
       return target ? { target, origin: [0, 0] } : patches.raster(id);
     },
     /** Device pixels shown per source pixel; interactive renders reduce the source to about this density. */

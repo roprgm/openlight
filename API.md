@@ -80,7 +80,7 @@ Edits update the scene and history synchronously. Rendering may finish later, pa
 
 Images own basic adjustments and a tone curve. Processing layers edit the source image in stack order; the image layer's adjustments and curve then tone the composite, so a local exposure can recover light that the global exposure pushes past white. An effect processes the image below, then its children. A mask processes its basic adjustments, its tone curve, and child effects, then blends that result with its input using coverage × opacity. A neutral mask with no effects does nothing. Hidden layers and zero opacity bypass the complete branch.
 
-Direct mask children of another mask modify coverage instead of processing image pixels: Add sums coverage, Subtract removes it, clamping to 0–1 after each child in stored order. Each child's opacity scales its contribution. Its stored basic adjustments are inactive in this position. Other children process the image within the combined mask. Layer opacity always controls effect strength, preserving the input image's alpha.
+Direct mask children of another mask modify coverage instead of processing image pixels: Add sums coverage, Subtract removes it, clamping to 0–1 after each child in stored order, and Intersect keeps it only where the child covers. Each child's opacity scales its contribution; an Intersect child at opacity `o` keeps `1 − o × (1 − child)` of the coverage. A brush child that has not painted yet takes no part. Its stored basic adjustments are inactive in this position. Other children process the image within the combined mask. Layer opacity always controls effect strength, preserving the input image's alpha.
 
 | Method | Behavior |
 | --- | --- |
@@ -88,9 +88,8 @@ Direct mask children of another mask modify coverage instead of processing image
 | `selectLayer(id)` | Selects any layer. |
 | `setLayer(id, change)` | Updates processing-layer `name`, `visible`, or `opacity` (0–1). |
 | `setExposure(id, value)` | Sets an Exposure layer to -5…5 EV. |
-| `setLayerMask(id, mask)` | Replaces a mask layer's mask: `{ kind: "linear", start, end }`, `{ kind: "radial", center, radius, angle, feather }`, `{ kind: "brush", strokes }`, or `{ kind: "full" }`, which covers the whole photo. Geometry uses source pixels; radial angle is degrees and feather is 0–1. |
-| `setMaskOperation(id, operation)` | Sets `"add"` or `"subtract"`; used when this mask is inside another mask. |
-| `setMaskRange(id, range?)` | Narrows a mask layer to a [range](#ranges) of the photo below it, or without one, removes its range. |
+| `setLayerMask(id, mask)` | Replaces a mask layer's mask: `{ kind: "linear", start, end }`, `{ kind: "radial", center, radius, angle, feather }`, `{ kind: "brush", strokes }`, or a [range](#ranges), `{ kind: "luminance-range", low, high, smoothness }` or `{ kind: "color-range", color, tolerance }`. Geometry uses source pixels; radial angle is degrees and feather is 0–1. |
+| `setMaskOperation(id, operation)` | Sets `"add"`, `"subtract"`, or `"intersect"`; used when this mask is inside another mask. |
 | `duplicateLayer(id)` | Copies a processing layer and its children above itself with independent IDs; selects and returns the new ID. |
 | `moveLayer(id, index, parentId?)` | Moves to a final sibling index, bottom to top. Omit the parent for the root stack, where index 0 is reserved for the image. Image parents, cycles, and third-level nesting are rejected. |
 | `deleteLayer(id)` | Removes a processing layer and its children; undo restores them. |
@@ -101,9 +100,9 @@ A brush mask is a list of strokes, over the pixels earlier strokes settled into,
 
 ### Ranges
 
-A range narrows a mask to the pixels of the image below it, measured before the mask's own adjustments: `{ kind: "luminance", low, high, smoothness }` keeps the pixels whose CIE lightness lies from `low` to `high`, 0 black to 100 white, fading out over `smoothness` past either end; `{ kind: "color", color, tolerance }` keeps the pixels whose hue and saturation are near `color`, `#rrggbb` sRGB, however light or dark, within `tolerance`. Every value runs from 0 to 100, and `low` cannot exceed `high`. HDR headroom counts as white. The range multiplies the mask's combined coverage, its shape and the children that add or subtract, so a full mask with a range selects those pixels across the whole photo. Only a mask outside another mask applies its range; inside one, the range is stored but inactive, like its adjustments.
+A range mask selects pixels of the image below its mask group, before the group's own adjustments, rather than by position. `{ kind: "luminance-range", low, high, smoothness }` selects the pixels whose CIE lightness lies from `low` to `high`, 0 black to 100 white, fading out over `smoothness` past either end; headroom above white counts as white. `{ kind: "color-range", color, tolerance }` selects the pixels whose hue and saturation are near `color`, `#rrggbb` sRGB, however light or dark, more of them as `tolerance` grows. Every value runs from 0 to 100, and `low` cannot exceed `high`. As a mask's own shape, a range covers the whole photo within it; as a child, it adds, subtracts, or intersects like any mask, so a gradient intersected with a color range darkens only that color across the gradient. Range coverage follows the photo's edges at its full resolution.
 
-The Add menu's **Luminance Range** starts at 50 to 100 with smoothness 25, and **Color Range** takes its color from the next click on the photo, as the edited photo shows it there, averaged over 5 × 5 pixels; tolerance starts at 30. The overlay and the layer's thumbnail show the coverage the range leaves.
+The Add menu's **Luminance Range** starts at 50 to 100 with smoothness 25. **Color Range**, like a mask's Add, Subtract, or Intersect entry for one, waits for a click on the photo, which takes the color there as the edited photo shows it, averaged over 5 × 5 pixels, with tolerance 30. While a color range is selected, a click on the photo picks its color again.
 
 ## LUTs
 
@@ -214,8 +213,7 @@ editor.run({
 | `set-details` | `clarity?`, `sharpening?`, `sharpenRadius?`, `layerId?` | Like `setDetails`. |
 | `set-vignette` | `intensity?`, `softness?`, `layerId?` | Like `setVignette`. |
 | `set-grain` | `amount?`, `size?`, `roughness?`, `layerId?` | Like `setGrain`. |
-| `add-mask` | `mask`, `range?`, `adjustments?` | Adds a mask layer with that range and those adjustments on top of the stack as one edit. |
-| `set-mask-range` | `layerId`, `range?` | Like `setMaskRange`. |
+| `add-mask` | `mask`, `adjustments?` | Adds a mask layer with those adjustments on top of the stack as one edit. |
 | `delete-layer` | `layerId` | Like `deleteLayer`. |
 | `set-crop` | `aspectRatio?`, `straighten?` | Replaces the frame with the largest centered crop of the source at `aspectRatio`, width over height, straightened by −45 to 45 degrees. Without either, it removes the crop. |
 | `reset` | none | Removes every layer and returns adjustments, the tone curve, white balance, and the frame to how the photo opened, as one edit. |
