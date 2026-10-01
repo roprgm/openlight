@@ -21,8 +21,9 @@ Where the code lives and the rules that keep it in place. Keep this file true: w
 | `app/editor/empty.tsx` | The editor before a document opens: welcome or loading status, and the placeholder sidebar. |
 | `app/editor/sidebar.tsx` | Sidebar sections in order: `EditorSidebar` with a document, `PlaceholderSidebar` without one. |
 | `app/editor/tools.tsx`, `tool-rail.tsx` | The tools and the desktop rail. A tool brings a `Canvas` overlay, `Options` for the bar over the image or the dock, or its own `View`. |
-| `app/editor/tool-shortcuts.tsx` | Group shortcuts: enter a tool, then cycle its available modes while it is active. |
+| `app/editor/tool-shortcuts.tsx` | Group shortcuts: return to a tool's remembered mode, then cycle its available modes while it is active. |
 | `components/editor/brush-input.tsx` | Brush settings and the active input context. Brush and Healing own separate settings above the views; the canvas, cursor, menu, and shortcuts consume the active family. |
+| `components/editor/brush-canvas.tsx`, `brush-wheel.ts` | Shared brush gestures and cursor. Stroke edits batch each frame, or debounce for Remove, and flush on release. Vertical wheel resizes the active brush; trackpad pinch and Space-drag remain viewport navigation. |
 | `app/editor/brush.tsx` | The Brush tool: one canvas that sends color or mask strokes to the feature edits its mode picks, and its options. |
 | `app/editor/dock.tsx` | The mobile dock's tabs and what it shows: the layer stack, a tool's options, or the selected layer's dials. |
 | `app/editor/renderer.ts` | Composes feature passes into the preview and export pipelines and tracks immutable upstream content for derived-image caches. |

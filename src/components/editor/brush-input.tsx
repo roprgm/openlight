@@ -12,6 +12,7 @@ type BrushSettings = {
   preview: boolean;
   setPreview: (preview: boolean) => void;
   update: (change: Partial<BrushShape>) => void;
+  resize: (factor: number) => void;
 };
 
 export type BrushInput = BrushSettings & {
@@ -36,6 +37,17 @@ export function useBrushSettings(feather: number) {
     flow: 1,
   });
   const [preview, setPreview] = useState(false);
+  function resize(factor: number) {
+    setSettings((settings) => {
+      const rounded = Math.round(settings.size * factor);
+      const size =
+        rounded === settings.size ? rounded + Math.sign(factor - 1) : rounded;
+      return {
+        ...settings,
+        size: clamp(size, 1, maxSize),
+      };
+    });
+  }
   function update(change: Partial<BrushShape>) {
     setSettings((settings) => ({
       ...settings,
@@ -45,7 +57,7 @@ export function useBrushSettings(feather: number) {
       flow: clamp(change.flow ?? settings.flow, 0, 1),
     }));
   }
-  return { settings, maxSize, preview, setPreview, update };
+  return { settings, maxSize, preview, setPreview, update, resize };
 }
 
 export function brushParameters({

@@ -23,7 +23,7 @@ export function HealModeIcon(props: IconProps) {
 export function HealModeButtons() {
   const { mode, selectMode } = useHealing();
   return (
-    <fieldset aria-label="Retouch mode" className="flex gap-0.5">
+    <fieldset aria-label="Retouch mode" className="mr-1 flex gap-0.5">
       <IconButton
         label="Heal · Copy texture and match surrounding color"
         aria-label="Heal"

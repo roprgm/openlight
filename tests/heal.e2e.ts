@@ -563,6 +563,8 @@ test("retouch modes cycle, preserve each family's brush, and keep patches indepe
   await page.keyboard.press("h");
   await expect(size).toHaveValue("20");
   await expect(feather).toHaveValue("45");
+  await expect(clone).toHaveAttribute("aria-pressed", "true");
+  await heal.click();
   await expect(heal).toHaveAttribute("aria-pressed", "true");
   await page.evaluate((id) => window.openlight.selectLayer(id), layerId);
   await page.keyboard.press("Shift+BracketRight");

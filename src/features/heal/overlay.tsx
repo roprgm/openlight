@@ -88,6 +88,7 @@ export function HealOverlay({
     <BrushCanvas
       label="Healing canvas"
       erase={false}
+      extendDelay={mode === "remove" ? 200 : 0}
       onStart={(stroke) => {
         const layer = selectedHealLayer();
         if (!layer) return false;

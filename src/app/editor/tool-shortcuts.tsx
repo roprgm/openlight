@@ -10,38 +10,27 @@ function nextHealingMode(mode: HealMode): HealMode {
   return "heal";
 }
 
-/** A group's key enters it; pressing it again cycles its available modes. */
+/** A group's key restores its last mode; pressing it while active cycles its modes. */
 export function ToolShortcuts() {
   const { tool, setTool } = useTool();
   const brush = useBrushTool();
   const healing = useHealing();
-  const groups = new Map<Tool["id"], { enter?: () => void; cycle: () => void }>(
+  const cycles = new Map<Tool["id"], () => void>([
     [
-      [
-        "brush",
-        {
-          cycle: () =>
-            brush.update({
-              mode: brush.settings.mode === "color" ? "mask" : "color",
-            }),
-        },
-      ],
-      [
-        "heal",
-        {
-          enter: () => healing.selectMode("heal"),
-          cycle: () => healing.selectMode(nextHealingMode(healing.mode)),
-        },
-      ],
+      "brush",
+      () =>
+        brush.update({
+          mode: brush.settings.mode === "color" ? "mask" : "color",
+        }),
     ],
-  );
+    ["heal", () => healing.selectMode(nextHealingMode(healing.mode))],
+  ]);
   function select(entry: Tool) {
-    const group = groups.get(entry.id);
-    if (entry === tool && group) {
-      group.cycle();
+    const cycle = cycles.get(entry.id);
+    if (entry === tool && cycle) {
+      cycle();
       return;
     }
-    group?.enter?.();
     setTool(entry);
   }
   useShortcuts(

@@ -14,6 +14,7 @@ import type { Point } from "@/core/image/frame";
 import { useShortcuts } from "@/hooks/use-shortcuts";
 import { blurActive } from "@/lib/dom";
 import { useBrushInput } from "./brush-input";
+import { useBrushWheel } from "./brush-wheel";
 import { CanvasHint } from "./canvas-hint";
 import { useDocumentMapping } from "./mapping";
 import { useDocument } from "./session";
@@ -27,7 +28,9 @@ type Stroke = {
   /** The viewport bounds measured once; pointer capture keeps them valid for the drag. */
   box: DOMRect;
   pending: StrokePoint[];
+  delay: number;
   frame?: number;
+  timer?: number;
 };
 
 type PointerLike = {
@@ -43,6 +46,7 @@ export function BrushCanvas({
   erase,
   onStart,
   onExtend,
+  extendDelay = 0,
   onComplete,
   onFinish,
   onPickSource,
@@ -54,6 +58,8 @@ export function BrushCanvas({
   /** Records the first dab and returns whether the stroke started; a declined stroke leaves nothing behind. */
   onStart: (stroke: BrushStroke) => boolean;
   onExtend: (points: readonly StrokePoint[]) => void;
+  /** Debounces expensive stroke edits; releasing the pointer always flushes all points. */
+  extendDelay?: number;
   onComplete?: (signal: AbortSignal) => void | Promise<void>;
   onFinish?: (committed: boolean) => void;
   onPickSource?: (point: Point) => void;
@@ -63,6 +69,7 @@ export function BrushCanvas({
   const document = useDocument();
   const brush = useBrushInput();
   const camera = useViewport();
+  const wheelRef = useBrushWheel();
   const mapping = useDocumentMapping();
   const stroke = useRef<Stroke | null>(null);
   const completing = useRef<AbortController | null>(null);
@@ -94,6 +101,7 @@ export function BrushCanvas({
     if (current.frame !== undefined) {
       cancelAnimationFrame(current.frame);
     }
+    clearTimeout(current.timer);
     if (commit) {
       flush(current);
       if (!onComplete) {
@@ -134,6 +142,7 @@ export function BrushCanvas({
   }
   function flush(current: Stroke) {
     current.frame = undefined;
+    current.timer = undefined;
     if (!current.pending.length) {
       return;
     }
@@ -147,13 +156,16 @@ export function BrushCanvas({
       setError(String(error));
     }
   }
-  useEffect(
-    () => () => {
+  useEffect(() => {
+    const unsubscribe = document.history.status.subscribe(({ editing }) => {
+      if (!editing && stroke.current) finish(false);
+    });
+    return () => {
+      unsubscribe();
       finish(false);
       brush.setPreview(false);
-    },
-    [],
-  );
+    };
+  }, []);
   useEffect(() => {
     if (!brush.preview || pointer) return;
     const bounds = camera.ref.current?.getBoundingClientRect();
@@ -167,8 +179,8 @@ export function BrushCanvas({
         onDone();
       }
     },
-    "[": () => brush.update({ size: Math.round(brush.settings.size / 1.25) }),
-    "]": () => brush.update({ size: Math.round(brush.settings.size * 1.25) }),
+    "[": () => brush.resize(1 / 1.25),
+    "]": () => brush.resize(1.25),
     "shift+[": () => featherBy(-0.1),
     "shift+]": () => featherBy(0.1),
   });
@@ -219,6 +231,7 @@ export function BrushCanvas({
       client: [event.clientX, event.clientY],
       box,
       pending: [],
+      delay: extendDelay,
     };
     // The viewport below would otherwise capture the pointer to pan.
     event.preventDefault();
@@ -245,7 +258,11 @@ export function BrushCanvas({
     for (const item of events.length ? events : [native]) {
       current.pending.push(point(item, current.box));
     }
-    // One edit per frame keeps the queue from outrunning the display.
+    if (current.delay > 0) {
+      clearTimeout(current.timer);
+      current.timer = window.setTimeout(() => flush(current), current.delay);
+      return;
+    }
     current.frame ??= requestAnimationFrame(() => flush(current));
   }
   function end(event: PointerEvent<HTMLDivElement>) {
@@ -263,6 +280,7 @@ export function BrushCanvas({
   const cursor = pointerVisible || brush.preview ? pointer : null;
   return (
     <div
+      ref={wheelRef}
       role="application"
       aria-label={label}
       className="absolute inset-0 cursor-none touch-none data-[pan=true]:pointer-events-none"

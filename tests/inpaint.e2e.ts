@@ -2,9 +2,10 @@ import { expect, test } from "./fixtures";
 import { readImage } from "./images";
 import { box } from "./pointer";
 
-test("H cycles to Remove, paints without a donor, exports, and undoes", async ({
+test("Remove debounces stroke edits, flushes on release, exports, undoes, and cancels", async ({
   page,
 }) => {
+  test.setTimeout(90_000);
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.goto("/");
   await page
@@ -34,10 +35,44 @@ test("H cycles to Remove, paints without a donor, exports, and undoes", async ({
     (bounds.height - 48) / 800,
     2,
   );
-  await page.mouse.click(
-    bounds.x + bounds.width / 2 - 250 * scale,
-    bounds.y + bounds.height / 2 - 200 * scale,
+  const x = bounds.x + bounds.width / 2 - 250 * scale;
+  const y = bounds.y + bounds.height / 2 - 200 * scale;
+  const patchPoints = () =>
+    page.evaluate(() => {
+      const layer = window.openlight
+        .getState()
+        .scene?.layers.find((layer) => layer.kind === "heal");
+      return layer?.kind === "heal"
+        ? layer.patches[0]?.stroke.points
+        : undefined;
+    });
+  const history = await page.evaluate(
+    () => window.openlight.getState().history,
   );
+  const time = new Date();
+  await page.clock.install({ time });
+  await page.clock.pauseAt(time);
+  await page.mouse.move(x, y);
+  await page.mouse.down();
+  for (let step = 1; step <= 6; step++) {
+    await page.mouse.move(x + step * 20 * scale, y);
+    await page.clock.runFor(80);
+    expect(await patchPoints()).toHaveLength(1);
+  }
+  // A quiet interval previews the accumulated stroke once, without dropping intermediate points.
+  await page.clock.runFor(210);
+  const preview = await patchPoints();
+  expect(preview?.length).toBeGreaterThanOrEqual(7);
+  await page.mouse.move(x + 150 * scale, y);
+  await page.clock.runFor(50);
+  expect(await patchPoints()).toEqual(preview);
+  await page.mouse.up();
+  await expect
+    .poll(() =>
+      page.evaluate(() => window.openlight.getState().history.undoCount),
+    )
+    .toBe(history.undoCount + 1);
+  expect((await patchPoints())?.at(-1)?.[0]).toBeCloseTo(500, 0);
   await expect(canvas.locator('[data-heal-source-handle="true"]')).toHaveCount(
     0,
   );
@@ -55,6 +90,16 @@ test("H cycles to Remove, paints without a donor, exports, and undoes", async ({
   await page.keyboard.press("ControlOrMeta+z");
   const undone = await readImage(page, undefined, [[350, 200]]);
   expect(undone.samples).toEqual(before.samples);
+  for (const cancel of ["Escape", "ControlOrMeta+z"]) {
+    await page.mouse.move(x, y);
+    await page.mouse.down();
+    await page.mouse.move(x + 100 * scale, y);
+    await page.keyboard.press(cancel);
+    await page.mouse.up();
+    await page.clock.runFor(300);
+    expect(await patchPoints()).toBeUndefined();
+  }
+  await page.clock.resume();
   await page.keyboard.press("h");
   await expect(
     page
