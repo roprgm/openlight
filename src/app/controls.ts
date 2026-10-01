@@ -20,6 +20,7 @@ import type {
   Details,
   Fill,
   Grain,
+  HealMode,
   Mask,
   PaintStroke,
   Preview,
@@ -146,8 +147,12 @@ export function createControls(
       const document = workspace.getDocument();
       editEffect(document, "fill", id, (id) => setFill(document, change, id));
     },
-    addHealPatch: (id: string, stroke: BrushStroke, offset: Point) =>
-      addHealPatch(workspace.getDocument(), id, stroke, offset),
+    addHealPatch: (
+      id: string,
+      stroke: BrushStroke,
+      offset: Point,
+      mode?: HealMode,
+    ) => addHealPatch(workspace.getDocument(), id, stroke, offset, mode),
     setHealSource: (id: string, patchId: string, offset: Point) =>
       setHealSource(workspace.getDocument(), id, patchId, offset),
     addPaintStroke: (id: string, stroke: PaintStroke) =>

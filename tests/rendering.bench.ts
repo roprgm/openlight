@@ -20,6 +20,7 @@ for (const workload of [
   "lut",
   "paint",
   "heal",
+  "clone",
   "heal-empty",
   "heal-proxy",
   "pipeline-proxy",

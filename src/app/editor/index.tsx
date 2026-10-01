@@ -2,6 +2,7 @@ import { Button } from "@roprgm/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@roprgm/ui/tooltip";
 import type { ReactNode } from "react";
 import type { Workspace } from "@/app/workspace";
+import { BrushInputProvider } from "@/components/editor/brush-input";
 import { BrushProvider, useBrushTool } from "@/components/editor/brush-tool";
 import { Image } from "@/components/editor/image";
 import {
@@ -18,7 +19,7 @@ import {
 import { EditorViewport, ViewportStage } from "@/components/editor/viewport";
 import type { Mask } from "@/core/document";
 import { locateLayer } from "@/core/document";
-import { HealingProvider } from "@/features/heal/mode";
+import { HealingProvider, useHealBrush } from "@/features/heal/mode";
 import { addLayer } from "@/features/layers/edits";
 import { MaskToolProvider, type Nesting } from "@/features/layers/mask-tool";
 import { CanvasToolbar } from "@/features/layers/toolbar";
@@ -39,6 +40,7 @@ import { OpenButton, OpenContext, OpenStatus } from "./open";
 import { createEditorRenderer } from "./renderer";
 import { EditorSidebar } from "./sidebar";
 import { ToolRail } from "./tool-rail";
+import { ToolShortcuts } from "./tool-shortcuts";
 import { exportTool, ToolProvider, tools, useTool } from "./tools";
 
 /**
@@ -49,6 +51,9 @@ import { exportTool, ToolProvider, tools, useTool } from "./tools";
 function ToolView() {
   const { tool, setTool } = useTool();
   const desktop = useDesktopLayout();
+  const brush = useBrushTool();
+  const healingBrush = useHealBrush();
+  const input = tool.id === "heal" ? healingBrush : brush;
   const document = useDocument();
   const size = useScene((scene) => scene.frame.size);
   // Enter and Escape leave one level: shape tools return to Adjust, where the selection climbs to the image.
@@ -70,24 +75,26 @@ function ToolView() {
     return <tool.View onClose={close} />;
   }
   return (
-    <EditorLayout
-      canvas={
-        <EditorViewport size={size}>
-          <ViewportStage>
-            <Image original="originalImage" />
-            {"Canvas" in tool && <tool.Canvas key={tool.id} />}
-          </ViewportStage>
-          <ComparisonDivider />
-          <CanvasToolbar>
-            {desktop && "Options" in tool && <tool.Options />}
-          </CanvasToolbar>
-          {!desktop && <ImageHistogram placement="canvas" />}
-          <MaskOverlaySync />
-        </EditorViewport>
-      }
-      panel={<EditorSidebar />}
-      dock={<DockPanel />}
-    />
+    <BrushInputProvider value={input}>
+      <EditorLayout
+        canvas={
+          <EditorViewport size={size}>
+            <ViewportStage>
+              <Image original="originalImage" />
+              {"Canvas" in tool && <tool.Canvas key={tool.id} />}
+            </ViewportStage>
+            <ComparisonDivider />
+            <CanvasToolbar>
+              {desktop && "Options" in tool && <tool.Options />}
+            </CanvasToolbar>
+            {!desktop && <ImageHistogram placement="canvas" />}
+            <MaskOverlaySync />
+          </EditorViewport>
+        }
+        panel={<EditorSidebar />}
+        dock={<DockPanel />}
+      />
+    </BrushInputProvider>
   );
 }
 
@@ -208,6 +215,7 @@ function DocumentEditor({
             />
             <PaintSettling />
             <BrushKeys />
+            <ToolShortcuts />
           </HealingTools>
         </MaskTools>
       </ToolProvider>

@@ -430,3 +430,167 @@ test("Healing takes the first stroke after H and finds donors inside a mask", as
   expect(patches).toHaveLength(1);
   expect(patches[0].offset).not.toEqual([0, 0]);
 });
+
+test("Clone copies donor color without correction, with feather, opacity, HDR, and proxy rendering", async ({
+  page,
+}) => {
+  await page.goto("/tests/gpu.html");
+  for (const opacity of [1, 0.4]) {
+    const result = await page.evaluate(async (opacity) => {
+      const path = "/tests/heal-gpu.ts";
+      const { renderHealReference } = (await import(
+        path
+      )) as typeof import("./heal-gpu");
+      return renderHealReference({ mode: "clone", opacity });
+    }, opacity);
+    expect(result.errors).toEqual([]);
+    for (const { samples } of result.results) {
+      for (const [index, { actual, expected }] of samples.entries()) {
+        if (index === 3) continue;
+        for (let channel = 0; channel < 4; channel++) {
+          expect(Math.abs(actual[channel] - expected[channel])).toBeLessThan(
+            0.015,
+          );
+        }
+      }
+    }
+    for (const proxy of [false, true]) {
+      const edges = result.results
+        .filter((result) => result.proxy === proxy)
+        .map(({ samples }) => samples[3].actual);
+      expect(edges[1][1]).toBeLessThan(edges[0][1] - 0.001);
+      expect(edges[1][3]).toBeCloseTo(0.75, 3);
+    }
+  }
+});
+
+test("retouch modes cycle, preserve each family's brush, and keep patches independent", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await page.goto("/");
+  await page
+    .locator('input[type="file"]')
+    .setInputFiles("tests/fixtures/photo.svg");
+  await expect(
+    page.getByRole("textbox", { name: "Exposure", exact: true }),
+  ).toHaveValue("0.00");
+  await page.keyboard.press("h");
+  const canvas = page.getByLabel("Healing canvas", { exact: true });
+  await expect(canvas).toBeVisible();
+  const layerId = await page.evaluate(
+    () => window.openlight.getState().selectedLayerId,
+  );
+  if (!layerId) throw Error("Healing layer missing.");
+  const bounds = await box(canvas);
+  const scale = Math.min(
+    (bounds.width - 48) / 1200,
+    (bounds.height - 48) / 800,
+    2,
+  );
+  const point = (x: number, y: number) => [
+    bounds.x + bounds.width / 2 + (x - 600) * scale,
+    bounds.y + bounds.height / 2 + (y - 400) * scale,
+  ];
+  const source = point(600, 400);
+  const target = point(350, 200);
+  const size = page.getByRole("textbox", { name: "Size", exact: true });
+  const feather = page.getByRole("textbox", { name: "Feather", exact: true });
+  await size.fill("20");
+  await size.press("Enter");
+  await feather.fill("35");
+  await feather.press("Enter");
+  const modes = page.getByRole("group", { name: "Retouch mode" });
+  const heal = modes.getByRole("button", { name: "Heal", exact: true });
+  const clone = modes.getByRole("button", { name: "Clone", exact: true });
+  await expect(heal).toHaveAttribute("aria-pressed", "true");
+  await expect(
+    modes.getByRole("button", { name: "Remove", exact: true }),
+  ).toBeDisabled();
+  await clone.click();
+  await expect(clone).toHaveAttribute("aria-pressed", "true");
+  await page.keyboard.down("Alt");
+  await page.mouse.click(source[0], source[1]);
+  await page.keyboard.up("Alt");
+  await page.mouse.click(target[0], target[1]);
+  async function patches() {
+    await expect
+      .poll(() =>
+        page.evaluate(() => {
+          const { history } = window.openlight.getState();
+          return "editing" in history && history.editing;
+        }),
+      )
+      .toBe(false);
+    return page.evaluate(() => {
+      const layer = window.openlight
+        .getState()
+        .scene?.layers.find((layer) => layer.kind === "heal");
+      return layer?.kind === "heal" ? layer.patches : [];
+    });
+  }
+  expect(await patches()).toMatchObject([
+    { mode: "clone", feather: 0.35, stroke: { size: 20 } },
+  ]);
+  const copied = await readImage(page, undefined, [
+    [350, 200],
+    [600, 400],
+  ]);
+  expect(copied.samples?.[0]).toEqual(copied.samples?.[1]);
+  await page.mouse.click(source[0], source[1], { button: "right" });
+  const menu = page.getByRole("dialog");
+  await expect(
+    menu.getByRole("textbox", { name: "Feather", exact: true }),
+  ).toHaveValue("35");
+  await menu.getByRole("textbox", { name: "Feather", exact: true }).fill("45");
+  await menu
+    .getByRole("textbox", { name: "Feather", exact: true })
+    .press("Enter");
+  await page.keyboard.press("Escape");
+  await expect(feather).toHaveValue("45");
+  await page.keyboard.press("b");
+  await size.fill("70");
+  await size.press("Enter");
+  await feather.fill("60");
+  await feather.press("Enter");
+  await page.keyboard.press("c");
+  await page.keyboard.press("h");
+  await expect(size).toHaveValue("20");
+  await expect(feather).toHaveValue("45");
+  await expect(heal).toHaveAttribute("aria-pressed", "true");
+  await page.evaluate((id) => window.openlight.selectLayer(id), layerId);
+  await page.keyboard.press("Shift+BracketRight");
+  await expect(feather).toHaveValue("60");
+  await page.keyboard.press("Shift+BracketLeft");
+  await expect(feather).toHaveValue("50");
+  await page.keyboard.down("Alt");
+  await page.mouse.click(source[0], source[1]);
+  await page.keyboard.up("Alt");
+  const second = point(850, 400);
+  await page.mouse.click(second[0], second[1]);
+  expect(await patches()).toHaveLength(2);
+  await page.keyboard.press("h");
+  await expect(clone).toHaveAttribute("aria-pressed", "true");
+  const third = point(900, 400);
+  await page.mouse.click(third[0], third[1]);
+  expect(await patches()).toMatchObject([
+    { mode: "clone", feather: 0.45, stroke: { size: 20 } },
+    { mode: "heal", feather: 0.5, stroke: { size: 20 } },
+    { mode: "clone", feather: 0.5, stroke: { size: 20 } },
+  ]);
+  await page.keyboard.press("ControlOrMeta+z");
+  expect(await patches()).toHaveLength(2);
+  await page.keyboard.press("ControlOrMeta+Shift+z");
+  expect(await patches()).toHaveLength(3);
+  await page
+    .getByRole("button", { name: "Select patch 1", exact: true })
+    .click();
+  await expect(clone).toHaveAttribute("aria-pressed", "true");
+  await page
+    .getByRole("button", { name: "Select patch 2", exact: true })
+    .click();
+  await expect(heal).toHaveAttribute("aria-pressed", "true");
+  await page.keyboard.press("b");
+  await expect(size).toHaveValue("70");
+  await expect(feather).toHaveValue("60");
+});

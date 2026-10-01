@@ -62,7 +62,7 @@ Commands take explicit layer IDs rather than using UI selection. Without an ID, 
 
 Create an empty Heal effect with `addLayer("heal")`.
 
-`addHealPatch(id, stroke, offset)` appends a Healing patch and returns its ID. `stroke` is a painted `BrushStroke`, and `offset` is `[sourceX - targetX, sourceY - targetY]` in source pixels. `setHealSource(id, patchId, offset)` changes a donor. Patches replay in order from the accumulated composite below; the tool supplies automatic donors.
+`addHealPatch(id, stroke, offset, mode?)` appends a Healing patch and returns its ID. `stroke` is a painted `BrushStroke`, and `offset` is `[sourceX - targetX, sourceY - targetY]` in source pixels. `setHealSource(id, patchId, offset)` changes a donor. Patches replay in order from the accumulated composite below; the tool supplies automatic donors. `mode` is `"heal"` (the default) or `"clone"`; Clone copies donor color without boundary correction and retains feather and opacity.
 
 Create an empty Paint layer with `addLayer("paint")`. `addPaintStroke(id, stroke)` appends a `BrushStroke` with a `color`, `#rrggbb` sRGB: a painting stroke lays that color over the layer's earlier paint, and an erasing one removes paint whatever its color. `setPaintBlend(id, blend)` blends the layer's paint over the image below with the modes `setFill` takes, on encoded values as Photoshop does. A paint stroke builds up as a mask's does. In the editor, a layer's strokes settle into pixels once it has 100 and no gesture is open: `getState()` then shows a `raster` ID and fewer strokes, undo still reaches every stroke, and scene files keep the pixels. A photo holds up to 4 Paint layers and 10 brush masks; adding more throws.
 

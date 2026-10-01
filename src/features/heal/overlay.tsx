@@ -31,14 +31,8 @@ export function HealOverlay({
   const mapping = useDocumentMapping();
   const gpu = useGpu();
   const search = useDisposable(() => createHealSearch(gpu), [gpu]);
-  const {
-    feather,
-    source,
-    setSource,
-    selectedPatch,
-    selectPatch,
-    hoveredPatch,
-  } = useHealing();
+  const { mode, source, setSource, selectedPatch, selectPatch, hoveredPatch } =
+    useHealing();
   const [drawingPatch, setDrawingPatch] = useState<string>();
   const [resolvingSource, setResolvingSource] = useState<string>();
   // A manual donor belongs to this visit to the tool.
@@ -89,7 +83,6 @@ export function HealOverlay({
     <BrushCanvas
       label="Healing canvas"
       erase={false}
-      feather={feather}
       onStart={(stroke) => {
         const layer = selectedHealLayer();
         if (!layer) return false;
@@ -104,6 +97,7 @@ export function HealOverlay({
           layer.id,
           { ...stroke, flow: 1 },
           offset,
+          mode,
         );
         setDrawingPatch(patch);
         setResolvingSource(source ? undefined : patch);

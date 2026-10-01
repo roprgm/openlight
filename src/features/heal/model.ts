@@ -82,7 +82,10 @@ export const patchStroke = strokeSchema.check(
 
 export const patchBlend = change(z.object({ feather: unit, opacity: unit }));
 
+export const healModeSchema = z.enum(["heal", "clone"]);
+
 export const healPatchSchema = z.object({
+  mode: z._default(healModeSchema, "heal"),
   id: z.string().check(z.minLength(1)),
   feather: unit,
   stroke: patchStroke,

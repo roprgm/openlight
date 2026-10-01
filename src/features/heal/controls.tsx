@@ -3,22 +3,22 @@ import { ListItem, ListItemAction } from "@roprgm/ui/list-item";
 import { Menu, MenuContent, MenuItem, MenuTrigger } from "@roprgm/ui/menu";
 import { CoverageThumbnail } from "@/components/editor/coverage-thumbnail";
 import { useDocument } from "@/components/editor/session";
-import { HealIcon } from "@/components/icons/heal";
 import { Icon } from "@/components/icons/icon";
 import type { HealPatch } from "@/core/document";
 import { deleteHealPatch, duplicateHealPatch } from "./edits";
 import { useHealing } from "./mode";
+import { PatchModeIcon } from "./mode-buttons";
 import { patchThumbnailRegion } from "./model";
 
 /** A patch still finding its donor has no raster yet. */
-function PendingThumbnail() {
+function PendingThumbnail({ mode }: { mode: HealPatch["mode"] }) {
   return (
     <span
       role="img"
       aria-label="Patch pending"
       className="grid size-8 shrink-0 place-items-center rounded-sm border border-level-8 bg-level-1 text-muted"
     >
-      <HealIcon className="size-4" />
+      <PatchModeIcon mode={mode} className="size-4" />
     </span>
   );
 }
@@ -124,9 +124,13 @@ export function HealControls({
                 version={patch}
                 region={patchThumbnailRegion(patch.stroke, source.image.size)}
                 label="Patch shape"
-                fallback={<PendingThumbnail />}
+                fallback={<PendingThumbnail mode={patch.mode} />}
               />
               <span className="min-w-0 flex-1 truncate">Patch {index + 1}</span>
+              <PatchModeIcon
+                mode={patch.mode}
+                className="size-3.5 shrink-0 text-muted"
+              />
               <span className="shrink-0 text-muted tabular-nums">
                 {patchSummary(patch)}
               </span>

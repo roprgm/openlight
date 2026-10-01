@@ -32,37 +32,39 @@ function healPatch(
     coverageSize: coverage.size,
   };
   let correction = source;
-  // Coarse-to-fine harmonic extension of the destination/donor log color ratio.
-  // The correction is smooth; the donor retains its full-resolution texture.
-  for (const resolution of [4, 8, 16, 32, 64, 128]) {
-    const ratio = Math.min(1, resolution / Math.max(...extent));
-    const size: [number, number] = [
-      Math.max(2, Math.ceil(extent[0] * ratio)),
-      Math.max(2, Math.ceil(extent[1] * ratio)),
-    ];
-    const params = { ...common, grid: size, feather: 0, opacity: 1 };
-    correction = merge(
-      { source, coverage, previous: correction },
-      node(`${name}/${resolution}/seed`, shader, {
-        size,
-        samplers,
-        set: { params: { ...params, mode: resolution === 4 ? 0 : 1 } },
-      }),
-    );
-    const iterations = resolution === 4 ? 32 : 8;
-    for (let i = 0; i < iterations; i++) {
+  if (patch.mode === "heal") {
+    // Coarse-to-fine harmonic extension of the destination/donor log color ratio.
+    // The correction is smooth; the donor retains its full-resolution texture.
+    for (const resolution of [4, 8, 16, 32, 64, 128]) {
+      const ratio = Math.min(1, resolution / Math.max(...extent));
+      const size: [number, number] = [
+        Math.max(2, Math.ceil(extent[0] * ratio)),
+        Math.max(2, Math.ceil(extent[1] * ratio)),
+      ];
+      const params = { ...common, grid: size, feather: 0, opacity: 1 };
       correction = merge(
         { source, coverage, previous: correction },
-        node(`${name}/${resolution}/relax-${i}`, shader, {
-          instance: `${name}/${resolution}/relax`,
+        node(`${name}/${resolution}/seed`, shader, {
           size,
           samplers,
-          set: { params: { ...params, mode: 2 } },
+          set: { params: { ...params, mode: resolution === 4 ? 0 : 1 } },
         }),
       );
-    }
-    if (resolution >= Math.max(...extent)) {
-      break;
+      const iterations = resolution === 4 ? 32 : 8;
+      for (let i = 0; i < iterations; i++) {
+        correction = merge(
+          { source, coverage, previous: correction },
+          node(`${name}/${resolution}/relax-${i}`, shader, {
+            instance: `${name}/${resolution}/relax`,
+            size,
+            samplers,
+            set: { params: { ...params, mode: 2 } },
+          }),
+        );
+      }
+      if (resolution >= Math.max(...extent)) {
+        break;
+      }
     }
   }
   return merge(
@@ -73,7 +75,7 @@ function healPatch(
         params: {
           ...common,
           grid: source.size,
-          mode: 3,
+          mode: patch.mode === "clone" ? 4 : 3,
           feather: (patch.stroke.size * patch.feather) / 2,
           opacity: patch.opacity,
         },

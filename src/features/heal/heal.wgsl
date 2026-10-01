@@ -64,7 +64,7 @@ fn patchCoverage(
 
 @fragment fn fs_main(@builtin(position) position: vec4f) -> @location(0) vec4f {
   let uv = position.xy / params.grid;
-  if (params.mode == 3u) {
+  if (params.mode == 3u || params.mode == 4u) {
     let p = uv * params.dimensions;
     let original = color(p);
     if (any(p < params.origin) || any(p > params.origin + params.extent)) {
@@ -74,6 +74,9 @@ fn patchCoverage(
     let donor = p + params.offset;
     if (amount == 0.0 || any(donor < vec2f(0.5)) || any(donor > params.dimensions - 0.5)) {
       return original;
+    }
+    if (params.mode == 4u) {
+      return vec4f(mix(original.rgb, color(donor).rgb, amount), original.a);
     }
     let donorColor = max(color(donor).rgb, vec3f(0.0));
     let delta = textureSampleLevel(previous, linearSampler, (p - params.origin) / params.extent, 0.0).rgb;

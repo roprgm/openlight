@@ -13,7 +13,7 @@ import type { BrushStroke, StrokePoint } from "@/core/document";
 import type { Point } from "@/core/image/frame";
 import { useShortcuts } from "@/hooks/use-shortcuts";
 import { blurActive } from "@/lib/dom";
-import { useBrushParameters, useBrushTool } from "./brush-tool";
+import { useBrushInput } from "./brush-input";
 import { CanvasHint } from "./canvas-hint";
 import { useDocumentMapping } from "./mapping";
 import { useDocument } from "./session";
@@ -41,7 +41,6 @@ type PointerLike = {
 export function BrushCanvas({
   label,
   erase,
-  feather,
   onStart,
   onExtend,
   onComplete,
@@ -52,8 +51,6 @@ export function BrushCanvas({
 }: {
   label: string;
   erase: boolean;
-  /** Overrides the shared brush feather for tools that own their stroke softness. */
-  feather?: number;
   /** Records the first dab and returns whether the stroke started; a declined stroke leaves nothing behind. */
   onStart: (stroke: BrushStroke) => boolean;
   onExtend: (points: readonly StrokePoint[]) => void;
@@ -64,8 +61,7 @@ export function BrushCanvas({
   children?: ReactNode;
 }) {
   const document = useDocument();
-  const brush = useBrushTool();
-  const strokeFeather = feather ?? brush.settings.feather;
+  const brush = useBrushInput();
   const camera = useViewport();
   const mapping = useDocumentMapping();
   const stroke = useRef<Stroke | null>(null);
@@ -177,7 +173,8 @@ export function BrushCanvas({
     "shift+]": () => featherBy(0.1),
   });
   function featherBy(step: number) {
-    const feather = Math.round((brush.settings.feather + step) * 10) / 10;
+    const feather =
+      Math.round((brush.parameters[1].value / 100 + step) * 10) / 10;
     brush.update({ feather: Math.min(1, Math.max(0, feather)) });
   }
   function start(event: PointerEvent<HTMLDivElement>) {
@@ -208,7 +205,7 @@ export function BrushCanvas({
     const started = onStart({
       mode: erase ? "erase" : "paint",
       size: brush.settings.size,
-      feather: strokeFeather,
+      feather: brush.settings.feather,
       flow: brush.settings.flow,
       points: [first],
     });
@@ -300,7 +297,7 @@ export function BrushCanvas({
             <radialGradient id={gradient} cx="0.5" cy="0.5" r="0.5">
               <stop offset="0" stopColor={color} stopOpacity="0.3" />
               <stop
-                offset={1 - strokeFeather}
+                offset={1 - brush.settings.feather}
                 stopColor={color}
                 stopOpacity="0.3"
               />
@@ -337,7 +334,7 @@ export function BrushCanvas({
 
 /** The brush's size and feather where a right click opened them, as Photoshop's brush menu. */
 function BrushMenu({ at, onClose }: { at: Point; onClose: () => void }) {
-  const [size, feather] = useBrushParameters();
+  const [size, feather] = useBrushInput().parameters;
   return (
     <Popover open onOpenChange={(open) => !open && onClose()}>
       <PopoverTrigger

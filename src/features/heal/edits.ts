@@ -2,6 +2,7 @@ import {
   type BrushStroke,
   type EditorDocument,
   editLayer,
+  type HealMode,
   type HealPatch,
   type Layer,
   type StrokePoint,
@@ -9,17 +10,19 @@ import {
 import { strokePoints } from "@/core/document/brush";
 import type { Point } from "@/core/image/frame";
 import { parse, point } from "@/lib/parse";
-import { patchBlend, patchStroke } from "./model";
+import { healModeSchema, patchBlend, patchStroke } from "./model";
 
 export function addHealPatch(
   document: EditorDocument,
   id: string,
   stroke: BrushStroke,
   offset: Point,
+  mode: HealMode = "heal",
 ) {
   const painted = parse(patchStroke, stroke, "Invalid heal stroke");
   const patch: HealPatch = {
     id: crypto.randomUUID(),
+    mode: parse(healModeSchema, mode, "Invalid heal mode"),
     feather: painted.feather,
     stroke: { ...painted, feather: 0 },
     opacity: 1,

@@ -32,6 +32,7 @@ export type Workload =
   | "lut"
   | "paint"
   | "heal"
+  | "clone"
   | "heal-empty"
   | "heal-proxy"
   | "pipeline-proxy";
@@ -245,6 +246,7 @@ export async function benchmarkRendering(
   }
   if (
     workload === "heal" ||
+    workload === "clone" ||
     workload === "heal-empty" ||
     workload === "heal-proxy"
   ) {
@@ -259,6 +261,7 @@ export async function benchmarkRendering(
           : [
               {
                 id: "spot",
+                mode: workload === "clone" ? "clone" : "heal",
                 feather: 0.4,
                 opacity: 1,
                 stroke: {

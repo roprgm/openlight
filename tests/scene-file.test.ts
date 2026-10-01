@@ -98,6 +98,12 @@ test("scene files reopen the photo with every layer for further editing", async 
       { mode: "paint", size: 4, feather: 0.2, flow: 1, points: [[40, 20, 1]] },
       [-6, 2],
     );
+    api.addHealPatch(
+      heal,
+      { mode: "paint", size: 4, feather: 0.2, flow: 1, points: [[48, 20, 1]] },
+      [-6, 2],
+      "clone",
+    );
     const paint = api.addLayer("paint");
     api.addPaintStroke(paint, {
       mode: "paint",
@@ -240,9 +246,16 @@ test("scene files reopen the photo with every layer for further editing", async 
     );
     delete vignette.vignette.softness;
     delete json.scene.layers[0].whiteBalance;
+    const healing = json.scene.layers.find(
+      (layer: { kind: string }) => layer.kind === "heal",
+    );
+    delete healing.patches[0].mode;
     const older = await openSceneFile(await archive(json), raw.decode);
     const loaded = older.scene.getState();
     expect(loaded.layers[0].whiteBalance).toEqual(asShot);
+    expect(loaded.layers.find((layer) => layer.kind === "heal")).toMatchObject({
+      patches: [{ mode: "heal" }, { mode: "clone" }],
+    });
     expect(
       loaded.layers.find((layer) => layer.kind === "vignette"),
     ).toMatchObject({ vignette: { intensity: 70, softness: 50 } });
