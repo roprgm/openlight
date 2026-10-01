@@ -26,6 +26,7 @@ import { vignette } from "@/features/vignette/pass";
 type Branch = {
   image: RenderImage;
   input?: RenderImage;
+  rangeSource?: RenderImage;
 };
 
 function composeLayer(
@@ -41,8 +42,11 @@ function composeLayer(
     layer.id === composition.inputId ||
     (layer.kind === "heal" &&
       layer.patches.some((patch) => patch.id === composition.inputId));
+  // A mask's ranges read the image below it, hidden or not.
+  const rangeSource =
+    layer.id === composition.rangeSourceId ? below : undefined;
   if (bypassed && !inspected) {
-    return { image: below };
+    return { image: below, rangeSource };
   }
   const masks = layer.kind === "mask" ? maskModifiers(layer) : [];
   const coverage =
@@ -120,7 +124,11 @@ function composeLayer(
     masks,
     coverage,
   );
-  return { image, input: input ?? children.input };
+  return {
+    image,
+    input: input ?? children.input,
+    rangeSource: rangeSource ?? children.rangeSource,
+  };
 }
 
 function composeLayers(
@@ -130,12 +138,14 @@ function composeLayers(
 ): Branch {
   let image = below;
   let input: RenderImage | undefined;
+  let rangeSource: RenderImage | undefined;
   for (const layer of layers) {
     const branch = composeLayer(image, layer, composition);
     image = branch.image;
     input ??= branch.input;
+    rangeSource ??= branch.rangeSource;
   }
-  return { image, input };
+  return { image, input, rangeSource };
 }
 
 /**
@@ -183,6 +193,7 @@ export function createEditorRenderer(
           composition.inputId === sourceLayer.id
             ? adjusted
             : (children.input ?? composite.input),
+        rangeSource: children.rangeSource ?? composite.rangeSource,
       };
     },
     timer,

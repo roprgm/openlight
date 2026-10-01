@@ -1,5 +1,6 @@
 import { IconButton } from "@roprgm/ui/icon-button";
 import { Slider } from "@roprgm/ui/slider";
+import { ColorInput } from "@/components/editor/color-input";
 import type { Parameter } from "@/components/editor/parameter";
 import { useDocument } from "@/components/editor/session";
 import { barSlider, useBarDensity } from "@/components/editor/toolbar-density";
@@ -74,7 +75,7 @@ function rangeParameters(
   ];
 }
 
-/** A range mask's options in the canvas bar: its color, which the next click on the photo picks, and its numbers. */
+/** A range mask's options in the canvas bar: its color, chosen or picked from the photo, and its numbers. */
 export function RangeOptions({ id, mask }: { id: string; mask: RangeMask }) {
   const document = useDocument();
   const density = useBarDensity();
@@ -83,11 +84,10 @@ export function RangeOptions({ id, mask }: { id: string; mask: RangeMask }) {
     <>
       {mask.kind === "color-range" && (
         <span className="flex items-center gap-1">
-          <span
-            role="img"
-            aria-label={`Color ${mask.color}`}
-            className="size-5 rounded-sm surface-sunken"
-            style={{ backgroundColor: mask.color }}
+          <ColorInput
+            label="Range color"
+            value={mask.color}
+            onChange={(color) => setLayerMask(document, id, { ...mask, color })}
           />
           <IconButton
             label="Pick a color from the photo"

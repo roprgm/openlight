@@ -65,6 +65,8 @@ export type Preview = {
     /** The layer's opacity, which scales the tint like it scales the effect. */
     readonly opacity?: number;
   };
+  /** The mask whose ranges' image, the one below it, renders keep while a color is picked from it. */
+  rangeSource?: string;
 };
 
 /** Scenes contain only plain values; unchanged branches keep their identity. */

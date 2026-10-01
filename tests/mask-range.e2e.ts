@@ -67,24 +67,45 @@ test("luminance and color range masks select tones and a picked color", async ({
 
   await addEffect(page, "Color Range");
   const picker = page.getByRole("application", { name: "Color range canvas" });
-  await expect(picker).toContainText("Click the photo to pick the color");
+  await expect(picker).toContainText("drag over the photo to pick the color");
   const canvas = await box(picker);
-  // Just past the center, on the orange quadrant, whatever the zoom.
-  await page.mouse.click(
+  // Just past the center, on the orange and blue quadrants, whatever the zoom.
+  const orange = [
     canvas.x + canvas.width / 2 + 20,
     canvas.y + canvas.height / 2 + 20,
-  );
-  await expect(
-    page.getByRole("img", { name: /^Color #/ }),
-  ).toHaveAccessibleName("Color #e07020");
+  ];
+  const blue = [
+    canvas.x + canvas.width / 2 - 20,
+    canvas.y + canvas.height / 2 + 20,
+  ];
+  const color = page.getByLabel("Range color", { exact: true });
+  await page.mouse.click(orange[0], orange[1]);
+  await expect(color).toHaveValue("#e07020");
   await page.keyboard.press("Escape");
   await expect(picker).toHaveCount(0);
   await setField(page, "Saturation", "-100");
   const gray = await quadrantColors(page);
   expect(Math.abs(gray.orange[0] - gray.orange[2])).toBeLessThan(12);
   expect({ ...gray, orange: darkened.orange }).toEqual(darkened);
+
+  // Picking again reads the photo below the mask, so its own edit doesn't change the color.
+  await page
+    .getByRole("button", { name: "Pick a color from the photo", exact: true })
+    .click();
+  await page.mouse.click(orange[0], orange[1]);
+  await expect(color).toHaveValue("#e07020");
+  // A drag keeps picking, as one edit.
+  await page.mouse.move(orange[0], orange[1]);
+  await page.mouse.down();
+  await page.mouse.move(blue[0], blue[1], { steps: 4 });
+  await page.mouse.up();
+  await expect(color).toHaveValue("#2060d0");
+  const recolored = await quadrantColors(page);
+  expect(Math.abs(recolored.blue[0] - recolored.blue[2])).toBeLessThan(12);
+  expect(recolored.orange).toEqual(darkened.orange);
   await page.getByRole("button", { name: "Undo", exact: true }).click();
-  expect(await quadrantColors(page)).toEqual(darkened);
+  await expect(color).toHaveValue("#e07020");
+  expect(await quadrantColors(page)).toEqual(gray);
 });
 
 test("a range intersects, or is shaped by, gradient and brush masks", async ({

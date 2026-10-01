@@ -52,6 +52,8 @@ export { createRenderGraph };
 
 export type Composition = {
   inputId?: string;
+  /** The mask whose ranges' image, the one below it, to keep for picking colors from it. */
+  rangeSourceId?: string;
   /** Keep one stable composition instance and its render-graph resources reusable. */
   retain: (id: string) => void;
   /**
@@ -75,11 +77,13 @@ export type SceneProcessing = (
   full: RenderImage;
   output: RenderImage;
   input?: RenderImage;
+  rangeSource?: RenderImage;
 };
 
 type RenderRequest = {
   scene: Scene;
   inputId?: string;
+  rangeSourceId?: string;
   /** Source pixels per texel of the composition's source; above 1 renders a reduced proxy. */
   factor: number;
 };
@@ -117,6 +121,7 @@ export function createRenderer(
   let rendered = false;
   let output = source;
   let inspected: { id: string; image: Target } | undefined;
+  let kept: { id: string; image: Target } | undefined;
   /** Mask coverage the graph rendered for the overlay and thumbnails, by layer ID. */
   let shown = new Map<string, Target>();
   let balance = resource.raw?.asShot;
@@ -131,11 +136,12 @@ export function createRenderer(
   let disposed = false;
   let instances = new Set<string>();
   function render(request: RenderRequest) {
-    const { scene, inputId, factor } = request;
+    const { scene, inputId, rangeSourceId, factor } = request;
     if (
       last &&
       last.scene === scene &&
       last.inputId === inputId &&
+      last.rangeSourceId === rangeSourceId &&
       last.factor === factor
     ) {
       return;
@@ -156,6 +162,7 @@ export function createRenderer(
     const covered = new Map<string, RenderImage>();
     const images = compose(image, scene, {
       inputId,
+      rangeSourceId,
       retain: (id) => active.add(id),
       coverage: (layer, below) =>
         masks.coverage(layer, below, {
@@ -174,18 +181,27 @@ export function createRenderer(
     patches.sweep();
     paints.sweep();
     strokes.sweep();
+    // Every render shows three images; the inspected input, the range source, and coverage follow.
     const inputs = images.input ? [images.input] : [];
+    const sources = images.rangeSource ? [images.rangeSource] : [];
     const targets = graph.render([
       images.original,
       images.full,
       images.output,
       ...inputs,
+      ...sources,
       ...covered.values(),
     ]);
     [original, full, output] = targets;
+    const [inputTarget] = targets.slice(3, 3 + inputs.length);
+    const [sourceTarget] = targets.slice(3 + inputs.length);
+    const coverages = targets.slice(3 + inputs.length + sources.length);
     inspected =
-      inputId && images.input ? { id: inputId, image: targets[3] } : undefined;
-    const coverages = targets.slice(3 + inputs.length);
+      inputId && images.input ? { id: inputId, image: inputTarget } : undefined;
+    kept =
+      rangeSourceId && images.rangeSource
+        ? { id: rangeSourceId, image: sourceTarget }
+        : undefined;
     shown = new Map([...covered.keys()].map((id, i) => [id, coverages[i]]));
     rendered = true;
     last = request;
@@ -243,22 +259,27 @@ export function createRenderer(
       }
     }
   }
-  /** Interactive updates render at a proxy resolution matched to the display scale. */
+  /**
+   * Interactive updates render at a proxy resolution matched to the display scale. `inputId` keeps a
+   * layer's curve input, and `rangeSourceId` a mask's range source, for reading them.
+   */
   async function update(
     scene: Scene,
     inputId?: string,
     interactive = false,
+    rangeSourceId?: string,
   ): Promise<void> {
     if (disposed) {
       throw Error("Renderer is closed.");
     }
     const factor = interactive ? Math.max(1, Math.floor(1 / displayScale)) : 1;
+    const request = { scene, inputId, rangeSourceId, factor };
     // Renders wait, in order, for a settle, a RAW development, or settled paint to load.
     if (!raw && !pending && !settling && !stalePaint(scene).length) {
-      render({ scene, inputId, factor });
+      render(request);
       return;
     }
-    next = { scene, inputId, factor };
+    next = request;
     pending ??= develop()
       .catch((error) => {
         if (!next) {
@@ -268,7 +289,8 @@ export function createRenderer(
       .finally(() => {
         pending = undefined;
         if (next && !disposed) {
-          return update(next.scene, next.inputId, next.factor > 1);
+          const { scene, inputId, factor, rangeSourceId } = next;
+          return update(scene, inputId, factor > 1, rangeSourceId);
         }
       });
     return pending;
@@ -291,6 +313,8 @@ export function createRenderer(
     outputImage: () => output,
     inputImage: (id: string) =>
       inspected?.id === id ? inspected.image : undefined,
+    /** The image below a mask, which its ranges read, while an update keeps it. */
+    rangeSource: (id: string) => (kept?.id === id ? kept.image : undefined),
     /**
      * A raster by ID and where it sits in the photo: a mask's coverage, for the display overlay and
      * thumbnails, a Healing patch's, or a paint layer's.
