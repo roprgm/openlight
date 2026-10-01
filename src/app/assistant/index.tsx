@@ -172,7 +172,7 @@ export function Assistant({
               aria-label="Assistant"
               onClick={() => show(true)}
               className={cn(
-                "absolute bottom-0 left-0 grid size-10 place-items-center text-muted transition-colors hover:text-foreground",
+                "absolute bottom-0 left-0 grid size-10 place-items-center text-secondary transition-colors hover:text-foreground",
                 open ? vanish : appear,
               )}
             >
@@ -219,7 +219,7 @@ export function Assistant({
                   key={index}
                   ref={index === messages.length - 1 ? newest : undefined}
                   className={
-                    message.from === "user" ? "font-medium" : "text-muted"
+                    message.from === "user" ? "font-medium" : "text-secondary"
                   }
                 >
                   {message.text}
