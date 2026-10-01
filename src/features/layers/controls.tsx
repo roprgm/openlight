@@ -29,7 +29,12 @@ import {
   type TreeDrop,
   useTreeDragItem,
 } from "@/components/ui/tree-drag";
-import { type EffectLayer, findLayer, type Layer } from "@/core/document";
+import {
+  type EffectLayer,
+  findLayer,
+  type Layer,
+  type MaskLayer,
+} from "@/core/document";
 import { useShortcuts } from "@/hooks/use-shortcuts";
 import { layerDrop } from "./drop";
 import { deleteLayer, moveLayer, setLayer } from "./edits";
@@ -45,6 +50,16 @@ export type EffectKind = {
   readonly Icon?: ComponentType<IconProps>;
   /** Offered in the Add menu; tools create the others. */
   readonly addable: boolean;
+};
+
+/** How a submask's row shows what it does to its parent mask. */
+const submaskOperations: Record<
+  MaskLayer["operation"],
+  { sign: string; effect: string }
+> = {
+  add: { sign: "+", effect: "Adds to" },
+  subtract: { sign: "−", effect: "Subtracts from" },
+  intersect: { sign: "∩", effect: "Intersects with" },
 };
 
 function LayerThumbnail({
@@ -109,9 +124,10 @@ const LayerRow = memo(function LayerRow({
   });
   const dragHandle = isImage ? {} : drag.handle;
   const chevronStyle = { transform: expanded ? "rotate(90deg)" : undefined };
-  const isSubmask = layer.kind === "mask" && parent?.kind === "mask";
-  const maskSign =
-    layer.kind === "mask" && layer.operation === "subtract" ? "−" : "+";
+  const operation =
+    layer.kind === "mask" && parent?.kind === "mask"
+      ? submaskOperations[layer.operation]
+      : undefined;
   const expandLabel = `${expanded ? "Collapse" : "Expand"} ${layer.name}`;
   return (
     <>
@@ -164,19 +180,17 @@ const LayerRow = memo(function LayerRow({
           onSelect={() => onSelect(layer.id)}
           dragHandle={dragHandle}
         />
-        {isSubmask && (
+        {operation && (
           <Tooltip>
             <TooltipTrigger
               render={
                 <span className="grid size-6 shrink-0 place-items-center text-muted">
-                  {maskSign}
+                  {operation.sign}
                 </span>
               }
             />
             <TooltipContent>
-              {maskSign === "+"
-                ? `Adds to ${parent?.name}`
-                : `Subtracts from ${parent?.name}`}
+              {operation.effect} {parent?.name}
             </TooltipContent>
           </Tooltip>
         )}

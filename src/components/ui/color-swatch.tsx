@@ -12,7 +12,7 @@ export function ColorSwatch({
   onClose,
   className,
   ...props
-}: Omit<ComponentProps<"label">, "onChange"> & {
+}: Omit<ComponentProps<"span">, "onChange"> & {
   label: string;
   value: string;
   onChange: (color: string) => void;
@@ -28,10 +28,10 @@ export function ColorSwatch({
     return () => element.removeEventListener("change", onClose);
   }, [onClose]);
   return (
-    <label
+    <span
       {...props}
       className={cn(
-        "block size-5 shrink-0 cursor-pointer rounded-sm surface-raised focus-ring",
+        "relative block size-5 shrink-0 rounded-sm surface-raised focus-ring",
         className,
       )}
       style={{ backgroundColor: value }}
@@ -41,9 +41,9 @@ export function ColorSwatch({
         type="color"
         aria-label={label}
         value={value}
-        className="sr-only"
+        className="absolute inset-0 size-full cursor-pointer opacity-0"
         onChange={(event) => onChange(event.currentTarget.value)}
       />
-    </label>
+    </span>
   );
 }

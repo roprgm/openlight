@@ -21,6 +21,8 @@ type Drag = {
   box: DOMRect;
   /** Whether a color has landed and opened the drag's edit. */
   started: boolean;
+  /** Whether the drag was cancelled, so colors still to land change nothing. */
+  cancelled: boolean;
   /** The latest color to land, which the drag waits for before it ends. */
   landed: Promise<unknown>;
 };
@@ -60,6 +62,8 @@ export function RangePicker() {
     return () => document.preview.setState({ rangeSource: undefined });
   }, [document, source]);
   const drag = useRef<Drag | null>(null);
+  /** The previous drag's end, which a new drag's colors wait for so the two edits never overlap. */
+  const ended = useRef<Promise<unknown>>(Promise.resolve());
   /** Gives the selected color range a color, while it is one. */
   function recolor(color: string) {
     const id = document.selection.getState().layerId;
@@ -82,7 +86,7 @@ export function RangePicker() {
       source ? renderer.rangeSource(source) : renderer.fullImage();
     const color = sampler.sample(image, [x / size[0], y / size[1]]);
     current.landed = Promise.all([current.landed, color]).then(([, color]) => {
-      if (!color || document.closed) {
+      if (!color || current.cancelled || document.closed) {
         return;
       }
       if (!current.started) {
@@ -101,11 +105,16 @@ export function RangePicker() {
   }
   function end(cancel: boolean) {
     const current = drag.current;
+    if (!current) {
+      return;
+    }
     drag.current = null;
-    void current?.landed.finally(() =>
+    current.cancelled = cancel;
+    ended.current = current.landed.finally(() =>
       cancel ? document.history.cancel() : document.history.commit(),
     );
   }
+  useEffect(() => () => end(true), []);
   useShortcuts({
     escape: () => (drag.current ? end(true) : tool.edit()),
     enter: () => {
@@ -125,7 +134,8 @@ export function RangePicker() {
       pointer: event.pointerId,
       box,
       started: false,
-      landed: Promise.resolve(),
+      cancelled: false,
+      landed: ended.current,
     };
     drag.current = current;
     pick(current, event);
@@ -155,11 +165,7 @@ export function RangePicker() {
       onPointerMove={move}
       onPointerUp={finish}
       onPointerCancel={() => end(true)}
-      onLostPointerCapture={() => {
-        if (drag.current) {
-          end(false);
-        }
-      }}
+      onLostPointerCapture={() => end(false)}
     >
       <CanvasHint>
         Click or drag over the photo to pick the color to select
