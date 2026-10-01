@@ -8,11 +8,12 @@
   --color-edge: oklch(0% 0 0);
 }
 
-/* `optional` never swaps after first paint, so the font can't cause layout shift. */
+/* `block` waits for Geist instead of painting a fallback first; the page preloads the file, so
+   the wait is short and text never shows in another font. */
 @font-face {
   font-family: "Geist Variable";
   font-style: normal;
-  font-display: optional;
+  font-display: block;
   font-weight: 100 900;
   src: url("@fontsource-variable/geist/files/geist-latin-wght-normal.woff2")
     format("woff2-variations");
