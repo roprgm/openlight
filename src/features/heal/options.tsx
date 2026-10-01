@@ -18,7 +18,7 @@ export function HealOptions() {
   const layer = useSelectedLayer();
   const selected = useSelectedHealPatch();
   const density = useBarDensity();
-  const modeLabel = mode === "heal" ? "Heal mode" : "Clone mode";
+  const modeLabel = `${mode[0].toUpperCase()}${mode.slice(1)} mode`;
   function changePatch(change: Parameters<typeof setHealPatch>[3]) {
     if (selected && layer?.kind === "heal") {
       setHealPatch(document, layer.id, selected.id, change);
@@ -37,7 +37,7 @@ export function HealOptions() {
       onChange: (value) => changePatch({ opacity: value / 100 }),
     });
   }
-  const automatic = source && (
+  const automatic = source && mode !== "remove" && (
     <Tooltip>
       <TooltipTrigger
         render={
@@ -54,7 +54,8 @@ export function HealOptions() {
       <DockControls
         header={<HealModeButtons />}
         action={
-          source && (
+          source &&
+          mode !== "remove" && (
             <IconButton
               label="Use automatic source · Alt-click sets a source"
               className="pointer-coarse:size-10"

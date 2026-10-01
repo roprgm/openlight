@@ -114,17 +114,18 @@ export type Painting<S extends BrushStroke = BrushStroke> = {
 };
 /** Coverage painted with strokes; the renderer rasterizes them into a cached texture. */
 export type BrushMask = { readonly kind: "brush" } & Painting;
-export type HealMode = "heal" | "clone";
-/** One non-destructive repair: a painted shape filled from a donor at `offset` source pixels away. */
+export type HealMode = "heal" | "clone" | "remove";
+/** A painted repair: Heal/Clone use a donor offset; Remove synthesizes surrounding texture. */
 export type HealPatch = {
-  readonly mode: HealMode;
   readonly id: string;
   /** Feather applied after the stroke's dabs have accumulated into one patch shape. */
   readonly feather: number;
   readonly stroke: BrushStroke;
   readonly opacity: number;
-  readonly offset: Point;
-};
+} & (
+  | { readonly mode: "heal" | "clone"; readonly offset: Point }
+  | { readonly mode: "remove" }
+);
 export type Mask = Gradient | BrushMask;
 export type ProcessingLayer = {
   readonly id: string;

@@ -9,7 +9,7 @@ import {
   type Timer,
   target,
 } from "vgpu";
-import type { RenderImage, RenderNode } from "./node";
+import type { CacheKey, RenderImage, RenderNode } from "./node";
 
 type Pass = {
   shader: RenderNode["shader"];
@@ -18,11 +18,21 @@ type Pass = {
   buffers: Map<string, { buffer: Buffer; data: Float32Array }>;
 };
 
-function plan(outputs: readonly RenderImage[]) {
+type Cached = { keys: readonly CacheKey[]; target: Target };
+
+function sameKeys(a: readonly CacheKey[], b: readonly CacheKey[]) {
+  return a.length === b.length && a.every((key, index) => key === b[index]);
+}
+
+function plan(
+  outputs: readonly RenderImage[],
+  caches: ReadonlyMap<string, Cached[]>,
+) {
   const uses = new Map<RenderImage, number>();
   const order: RenderNode[] = [];
   const live = new Set<Target>();
   const names = new Set<string>();
+  const results = new Map<RenderNode, Target>();
   function visit(image: RenderImage) {
     const count = uses.get(image) ?? 0;
     uses.set(image, count + 1);
@@ -37,18 +47,35 @@ function plan(outputs: readonly RenderImage[]) {
       throw Error(`Duplicate render node: ${image.name}.`);
     }
     names.add(image.name);
+    const keys = image.cacheKeys;
+    const cached =
+      keys &&
+      caches
+        .get(image.name)
+        ?.find(
+          (cached) =>
+            sameKeys(cached.keys, keys) &&
+            cached.target.format === image.format &&
+            cached.target.size[0] === image.size[0] &&
+            cached.target.size[1] === image.size[1],
+        );
+    if (cached) {
+      live.add(cached.target);
+      results.set(image, cached.target);
+      return;
+    }
     Object.values(image.inputs).forEach(visit);
     order.push(image);
   }
   // Requested outputs count as consumers, keeping their targets live.
   outputs.forEach(visit);
-  return { order, uses, live };
+  return { order, uses, live, results };
 }
 
 const sizeKey = (image: { size: readonly number[]; format: string }) =>
   `${image.size[0]}x${image.size[1]} ${image.format}`;
 
-/** Owns effects, storage buffers, and transient targets for one renderer. */
+/** Owns effects, storage buffers, transient targets, and cached results for one renderer. */
 export function createRenderGraph(gpu: Gpu, timer?: Timer) {
   const pool: Target[] = [];
   /**
@@ -58,6 +85,7 @@ export function createRenderGraph(gpu: Gpu, timer?: Timer) {
    */
   let recent: Map<string, number>[] = [];
   const effects = new Map<string, Pass>();
+  const caches = new Map<string, Cached[]>();
   let passes: string[] = [];
   let disposed = false;
   function prepare(node: RenderNode) {
@@ -117,9 +145,29 @@ export function createRenderGraph(gpu: Gpu, timer?: Timer) {
     pool.push(image);
     return image;
   }
+  function acquireCached(node: RenderNode, live: ReadonlySet<Target>) {
+    const entries = caches.get(node.name);
+    const oldest = entries?.length === 2 ? entries.pop() : undefined;
+    if (oldest) {
+      if (
+        !live.has(oldest.target) &&
+        sizeKey(oldest.target) === sizeKey(node)
+      ) {
+        return oldest.target;
+      }
+      // An evicted result can still be an input to this frame; the pool respects its lifetime.
+      pool.push(oldest.target);
+    }
+    return target(gpu, { size: node.size, format: node.format });
+  }
   return {
     /** Retire removed composition instances; bypassed instances remain reusable. */
     release(prefix: string) {
+      for (const [name, entries] of caches) {
+        if (!name.startsWith(prefix)) continue;
+        for (const { target } of entries) target.color.dispose();
+        caches.delete(name);
+      }
       for (const [name, pass] of effects) {
         if (name.startsWith(prefix)) {
           for (const { buffer } of pass.buffers.values()) {
@@ -133,8 +181,7 @@ export function createRenderGraph(gpu: Gpu, timer?: Timer) {
       if (disposed) {
         throw Error("Render graph is closed.");
       }
-      const { order, uses, live } = plan(outputs);
-      const results = new Map<RenderNode, Target>();
+      const { order, uses, live, results } = plan(outputs, caches);
       function resolve(image: RenderImage): Target {
         if (!("inputs" in image)) {
           return image.target;
@@ -158,10 +205,17 @@ export function createRenderGraph(gpu: Gpu, timer?: Timer) {
               ]),
             ),
           });
-          const output = acquire(node, live);
+          const output = node.cacheKeys
+            ? acquireCached(node, live)
+            : acquire(node, live);
           live.add(output);
-          written.add(output);
+          if (!node.cacheKeys) written.add(output);
           frame.pass({ target: output, timer: timer?.span(node.name) }, pass);
+          if (node.cacheKeys) {
+            const entries = caches.get(node.name) ?? [];
+            entries.unshift({ keys: node.cacheKeys, target: output });
+            caches.set(node.name, entries);
+          }
           results.set(node, output);
           for (const input of Object.values(node.inputs)) {
             const remaining = (uses.get(input) ?? 0) - 1;
@@ -221,6 +275,12 @@ export function createRenderGraph(gpu: Gpu, timer?: Timer) {
           size: [...size],
           format,
         })),
+        cachedTextures: [...caches.values()].flatMap((entries) =>
+          entries.map(({ target }) => ({
+            size: [...target.size],
+            format: target.format,
+          })),
+        ),
       };
     },
     dispose() {
@@ -231,6 +291,10 @@ export function createRenderGraph(gpu: Gpu, timer?: Timer) {
         }
       }
       effects.clear();
+      for (const entries of caches.values()) {
+        for (const { target } of entries) target.color.dispose();
+      }
+      caches.clear();
       for (const image of pool) {
         image.color.dispose();
       }

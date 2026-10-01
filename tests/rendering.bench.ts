@@ -21,6 +21,7 @@ for (const workload of [
   "paint",
   "heal",
   "clone",
+  "remove",
   "heal-empty",
   "heal-proxy",
   "pipeline-proxy",

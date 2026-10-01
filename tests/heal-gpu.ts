@@ -10,7 +10,7 @@ export async function renderHealReference({
   mode = "heal",
   opacity = 1,
 }: {
-  mode?: HealMode;
+  mode?: Exclude<HealMode, "remove">;
   opacity?: number;
 } = {}) {
   const gpu = await init();

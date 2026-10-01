@@ -18,6 +18,49 @@ const shader = `
 }`;
 const options = { storage: { weights: new Float32Array([0.5]) } };
 
+test("cached branches skip their dependencies, retain two revisions, and release owned results", async () => {
+  const gpu = await init();
+  const image = target(gpu, { size: [8, 8], format: "rgba16float" });
+  const source = input(image);
+  const graph = createRenderGraph(gpu);
+  const expensive = merge(
+    { source, base: source },
+    node("repair/search", shader, options),
+  );
+  const cached = (key: object) =>
+    merge(
+      { source: expensive, base: source },
+      node("repair/result", shader, { ...options, cacheKeys: [key] }),
+    );
+  try {
+    const firstKey = {};
+    const secondKey = {};
+    const [first] = graph.render([cached(firstKey)]);
+    expect(graph.inspect().passes).toEqual(["repair/search", "repair/result"]);
+    expect(graph.render([cached(firstKey)])[0]).toBe(first);
+    expect(graph.inspect().passes).toEqual([]);
+    const [second] = graph.render([cached(secondKey)]);
+    expect(second).not.toBe(first);
+    expect(graph.render([cached(firstKey)])[0]).toBe(first);
+    expect(graph.render([cached({})])[0]).toBe(first);
+    expect(graph.inspect().cachedTextures).toHaveLength(2);
+    // Eviction must keep a result that the caller is still using in this frame.
+    const latest = cached({});
+    expect(graph.render([input(second), latest])[0]).toBe(second);
+    expect(() => second.color.view).not.toThrow();
+    graph.render([latest]);
+    expect(() => second.color.view).toThrow("destroyed");
+    graph.release("repair/");
+    expect(graph.inspect().cachedTextures).toHaveLength(0);
+    expect(() => second.color.view).toThrow("destroyed");
+    expect(() => image.color.view).not.toThrow();
+  } finally {
+    graph.dispose();
+    image.color.dispose();
+    gpu.dispose();
+  }
+});
+
 test("pipeline and split preserve order, bypasses, and named merge inputs", async () => {
   const gpu = await init();
   const image = target(gpu, { size: [8, 4], format: "rgba16float" });

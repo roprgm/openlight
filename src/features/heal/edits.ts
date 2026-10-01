@@ -10,19 +10,24 @@ import {
 import { strokePoints } from "@/core/document/brush";
 import type { Point } from "@/core/image/frame";
 import { parse, point } from "@/lib/parse";
-import { healModeSchema, patchBlend, patchStroke } from "./model";
+import { donorModeSchema, patchBlend, patchStroke } from "./model";
+
+function healPatches(layer: Layer) {
+  if (layer.kind !== "heal") throw Error("Select a Healing layer.");
+  return layer.patches;
+}
 
 export function addHealPatch(
   document: EditorDocument,
   id: string,
   stroke: BrushStroke,
   offset: Point,
-  mode: HealMode = "heal",
+  mode: Exclude<HealMode, "remove"> = "heal",
 ) {
   const painted = parse(patchStroke, stroke, "Invalid heal stroke");
   const patch: HealPatch = {
     id: crypto.randomUUID(),
-    mode: parse(healModeSchema, mode, "Invalid heal mode"),
+    mode: parse(donorModeSchema, mode, "Invalid heal mode"),
     feather: painted.feather,
     stroke: { ...painted, feather: 0 },
     opacity: 1,
@@ -35,9 +40,24 @@ export function addHealPatch(
   return patch.id;
 }
 
-function healPatches(layer: Layer) {
-  if (layer.kind !== "heal") throw Error("Select a Healing layer.");
-  return layer.patches;
+export function addRemovePatch(
+  document: EditorDocument,
+  id: string,
+  stroke: BrushStroke,
+) {
+  const painted = parse(patchStroke, stroke, "Invalid remove stroke");
+  const patch: HealPatch = {
+    id: crypto.randomUUID(),
+    mode: "remove",
+    feather: painted.feather,
+    stroke: { ...painted, feather: 0 },
+    opacity: 1,
+  };
+  editLayer(document, id, (layer) => ({
+    ...layer,
+    patches: [...healPatches(layer), patch],
+  }));
+  return patch.id;
 }
 
 /** Rewrites the patch list around one patch, found by id. */
@@ -55,7 +75,7 @@ function editPatches(
   });
 }
 
-/** Edits one patch's blend; its shape and donor stay as painted. */
+/** Edits the blend while preserving the recorded repair geometry. */
 export function setHealPatch(
   document: EditorDocument,
   id: string,
@@ -131,12 +151,14 @@ export function setHealSource(
   offset: Point,
 ) {
   const source = parse(point, offset, "Invalid heal source");
-  editPatches(document, id, patchId, (patches, index) =>
-    patches.with(index, { ...patches[index], offset: source }),
-  );
+  editPatches(document, id, patchId, (patches, index) => {
+    const patch = patches[index];
+    if (patch.mode === "remove") throw Error("Remove patches have no donor.");
+    return patches.with(index, { ...patch, offset: source });
+  });
 }
 
-/** Moves a patch while its donor stays fixed. */
+/** Moves a patch; a Heal/Clone donor stays fixed. */
 export function setHealDestination(
   document: EditorDocument,
   id: string,
@@ -148,7 +170,7 @@ export function setHealDestination(
     const patch = patches[index];
     const [x, y] = patch.stroke.points[0];
     const delta: Point = [targetX - x, targetY - y];
-    return patches.with(index, {
+    const moved = {
       ...patch,
       stroke: {
         ...patch.stroke,
@@ -156,6 +178,11 @@ export function setHealDestination(
           ([x, y, pressure]) => [x + delta[0], y + delta[1], pressure] as const,
         ),
       },
+    };
+    if (patch.mode === "remove") return patches.with(index, moved);
+    return patches.with(index, {
+      ...moved,
+      mode: patch.mode,
       offset: [patch.offset[0] - delta[0], patch.offset[1] - delta[1]],
     });
   });

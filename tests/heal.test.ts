@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 import { init, target } from "vgpu/mock";
-import { createImageLayer, createLayer } from "@/app/editor/layers";
+import { createImageLayer, createLayer, createMask } from "@/app/editor/layers";
 import { createEditorRenderer } from "@/app/editor/renderer";
 import {
   type BrushStroke,
@@ -10,8 +10,10 @@ import {
 } from "@/core/document";
 import { createImageSource } from "@/core/image";
 import { imageFrame } from "@/core/image/frame";
+import { setAdjustments } from "@/features/adjustments/edits";
 import {
   addHealPatch,
+  addRemovePatch,
   deleteHealPatch,
   duplicateHealPatch,
   extendHealPatch,
@@ -19,7 +21,7 @@ import {
   setHealPatch,
   setHealSource,
 } from "@/features/heal/edits";
-import { addLayer, deleteLayer } from "@/features/layers/edits";
+import { addLayer, deleteLayer, setLayer } from "@/features/layers/edits";
 
 function healFixture(size: readonly [number, number] = [64, 64]) {
   const resources = createResources();
@@ -42,11 +44,99 @@ const dab: BrushStroke = {
   points: [[10, 10, 1]],
 };
 
+test("Remove patches edit, move, duplicate, and undo without a donor", () => {
+  const { document, layer } = healFixture();
+  try {
+    document.history.begin();
+    const patch = addRemovePatch(document, layer, { ...dab, feather: 0.3 });
+    extendHealPatch(document, layer, [[12, 14, 1]]);
+    document.history.commit();
+    setHealPatch(document, layer, patch, { opacity: 0.5 });
+    setHealDestination(document, layer, patch, [20, 30]);
+    const copy = duplicateHealPatch(document, layer, patch);
+    expect(patchesOf(document, layer)).toMatchObject([
+      {
+        id: patch,
+        mode: "remove",
+        opacity: 0.5,
+        feather: 0.3,
+        stroke: {
+          points: [
+            [20, 30, 1],
+            [22, 34, 1],
+          ],
+        },
+      },
+      { id: copy, mode: "remove" },
+    ]);
+    expect(patchesOf(document, layer)[0]).not.toHaveProperty("offset");
+    expect(() => setHealSource(document, layer, patch, [10, 10])).toThrow(
+      "no donor",
+    );
+    document.history.undo();
+    expect(patchesOf(document, layer)).toHaveLength(1);
+    document.history.undo();
+    document.history.undo();
+    document.history.undo();
+    expect(patchesOf(document, layer)).toHaveLength(0);
+    document.history.redo();
+    expect(patchesOf(document, layer)[0].mode).toBe("remove");
+  } finally {
+    document.dispose();
+  }
+});
+
 function patchesOf(document: ReturnType<typeof createDocument>, layer: string) {
   const healing = findLayer(document.scene.getState().layers, layer);
   if (healing?.kind !== "heal") throw Error("Healing layer missing.");
   return healing.patches;
 }
+
+test("a nested Remove reuses synthesis for blend edits and invalidates upstream content and proxy changes", async () => {
+  const gpu = await init();
+  const source = createImageSource(
+    target(gpu, { size: [128, 96], format: "rgba16float" }),
+  );
+  const { document } = healFixture([128, 96]);
+  const renderer = createEditorRenderer(gpu, source);
+  const mask = addLayer(
+    document,
+    createMask({ kind: "linear", start: [0, 0], end: [0, 96] }),
+  );
+  const layer = addLayer(document, createLayer("heal"), { inside: mask });
+  const patch = addRemovePatch(document, layer, {
+    ...dab,
+    points: [[64, 48, 1]],
+  });
+  const solves = () =>
+    renderer.inspect().passes.some((name) => name.includes("/inpaint/"));
+  try {
+    await renderer.update(document.scene.getState());
+    expect(solves()).toBe(true);
+    setHealPatch(document, layer, patch, { opacity: 0.5, feather: 0.4 });
+    await renderer.update(document.scene.getState());
+    expect(solves()).toBe(false);
+    setLayer(document, mask, { opacity: 0.5 });
+    await renderer.update(document.scene.getState());
+    expect(solves()).toBe(false);
+    setAdjustments(document, { exposure: 1 }, mask);
+    await renderer.update(document.scene.getState());
+    expect(solves()).toBe(true);
+    renderer.setDisplayScale(0.5);
+    await renderer.update(document.scene.getState(), undefined, true);
+    expect(solves()).toBe(true);
+    await renderer.update(document.scene.getState());
+    expect(solves()).toBe(false);
+    deleteLayer(document, mask);
+    await renderer.update(document.scene.getState());
+    expect(renderer.inspect().cachedTextures).toEqual([]);
+  } finally {
+    renderer.dispose();
+    document.dispose();
+    source.dispose();
+    gpu.dispose();
+  }
+});
 
 test("heal patches reuse brush rasters, scale with the proxy, undo, and release with the layer", async () => {
   const gpu = await init();

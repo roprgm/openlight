@@ -152,6 +152,8 @@ test("Healing paints patches, edits them, and undoes", async ({ page }) => {
   ).toBe(300);
   await size.fill("300");
   await size.press("Enter");
+  expect(layer.patches[0]).toMatchObject({ mode: "heal" });
+  if (layer.patches[0].mode === "remove") throw Error("Expected a donor patch");
   expect(layer.patches[0].offset).not.toEqual([0, 0]);
   const after = await readImage(page, undefined, [
     [350, 200],
@@ -206,7 +208,7 @@ test("Healing paints patches, edits them, and undoes", async ({ page }) => {
       .scene?.layers.find((layer) => layer.kind === "heal");
     if (layer?.kind !== "heal") throw Error("Healing layer missing");
     const patch = layer.patches.at(-1);
-    if (!patch) throw Error("Healing patch missing");
+    if (!patch || patch.mode === "remove") throw Error("Healing patch missing");
     return { id: patch.id };
   });
   expect((await readImage(page, undefined, [[350, 200]])).samples?.[0]).toEqual(
@@ -232,10 +234,12 @@ test("Healing paints patches, edits them, and undoes", async ({ page }) => {
       .getState()
       .scene?.layers.find((item) => item.kind === "heal");
     return healing?.kind === "heal"
-      ? healing.patches.map(({ stroke, offset }) => [
-          Math.round(stroke.points[0][0] + offset[0]),
-          Math.round(stroke.points[0][1] + offset[1]),
-        ])
+      ? healing.patches
+          .filter((patch) => patch.mode !== "remove")
+          .map(({ stroke, offset }) => [
+            Math.round(stroke.points[0][0] + offset[0]),
+            Math.round(stroke.points[0][1] + offset[1]),
+          ])
       : [];
   });
   expect(donors[1]).not.toEqual(donors[0]);
@@ -266,7 +270,8 @@ test("Healing paints patches, edits them, and undoes", async ({ page }) => {
         healing?.kind === "heal"
           ? healing.patches.find((item) => item.id === patchId)
           : undefined;
-      if (!patch) throw Error("Healing patch missing");
+      if (!patch || patch.mode === "remove")
+        throw Error("Healing patch missing");
       return Math.round(patch.stroke.points[0][0] + patch.offset[0]);
     }, manual.id);
   const beforeDrag = await sourceX();
@@ -428,6 +433,7 @@ test("Healing takes the first stroke after H and finds donors inside a mask", as
     await page.evaluate(() => window.openlight.getState().selectedLayerId),
   ).toBe(nested);
   expect(patches).toHaveLength(1);
+  if (patches[0].mode === "remove") throw Error("Expected a donor patch");
   expect(patches[0].offset).not.toEqual([0, 0]);
 });
 
@@ -506,7 +512,7 @@ test("retouch modes cycle, preserve each family's brush, and keep patches indepe
   await expect(heal).toHaveAttribute("aria-pressed", "true");
   await expect(
     modes.getByRole("button", { name: "Remove", exact: true }),
-  ).toBeDisabled();
+  ).toBeEnabled();
   await clone.click();
   await expect(clone).toHaveAttribute("aria-pressed", "true");
   await page.keyboard.down("Alt");

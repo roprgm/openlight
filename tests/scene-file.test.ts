@@ -104,6 +104,13 @@ test("scene files reopen the photo with every layer for further editing", async 
       [-6, 2],
       "clone",
     );
+    api.addRemovePatch(heal, {
+      mode: "paint",
+      size: 4,
+      feather: 0.2,
+      flow: 1,
+      points: [[52, 24, 1]],
+    });
     const paint = api.addLayer("paint");
     api.addPaintStroke(paint, {
       mode: "paint",
@@ -254,7 +261,7 @@ test("scene files reopen the photo with every layer for further editing", async 
     const loaded = older.scene.getState();
     expect(loaded.layers[0].whiteBalance).toEqual(asShot);
     expect(loaded.layers.find((layer) => layer.kind === "heal")).toMatchObject({
-      patches: [{ mode: "heal" }, { mode: "clone" }],
+      patches: [{ mode: "heal" }, { mode: "clone" }, { mode: "remove" }],
     });
     expect(
       loaded.layers.find((layer) => layer.kind === "vignette"),

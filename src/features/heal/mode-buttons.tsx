@@ -11,6 +11,7 @@ export function PatchModeIcon({
   ...props
 }: IconProps & { mode: HealMode }) {
   if (mode === "clone") return <CloneIcon {...props} />;
+  if (mode === "remove") return <RemoveIcon {...props} />;
   return <HealIcon {...props} />;
 }
 
@@ -44,10 +45,12 @@ export function HealModeButtons() {
         <CloneIcon className="size-5" />
       </IconButton>
       <IconButton
-        label="Remove · Fill from surrounding context · Coming soon"
+        label="Remove · Synthesize texture from surrounding context"
         aria-label="Remove"
-        aria-disabled="true"
-        className="opacity-40 pointer-coarse:size-10"
+        shortcut="H"
+        aria-pressed={mode === "remove"}
+        className="aria-pressed:bg-raised-hover pointer-coarse:size-10"
+        onClick={() => selectMode("remove")}
       >
         <RemoveIcon className="size-5" />
       </IconButton>

@@ -116,7 +116,10 @@ export function HealPatchOutline({
   const mapping = useDocumentMapping();
   const first = patch.stroke.points[0];
   const destination = geometry(patch.stroke, [0, 0], mapping);
-  const source = showSource && geometry(patch.stroke, patch.offset, mapping);
+  const source =
+    showSource &&
+    patch.mode !== "remove" &&
+    geometry(patch.stroke, patch.offset, mapping);
   // Both anchors edit live inside the drag's history group, so the repair follows the pointer.
   const moveDestination = (next?: Point) => {
     if (next) setHealDestination(document, layer, patch.id, next);
@@ -131,13 +134,14 @@ export function HealPatchOutline({
         onDrop: moveDestination,
       }
     : undefined;
-  const sourceDrag: AnchorDrag | undefined = interactive
-    ? {
-        from: patch.offset,
-        onDrag: moveSource,
-        onDrop: moveSource,
-      }
-    : undefined;
+  const sourceDrag: AnchorDrag | undefined =
+    interactive && patch.mode !== "remove"
+      ? {
+          from: patch.offset,
+          onDrag: moveSource,
+          onDrop: moveSource,
+        }
+      : undefined;
   return (
     <>
       <Outline shape={destination} kind="destination" />

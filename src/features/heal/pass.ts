@@ -1,5 +1,6 @@
 import type { HealPatch } from "@/core/document";
 import {
+  type CacheKey,
   type Composition,
   merge,
   node,
@@ -8,14 +9,18 @@ import {
   sourceSize,
 } from "@/core/renderer";
 import shader from "./heal.wgsl";
+import { removePatch } from "./inpaint/pass";
 import { patchBounds } from "./model";
 
-type HealComposition = Pick<Composition, "patch" | "inputId" | "retain">;
+type HealComposition = Pick<
+  Composition,
+  "patch" | "inputId" | "retain" | "cache"
+>;
 
 function healPatch(
   source: RenderImage,
   { coverage, origin: coverageOrigin }: PatchInput,
-  patch: HealPatch,
+  patch: Extract<HealPatch, { mode: "heal" | "clone" }>,
   name: string,
 ) {
   const dimensions = sourceSize(source);
@@ -89,16 +94,35 @@ export function heal(
   patches: readonly HealPatch[],
   name: string,
   composition: HealComposition,
+  dependencies: readonly CacheKey[],
 ) {
   let image = source;
   let inspected: RenderImage | undefined;
+  let content = dependencies;
   for (const patch of patches) {
     if (patch.id === composition.inputId) inspected = image;
     const id = `${name}/${patch.id}`;
-    if (patch.offset[0] === 0 && patch.offset[1] === 0) continue;
+    if (
+      patch.mode !== "remove" &&
+      patch.offset[0] === 0 &&
+      patch.offset[1] === 0
+    )
+      continue;
     const coverage = composition.patch(id, patch.stroke);
     composition.retain(id);
-    image = healPatch(image, coverage, patch, id);
+    if (patch.mode === "remove") {
+      image = removePatch(
+        image,
+        coverage,
+        patch,
+        id,
+        composition.cache,
+        content,
+      );
+    } else {
+      image = healPatch(image, coverage, patch, id);
+    }
+    content = [...content, patch];
   }
   return { image, input: inspected };
 }

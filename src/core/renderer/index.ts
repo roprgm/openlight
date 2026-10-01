@@ -12,7 +12,13 @@ import type { Point } from "@/core/image/frame";
 import { createRenderGraph } from "./graph";
 import { createMaskRaster } from "./mask";
 import { createPatchRaster, type PatchInput } from "./mask/patches";
-import { input, type RenderImage, type RenderInput } from "./node";
+import {
+  type CacheKey,
+  input,
+  type RenderImage,
+  type RenderInput,
+  type RenderNode,
+} from "./node";
 import {
   type AcceptPainting,
   createPaintRaster,
@@ -33,6 +39,7 @@ export {
 } from "./display";
 export type { PatchInput } from "./mask/patches";
 export {
+  type CacheKey,
   input,
   merge,
   type NodeDefinition,
@@ -51,6 +58,8 @@ export { transformImages } from "./transform";
 export { createRenderGraph };
 
 export type Composition = {
+  /** Cache a derived image by its immutable content, RAW revision, and proxy factor. */
+  cache: (image: RenderNode, dependencies: readonly CacheKey[]) => RenderNode;
   inputId?: string;
   /** Keep one stable composition instance and its render-graph resources reusable. */
   retain: (id: string) => void;
@@ -149,6 +158,10 @@ export function createRenderer(
     const image =
       factor > 1 ? proxy.render(developed, factor, version) : input(developed);
     const images = compose(image, scene, {
+      cache: (image, dependencies) => ({
+        ...image,
+        cacheKeys: [version, factor, ...dependencies],
+      }),
       inputId,
       retain: (id) => active.add(id),
       coverage: (layer) => masks.coverage(layer.id),

@@ -4,6 +4,7 @@ import { createImageLayer } from "@/app/editor/layers";
 import { createEditorRenderer } from "@/app/editor/renderer";
 import type {
   BrushStroke,
+  HealPatch,
   LookupTable,
   Mask,
   ProcessingLayer,
@@ -33,6 +34,7 @@ export type Workload =
   | "paint"
   | "heal"
   | "clone"
+  | "remove"
   | "heal-empty"
   | "heal-proxy"
   | "pipeline-proxy";
@@ -247,35 +249,36 @@ export async function benchmarkRendering(
   if (
     workload === "heal" ||
     workload === "clone" ||
+    workload === "remove" ||
     workload === "heal-empty" ||
     workload === "heal-proxy"
   ) {
+    const shape = {
+      id: "spot",
+      feather: 0.4,
+      opacity: 1,
+      stroke: {
+        mode: "paint" as const,
+        size: 240,
+        feather: 0,
+        flow: 1,
+        points: [[size[0] / 2, size[1] / 2, 1] as const],
+      },
+    };
+    const donorMode = workload === "clone" ? "clone" : "heal";
+    const patch: HealPatch =
+      workload === "remove"
+        ? { ...shape, mode: "remove" }
+        : { ...shape, mode: donorMode, offset: [320, 0] };
     effects.push({
       ...common,
       id: "benchmark-heal",
       name: "Heal",
       kind: "heal",
-      patches:
-        workload === "heal-empty"
-          ? []
-          : [
-              {
-                id: "spot",
-                mode: workload === "clone" ? "clone" : "heal",
-                feather: 0.4,
-                opacity: 1,
-                stroke: {
-                  mode: "paint",
-                  size: 240,
-                  feather: 0,
-                  flow: 1,
-                  points: [[size[0] / 2, size[1] / 2, 1]],
-                },
-                offset: [320, 0],
-              },
-            ],
+      patches: workload === "heal-empty" ? [] : [patch],
     });
   }
+
   const scene: Scene = {
     frame: imageFrame(size),
     layers: [
@@ -409,7 +412,10 @@ export async function benchmarkRendering(
         .map((value) => value.toString(16).padStart(2, "0"))
         .join(""),
       // Image targets use rgba16float. Source and driver memory are excluded.
-      intermediateBytes: storage.textures.reduce(
+      intermediateBytes: [
+        ...storage.textures,
+        ...storage.cachedTextures,
+      ].reduce(
         (sum, { size, format }) =>
           sum + size[0] * size[1] * (format === "rgba32float" ? 16 : 8),
         0,

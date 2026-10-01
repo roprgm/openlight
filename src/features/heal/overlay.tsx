@@ -8,7 +8,12 @@ import { useToolLayer } from "@/components/editor/tool-layer";
 import type { Layer } from "@/core/document";
 import type { Point } from "@/core/image/frame";
 import { useDisposable } from "@/hooks/use-disposable";
-import { addHealPatch, extendHealPatch, setHealSource } from "./edits";
+import {
+  addHealPatch,
+  addRemovePatch,
+  extendHealPatch,
+  setHealSource,
+} from "./edits";
 import { useHealing } from "./mode";
 import { dabTouchesImage, findHealPatch } from "./model";
 import { HealPatchHitTarget, HealPatchOutline } from "./outline";
@@ -18,7 +23,7 @@ function isHealLayer(layer: Layer): layer is Extract<Layer, { kind: "heal" }> {
   return layer.kind === "heal";
 }
 
-/** Paints ordinary brush strokes; only the donor search and patch edits belong to Heal. */
+/** Sends brush strokes to retouch edits and resolves Heal/Clone donors after painting. */
 export function HealOverlay({
   onCreate,
   onDone,
@@ -92,17 +97,24 @@ export function HealOverlay({
         ).image.size;
         if (!dabTouchesImage([x, y], stroke.size / 2, size)) return false;
         const offset: Point = source ? [source[0] - x, source[1] - y] : [0, 0];
-        const patch = addHealPatch(
-          document,
-          layer.id,
-          { ...stroke, flow: 1 },
-          offset,
-          mode,
-        );
+        const patch =
+          mode === "remove"
+            ? addRemovePatch(document, layer.id, { ...stroke, flow: 1 })
+            : addHealPatch(
+                document,
+                layer.id,
+                { ...stroke, flow: 1 },
+                offset,
+                mode,
+              );
         setDrawingPatch(patch);
-        setResolvingSource(source ? undefined : patch);
+        setResolvingSource(source || mode === "remove" ? undefined : patch);
         selectPatch(patch);
-        pending.current = { layer: layer.id, patch, automatic: !source };
+        pending.current = {
+          layer: layer.id,
+          patch,
+          automatic: !source && mode !== "remove",
+        };
         return true;
       }}
       onExtend={(points) => {
@@ -116,7 +128,7 @@ export function HealOverlay({
         setDrawingPatch(undefined);
         if (!committed) setResolvingSource(undefined);
       }}
-      onPickSource={setSource}
+      onPickSource={mode === "remove" ? undefined : setSource}
       onDone={onDone}
     >
       {healLayer && patches.length > 0 && (
@@ -154,7 +166,7 @@ export function HealOverlay({
           )}
         </svg>
       )}
-      {marker && (
+      {marker && mode !== "remove" && (
         <svg
           aria-hidden="true"
           className="pointer-events-none absolute inset-0 size-full overflow-visible"
