@@ -27,6 +27,9 @@ export type Workload =
   | "masked-exposure"
   | "radial-exposure"
   | "brush-exposure"
+  | "color-range"
+  | "luminance-range"
+  | "range-bypassed"
   | "layer-stack"
   | "fill"
   | "lut"
@@ -52,6 +55,8 @@ const rasterPixelBytes: Record<string, number> = {
   r8unorm: 1,
   r16float: 2,
   rgba8unorm: 4,
+  rgba16float: 8,
+  rgba32float: 16,
 };
 
 /** Wavy strokes across the image, three painted and one erased. */
@@ -69,6 +74,17 @@ function brushStrokes(size: [number, number]): BrushStroke[] {
 }
 
 function benchmarkMask(workload: Workload, size: [number, number]): Mask {
+  if (workload === "color-range" || workload === "range-bypassed") {
+    return {
+      kind: "color-range",
+      color: "#305080",
+      tolerance: 0.25,
+      smoothness: 0.5,
+    };
+  }
+  if (workload === "luminance-range") {
+    return { kind: "luminance-range", min: 0.6, max: 1, smoothness: 0.5 };
+  }
   if (workload === "radial-exposure") {
     return {
       kind: "radial",
@@ -169,6 +185,9 @@ export async function benchmarkRendering(
     workload === "masked-exposure" ||
     workload === "radial-exposure" ||
     workload === "brush-exposure" ||
+    workload === "color-range" ||
+    workload === "luminance-range" ||
+    workload === "range-bypassed" ||
     workload === "layer-stack"
   ) {
     effects.push({
@@ -179,7 +198,7 @@ export async function benchmarkRendering(
       operation: "add",
       adjustments: defaultAdjustments,
       toneCurve: defaultCurve,
-      opacity: 0.75,
+      opacity: workload === "range-bypassed" ? 0 : 0.75,
       mask: benchmarkMask(workload, size),
       children: [
         {
@@ -405,10 +424,10 @@ export async function benchmarkRendering(
       pixelHash: [...pixelHash]
         .map((value) => value.toString(16).padStart(2, "0"))
         .join(""),
-      // Image targets use rgba16float. Source and driver memory are excluded.
+      // Source and driver memory are excluded.
       intermediateBytes: storage.textures.reduce(
         (sum, { size, format }) =>
-          sum + size[0] * size[1] * (format === "rgba32float" ? 16 : 8),
+          sum + size[0] * size[1] * rasterPixelBytes[format],
         0,
       ),
       // Brush rasters, paint, and the stroke buffer, at source resolution, outside the graph.

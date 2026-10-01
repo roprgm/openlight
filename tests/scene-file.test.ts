@@ -92,6 +92,22 @@ test("scene files reopen the photo with every layer for further editing", async 
       feather: 0.4,
     });
     api.setMaskOperation(subtract, "subtract");
+    const colorRange = api.addLayer("mask");
+    api.setLayerMask(colorRange, {
+      kind: "color-range",
+      color: "#305080",
+      tolerance: 0.25,
+      smoothness: 0.5,
+    });
+    api.setAdjustments({ saturation: 30 }, colorRange);
+    const luminanceRange = api.addLayer("mask", { inside: colorRange });
+    api.setLayerMask(luminanceRange, {
+      kind: "luminance-range",
+      min: 0.7,
+      max: 1,
+      smoothness: 0.2,
+    });
+    api.setMaskOperation(luminanceRange, "subtract");
     const heal = api.addLayer("heal");
     api.addHealPatch(
       heal,

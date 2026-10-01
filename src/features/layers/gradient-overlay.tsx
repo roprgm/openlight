@@ -42,7 +42,10 @@ export function GradientOverlay({ shape }: { shape: Gradient["kind"] }) {
     return item?.kind === "mask" ? item : undefined;
   });
   /** Only gradients have guides; a brush mask keeps the deletion shortcuts. */
-  const mask = layer?.mask.kind === "brush" ? undefined : layer?.mask;
+  const mask =
+    layer?.mask.kind === "linear" || layer?.mask.kind === "radial"
+      ? layer.mask
+      : undefined;
   const [draft, setDraft] = useState<Gradient | null>(null);
   const dragging = useRef<Drag | null>(null);
   const [dragCursor, setDragCursor] = useState<string>();

@@ -116,6 +116,8 @@ const shapes = [
   ["linear", "Linear gradient"],
   ["radial", "Radial gradient"],
   ["brush", "Brush"],
+  ["color-range", "Color range"],
+  ["luminance-range", "Luminance range"],
 ] as const;
 const nestings = [
   ["add", "Add to mask"],

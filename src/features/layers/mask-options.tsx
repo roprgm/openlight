@@ -1,20 +1,27 @@
 import { Select } from "@roprgm/ui/select";
 import { Slider } from "@roprgm/ui/slider";
+import { useDesktopLayout } from "@/components/editor/layout";
 import { useDocument, useScene } from "@/components/editor/session";
 import { barSlider, useBarDensity } from "@/components/editor/toolbar-density";
 import { locateLayer, type MaskLayer } from "@/core/document";
 import { setLayerMask, setMaskOperation } from "./edits";
+import { RangeOptions } from "./range-options";
 
-/** The selected mask's options in the canvas bar: a radial feather and a child's operation. Its overlay toggles in the stack. */
+/** The selected mask's shape parameters and a child's operation. Its overlay toggles in the stack. */
 export function MaskOptions({ layer }: { layer: MaskLayer }) {
   const document = useDocument();
   const density = useBarDensity();
+  const desktop = useDesktopLayout();
   const parent = useScene(
     (scene) => locateLayer(scene.layers, layer.id)?.parent,
   );
   const radial = layer.mask.kind === "radial";
   const child = parent?.kind === "mask";
-  if (!radial && !child) {
+  const range =
+    desktop &&
+    (layer.mask.kind === "color-range" ||
+      layer.mask.kind === "luminance-range");
+  if (!radial && !child && !range) {
     return null;
   }
   return (
@@ -45,6 +52,11 @@ export function MaskOptions({ layer }: { layer: MaskLayer }) {
           }}
         />
       )}
+      {desktop &&
+        (layer.mask.kind === "color-range" ||
+          layer.mask.kind === "luminance-range") && (
+          <RangeOptions id={layer.id} mask={layer.mask} />
+        )}
       {child && (
         <Select
           raised

@@ -12,7 +12,8 @@ import type { Point } from "@/core/image/frame";
 import { createRenderGraph } from "./graph";
 import { createMaskRaster } from "./mask";
 import { createPatchRaster, type PatchInput } from "./mask/patches";
-import { input, type RenderImage, type RenderInput } from "./node";
+import { hasRangeMask, rangeCoverage } from "./mask/range";
+import { input, type RenderImage } from "./node";
 import {
   type AcceptPainting,
   createPaintRaster,
@@ -31,6 +32,7 @@ export {
   renderCoverage,
   type View,
 } from "./display";
+export { sampleImage } from "./display/sample";
 export type { PatchInput } from "./mask/patches";
 export {
   input,
@@ -54,8 +56,8 @@ export type Composition = {
   inputId?: string;
   /** Keep one stable composition instance and its render-graph resources reusable. */
   retain: (id: string) => void;
-  /** Rasterized coverage of a mask that paints with brushes, prepared before composition. */
-  coverage: (layer: MaskLayer) => RenderInput | undefined;
+  /** Mask coverage; image-dependent ranges evaluate `source` before the group's adjustments. */
+  coverage: (layer: MaskLayer, source: RenderImage) => RenderImage | undefined;
   /** Rasterized paint of a paint layer, prepared before composition. */
   paint: (layer: PaintLayer) => PaintInput | undefined;
   /** Rasterized coverage of an effect's own stroke, such as a Healing patch. */
@@ -125,6 +127,8 @@ export function createRenderer(
   let settling: Promise<unknown> | undefined;
   let disposed = false;
   let instances = new Set<string>();
+  let rangeTargets = new Map<string, Target>();
+  let maskSource: { id: string; image: Target } | undefined;
   function render(request: RenderRequest) {
     const { scene, inputId, factor } = request;
     if (
@@ -148,10 +152,26 @@ export function createRenderer(
     }
     const image =
       factor > 1 ? proxy.render(developed, factor, version) : input(developed);
+    const coverages = new Map<string, RenderImage>();
+    let inspectedMaskSource: RenderImage | undefined;
     const images = compose(image, scene, {
       inputId,
       retain: (id) => active.add(id),
-      coverage: (layer) => masks.coverage(layer.id),
+      coverage: (layer, below) => {
+        if (layer.id === inputId) {
+          inspectedMaskSource = below;
+        }
+        if (!hasRangeMask(layer)) {
+          return masks.coverage(layer.id);
+        }
+        const images = rangeCoverage(below, layer, (id) =>
+          masks.brushCoverage(id),
+        );
+        for (const [id, image] of images) {
+          coverages.set(id, image);
+        }
+        return images.get(layer.id);
+      },
       paint: (layer) => paints.input(layer),
       patch: (id, stroke) => patches.patch(id, stroke, developed.size),
     });
@@ -169,10 +189,24 @@ export function createRenderer(
       images.full,
       images.output,
       ...(images.input ? [images.input] : []),
+      ...(inspectedMaskSource ? [inspectedMaskSource] : []),
+      ...coverages.values(),
     ]);
     [original, full, output] = targets;
     inspected =
       inputId && targets[3] ? { id: inputId, image: targets[3] } : undefined;
+    const coverageStart =
+      3 + Number(Boolean(images.input)) + Number(Boolean(inspectedMaskSource));
+    maskSource =
+      inputId && inspectedMaskSource
+        ? { id: inputId, image: targets[coverageStart - 1] }
+        : undefined;
+    rangeTargets = new Map(
+      [...coverages.keys()].map((id, index) => [
+        id,
+        targets[coverageStart + index],
+      ]),
+    );
     rendered = true;
     last = request;
     for (const listener of listeners) {
@@ -261,6 +295,8 @@ export function createRenderer(
   }
 
   function releaseResources() {
+    rangeTargets.clear();
+    maskSource = undefined;
     graph.dispose();
     masks.dispose();
     patches.dispose();
@@ -277,12 +313,15 @@ export function createRenderer(
     outputImage: () => output,
     inputImage: (id: string) =>
       inspected?.id === id ? inspected.image : undefined,
+    maskSourceImage: (id: string) =>
+      maskSource?.id === id ? maskSource.image : undefined,
     /**
      * A raster by ID and where it sits in the photo: a mask's coverage, for the display overlay and
      * thumbnails, a Healing patch's, or a paint layer's.
      */
     coverage(id: string): { target: Target; origin: Point } | undefined {
-      const target = masks.coverage(id)?.target ?? paints.get(id);
+      const target =
+        rangeTargets.get(id) ?? masks.coverage(id)?.target ?? paints.get(id);
       return target ? { target, origin: [0, 0] } : patches.raster(id);
     },
     /** Device pixels shown per source pixel; interactive renders reduce the source to about this density. */

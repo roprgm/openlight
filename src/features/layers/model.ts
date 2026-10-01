@@ -1,7 +1,7 @@
 import { z } from "zod/mini";
 import type { Mask, MaskLayer } from "@/core/document";
 import { strokeSchema } from "@/core/document/brush";
-import { point, unit } from "@/lib/parse";
+import { hexColor, point, unit } from "@/lib/parse";
 
 const positive = z.number().check(z.positive());
 
@@ -26,6 +26,22 @@ export const maskSchema = z.discriminatedUnion("kind", [
     raster: z.optional(z.string().check(z.minLength(1))),
     strokes: z.array(strokeSchema),
   }),
+  z.object({
+    kind: z.literal("color-range"),
+    color: hexColor,
+    tolerance: unit,
+    smoothness: unit,
+  }),
+  z
+    .object({
+      kind: z.literal("luminance-range"),
+      min: unit,
+      max: unit,
+      smoothness: unit,
+    })
+    .check(
+      z.refine(({ min, max }) => min <= max, "Minimum must not exceed maximum"),
+    ),
 ]) satisfies z.ZodMiniType<Mask>;
 
 export const maskOperation = z.enum([

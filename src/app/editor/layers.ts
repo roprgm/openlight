@@ -118,6 +118,8 @@ const maskNames: Record<Mask["kind"], string> = {
   linear: "Linear Gradient",
   radial: "Radial Gradient",
   brush: "Brush",
+  "color-range": "Color Range",
+  "luminance-range": "Luminance Range",
 };
 
 export function createMask(

@@ -46,7 +46,7 @@ function composeLayer(
   }
   const masks = layer.kind === "mask" ? maskModifiers(layer) : [];
   const coverage =
-    layer.kind === "mask" ? composition.coverage(layer) : undefined;
+    layer.kind === "mask" ? composition.coverage(layer, below) : undefined;
   let input: RenderImage | undefined;
   let edited = below;
   switch (layer.kind) {

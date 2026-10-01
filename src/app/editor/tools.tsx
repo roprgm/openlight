@@ -10,16 +10,20 @@ import { useBrushTool } from "@/components/editor/brush-tool";
 import { useDocument } from "@/components/editor/session";
 import { AdjustIcon } from "@/components/icons/adjust";
 import { BrushIcon } from "@/components/icons/brush";
+import { ColorRangeIcon } from "@/components/icons/color-range";
 import { CropIcon } from "@/components/icons/crop";
 import { ExportIcon } from "@/components/icons/export";
 import { HealIcon } from "@/components/icons/heal";
 import { LinearGradientIcon } from "@/components/icons/linear-gradient";
+import { LuminanceRangeIcon } from "@/components/icons/luminance-range";
 import { RadialGradientIcon } from "@/components/icons/radial-gradient";
 import { CropEditor } from "@/features/crop/view";
 import { HealOptions } from "@/features/heal/options";
 import { HealOverlay } from "@/features/heal/overlay";
 import { addLayer } from "@/features/layers/edits";
 import { GradientOverlay } from "@/features/layers/gradient-overlay";
+import { RangeToolOptions } from "@/features/layers/range-options";
+import { RangeOverlay } from "@/features/layers/range-overlay";
 import { useShortcuts } from "@/hooks/use-shortcuts";
 import { BrushToolCanvas, BrushToolOptions } from "./brush";
 import { ExportMode } from "./export";
@@ -44,6 +48,19 @@ function LinearCanvas() {
 
 function RadialCanvas() {
   return <GradientOverlay shape="radial" />;
+}
+
+function ColorRangeCanvas() {
+  return <RangeOverlay shape="color-range" />;
+}
+function LuminanceRangeCanvas() {
+  return <RangeOverlay shape="luminance-range" />;
+}
+function ColorRangeOptions() {
+  return <RangeToolOptions shape="color-range" />;
+}
+function LuminanceRangeOptions() {
+  return <RangeToolOptions shape="luminance-range" />;
 }
 
 function HealCanvas() {
@@ -122,6 +139,26 @@ export const tools = [
     group: "edit",
     Canvas: HealCanvas,
     Options: HealOptions,
+  },
+  {
+    id: "color-range",
+    label: "Color range",
+    shortLabel: "Color",
+    key: "k",
+    Icon: ColorRangeIcon,
+    group: "edit",
+    Canvas: ColorRangeCanvas,
+    Options: ColorRangeOptions,
+  },
+  {
+    id: "luminance-range",
+    label: "Luminance range",
+    shortLabel: "Luma",
+    key: "u",
+    Icon: LuminanceRangeIcon,
+    group: "edit",
+    Canvas: LuminanceRangeCanvas,
+    Options: LuminanceRangeOptions,
   },
   {
     id: "crop",

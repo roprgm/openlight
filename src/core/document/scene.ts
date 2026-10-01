@@ -123,7 +123,22 @@ export type HealPatch = {
   readonly opacity: number;
   readonly offset: Point;
 };
-export type Mask = Gradient | BrushMask;
+/** An sRGB sample with a perceptual color tolerance and a soft transition, both 0..1. */
+export type ColorRange = {
+  readonly kind: "color-range";
+  readonly color: string;
+  readonly tolerance: number;
+  readonly smoothness: number;
+};
+/** Display-referred brightness bounds and their soft transition, all 0..1. */
+export type LuminanceRange = {
+  readonly kind: "luminance-range";
+  readonly min: number;
+  readonly max: number;
+  readonly smoothness: number;
+};
+export type RangeMask = ColorRange | LuminanceRange;
+export type Mask = Gradient | BrushMask | RangeMask;
 export type ProcessingLayer = {
   readonly id: string;
   readonly name: string;

@@ -1,10 +1,5 @@
 import type { Mask, MaskModifier } from "@/core/document";
-import {
-  merge,
-  node,
-  type RenderImage,
-  type RenderInput,
-} from "@/core/renderer/node";
+import { merge, node, type RenderImage } from "@/core/renderer/node";
 import shader from "./mix.wgsl";
 import rasterShader from "./raster.wgsl";
 
@@ -70,7 +65,7 @@ export function mixAdjustment(
   opacity: number,
   mask?: Mask,
   modifiers: readonly MaskModifier[] = [],
-  coverage?: RenderInput,
+  coverage?: RenderImage,
 ) {
   if (original === edited || opacity === 0) {
     return original;
@@ -119,7 +114,7 @@ export function maskInput(
   image: RenderImage,
   mask: Mask,
   modifiers: readonly MaskModifier[] = [],
-  coverage?: RenderInput,
+  coverage?: RenderImage,
 ) {
   if (coverage) {
     return merge(

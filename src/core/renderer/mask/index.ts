@@ -11,6 +11,7 @@ import { type PaintRaster, paintingSize } from "@/core/renderer/paint";
 import { createRasterCache } from "@/core/renderer/raster-cache";
 import brushShader from "./brush.wgsl";
 import gradientShader from "./gradient.wgsl";
+import { hasRangeMask } from "./range";
 
 type Size = readonly [number, number];
 /** A mask's own coverage combined with the children that shape it. */
@@ -70,7 +71,7 @@ export function createMaskRaster(gpu: Gpu, brushes: PaintRaster) {
 
   /** The pass that adds or subtracts one op's coverage, or nothing for a brush without strokes. */
   function opPass(op: MaskModifier, scale: Size) {
-    if (op.mask.kind !== "brush") {
+    if (op.mask.kind === "linear" || op.mask.kind === "radial") {
       const pass = op.operation === "add" ? gradientAdd : gradientSubtract;
       return pass.set({
         params: { ...gradientParams(op.mask), opacity: op.opacity, scale },
@@ -122,6 +123,9 @@ export function createMaskRaster(gpu: Gpu, brushes: PaintRaster) {
         brushes.draw(op.id, op.mask, size);
       }
     }
+    if (hasRangeMask(layer)) {
+      return undefined;
+    }
     if (own.mask.kind !== "brush") {
       // Gradient children combine in the mix pass; a painted brush child needs a raster.
       return active.some((op) => op.mask.kind === "brush")
@@ -155,6 +159,7 @@ export function createMaskRaster(gpu: Gpu, brushes: PaintRaster) {
       }
       return "ops" in raster ? input(raster.target) : brushes.coverage(id);
     },
+    brushCoverage: brushes.coverage,
     /** Releases the rasters that no update used since the previous sweep, including their painting views. */
     sweep() {
       for (const id of shown.keys()) {

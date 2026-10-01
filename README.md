@@ -22,6 +22,7 @@ Image processing runs on your own GPU with WebGPU. Photos never leave your devic
 
 - Draggable effect layers: Details, Exposure, Color Mixer, Vignette, Grain, Color, which paints one color with Photoshop blend modes, Paint, which holds brush strokes in any colors with the same modes, and LUT, which grades the photo with a 3D LUT from a `.cube` file.
 - Linear and radial masks with their own adjustments and child effects.
+- Color and luminance range masks: click the photo to sample a color or brightness, then refine tolerance or the brightness interval and smoothness. Ranges read the image below the mask before its own adjustments.
 - Add and Subtract submasks, from a mask's actions menu, to shape its coverage.
 
 **Tools**
