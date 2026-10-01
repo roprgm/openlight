@@ -123,7 +123,29 @@ export type HealPatch = {
   readonly opacity: number;
   readonly offset: Point;
 };
-export type Mask = Gradient | BrushMask;
+/** The whole image, which a range narrows to the pixels it selects. */
+export type FullMask = { readonly kind: "full" };
+export type Mask = Gradient | BrushMask | FullMask;
+/**
+ * Narrows a mask to the image below it by lightness, in 0..100 UI units from black to white: fully
+ * within `low` to `high`, fading out over `smoothness` past either end.
+ */
+export type LuminanceRange = {
+  readonly kind: "luminance";
+  readonly low: number;
+  readonly high: number;
+  readonly smoothness: number;
+};
+/**
+ * Narrows a mask to the pixels below it whose hue and saturation are near `color`, `#rrggbb` sRGB,
+ * however light or dark; `tolerance`, 0..100, widens the selection.
+ */
+export type ColorRange = {
+  readonly kind: "color";
+  readonly color: string;
+  readonly tolerance: number;
+};
+export type MaskRange = LuminanceRange | ColorRange;
 export type ProcessingLayer = {
   readonly id: string;
   readonly name: string;
@@ -144,6 +166,8 @@ export type ProcessingLayer = {
       readonly kind: "mask";
       readonly operation: "add" | "subtract";
       readonly mask: Mask;
+      /** Narrows the combined coverage of a mask that is not inside another mask. */
+      readonly range?: MaskRange;
       readonly adjustments: Readonly<Adjustments>;
       readonly toneCurve: ToneCurve;
     }

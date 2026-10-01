@@ -88,8 +88,9 @@ Direct mask children of another mask modify coverage instead of processing image
 | `selectLayer(id)` | Selects any layer. |
 | `setLayer(id, change)` | Updates processing-layer `name`, `visible`, or `opacity` (0–1). |
 | `setExposure(id, value)` | Sets an Exposure layer to -5…5 EV. |
-| `setLayerMask(id, mask)` | Replaces a mask layer's mask: `{ kind: "linear", start, end }`, `{ kind: "radial", center, radius, angle, feather }`, or `{ kind: "brush", strokes }`. Geometry uses source pixels; radial angle is degrees and feather is 0–1. |
+| `setLayerMask(id, mask)` | Replaces a mask layer's mask: `{ kind: "linear", start, end }`, `{ kind: "radial", center, radius, angle, feather }`, `{ kind: "brush", strokes }`, or `{ kind: "full" }`, which covers the whole photo. Geometry uses source pixels; radial angle is degrees and feather is 0–1. |
 | `setMaskOperation(id, operation)` | Sets `"add"` or `"subtract"`; used when this mask is inside another mask. |
+| `setMaskRange(id, range?)` | Narrows a mask layer to a [range](#ranges) of the photo below it, or without one, removes its range. |
 | `duplicateLayer(id)` | Copies a processing layer and its children above itself with independent IDs; selects and returns the new ID. |
 | `moveLayer(id, index, parentId?)` | Moves to a final sibling index, bottom to top. Omit the parent for the root stack, where index 0 is reserved for the image. Image parents, cycles, and third-level nesting are rejected. |
 | `deleteLayer(id)` | Removes a processing layer and its children; undo restores them. |
@@ -97,6 +98,12 @@ Direct mask children of another mask modify coverage instead of processing image
 A linear gradient has full coverage at `start`, zero at `end`; its points must be finite and distinct. A radial gradient covers the ellipse inside `radius`, with positive radii and a feathered falloff toward its edge. Crop, rotation, and viewport navigation do not move it within the document.
 
 A brush mask is a list of strokes, over the pixels earlier strokes settled into, as a Paint layer's are: in the editor they settle every 100 strokes, and `getState()` shows the mask's `raster` ID. `setLayerMask` keeps a `raster` only if it names the document's own settled pixels. Each stroke has `mode` (`"paint"` or `"erase"`), `size` (diameter in source pixels), `feather` and `flow` (0–1), and `points`, each `[x, y, pressure]` in source pixels with pressure 0–1. A paint stroke adds `flow × pressure` of the remaining coverage every quarter diameter along the points, and an erase stroke removes that share of the existing coverage; dabs land sixteen times per diameter, each laying a fraction of that, so soft edges show no ripples. The renderer rasterizes strokes into a cached coverage texture at half the photo's resolution each way and only stamps new points, so appending to the last stroke is cheap and undo replays at most 99. A brush inside another mask keeps its own coverage, paint and erase strokes alike, which the mask adds or subtracts scaled by the brush layer's opacity. A mask with no painted coverage and nothing added to it is bypassed.
+
+### Ranges
+
+A range narrows a mask to the pixels of the image below it, measured before the mask's own adjustments: `{ kind: "luminance", low, high, smoothness }` keeps the pixels whose CIE lightness lies from `low` to `high`, 0 black to 100 white, fading out over `smoothness` past either end; `{ kind: "color", color, tolerance }` keeps the pixels whose hue and saturation are near `color`, `#rrggbb` sRGB, however light or dark, within `tolerance`. Every value runs from 0 to 100, and `low` cannot exceed `high`. HDR headroom counts as white. The range multiplies the mask's combined coverage, its shape and the children that add or subtract, so a full mask with a range selects those pixels across the whole photo. Only a mask outside another mask applies its range; inside one, the range is stored but inactive, like its adjustments.
+
+The Add menu's **Luminance Range** starts at 50 to 100 with smoothness 25, and **Color Range** takes its color from the next click on the photo, as the edited photo shows it there, averaged over 5 × 5 pixels; tolerance starts at 30. The overlay and the layer's thumbnail show the coverage the range leaves.
 
 ## LUTs
 
@@ -207,7 +214,8 @@ editor.run({
 | `set-details` | `clarity?`, `sharpening?`, `sharpenRadius?`, `layerId?` | Like `setDetails`. |
 | `set-vignette` | `intensity?`, `softness?`, `layerId?` | Like `setVignette`. |
 | `set-grain` | `amount?`, `size?`, `roughness?`, `layerId?` | Like `setGrain`. |
-| `add-mask` | `mask`, `adjustments?` | Adds a mask layer with those adjustments on top of the stack as one edit. |
+| `add-mask` | `mask`, `range?`, `adjustments?` | Adds a mask layer with that range and those adjustments on top of the stack as one edit. |
+| `set-mask-range` | `layerId`, `range?` | Like `setMaskRange`. |
 | `delete-layer` | `layerId` | Like `deleteLayer`. |
 | `set-crop` | `aspectRatio?`, `straighten?` | Replaces the frame with the largest centered crop of the source at `aspectRatio`, width over height, straightened by −45 to 45 degrees. Without either, it removes the crop. |
 | `reset` | none | Removes every layer and returns adjustments, the tone curve, white balance, and the frame to how the photo opened, as one edit. |

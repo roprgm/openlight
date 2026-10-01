@@ -21,7 +21,12 @@ import {
 import { createProxy } from "./proxy";
 import { createStrokes } from "./strokes";
 
-export { maskInput, mixAdjustment } from "./blend";
+export {
+  type Coverage,
+  maskInput,
+  mixAdjustment,
+  rangeCoverage,
+} from "./blend";
 export {
   type Clipping,
   type CoverageRegion,
@@ -56,6 +61,8 @@ export type Composition = {
   retain: (id: string) => void;
   /** Rasterized coverage of a mask that paints with brushes, prepared before composition. */
   coverage: (layer: MaskLayer) => RenderInput | undefined;
+  /** Renders a mask's coverage that only the graph can compute, such as a range's, as the mask's raster. */
+  showCoverage: (id: string, coverage: RenderImage) => void;
   /** Rasterized paint of a paint layer, prepared before composition. */
   paint: (layer: PaintLayer) => PaintInput | undefined;
   /** Rasterized coverage of an effect's own stroke, such as a Healing patch. */
@@ -114,6 +121,8 @@ export function createRenderer(
   let rendered = false;
   let output = source;
   let inspected: { id: string; image: Target } | undefined;
+  /** Mask coverage the graph rendered, by layer ID. */
+  let shown = new Map<string, Target>();
   let balance = resource.raw?.asShot;
   /** Counts developments, so the proxy follows white-balance changes. */
   let version = 0;
@@ -148,10 +157,12 @@ export function createRenderer(
     }
     const image =
       factor > 1 ? proxy.render(developed, factor, version) : input(developed);
+    const covered = new Map<string, RenderImage>();
     const images = compose(image, scene, {
       inputId,
       retain: (id) => active.add(id),
       coverage: (layer) => masks.coverage(layer.id),
+      showCoverage: (id, coverage) => covered.set(id, coverage),
       paint: (layer) => paints.input(layer),
       patch: (id, stroke) => patches.patch(id, stroke, developed.size),
     });
@@ -164,15 +175,19 @@ export function createRenderer(
     patches.sweep();
     paints.sweep();
     strokes.sweep();
+    const inputs = images.input ? [images.input] : [];
     const targets = graph.render([
       images.original,
       images.full,
       images.output,
-      ...(images.input ? [images.input] : []),
+      ...inputs,
+      ...covered.values(),
     ]);
     [original, full, output] = targets;
     inspected =
-      inputId && targets[3] ? { id: inputId, image: targets[3] } : undefined;
+      inputId && images.input ? { id: inputId, image: targets[3] } : undefined;
+    const coverages = targets.slice(3 + inputs.length);
+    shown = new Map([...covered.keys()].map((id, i) => [id, coverages[i]]));
     rendered = true;
     last = request;
     for (const listener of listeners) {
@@ -282,7 +297,8 @@ export function createRenderer(
      * thumbnails, a Healing patch's, or a paint layer's.
      */
     coverage(id: string): { target: Target; origin: Point } | undefined {
-      const target = masks.coverage(id)?.target ?? paints.get(id);
+      const target =
+        shown.get(id) ?? masks.coverage(id)?.target ?? paints.get(id);
       return target ? { target, origin: [0, 0] } : patches.raster(id);
     },
     /** Device pixels shown per source pixel; interactive renders reduce the source to about this density. */

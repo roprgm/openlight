@@ -258,22 +258,26 @@ export function LayersSection({
 export function LayersControls({
   effects,
   onAdd,
+  addItems,
   fill,
 }: {
   effects: readonly EffectKind[];
   onAdd: (kind: EffectLayer["kind"]) => void;
+  /** More of the Add menu, after the effects. */
+  addItems?: ReactNode;
   fill?: boolean;
 }) {
   const document = useDocument();
   const layers = useScene((scene) => scene.layers);
   const tool = useMaskTool();
   const grouped = useRef(false);
-  // Choosing a mask edits it with the tool of its shape; anything else leaves editing.
+  // Choosing a mask edits it with the tool of its shape; anything else, a full mask included, leaves editing.
   const select = useCallback(
     (id: string) => {
       document.selectLayer(id);
       const layer = findLayer(document.scene.getState().layers, id);
-      tool.edit(layer?.kind === "mask" ? layer.mask.kind : undefined);
+      const shape = layer?.kind === "mask" ? layer.mask.kind : undefined;
+      tool.edit(shape === "full" ? undefined : shape);
     },
     [document, tool.edit],
   );
@@ -323,6 +327,7 @@ export function LayersControls({
                   {label}
                 </MenuItem>
               ))}
+            {addItems}
           </MenuContent>
         </Menu>
       }

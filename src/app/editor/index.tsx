@@ -22,6 +22,11 @@ import { HealingProvider } from "@/features/heal/mode";
 import { addLayer } from "@/features/layers/edits";
 import { MaskToolProvider, type Nesting } from "@/features/layers/mask-tool";
 import { CanvasToolbar } from "@/features/layers/toolbar";
+import {
+  ColorPickerCanvas,
+  ColorPickerProvider,
+  useColorPicker,
+} from "@/features/mask-range/picker";
 import { PaintSettling } from "@/features/paint/settle";
 import { useShortcuts } from "@/hooks/use-shortcuts";
 import { blurActive } from "@/lib/dom";
@@ -50,8 +55,10 @@ function ToolView() {
   const { tool, setTool } = useTool();
   const desktop = useDesktopLayout();
   const document = useDocument();
+  const { picking } = useColorPicker();
   const size = useScene((scene) => scene.frame.size);
-  // Enter and Escape leave one level: shape tools return to Adjust, where the selection climbs to the image.
+  // Enter and Escape leave one level: shape tools return to Adjust, where the selection climbs to the
+  // image. A color pick under way takes Escape for itself.
   function up() {
     const layers = document.scene.getState().layers;
     const parent =
@@ -60,7 +67,9 @@ function ToolView() {
     document.selectLayer(parent.id);
   }
   useShortcuts(
-    "Canvas" in tool || "View" in tool ? {} : { enter: up, escape: up },
+    "Canvas" in tool || "View" in tool || picking
+      ? {}
+      : { enter: up, escape: up },
   );
   function close() {
     setTool(tools[0]);
@@ -76,6 +85,7 @@ function ToolView() {
           <ViewportStage>
             <Image original="originalImage" />
             {"Canvas" in tool && <tool.Canvas key={tool.id} />}
+            <ColorPickerCanvas />
           </ViewportStage>
           <ComparisonDivider />
           <CanvasToolbar>
@@ -182,32 +192,34 @@ function DocumentEditor({
       <ToolProvider>
         <MaskTools>
           <HealingTools>
-            <EditorHeader
-              file={state.file}
-              open={<OpenButton onOpen={onOpen} />}
-            >
-              <HistoryControls />
-              <hr
-                aria-orientation="vertical"
-                className="mx-1 h-4 w-px border-0 separator"
+            <ColorPickerProvider>
+              <EditorHeader
+                file={state.file}
+                open={<OpenButton onOpen={onOpen} />}
+              >
+                <HistoryControls />
+                <hr
+                  aria-orientation="vertical"
+                  className="mx-1 h-4 w-px border-0 separator"
+                />
+                <ComparisonControl />
+                <ExportButton />
+              </EditorHeader>
+              <OpenContext value={onOpen}>
+                <DockProvider>
+                  <EditorFrame rail={<ToolRail />} tabs={<DockTabs />}>
+                    <ToolView />
+                  </EditorFrame>
+                </DockProvider>
+              </OpenContext>
+              <OpenStatus
+                opening={state.opening}
+                failure={state.failure}
+                onDismiss={onDismissFailure}
               />
-              <ComparisonControl />
-              <ExportButton />
-            </EditorHeader>
-            <OpenContext value={onOpen}>
-              <DockProvider>
-                <EditorFrame rail={<ToolRail />} tabs={<DockTabs />}>
-                  <ToolView />
-                </EditorFrame>
-              </DockProvider>
-            </OpenContext>
-            <OpenStatus
-              opening={state.opening}
-              failure={state.failure}
-              onDismiss={onDismissFailure}
-            />
-            <PaintSettling />
-            <BrushKeys />
+              <PaintSettling />
+              <BrushKeys />
+            </ColorPickerProvider>
           </HealingTools>
         </MaskTools>
       </ToolProvider>

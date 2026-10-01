@@ -6,6 +6,7 @@ import type {
   BrushStroke,
   LookupTable,
   Mask,
+  MaskRange,
   ProcessingLayer,
   Scene,
   StrokePoint,
@@ -27,6 +28,8 @@ export type Workload =
   | "masked-exposure"
   | "radial-exposure"
   | "brush-exposure"
+  | "luminance-range"
+  | "color-range"
   | "layer-stack"
   | "fill"
   | "lut"
@@ -48,10 +51,12 @@ function summarize(values: number[]) {
   };
 }
 
-const rasterPixelBytes: Record<string, number> = {
+const pixelBytes: Record<string, number> = {
   r8unorm: 1,
   r16float: 2,
   rgba8unorm: 4,
+  rgba16float: 8,
+  rgba32float: 16,
 };
 
 /** Wavy strokes across the image, three painted and one erased. */
@@ -81,11 +86,25 @@ function benchmarkMask(workload: Workload, size: [number, number]): Mask {
   if (workload === "brush-exposure") {
     return { kind: "brush", strokes: brushStrokes(size) };
   }
+  if (workload === "luminance-range" || workload === "color-range") {
+    return { kind: "full" };
+  }
   return {
     kind: "linear",
     start: [0, size[1] * 0.2],
     end: [0, size[1] * 0.8],
   };
+}
+
+/** What the Add menu's range masks select at first: the brighter half, or a sky blue. */
+function benchmarkRange(workload: Workload): MaskRange | undefined {
+  if (workload === "luminance-range") {
+    return { kind: "luminance", low: 50, high: 100, smoothness: 25 };
+  }
+  if (workload === "color-range") {
+    return { kind: "color", color: "#6fa8dc", tolerance: 30 };
+  }
+  return undefined;
 }
 
 /** A 33-point LUT that warms highlights and cools shadows, as a creative grade does. */
@@ -169,8 +188,11 @@ export async function benchmarkRendering(
     workload === "masked-exposure" ||
     workload === "radial-exposure" ||
     workload === "brush-exposure" ||
+    workload === "luminance-range" ||
+    workload === "color-range" ||
     workload === "layer-stack"
   ) {
+    const range = benchmarkRange(workload);
     effects.push({
       ...common,
       id: "benchmark-gradient",
@@ -181,6 +203,7 @@ export async function benchmarkRendering(
       toneCurve: defaultCurve,
       opacity: 0.75,
       mask: benchmarkMask(workload, size),
+      ...(range && { range }),
       children: [
         {
           ...common,
@@ -405,16 +428,14 @@ export async function benchmarkRendering(
       pixelHash: [...pixelHash]
         .map((value) => value.toString(16).padStart(2, "0"))
         .join(""),
-      // Image targets use rgba16float. Source and driver memory are excluded.
+      // Source and driver memory are excluded.
       intermediateBytes: storage.textures.reduce(
-        (sum, { size, format }) =>
-          sum + size[0] * size[1] * (format === "rgba32float" ? 16 : 8),
+        (sum, { size, format }) => sum + size[0] * size[1] * pixelBytes[format],
         0,
       ),
       // Brush rasters, paint, and the stroke buffer, at source resolution, outside the graph.
       rasterBytes: storage.rasters.reduce(
-        (sum, { size, format }) =>
-          sum + size[0] * size[1] * rasterPixelBytes[format],
+        (sum, { size, format }) => sum + size[0] * size[1] * pixelBytes[format],
         0,
       ),
       image: [...new Uint8Array(await blob.arrayBuffer())],

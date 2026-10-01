@@ -16,6 +16,8 @@ import { setGrain } from "@/features/grain/edits";
 import { grainSchema } from "@/features/grain/model";
 import { addLayer, deleteLayer } from "@/features/layers/edits";
 import { maskSchema } from "@/features/layers/model";
+import { setMaskRange } from "@/features/mask-range/edits";
+import { rangeSchema } from "@/features/mask-range/model";
 import { curveSchema, defaultCurve } from "@/features/tone-curves/curve";
 import { setToneCurve } from "@/features/tone-curves/edits";
 import { setVignette } from "@/features/vignette/edits";
@@ -71,6 +73,9 @@ function reset(document: EditorDocument) {
   document.selectLayer(layer.id);
   return { layerId: layer.id };
 }
+
+const rangeHelp =
+  "A range narrows the mask to pixels of the photo below it: luminance keeps lightness from low to high, 0 black to 100 white, fading over smoothness; color keeps pixels near a #rrggbb color in hue and saturation, however light, within tolerance from 0 to 100.";
 
 const none = z.strictObject({});
 const layerId = z.optional(z.string());
@@ -141,19 +146,28 @@ export const commands = {
     }),
   ),
   "add-mask": command(
-    "Adds a mask layer on top of the stack with optional adjustments, as one edit, and returns its layerId. Coordinates are source pixels, unaffected by crop. A linear mask covers fully at start and fades out at end; a radial mask covers an ellipse around center with radius [x, y], angle in degrees, and feather from 0 to 1.",
+    `Adds a mask layer on top of the stack with optional adjustments, as one edit, and returns its layerId. Coordinates are source pixels, unaffected by crop. A linear mask covers fully at start and fades out at end; a radial mask covers an ellipse around center with radius [x, y], angle in degrees, and feather from 0 to 1; a full mask covers the whole photo. ${rangeHelp}`,
     z.strictObject({
       mask: maskSchema,
+      range: z.optional(rangeSchema),
       adjustments: z.optional(change(adjustmentsSchema)),
     }),
-    (document, { mask, adjustments }) => {
-      const layer = createMask(mask);
+    (document, { mask, range, adjustments }) => {
+      const layer = createMask(mask, "add", range);
       return {
         layerId: addLayer(document, {
           ...layer,
           adjustments: { ...layer.adjustments, ...adjustments },
         }),
       };
+    },
+  ),
+  "set-mask-range": command(
+    `Replaces the range of a mask layer that is not inside another mask, or removes it when range is omitted. ${rangeHelp}`,
+    z.strictObject({ layerId: z.string(), range: z.optional(rangeSchema) }),
+    (document, { layerId, range }) => {
+      setMaskRange(document, layerId, range);
+      return { layerId };
     },
   ),
   "delete-layer": command(

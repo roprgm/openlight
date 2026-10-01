@@ -26,6 +26,7 @@ export const maskSchema = z.discriminatedUnion("kind", [
     raster: z.optional(z.string().check(z.minLength(1))),
     strokes: z.array(strokeSchema),
   }),
+  z.object({ kind: z.literal("full") }),
 ]) satisfies z.ZodMiniType<Mask>;
 
 export const maskOperation = z.enum([

@@ -4,7 +4,7 @@ import { useGpu } from "vgpu-react";
 import { CoverageThumbnail } from "@/components/editor/coverage-thumbnail";
 import { useDocument, useScene } from "@/components/editor/session";
 import { Icon } from "@/components/icons/icon";
-import type { MaskLayer } from "@/core/document";
+import type { FullMask, Gradient, MaskLayer } from "@/core/document";
 import { renderBitmap } from "@/core/renderer";
 import { MaskFill } from "./mask-fill";
 
@@ -61,12 +61,39 @@ export function ImageThumbnail() {
   );
 }
 
-/** A mask's coverage from the renderer's raster; an unpainted brush shows its tool and a gradient draws itself. */
-export function MaskThumbnail({ layer }: { layer: MaskLayer }) {
+/** A gradient drawing itself, or a full mask covering everything. */
+function ShapeThumbnail({ mask }: { mask: Gradient | FullMask }) {
   const id = useId();
   const document = useDocument();
   const sourceId = useScene((scene) => scene.layers[0].source);
-  const size = document.resources.get(sourceId).image.size;
+  const [width, height] = document.resources.get(sourceId).image.size;
+  return (
+    <svg
+      aria-label={`${mask.kind === "full" ? "Full" : "Gradient"} mask thumbnail`}
+      role="img"
+      viewBox={`0 0 ${width} ${height}`}
+      className={frame}
+    >
+      {mask.kind !== "full" && (
+        <defs>
+          <MaskFill id={id} mask={mask} />
+        </defs>
+      )}
+      <rect
+        width={width}
+        height={height}
+        fill={mask.kind === "full" ? "white" : `url(#${id})`}
+      />
+    </svg>
+  );
+}
+
+/**
+ * A mask's coverage from the renderer's raster; an unpainted brush shows its tool and a gradient
+ * draws itself. A range selects from the image below, so any edit to the scene can change it.
+ */
+export function MaskThumbnail({ layer }: { layer: MaskLayer }) {
+  const version = useScene((scene) => (layer.range ? scene : layer));
   const fallback =
     layer.mask.kind === "brush" ? (
       <span
@@ -79,22 +106,12 @@ export function MaskThumbnail({ layer }: { layer: MaskLayer }) {
         </Icon>
       </span>
     ) : (
-      <svg
-        aria-label="Gradient mask thumbnail"
-        role="img"
-        viewBox={`0 0 ${size[0]} ${size[1]}`}
-        className={frame}
-      >
-        <defs>
-          <MaskFill id={id} mask={layer.mask} />
-        </defs>
-        <rect width={size[0]} height={size[1]} fill={`url(#${id})`} />
-      </svg>
+      <ShapeThumbnail mask={layer.mask} />
     );
   return (
     <CoverageThumbnail
       id={layer.id}
-      version={layer}
+      version={version}
       label="Mask thumbnail"
       fallback={fallback}
     />

@@ -21,6 +21,7 @@ import type {
   Fill,
   Grain,
   Mask,
+  MaskRange,
   PaintStroke,
   Preview,
   ToneCurve,
@@ -55,6 +56,7 @@ import {
   setMaskOperation,
 } from "@/features/layers/edits";
 import { defaultGradient } from "@/features/layers/gradient";
+import { setMaskRange } from "@/features/mask-range/edits";
 import { addPaintStroke, setPaintBlend } from "@/features/paint/edits";
 import { defaultCurve } from "@/features/tone-curves/curve";
 import { setToneCurve } from "@/features/tone-curves/edits";
@@ -173,6 +175,8 @@ export function createControls(
       setLayerMask(workspace.getDocument(), id, mask),
     setMaskOperation: (id: string, operation: "add" | "subtract") =>
       setMaskOperation(workspace.getDocument(), id, operation),
+    setMaskRange: (id: string, range?: MaskRange) =>
+      setMaskRange(workspace.getDocument(), id, range),
     duplicateLayer: (id: string) => duplicateLayer(workspace.getDocument(), id),
     deleteLayer: (id: string) => deleteLayer(workspace.getDocument(), id),
     moveLayer: (id: string, index: number, parentId?: string) =>

@@ -15,6 +15,8 @@ for (const workload of [
   "masked-exposure",
   "radial-exposure",
   "brush-exposure",
+  "luminance-range",
+  "color-range",
   "layer-stack",
   "fill",
   "lut",

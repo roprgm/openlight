@@ -25,10 +25,10 @@ struct MaskOverlay {
 @group(0) @binding(8) var<storage, read> modifiers: array<vec4f>;
 @group(0) @binding(9) var coverage: texture_2d<f32>;
 
-// The same coverage the mix pass applies: kind 3 reads a rasterized mask, the rest evaluate gradients in source pixels.
+// The same coverage the mix pass applies: kind 4 reads a rasterized mask, the rest evaluate gradients in source pixels.
 fn overlayCoverage(uv: vec2f) -> f32 {
   let point = sourcePoint(maskTransform, uv);
-  if (overlay.kind == 3u) {
+  if (overlay.kind == 4u) {
     return textureSampleLevel(coverage, sourceSampler, point, 0.0).r * overlay.opacity;
   }
   let position = point * overlay.sourceSize;

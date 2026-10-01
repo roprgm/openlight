@@ -16,7 +16,9 @@ export type Nesting = {
   parentId?: string;
   operation: "add" | "subtract";
 };
-type Pending = Nesting & { shape: Mask["kind"] };
+/** The masks a tool draws; a full mask has nothing to draw. */
+type DrawnShape = Exclude<Mask["kind"], "full">;
+type Pending = Nesting & { shape: DrawnShape };
 type OverlayChoice = "auto" | "shown" | "hidden";
 
 const MaskTool = createContext<{
@@ -25,7 +27,7 @@ const MaskTool = createContext<{
   add: (
     parentId: string,
     operation: Nesting["operation"],
-    shape: Mask["kind"],
+    shape: DrawnShape,
   ) => void;
   /** Adds the mask where `nesting` says, else where a pending choice says, else on top. */
   create: (mask: Mask, nesting?: Nesting) => void;
@@ -38,7 +40,7 @@ const MaskTool = createContext<{
   /** A gradient being drawn, not yet in the scene, tinted like a mask. */
   draft: StoreApi<Gradient | null>;
   /** Enters editing with the tool of a shape, or leaves it: the layer stays selected, its guides go. */
-  edit: (shape?: Mask["kind"]) => void;
+  edit: (shape?: DrawnShape) => void;
 } | null>(null);
 
 export function useMaskTool() {
@@ -58,7 +60,7 @@ export function MaskToolProvider({
   children: ReactNode;
   onCreate: (mask: Mask, nesting: Nesting) => void;
   /** Activates the tool that draws the shape. */
-  onTool?: (shape: Mask["kind"]) => void;
+  onTool?: (shape: DrawnShape) => void;
   /** Returns to the tool without a mask canvas. */
   onDone?: () => void;
 }) {
