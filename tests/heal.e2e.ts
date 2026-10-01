@@ -295,6 +295,19 @@ test("Healing paints patches, edits them, and undoes", async ({ page }) => {
   await expect.poll(sourceX).not.toBe(beforeDrag);
   await page.mouse.up();
   const fixedSource = await sourceX();
+  const sourceBounds = await box(handle);
+  const sourceCenter = [
+    sourceBounds.x + sourceBounds.width / 2,
+    sourceBounds.y + sourceBounds.height / 2,
+  ];
+  await page.mouse.move(sourceCenter[0], sourceCenter[1]);
+  await page.mouse.down();
+  await page.mouse.move(sourceCenter[0] + 20, sourceCenter[1]);
+  await expect.poll(sourceX).not.toBe(fixedSource);
+  await page.keyboard.press("ControlOrMeta+z");
+  await page.mouse.move(sourceCenter[0] + 40, sourceCenter[1]);
+  await page.mouse.up();
+  expect(await sourceX()).toBe(fixedSource);
   const beforeDestination = await page.evaluate((patchId) => {
     const healing = window.openlight
       .getState()

@@ -43,6 +43,17 @@ import { ToolRail } from "./tool-rail";
 import { ToolShortcuts } from "./tool-shortcuts";
 import { exportTool, ToolProvider, tools, useTool } from "./tools";
 
+function ActiveBrushInput({ children }: { children: ReactNode }) {
+  const { tool } = useTool();
+  const brush = useBrushTool();
+  const healing = useHealBrush();
+  return (
+    <BrushInputProvider value={tool.id === "heal" ? healing : brush}>
+      {children}
+    </BrushInputProvider>
+  );
+}
+
 /**
  * A View replaces the canvas and its controls; otherwise the tool's Canvas joins the shared canvas.
  * Its Options go in the bar over the canvas on desktop and in the dock on mobile, where the output
@@ -51,9 +62,6 @@ import { exportTool, ToolProvider, tools, useTool } from "./tools";
 function ToolView() {
   const { tool, setTool } = useTool();
   const desktop = useDesktopLayout();
-  const brush = useBrushTool();
-  const healingBrush = useHealBrush();
-  const input = tool.id === "heal" ? healingBrush : brush;
   const document = useDocument();
   const size = useScene((scene) => scene.frame.size);
   // Enter and Escape leave one level: shape tools return to Adjust, where the selection climbs to the image.
@@ -75,7 +83,7 @@ function ToolView() {
     return <tool.View onClose={close} />;
   }
   return (
-    <BrushInputProvider value={input}>
+    <ActiveBrushInput>
       <EditorLayout
         canvas={
           <EditorViewport size={size}>
@@ -94,7 +102,7 @@ function ToolView() {
         panel={<EditorSidebar />}
         dock={<DockPanel />}
       />
-    </BrushInputProvider>
+    </ActiveBrushInput>
   );
 }
 

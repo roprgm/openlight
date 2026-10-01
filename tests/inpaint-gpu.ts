@@ -122,6 +122,20 @@ export async function renderInpaintReference(
       ]),
     );
     await renderer.update(
+      { ...scene, layers: [scene.layers[0], { ...healing, visible: false }] },
+      undefined,
+      proxy,
+    );
+    const hiddenCaches = renderer.inspect().cachedTextures.length;
+    await renderer.update(scene, undefined, proxy);
+    const shown = renderer.inspect();
+    const visible = await renderer.fullImage().readFloats();
+    const visibilityError = visible.reduce(
+      (maximum, value, index) =>
+        Math.max(maximum, Math.abs(value - actual[index])),
+      0,
+    );
+    await renderer.update(
       {
         ...scene,
         layers: [
@@ -182,6 +196,11 @@ export async function renderInpaintReference(
       outsideError,
       alphaError,
       restoredError,
+      visibilityError,
+      hiddenCaches,
+      shownSolverPasses: shown.passes.filter((name) =>
+        name.includes("/inpaint/"),
+      ).length,
       finite: actual.every(Number.isFinite),
       errors,
       images,

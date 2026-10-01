@@ -2,18 +2,19 @@ import { Chip } from "@roprgm/ui/chip";
 import { IconButton } from "@roprgm/ui/icon-button";
 import { Slider } from "@roprgm/ui/slider";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@roprgm/ui/tooltip";
+import { useBrushInput } from "@/components/editor/brush-input";
 import { DockChips, DockControls } from "@/components/editor/dock";
 import type { Parameter } from "@/components/editor/parameter";
 import { useDocument, useSelectedLayer } from "@/components/editor/session";
 import { barSlider, useBarDensity } from "@/components/editor/toolbar-density";
 import { SparklesIcon } from "@/components/icons/sparkles";
 import { setHealPatch } from "./edits";
-import { useHealBrush, useHealing, useSelectedHealPatch } from "./mode";
+import { useHealing, useSelectedHealPatch } from "./mode";
 import { HealModeIcon } from "./mode-buttons";
 
 export function HealOptions() {
   const document = useDocument();
-  const { parameters: brushParameters } = useHealBrush();
+  const { parameters: brushParameters } = useBrushInput();
   const { source, setSource, mode, selectMode } = useHealing();
   const layer = useSelectedLayer();
   const selected = useSelectedHealPatch();

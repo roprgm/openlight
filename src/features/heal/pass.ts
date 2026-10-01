@@ -89,6 +89,22 @@ function healPatch(
   );
 }
 
+function repairsPixels(patch: HealPatch) {
+  return (
+    patch.mode === "remove" || patch.offset[0] !== 0 || patch.offset[1] !== 0
+  );
+}
+
+export function retainHealPatches(
+  patches: readonly HealPatch[],
+  name: string,
+  composition: Pick<Composition, "retain">,
+) {
+  for (const patch of patches) {
+    if (repairsPixels(patch)) composition.retain(`${name}/${patch.id}`);
+  }
+}
+
 export function heal(
   source: RenderImage,
   patches: readonly HealPatch[],
@@ -96,20 +112,15 @@ export function heal(
   composition: HealComposition,
   dependencies: readonly CacheKey[],
 ) {
+  retainHealPatches(patches, name, composition);
   let image = source;
   let inspected: RenderImage | undefined;
   let content = dependencies;
   for (const patch of patches) {
     if (patch.id === composition.inputId) inspected = image;
     const id = `${name}/${patch.id}`;
-    if (
-      patch.mode !== "remove" &&
-      patch.offset[0] === 0 &&
-      patch.offset[1] === 0
-    )
-      continue;
+    if (!repairsPixels(patch)) continue;
     const coverage = composition.patch(id, patch.stroke);
-    composition.retain(id);
     if (patch.mode === "remove") {
       image = removePatch(
         image,

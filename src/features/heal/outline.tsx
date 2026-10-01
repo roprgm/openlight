@@ -1,4 +1,4 @@
-import { memo, type PointerEvent, useId } from "react";
+import { memo, type PointerEvent, useId, useState } from "react";
 import { useDocumentMapping } from "@/components/editor/mapping";
 import { useDocument } from "@/components/editor/session";
 import type { BrushStroke, HealPatch } from "@/core/document";
@@ -114,13 +114,17 @@ export function HealPatchOutline({
 }) {
   const document = useDocument();
   const mapping = useDocumentMapping();
+  const [preview, setPreview] = useState<Point>();
   const first = patch.stroke.points[0];
-  const destination = geometry(patch.stroke, [0, 0], mapping);
+  const offset: Point = preview
+    ? [preview[0] - first[0], preview[1] - first[1]]
+    : [0, 0];
+  const destination = geometry(patch.stroke, offset, mapping);
   const source =
     showSource &&
     patch.mode !== "remove" &&
     geometry(patch.stroke, patch.offset, mapping);
-  // Both anchors edit live inside the drag's history group, so the repair follows the pointer.
+  // Remove previews the contour and solves on drop; donor repairs follow the drag live.
   const moveDestination = (next?: Point) => {
     if (next) setHealDestination(document, layer, patch.id, next);
   };
@@ -130,7 +134,7 @@ export function HealPatchOutline({
   const destinationDrag: AnchorDrag | undefined = interactive
     ? {
         from: [first[0], first[1]],
-        onDrag: moveDestination,
+        onDrag: patch.mode === "remove" ? setPreview : moveDestination,
         onDrop: moveDestination,
       }
     : undefined;

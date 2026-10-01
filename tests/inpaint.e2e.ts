@@ -108,6 +108,75 @@ test("Remove debounces stroke edits, flushes on release, exports, undoes, and ca
   ).toHaveAttribute("aria-pressed", "true");
 });
 
+test("Remove moves on drop and cancels a pending move on undo, pointer cancellation, and tool exit", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await page.goto("/");
+  await page
+    .locator('input[type="file"]')
+    .setInputFiles("tests/fixtures/photo.svg");
+  await expect(
+    page.getByRole("textbox", { name: "Exposure", exact: true }),
+  ).toHaveValue("0.00");
+  await page.keyboard.press("h");
+  await page.keyboard.press("h");
+  await page.keyboard.press("h");
+  const size = page.getByRole("textbox", { name: "Size", exact: true });
+  await size.fill("20");
+  await size.press("Enter");
+  const canvas = page.getByLabel("Healing canvas", { exact: true });
+  const bounds = await box(canvas);
+  await page.mouse.click(
+    bounds.x + bounds.width / 2,
+    bounds.y + bounds.height / 2,
+  );
+  const handle = canvas.locator('[data-heal-destination-handle="true"]');
+  await expect(handle).toBeVisible();
+  const points = () =>
+    page.evaluate(() => {
+      const layer = window.openlight
+        .getState()
+        .scene?.layers.find((layer) => layer.kind === "heal");
+      return layer?.kind === "heal" ? layer.patches[0]?.stroke.points : [];
+    });
+  const initial = await points();
+  const history = await page.evaluate(
+    () => window.openlight.getState().history.undoCount,
+  );
+  async function startMove() {
+    const bounds = await box(handle);
+    const x = bounds.x + bounds.width / 2;
+    const y = bounds.y + bounds.height / 2;
+    await page.mouse.move(x, y);
+    await page.mouse.down();
+    await page.mouse.move(x + 40, y + 20, { steps: 4 });
+    await expect
+      .poll(async () => (await box(handle)).x)
+      .toBeGreaterThan(bounds.x + 30);
+    return { x, y };
+  }
+  await startMove();
+  expect(await points()).toEqual(initial);
+  await page.mouse.up();
+  await expect.poll(points).not.toEqual(initial);
+  expect(
+    await page.evaluate(() => window.openlight.getState().history.undoCount),
+  ).toBe(history + 1);
+  for (const cancel of ["undo", "pointercancel", "exit"]) {
+    const { x, y } = await startMove();
+    if (cancel === "undo") await page.keyboard.press("ControlOrMeta+z");
+    if (cancel === "pointercancel") await handle.dispatchEvent("pointercancel");
+    if (cancel === "exit") await page.keyboard.press("Escape");
+    await page.mouse.move(x + 60, y + 30);
+    await page.mouse.up();
+    expect(await points()).toEqual(initial);
+    expect(
+      await page.evaluate(() => window.openlight.getState().history),
+    ).toMatchObject({ undoCount: history, editing: false });
+  }
+});
+
 test("Remove synthesizes a spot without donor selection and reuses only unchanged content", async ({
   page,
 }) => {
@@ -125,6 +194,9 @@ test("Remove synthesizes a spot without donor selection and reuses only unchange
   expect(result.outsideError).toBe(0);
   expect(result.alphaError).toBe(0);
   expect(result.restoredError).toBe(0);
+  expect(result.visibilityError).toBe(0);
+  expect(result.hiddenCaches).toBeGreaterThan(0);
+  expect(result.shownSolverPasses).toBe(0);
   expect(result.solverPasses).toBeGreaterThan(0);
   expect(result.cachedSolverPasses).toBe(0);
   expect(result.changedSolverPasses).toBeGreaterThan(0);

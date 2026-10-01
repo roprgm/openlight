@@ -1,5 +1,9 @@
 import type { Gpu, Timer } from "vgpu";
-import { maskModifiers, type ProcessingLayer } from "@/core/document";
+import {
+  maskModifiers,
+  type ProcessingLayer,
+  walkLayers,
+} from "@/core/document";
 import type { ImageSource } from "@/core/image";
 import {
   type CacheKey,
@@ -18,7 +22,7 @@ import { colorMixer } from "@/features/color-mixer/pass";
 import { unsharpMask } from "@/features/details/unsharp-mask";
 import { fill } from "@/features/fill/pass";
 import { grain } from "@/features/grain/pass";
-import { heal } from "@/features/heal/pass";
+import { heal, retainHealPatches } from "@/features/heal/pass";
 import { lut } from "@/features/lut/pass";
 import { paint } from "@/features/paint/pass";
 import { toneCurves } from "@/features/tone-curves/pass";
@@ -45,6 +49,13 @@ function composeLayer(
     (layer.kind === "heal" &&
       layer.patches.some((patch) => patch.id === composition.inputId));
   if (bypassed && !inspected) {
+    for (const { layer: hidden } of walkLayers([layer])) {
+      const instance = `layer/${hidden.id}`;
+      composition.retain(instance);
+      if (hidden.kind === "heal") {
+        retainHealPatches(hidden.patches, instance, composition);
+      }
+    }
     return { image: below, dependencies };
   }
   const masks = layer.kind === "mask" ? maskModifiers(layer) : [];

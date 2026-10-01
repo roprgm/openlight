@@ -92,7 +92,7 @@ function patchesOf(document: ReturnType<typeof createDocument>, layer: string) {
   return healing.patches;
 }
 
-test("a nested Remove reuses synthesis for blend edits and invalidates upstream content and proxy changes", async () => {
+test("a nested Remove retains synthesis when bypassed and invalidates upstream content and proxy changes", async () => {
   const gpu = await init();
   const source = createImageSource(
     target(gpu, { size: [128, 96], format: "rgba16float" }),
@@ -116,10 +116,29 @@ test("a nested Remove reuses synthesis for blend edits and invalidates upstream 
     setHealPatch(document, layer, patch, { opacity: 0.5, feather: 0.4 });
     await renderer.update(document.scene.getState());
     expect(solves()).toBe(false);
+    for (const id of [layer, mask]) {
+      setLayer(document, id, { visible: false });
+      await renderer.update(document.scene.getState());
+      expect(renderer.inspect().cachedTextures).toHaveLength(1);
+      setLayer(document, id, { visible: true });
+      await renderer.update(document.scene.getState());
+      expect(solves()).toBe(false);
+      setLayer(document, id, { opacity: 0 });
+      await renderer.update(document.scene.getState());
+      expect(renderer.inspect().cachedTextures).toHaveLength(1);
+      setLayer(document, id, { opacity: 1 });
+      await renderer.update(document.scene.getState());
+      expect(solves()).toBe(false);
+    }
     setLayer(document, mask, { opacity: 0.5 });
     await renderer.update(document.scene.getState());
     expect(solves()).toBe(false);
+    setLayer(document, mask, { visible: false });
+    await renderer.update(document.scene.getState());
     setAdjustments(document, { exposure: 1 }, mask);
+    await renderer.update(document.scene.getState());
+    expect(solves()).toBe(false);
+    setLayer(document, mask, { visible: true });
     await renderer.update(document.scene.getState());
     expect(solves()).toBe(true);
     renderer.setDisplayScale(0.5);
@@ -127,6 +146,8 @@ test("a nested Remove reuses synthesis for blend edits and invalidates upstream 
     expect(solves()).toBe(true);
     await renderer.update(document.scene.getState());
     expect(solves()).toBe(false);
+    setLayer(document, mask, { visible: false });
+    await renderer.update(document.scene.getState());
     deleteLayer(document, mask);
     await renderer.update(document.scene.getState());
     expect(renderer.inspect().cachedTextures).toEqual([]);
