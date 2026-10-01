@@ -7,6 +7,77 @@ for (const { name, shortcut, presses, label } of [
   { name: "color", shortcut: "b", presses: 2, label: "Paint canvas" },
   { name: "retouch", shortcut: "h", presses: 3, label: "Healing canvas" },
 ]) {
+  test(`${name} brush menu owns clicks and slider drags without painting or navigating`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    await page.goto("/");
+    await page
+      .locator('input[type="file"]')
+      .setInputFiles("tests/fixtures/photo.svg");
+    await expect(
+      page.getByRole("textbox", { name: "Exposure", exact: true }),
+    ).toHaveValue("0.00");
+    for (let i = 0; i < presses; i++) await page.keyboard.press(shortcut);
+    const canvas = page.getByLabel(label, { exact: true });
+    await expect(canvas).toBeVisible();
+    const state = await page.evaluate(() => window.openlight.getState());
+    const zoom = page.getByRole("button", { name: /^\d+%$/ });
+    const fit = await zoom.innerText();
+    await canvas.click({ button: "right", position: { x: 300, y: 300 } });
+    const menu = page.getByRole("dialog");
+    await expect(menu).toBeVisible();
+    const size = menu.getByRole("textbox", { name: "Size", exact: true });
+    await size.click();
+    await size.fill("80");
+    await size.press("Enter");
+    const feather = menu.getByRole("textbox", { name: "Feather", exact: true });
+    await feather.click();
+    await feather.fill("30");
+    await feather.press("Enter");
+    for (const name of ["Size", "Feather"]) {
+      const thumb = menu.getByRole("slider", { name, exact: true });
+      const initial = await thumb.getAttribute("aria-valuenow");
+      const bounds = await box(thumb);
+      await page.mouse.move(
+        bounds.x + bounds.width / 2,
+        bounds.y + bounds.height / 2,
+      );
+      await page.mouse.down();
+      await page.mouse.move(
+        bounds.x + bounds.width / 2 + 30,
+        bounds.y + bounds.height / 2,
+        { steps: 4 },
+      );
+      await page.mouse.up();
+      await expect(thumb).not.toHaveAttribute("aria-valuenow", initial ?? "");
+    }
+    // The viewport capture phase must also leave portaled controls alone while Space is held.
+    await page.evaluate(() => {
+      if (document.activeElement instanceof HTMLElement)
+        document.activeElement.blur();
+    });
+    await page.keyboard.down("Space");
+    await expect(canvas).toHaveAttribute("data-pan", "true");
+    await size.click();
+    await size.fill("90");
+    await size.press("Enter");
+    await page.keyboard.up("Space");
+    const panel = await box(menu);
+    await page.mouse.click(panel.x + panel.width / 2, panel.y + 6);
+    await expect(menu).toBeVisible();
+    await expect(zoom).toHaveText(fit);
+    expect(await page.evaluate(() => window.openlight.getState())).toEqual(
+      state,
+    );
+    await page.keyboard.press("Escape");
+    await expect(menu).toHaveCount(0);
+    await expect(canvas).toBeVisible();
+    await expect(
+      page.getByRole("textbox", { name: "Size", exact: true }),
+    ).toHaveValue("90");
+  });
+
   test(`${name} wheel sizes the brush while pinch zoom and Space-drag navigate`, async ({
     page,
   }) => {

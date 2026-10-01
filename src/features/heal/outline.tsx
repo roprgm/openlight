@@ -100,6 +100,19 @@ function Outline({
   );
 }
 
+/** Shows the Remove selection without changing the rendered image. */
+export function HealStrokePreview({ stroke }: { stroke: BrushStroke }) {
+  const shape = geometry(stroke, [0, 0], useDocumentMapping());
+  return (
+    <g data-heal-stroke-preview="true">
+      <g opacity={0.15}>
+        <StrokeShape shape={shape} width={shape.width} color="white" />
+      </g>
+      <Outline shape={shape} kind="destination" />
+    </g>
+  );
+}
+
 /** Draws a solid destination and a quieter source contour with first-point anchors. */
 export function HealPatchOutline({
   layer,
@@ -134,6 +147,7 @@ export function HealPatchOutline({
   const destinationDrag: AnchorDrag | undefined = interactive
     ? {
         from: [first[0], first[1]],
+        editOnRelease: patch.mode === "remove",
         onDrag: patch.mode === "remove" ? setPreview : moveDestination,
         onDrop: moveDestination,
       }

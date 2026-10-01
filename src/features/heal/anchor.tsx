@@ -17,6 +17,7 @@ type Drag = {
 /** A dragged value: the destination's first point or the donor offset, changed as one history edit. */
 export type AnchorDrag = {
   from: Point;
+  editOnRelease?: boolean;
   /** Follows the pointer; no value ends the drag. */
   onDrag: (next?: Point) => void;
   onDrop: (next: Point) => void;
@@ -89,7 +90,7 @@ function DraggedAnchor({
     ) {
       return;
     }
-    opened.current = document.history.begin();
+    opened.current = !drag.editOnRelease && document.history.begin();
     current.current = {
       pointer: event.pointerId,
       box,

@@ -2,7 +2,7 @@ import { expect, test } from "./fixtures";
 import { readImage } from "./images";
 import { box } from "./pointer";
 
-test("Remove debounces stroke edits, flushes on release, exports, undoes, and cancels", async ({
+test("Remove previews each frame, solves on release, exports, undoes, and cancels", async ({
   page,
 }) => {
   test.setTimeout(90_000);
@@ -54,25 +54,39 @@ test("Remove debounces stroke edits, flushes on release, exports, undoes, and ca
   await page.clock.pauseAt(time);
   await page.mouse.move(x, y);
   await page.mouse.down();
+  const preview = canvas.locator('[data-heal-stroke-preview="true"]');
+  await expect(preview).toBeVisible();
+  const path = preview.locator("path").first();
+  const initialWidth = (await box(path)).width;
   for (let step = 1; step <= 6; step++) {
     await page.mouse.move(x + step * 20 * scale, y);
-    await page.clock.runFor(80);
-    expect(await patchPoints()).toHaveLength(1);
+    await page.clock.runFor(17);
+    expect((await box(path)).width).toBeCloseTo(
+      initialWidth + step * 20 * scale,
+      0,
+    );
+    expect(await patchPoints()).toBeUndefined();
   }
-  // A quiet interval previews the accumulated stroke once, without dropping intermediate points.
-  await page.clock.runFor(210);
-  const preview = await patchPoints();
-  expect(preview?.length).toBeGreaterThanOrEqual(7);
+  // Pausing while held never creates an edit or runs synthesis.
+  await page.clock.runFor(500);
+  expect(await patchPoints()).toBeUndefined();
+  expect(
+    await page.evaluate(() => window.openlight.getState().history),
+  ).toEqual(history);
+  expect((await readImage(page, undefined, [[350, 200]])).samples).toEqual(
+    before.samples,
+  );
   await page.mouse.move(x + 150 * scale, y);
-  await page.clock.runFor(50);
-  expect(await patchPoints()).toEqual(preview);
+  // Release also includes points queued since the last animation frame.
   await page.mouse.up();
+  await expect(preview).toHaveCount(0);
   await expect
     .poll(() =>
       page.evaluate(() => window.openlight.getState().history.undoCount),
     )
     .toBe(history.undoCount + 1);
   expect((await patchPoints())?.at(-1)?.[0]).toBeCloseTo(500, 0);
+  expect((await patchPoints())?.length).toBeGreaterThanOrEqual(8);
   await expect(canvas.locator('[data-heal-source-handle="true"]')).toHaveCount(
     0,
   );
@@ -90,22 +104,21 @@ test("Remove debounces stroke edits, flushes on release, exports, undoes, and ca
   await page.keyboard.press("ControlOrMeta+z");
   const undone = await readImage(page, undefined, [[350, 200]]);
   expect(undone.samples).toEqual(before.samples);
-  for (const cancel of ["Escape", "ControlOrMeta+z"]) {
+  for (const cancel of ["Escape", "pointercancel", "exit", "ControlOrMeta+z"]) {
+    if (!(await canvas.isVisible())) await page.keyboard.press("h");
     await page.mouse.move(x, y);
     await page.mouse.down();
     await page.mouse.move(x + 100 * scale, y);
-    await page.keyboard.press(cancel);
+    if (cancel === "pointercancel")
+      await canvas.dispatchEvent("pointercancel", { pointerId: 1 });
+    else if (cancel === "exit") await page.keyboard.press("b");
+    else await page.keyboard.press(cancel);
     await page.mouse.up();
     await page.clock.runFor(300);
     expect(await patchPoints()).toBeUndefined();
+    await expect(preview).toHaveCount(0);
   }
   await page.clock.resume();
-  await page.keyboard.press("h");
-  await expect(
-    page
-      .getByRole("group", { name: "Retouch mode" })
-      .getByRole("button", { name: "Heal", exact: true }),
-  ).toHaveAttribute("aria-pressed", "true");
 });
 
 test("Remove moves on drop and cancels a pending move on undo, pointer cancellation, and tool exit", async ({
@@ -158,6 +171,9 @@ test("Remove moves on drop and cancels a pending move on undo, pointer cancellat
   }
   await startMove();
   expect(await points()).toEqual(initial);
+  expect(
+    await page.evaluate(() => window.openlight.getState().history),
+  ).toMatchObject({ editing: false });
   await page.mouse.up();
   await expect.poll(points).not.toEqual(initial);
   expect(

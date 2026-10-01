@@ -5,7 +5,7 @@ import { useDocumentMapping } from "@/components/editor/mapping";
 import { useRenderer } from "@/components/editor/pipeline";
 import { useDocument, useSelectedLayer } from "@/components/editor/session";
 import { useToolLayer } from "@/components/editor/tool-layer";
-import type { Layer } from "@/core/document";
+import type { BrushStroke, Layer } from "@/core/document";
 import type { Point } from "@/core/image/frame";
 import { useDisposable } from "@/hooks/use-disposable";
 import {
@@ -16,7 +16,11 @@ import {
 } from "./edits";
 import { useHealing } from "./mode";
 import { dabTouchesImage, findHealPatch } from "./model";
-import { HealPatchHitTarget, HealPatchOutline } from "./outline";
+import {
+  HealPatchHitTarget,
+  HealPatchOutline,
+  HealStrokePreview,
+} from "./outline";
 import { createHealSearch } from "./source";
 
 function isHealLayer(layer: Layer): layer is Extract<Layer, { kind: "heal" }> {
@@ -39,6 +43,7 @@ export function HealOverlay({
   const { mode, source, setSource, selectedPatch, selectPatch, hoveredPatch } =
     useHealing();
   const [drawingPatch, setDrawingPatch] = useState<string>();
+  const [draft, setDraft] = useState<BrushStroke>();
   const [resolvingSource, setResolvingSource] = useState<string>();
   // A manual donor belongs to this visit to the tool.
   useEffect(() => () => setSource(undefined), [setSource]);
@@ -55,12 +60,25 @@ export function HealOverlay({
     : undefined;
   const visiblePatch = drawingPatch ?? hovered ?? selectedPatch;
   const pending = useRef<
-    { layer: string; patch: string; automatic: boolean } | undefined
+    | { layer: string; mode: "remove"; stroke: BrushStroke }
+    | {
+        layer: string;
+        mode: "heal" | "clone";
+        patch: string;
+        automatic: boolean;
+      }
+    | undefined
   >(undefined);
   async function complete(signal: AbortSignal) {
     const current = pending.current;
     try {
-      if (!current?.automatic || signal.aborted) return;
+      if (
+        !current ||
+        current.mode === "remove" ||
+        !current.automatic ||
+        signal.aborted
+      )
+        return;
       const scene = document.scene.getState();
       const patch = findHealPatch(scene, current.layer, current.patch);
       if (!patch) return;
@@ -80,7 +98,9 @@ export function HealOverlay({
       }
       setHealSource(document, current.layer, current.patch, offset);
     } finally {
-      setResolvingSource((id) => (id === current?.patch ? undefined : id));
+      if (current && current.mode !== "remove") {
+        setResolvingSource((id) => (id === current.patch ? undefined : id));
+      }
     }
   }
   const marker = source && mapping.toScreen(source);
@@ -88,7 +108,7 @@ export function HealOverlay({
     <BrushCanvas
       label="Healing canvas"
       erase={false}
-      extendDelay={mode === "remove" ? 200 : 0}
+      editOnRelease={mode === "remove"}
       onStart={(stroke) => {
         const layer = selectedHealLayer();
         if (!layer) return false;
@@ -97,41 +117,66 @@ export function HealOverlay({
           document.scene.getState().layers[0].source,
         ).image.size;
         if (!dabTouchesImage([x, y], stroke.size / 2, size)) return false;
+        const painted = { ...stroke, flow: 1 };
+        if (mode === "remove") {
+          pending.current = { layer: layer.id, mode, stroke: painted };
+          setDraft(painted);
+          selectPatch(undefined);
+          return true;
+        }
         const offset: Point = source ? [source[0] - x, source[1] - y] : [0, 0];
-        const patch =
-          mode === "remove"
-            ? addRemovePatch(document, layer.id, { ...stroke, flow: 1 })
-            : addHealPatch(
-                document,
-                layer.id,
-                { ...stroke, flow: 1 },
-                offset,
-                mode,
-              );
+        const patch = addHealPatch(document, layer.id, painted, offset, mode);
         setDrawingPatch(patch);
-        setResolvingSource(source || mode === "remove" ? undefined : patch);
+        setResolvingSource(source ? undefined : patch);
         selectPatch(patch);
         pending.current = {
           layer: layer.id,
+          mode,
           patch,
-          automatic: !source && mode !== "remove",
+          automatic: !source,
         };
         return true;
       }}
       onExtend={(points) => {
-        const id = pending.current?.layer;
-        if (id) {
-          extendHealPatch(document, id, points);
+        const current = pending.current;
+        if (!current) return;
+        if (current.mode === "remove") {
+          const stroke = {
+            ...current.stroke,
+            points: [...current.stroke.points, ...points],
+          };
+          pending.current = { ...current, stroke };
+          setDraft(stroke);
+          return;
         }
+        extendHealPatch(document, current.layer, points);
       }}
       onComplete={complete}
       onFinish={(committed) => {
+        const current = pending.current;
+        if (current?.mode === "remove") {
+          pending.current = undefined;
+          setDraft(undefined);
+          if (committed) {
+            selectPatch(
+              addRemovePatch(document, current.layer, current.stroke),
+            );
+          }
+        }
         setDrawingPatch(undefined);
         if (!committed) setResolvingSource(undefined);
       }}
       onPickSource={mode === "remove" ? undefined : setSource}
       onDone={onDone}
     >
+      {draft && (
+        <svg
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-0 size-full overflow-visible"
+        >
+          <HealStrokePreview stroke={draft} />
+        </svg>
+      )}
       {healLayer && patches.length > 0 && (
         <svg
           aria-hidden="true"

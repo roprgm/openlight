@@ -12,7 +12,7 @@ import {
 import type { BrushStroke, StrokePoint } from "@/core/document";
 import type { Point } from "@/core/image/frame";
 import { useShortcuts } from "@/hooks/use-shortcuts";
-import { blurActive } from "@/lib/dom";
+import { blurActive, containsTarget } from "@/lib/dom";
 import { useBrushInput } from "./brush-input";
 import { useBrushWheel } from "./brush-wheel";
 import { CanvasHint } from "./canvas-hint";
@@ -28,9 +28,8 @@ type Stroke = {
   /** The viewport bounds measured once; pointer capture keeps them valid for the drag. */
   box: DOMRect;
   pending: StrokePoint[];
-  delay: number;
+  editOnRelease: boolean;
   frame?: number;
-  timer?: number;
 };
 
 type PointerLike = {
@@ -46,7 +45,7 @@ export function BrushCanvas({
   erase,
   onStart,
   onExtend,
-  extendDelay = 0,
+  editOnRelease = false,
   onComplete,
   onFinish,
   onPickSource,
@@ -55,11 +54,11 @@ export function BrushCanvas({
 }: {
   label: string;
   erase: boolean;
-  /** Records the first dab and returns whether the stroke started; a declined stroke leaves nothing behind. */
+  /** Starts the first dab or preview and returns whether accepted; a declined stroke leaves nothing behind. */
   onStart: (stroke: BrushStroke) => boolean;
   onExtend: (points: readonly StrokePoint[]) => void;
-  /** Debounces expensive stroke edits; releasing the pointer always flushes all points. */
-  extendDelay?: number;
+  /** Keeps a local preview outside history; onFinish records the edit on release. */
+  editOnRelease?: boolean;
   onComplete?: (signal: AbortSignal) => void | Promise<void>;
   onFinish?: (committed: boolean) => void;
   onPickSource?: (point: Point) => void;
@@ -84,6 +83,24 @@ export function BrushCanvas({
     const [x, y] = mapping.toDocument(event.clientX, event.clientY, box);
     return [x, y, event.pointerType === "pen" ? event.pressure : 1];
   }
+  function flush(current: Stroke) {
+    current.frame = undefined;
+    if (!current.pending.length) {
+      return true;
+    }
+    const points = current.pending;
+    current.pending = [];
+    try {
+      onExtend(points);
+      return true;
+    } catch (error) {
+      stroke.current = null;
+      onFinish?.(false);
+      if (!current.editOnRelease) document.history.cancel();
+      setError(String(error));
+      return false;
+    }
+  }
   /** Ends the stroke; a cancelled stroke restores the scene. */
   function finish(commit: boolean) {
     const current = stroke.current;
@@ -97,13 +114,13 @@ export function BrushCanvas({
       return;
     }
     stroke.current = null;
-    onFinish?.(commit);
     if (current.frame !== undefined) {
       cancelAnimationFrame(current.frame);
     }
-    clearTimeout(current.timer);
+    if (commit && !flush(current)) return;
+    onFinish?.(commit);
+    if (current.editOnRelease) return;
     if (commit) {
-      flush(current);
       if (!onComplete) {
         document.history.commit();
         return;
@@ -140,22 +157,6 @@ export function BrushCanvas({
     }
     document.history.cancel();
   }
-  function flush(current: Stroke) {
-    current.frame = undefined;
-    current.timer = undefined;
-    if (!current.pending.length) {
-      return;
-    }
-    const points = current.pending;
-    current.pending = [];
-    try {
-      onExtend(points);
-    } catch (error) {
-      document.history.cancel();
-      stroke.current = null;
-      setError(String(error));
-    }
-  }
   useEffect(() => {
     const unsubscribe = document.history.status.subscribe(({ editing }) => {
       if (!editing && stroke.current) finish(false);
@@ -190,6 +191,11 @@ export function BrushCanvas({
     brush.update({ feather: Math.min(1, Math.max(0, feather)) });
   }
   function start(event: PointerEvent<HTMLDivElement>) {
+    // Portaled controls share the React tree, but their gestures belong to the UI.
+    if (!containsTarget(event)) {
+      event.stopPropagation();
+      return;
+    }
     const current = stroke.current;
     if (current?.touch && event.pointerType === "touch" && !event.isPrimary) {
       // A second finger means a pinch: drop the stroke and let the viewport take both fingers.
@@ -213,7 +219,7 @@ export function BrushCanvas({
       return;
     }
     setError(undefined);
-    const opened = document.history.begin();
+    const opened = !editOnRelease && document.history.begin();
     const started = onStart({
       mode: erase ? "erase" : "paint",
       size: brush.settings.size,
@@ -231,7 +237,7 @@ export function BrushCanvas({
       client: [event.clientX, event.clientY],
       box,
       pending: [],
-      delay: extendDelay,
+      editOnRelease,
     };
     // The viewport below would otherwise capture the pointer to pan.
     event.preventDefault();
@@ -240,6 +246,7 @@ export function BrushCanvas({
     blurActive();
   }
   function move(event: PointerEvent<HTMLDivElement>) {
+    if (!containsTarget(event)) return;
     const bounds = event.currentTarget.getBoundingClientRect();
     const overHandle =
       event.target instanceof Element &&
@@ -257,11 +264,6 @@ export function BrushCanvas({
     const events = native.getCoalescedEvents?.() ?? [];
     for (const item of events.length ? events : [native]) {
       current.pending.push(point(item, current.box));
-    }
-    if (current.delay > 0) {
-      clearTimeout(current.timer);
-      current.timer = window.setTimeout(() => flush(current), current.delay);
-      return;
     }
     current.frame ??= requestAnimationFrame(() => flush(current));
   }
@@ -287,6 +289,7 @@ export function BrushCanvas({
       data-pan={camera.panMode}
       onDoubleClick={(event) => event.stopPropagation()}
       onContextMenu={(event) => {
+        if (!containsTarget(event)) return;
         event.preventDefault();
         const bounds = event.currentTarget.getBoundingClientRect();
         setMenu([event.clientX - bounds.left, event.clientY - bounds.top]);
@@ -295,9 +298,11 @@ export function BrushCanvas({
       onPointerMove={move}
       onPointerUp={end}
       onPointerLeave={() => setPointerVisible(false)}
-      onPointerCancel={() => finish(false)}
-      onLostPointerCapture={() => {
-        if (stroke.current) {
+      onPointerCancel={(event) => {
+        if (stroke.current?.pointer === event.pointerId) finish(false);
+      }}
+      onLostPointerCapture={(event) => {
+        if (stroke.current?.pointer === event.pointerId) {
           finish(false);
         }
       }}
