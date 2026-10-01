@@ -61,7 +61,7 @@ function Status({ state, onOpen }: { state: EmptyState } & OpenProps) {
   if (state.status === "error") {
     return (
       <>
-        <p className="max-w-md text-center text-muted">
+        <p className="max-w-md text-center text-secondary">
           Couldn't open {state.file}: {state.error}
         </p>
         <OpenImage onOpen={onOpen} />
@@ -78,7 +78,7 @@ function Status({ state, onOpen }: { state: EmptyState } & OpenProps) {
         width="64"
       />
       <h1 className="text-2xl font-bold">OpenLight</h1>
-      <p className="text-muted">Edit photos in your browser.</p>
+      <p className="text-secondary">Edit photos in your browser.</p>
       <OpenImage onOpen={onOpen} />
     </>
   );

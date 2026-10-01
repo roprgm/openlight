@@ -7,7 +7,7 @@ import { setPaintBlend } from "./edits";
 export function PaintControls({ layer }: { layer: PaintLayer }) {
   const document = useDocument();
   return (
-    <section className="flex items-center justify-between p-3.5 text-muted">
+    <section className="flex items-center justify-between p-3.5 text-secondary">
       Blend
       <Select
         raised

@@ -52,7 +52,7 @@ function Swatch({
         render={
           <label
             className={cn(
-              "absolute size-4.5 cursor-pointer rounded-sm surface-raised focus-ring",
+              "absolute size-4.5 cursor-pointer rounded-sm surface-control focus-ring",
               className,
             )}
             style={{ backgroundColor: value }}

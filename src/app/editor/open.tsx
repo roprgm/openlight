@@ -51,7 +51,7 @@ export function FileInput({
 export function OpenImage({ onOpen }: OpenProps) {
   const input = useRef<HTMLInputElement>(null);
   return (
-    <p className="mt-4 text-muted">
+    <p className="mt-4 text-secondary">
       Drop an image here or{" "}
       <TextLink onClick={() => input.current?.click()}>choose a file</TextLink>
       <FileInput ref={input} onOpen={onOpen} />
