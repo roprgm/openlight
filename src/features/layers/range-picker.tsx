@@ -6,6 +6,7 @@ import { useDocumentMapping } from "@/components/editor/mapping";
 import { useRenderer } from "@/components/editor/pipeline";
 import { useDocument, useScene } from "@/components/editor/session";
 import { useViewport } from "@/components/editor/viewport";
+import { eyedropperCursor } from "@/components/icons/eyedropper-cursor";
 import { findLayer, locateLayer } from "@/core/document";
 import { useDisposable } from "@/hooks/use-disposable";
 import { useShortcuts } from "@/hooks/use-shortcuts";
@@ -18,6 +19,8 @@ type Drag = {
   pointer: number;
   /** The viewport bounds measured once; pointer capture keeps them valid for the drag. */
   box: DOMRect;
+  /** Whether a color has landed and opened the drag's edit. */
+  started: boolean;
   /** The latest color to land, which the drag waits for before it ends. */
   landed: Promise<unknown>;
 };
@@ -65,11 +68,36 @@ export function RangePicker() {
       setLayerMask(document, id, { ...layer.mask, color });
     }
   }
-  function pick(event: PointerEvent, box: DOMRect) {
-    const [x, y] = mapping.toDocument(event.clientX, event.clientY, box);
+  /**
+   * Picks the color under the pointer. A new range is its own edit, made with the first color to
+   * land, whichever read that is; the picking that follows, that color included, is one more.
+   */
+  function pick(current: Drag, event: PointerEvent) {
+    const [x, y] = mapping.toDocument(
+      event.clientX,
+      event.clientY,
+      current.box,
+    );
     const image = () =>
       source ? renderer.rangeSource(source) : renderer.fullImage();
-    return sampler.sample(image, [x / size[0], y / size[1]]);
+    const color = sampler.sample(image, [x / size[0], y / size[1]]);
+    current.landed = Promise.all([current.landed, color]).then(([, color]) => {
+      if (!color || document.closed) {
+        return;
+      }
+      if (!current.started) {
+        current.started = true;
+        if (creating) {
+          tool.create({
+            kind: "color-range",
+            color,
+            tolerance: defaultTolerance,
+          });
+        }
+        document.history.begin();
+      }
+      recolor(color);
+    });
   }
   function end(cancel: boolean) {
     const current = drag.current;
@@ -93,34 +121,20 @@ export function RangePicker() {
     }
     event.stopPropagation();
     event.currentTarget.setPointerCapture(event.pointerId);
-    // A new range is its own edit; the picking that follows, the first color included, is one more.
-    const landed = pick(event, box).then((color) => {
-      if (!color || document.closed) {
-        return;
-      }
-      if (creating) {
-        tool.create({
-          kind: "color-range",
-          color,
-          tolerance: defaultTolerance,
-        });
-      }
-      document.history.begin();
-      recolor(color);
-    });
-    drag.current = { pointer: event.pointerId, box, landed };
+    const current: Drag = {
+      pointer: event.pointerId,
+      box,
+      started: false,
+      landed: Promise.resolve(),
+    };
+    drag.current = current;
+    pick(current, event);
   }
   function move(event: PointerEvent<HTMLDivElement>) {
     const current = drag.current;
-    if (current?.pointer !== event.pointerId) {
-      return;
+    if (current?.pointer === event.pointerId) {
+      pick(current, event);
     }
-    const color = pick(event, current.box);
-    current.landed = Promise.all([current.landed, color]).then(([, color]) => {
-      if (color && !document.closed) {
-        recolor(color);
-      }
-    });
   }
   function finish(event: PointerEvent<HTMLDivElement>) {
     if (drag.current?.pointer !== event.pointerId) {
@@ -133,7 +147,8 @@ export function RangePicker() {
     <div
       role="application"
       aria-label="Color range canvas"
-      className="absolute inset-0 cursor-crosshair touch-none data-[pan=true]:pointer-events-none"
+      className="absolute inset-0 touch-none data-[pan=true]:pointer-events-none"
+      style={{ cursor: eyedropperCursor }}
       data-pan={camera.panMode}
       onDoubleClick={(event) => event.stopPropagation()}
       onPointerDown={start}

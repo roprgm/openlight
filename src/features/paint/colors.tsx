@@ -4,6 +4,7 @@ import { cn } from "cn";
 import { defaultColors, useBrushTool } from "@/components/editor/brush-tool";
 import { EyedropperIcon } from "@/components/icons/eyedropper";
 import { SwapIcon } from "@/components/icons/swap";
+import { ColorSwatch } from "@/components/ui/color-swatch";
 import { hexColor } from "@/lib/parse";
 
 /** The brush's primary and secondary colors, and the actions Photoshop keys to X, D, and I. */
@@ -50,21 +51,12 @@ function Swatch({
     <Tooltip>
       <TooltipTrigger
         render={
-          <label
-            className={cn(
-              "absolute size-4.5 cursor-pointer rounded-sm surface-raised focus-ring",
-              className,
-            )}
-            style={{ backgroundColor: value }}
-          >
-            <input
-              type="color"
-              aria-label={label}
-              value={value}
-              className="sr-only"
-              onChange={(event) => onChange(event.currentTarget.value)}
-            />
-          </label>
+          <ColorSwatch
+            label={label}
+            value={value}
+            className={cn("absolute size-4.5", className)}
+            onChange={onChange}
+          />
         }
       />
       <TooltipContent side={side}>{label}</TooltipContent>

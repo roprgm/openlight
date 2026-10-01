@@ -1,10 +1,7 @@
-import { useEffect, useRef } from "react";
+import { ColorSwatch } from "@/components/ui/color-swatch";
 import { useDocument } from "./session";
 
-/**
- * A color swatch that opens the browser's color picker. The picker streams changes while it moves
- * and fires `change` once it closes, which ends them as one edit.
- */
+/** A color swatch that edits the document: a pass through the browser's color picker is one edit. */
 export function ColorInput({
   label,
   value,
@@ -15,24 +12,15 @@ export function ColorInput({
   onChange: (color: string) => void;
 }) {
   const document = useDocument();
-  const picker = useRef<HTMLInputElement>(null);
-  useEffect(() => {
-    const input = picker.current;
-    const commit = () => document.history.commit();
-    input?.addEventListener("change", commit);
-    return () => input?.removeEventListener("change", commit);
-  }, [document]);
   return (
-    <input
-      ref={picker}
-      type="color"
-      aria-label={label}
+    <ColorSwatch
+      label={label}
       value={value}
-      className="h-6 w-9 cursor-pointer rounded surface-sunken p-0.5"
-      onChange={(event) => {
+      onChange={(color) => {
         document.history.begin();
-        onChange(event.currentTarget.value);
+        onChange(color);
       }}
+      onClose={document.history.commit}
     />
   );
 }
