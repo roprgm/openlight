@@ -153,7 +153,7 @@ export function CropOverlay({
             className="group absolute flex size-11 min-h-11 min-w-11 -translate-1/2 items-center justify-center outline-none data-[handle=n]:w-full data-[handle=s]:w-full data-[handle=e]:h-full data-[handle=w]:h-full"
             style={{ left: `${left}%`, top: `${top}%`, cursor }}
           >
-            <span className="pointer-events-none size-2.5 surface-accent group-focus-visible:ring-2 group-focus-visible:ring-focus" />
+            <span className="pointer-events-none size-2.5 bg-accent shadow-[0_0_2px_1px_oklch(10%_0_0/0.3),inset_0_1px_0_oklch(95%_0_0/0.2),0_1px_2px_oklch(10%_0_0/0.5)] group-focus-visible:ring-2 group-focus-visible:ring-focus" />
           </button>
         ))}
       </div>
