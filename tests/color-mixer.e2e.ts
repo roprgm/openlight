@@ -94,7 +94,9 @@ test("color mixer drags a vertical slider as one step, exports the selected colo
   await numeric.fill("-100");
   await numeric.press("Enter");
   const { samples } = await readImage(page, undefined, [[350, 200]]);
-  for (const channel of samples?.[0].slice(0, 3) ?? []) {
+  const pixel = samples?.[0] ?? [];
+  expect(pixel).toHaveLength(4);
+  for (const channel of pixel.slice(0, 3)) {
     expect(Math.abs(channel - 79)).toBeLessThanOrEqual(2);
   }
   await saturation.locator("..").dblclick();
