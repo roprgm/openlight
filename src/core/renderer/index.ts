@@ -5,20 +5,18 @@ import {
   type MaskLayer,
   type PaintLayer,
   paintingOf,
+  type RemovePatch,
+  removePatches,
   type Scene,
   walkLayers,
 } from "@/core/document";
 import type { ImageSource, WhiteBalance } from "@/core/image";
 import type { Point } from "@/core/image/frame";
+import { createFieldStore, type FieldLattice, type HeldField } from "./fields";
 import { createRenderGraph } from "./graph";
 import { createMaskCoverage } from "./mask";
 import { createPatchRaster, type PatchInput } from "./mask/patches";
-import {
-  type CacheKey,
-  input,
-  type RenderImage,
-  type RenderNode,
-} from "./node";
+import { input, type RenderImage } from "./node";
 import {
   type AcceptPainting,
   createPaintRaster,
@@ -37,9 +35,9 @@ export {
   renderCoverage,
   type View,
 } from "./display";
+export type { FieldLattice, HeldField } from "./fields";
 export type { PatchInput } from "./mask/patches";
 export {
-  type CacheKey,
   input,
   merge,
   type NodeDefinition,
@@ -58,8 +56,6 @@ export { transformImages } from "./transform";
 export { createRenderGraph };
 
 export type Composition = {
-  /** Cache a derived image by its immutable content, RAW revision, and proxy factor. */
-  cache: (image: RenderNode, dependencies: readonly CacheKey[]) => RenderNode;
   inputId?: string;
   /** The mask whose ranges' image, the one below it, to keep for picking colors from it. */
   rangeSourceId?: string;
@@ -74,6 +70,15 @@ export type Composition = {
   paint: (layer: PaintLayer) => PaintInput | undefined;
   /** Rasterized coverage of an effect's own stroke, such as a Healing patch. */
   patch: (id: string, strokes: readonly BrushStroke[]) => PatchInput;
+  /** The Remove field the renderer holds for a patch's strokes, or for strokes they extend. */
+  field: (layerId: string, patch: RemovePatch) => HeldField | undefined;
+  /** Keeps a Remove field this render synthesizes for a patch's strokes, for the renders after it. */
+  keepField: (
+    layerId: string,
+    patch: RemovePatch,
+    lattice: FieldLattice,
+    texels: RenderImage,
+  ) => void;
 };
 
 /** App composition describes requested outputs; the engine owns their storage. */
@@ -101,18 +106,37 @@ function sameBalance(a: WhiteBalance | undefined, b: WhiteBalance | undefined) {
   return a?.temperature === b?.temperature && a?.tint === b?.tint;
 }
 
+/** A Remove patch's field, held by Healing layer and patch, since duplicated layers repeat patch IDs. */
+function fieldKey(layerId: string, patch: RemovePatch) {
+  return `${layerId}/${patch.id}`;
+}
+
+/** A renderer's timer, and where it reads what the document stores outside the scene, by the IDs the scene names. */
+export type RendererOptions = {
+  timer?: Timer;
+  /** The settled pixels a paint layer's or brush mask's `raster` names. */
+  paintPixels?: (id: string) => Blob;
+  /** The texels a Remove patch's field names. */
+  fieldTexels?: (id: string) => Blob;
+};
+
 /**
- * Owns scene passes, mask and paint rasters, the proxy, and intermediate textures for one decoded
- * source. `paintPixels` gives the settled pixels a paint layer's or brush mask's `raster` names.
+ * Owns scene passes, mask and paint rasters, Remove fields, the proxy, and intermediate textures for
+ * one decoded source.
  */
 export function createRenderer(
   gpu: Gpu,
   resource: ImageSource,
   compose: SceneProcessing,
-  timer?: Timer,
-  paintPixels: (id: string) => Blob = () => {
-    throw Error("This renderer has no settled paint.");
-  },
+  {
+    timer,
+    paintPixels = () => {
+      throw Error("This renderer has no settled paint.");
+    },
+    fieldTexels = () => {
+      throw Error("This renderer has no Remove fields.");
+    },
+  }: RendererOptions = {},
 ) {
   const source = resource.image;
   const graph = createRenderGraph(gpu, timer);
@@ -121,6 +145,7 @@ export function createRenderer(
   const masks = createMaskCoverage(brushes);
   const patches = createPatchRaster(gpu, strokes);
   const paints = createPaintRaster(gpu, strokes, "rgba8unorm");
+  const fields = createFieldStore(gpu);
   const proxy = createProxy(gpu);
   const release = resource.retain();
   const raw = resource.raw?.createPass();
@@ -140,7 +165,7 @@ export function createRenderer(
   let last: RenderRequest | undefined;
   let next: RenderRequest | undefined;
   let pending: Promise<void> | undefined;
-  /** A paint raster being read to settle, which nothing may draw into meanwhile. */
+  /** A raster being read back, a painting to settle or a Remove field to save; nothing renders meanwhile. */
   let settling: Promise<unknown> | undefined;
   let disposed = false;
   let instances = new Set<string>();
@@ -166,6 +191,10 @@ export function createRenderer(
         paints.draw(layer.id, layer, developed.size);
       }
     }
+    // Remove fields stay while their patches do, shown or not.
+    for (const { layer, patch } of removePatches(scene.layers)) {
+      fields.retain(fieldKey(layer.id, patch));
+    }
     const image =
       factor > 1 ? proxy.render(developed, factor, version) : input(developed);
     const covered = new Map<string, RenderImage>();
@@ -180,11 +209,13 @@ export function createRenderer(
         if (coverage) covered.set(layer.id, coverage);
       }
     }
+    const syntheses: {
+      key: string;
+      patch: RemovePatch;
+      lattice: FieldLattice;
+      texels: RenderImage;
+    }[] = [];
     const images = compose(image, scene, {
-      cache: (image, dependencies) => ({
-        ...image,
-        cacheKeys: [version, factor, ...dependencies],
-      }),
       inputId,
       rangeSourceId,
       retain: (id) => active.add(id),
@@ -195,6 +226,15 @@ export function createRenderer(
         }),
       paint: (layer) => paints.input(layer),
       patch: (id, strokes) => patches.patch(id, strokes, developed.size),
+      field: (layerId, patch) =>
+        fields.get(fieldKey(layerId, patch), patch.strokes, patch.field),
+      keepField: (layerId, patch, lattice, texels) =>
+        syntheses.push({
+          key: fieldKey(layerId, patch),
+          patch,
+          lattice,
+          texels,
+        }),
     });
     for (const id of instances) {
       if (!active.has(id)) graph.release(`${id}/`);
@@ -215,11 +255,20 @@ export function createRenderer(
       ...inputs,
       ...sources,
       ...covered.values(),
+      ...syntheses.map(({ texels }) => texels),
     ]);
     [original, full, output] = targets;
     const [inputTarget] = targets.slice(3, 3 + inputs.length);
     const [sourceTarget] = targets.slice(3 + inputs.length);
-    const coverages = targets.slice(3 + inputs.length + sources.length);
+    const coverages = targets.slice(
+      3 + inputs.length + sources.length,
+      3 + inputs.length + sources.length + covered.size,
+    );
+    const synthesized = targets.slice(targets.length - syntheses.length);
+    for (const [i, { key, patch, lattice }] of syntheses.entries()) {
+      fields.keep(key, patch.strokes, lattice, synthesized[i]);
+    }
+    fields.sweep();
     inspected =
       inputId && images.input ? { id: inputId, image: inputTarget } : undefined;
     kept =
@@ -237,6 +286,17 @@ export function createRenderer(
   function paintRaster(id: string) {
     return paints.get(id) ? paints : brushes;
   }
+  /** Remove fields to load before rendering: saved ones the renderer holds nothing for. */
+  function staleFields(scene: Scene) {
+    const stale = [];
+    for (const { layer, patch } of removePatches(scene.layers)) {
+      const key = fieldKey(layer.id, patch);
+      if (fields.needs(key, patch.strokes, patch.field)) {
+        stale.push({ key, strokes: patch.strokes, field: patch.field });
+      }
+    }
+    return stale;
+  }
   /** Paintings whose rasters must load settled pixels before they draw. */
   function stalePaint(scene: Scene) {
     const stale = [];
@@ -251,7 +311,7 @@ export function createRenderer(
   }
   /**
    * Renders the latest request once what it waits for is ready: a settle, a RAW development, whose
-   * calibration alone crosses the worker, or settled paint to load.
+   * calibration alone crosses the worker, settled paint, or Remove fields to load.
    */
   async function develop() {
     while (next && !disposed) {
@@ -278,6 +338,12 @@ export function createRenderer(
           return;
         }
       }
+      for (const { key, strokes, field } of staleFields(scene)) {
+        await fields.load(key, strokes, field, fieldTexels(field.texels));
+        if (disposed) {
+          return;
+        }
+      }
       if (!next) {
         render(request);
       }
@@ -298,8 +364,14 @@ export function createRenderer(
     }
     const factor = interactive ? Math.max(1, Math.floor(1 / displayScale)) : 1;
     const request = { scene, inputId, rangeSourceId, factor };
-    // Renders wait, in order, for a settle, a RAW development, or settled paint to load.
-    if (!raw && !pending && !settling && !stalePaint(scene).length) {
+    // Renders wait, in order, for a settle, a RAW development, or settled paint and fields to load.
+    if (
+      !raw &&
+      !pending &&
+      !settling &&
+      !stalePaint(scene).length &&
+      !staleFields(scene).length
+    ) {
       render(request);
       return;
     }
@@ -320,11 +392,27 @@ export function createRenderer(
     return pending;
   }
 
+  /** Runs a readback once renders in flight finish, and renders nothing until it does. */
+  async function hold<T>(read: () => Promise<T>) {
+    while (pending || settling) {
+      await (pending ?? settling);
+    }
+    if (disposed) return undefined;
+    const reading = read();
+    settling = reading;
+    try {
+      return await reading;
+    } finally {
+      settling = undefined;
+    }
+  }
+
   function releaseResources() {
     graph.dispose();
     masks.dispose();
     patches.dispose();
     paints.dispose();
+    fields.dispose();
     strokes.dispose();
     proxy.dispose();
     raw?.dispose();
@@ -360,6 +448,7 @@ export function createRenderer(
         ...masks.inspect(),
         ...patches.inspect(),
         ...paints.inspect(),
+        ...fields.inspect(),
         ...strokes.inspect(),
       ],
     }),
@@ -377,20 +466,19 @@ export function createRenderer(
      * Reads a paint layer's raster once renders in flight finish, holding back the next ones, so its
      * strokes, scene, and cached raster settle together before rendering resumes.
      */
-    async settle(id: string, accept: AcceptPainting) {
-      while (pending || settling) {
-        await (pending ?? settling);
-      }
-      if (disposed) return false;
-      const read = paintRaster(id).settle(id, (painting) =>
-        disposed ? undefined : accept(painting),
+    settle(id: string, accept: AcceptPainting) {
+      return hold(() =>
+        paintRaster(id).settle(id, (painting) =>
+          disposed ? undefined : accept(painting),
+        ),
       );
-      settling = read;
-      try {
-        return await read;
-      } finally {
-        settling = undefined;
-      }
+    },
+    /**
+     * Reads the Remove field held for exactly a patch's strokes, deflated, once renders in flight
+     * finish, holding back the next ones meanwhile; undefined when none is held.
+     */
+    readField(layerId: string, patch: RemovePatch) {
+      return hold(() => fields.read(fieldKey(layerId, patch), patch.strokes));
     },
     dispose() {
       if (disposed) {

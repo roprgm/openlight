@@ -78,10 +78,12 @@ export async function renderInpaintReference(
     await gpu.gpu.queue.onSubmittedWorkDone();
     renderer.setDisplayScale(0.5);
     const start = performance.now();
-    await renderer.update(scene, undefined, proxy);
+    // Only full resolution synthesizes; a proxy then shows the field it keeps.
+    await renderer.update(scene);
     await gpu.gpu.queue.onSubmittedWorkDone();
     const completedMs = performance.now() - start;
     const solved = renderer.inspect();
+    await renderer.update(scene, undefined, proxy);
     const result = renderer.fullImage();
     const actual = await result.readFloats();
     const before = await image.readFloats();
@@ -128,7 +130,10 @@ export async function renderInpaintReference(
       undefined,
       proxy,
     );
-    const hiddenCaches = renderer.inspect().cachedTextures.length;
+    const fields = () =>
+      renderer.inspect().rasters.filter(({ id }) => id.endsWith("/field"))
+        .length;
+    const hiddenFields = fields();
     await renderer.update(scene, undefined, proxy);
     const shown = renderer.inspect();
     const visible = await renderer.fullImage().readFloats();
@@ -163,7 +168,23 @@ export async function renderInpaintReference(
       undefined,
       proxy,
     );
-    const changed = renderer.inspect();
+    const exposed = renderer.inspect();
+    // The patch keeps its donors, whose colors follow the exposure below it.
+    const brighter = await renderer.fullImage().readFloats();
+    let exposedError = 0;
+    for (let index = 0; index < brighter.length; index += 4) {
+      const x = (index / 4) % result.size[0];
+      const y = Math.floor(index / 4 / result.size[0]);
+      const px = Math.floor((x + 0.5) * scale);
+      const py = Math.floor((y + 0.5) * scale);
+      if (Math.hypot(px - 96, py - 72) >= diameter / 2 - 2) continue;
+      const reference = (py * size[0] + px) * 4;
+      for (let channel = 0; channel < 3; channel++) {
+        exposedError += Math.abs(
+          brighter[index + channel] - expected[reference + channel] * 2 ** 0.5,
+        );
+      }
+    }
     await renderer.update(
       {
         ...scene,
@@ -186,7 +207,7 @@ export async function renderInpaintReference(
       0,
     );
     await renderer.update({ ...scene, layers: [scene.layers[0]] });
-    const released = renderer.inspect();
+    const releasedFields = fields();
     await gpu.settled();
     return {
       fixture,
@@ -199,7 +220,8 @@ export async function renderInpaintReference(
       alphaError,
       restoredError,
       visibilityError,
-      hiddenCaches,
+      exposedError: exposedError / count,
+      hiddenFields,
       shownSolverPasses: shown.passes.filter((name) =>
         name.includes("/inpaint/"),
       ).length,
@@ -211,15 +233,143 @@ export async function renderInpaintReference(
       cachedSolverPasses: cached.passes.filter((name) =>
         name.includes("/inpaint/"),
       ).length,
-      changedSolverPasses: changed.passes.filter((name) =>
+      exposedSolverPasses: exposed.passes.filter((name) =>
         name.includes("/inpaint/"),
       ).length,
-      releasedCaches: released.cachedTextures.length,
+      releasedFields,
     };
   } finally {
     renderer.dispose();
     source.dispose();
     clean.color.dispose();
+    gpu.dispose();
+  }
+}
+
+/**
+ * A Remove patch over two spots on noise, where any other donor shows: a stroke added to it, or one
+ * erasing part of it, leaves what it filled as it was and synthesizes only the rest.
+ */
+export async function renderInpaintExtension() {
+  const gpu = await init();
+  const errors: string[] = [];
+  gpu.onError((error) => errors.push(error.message));
+  const size: [number, number] = [192, 144];
+  const image = target(gpu, { size, format: "rgba16float" });
+  const source = createImageSource(image);
+  const renderer = createEditorRenderer(gpu, source);
+  const first = [56, 72] as const;
+  const second = [140, 72] as const;
+  const erased = [48, 72] as const;
+  const stroke = (
+    mode: "paint" | "erase",
+    [x, y]: readonly [number, number],
+    diameter: number,
+  ) =>
+    ({
+      mode,
+      size: diameter,
+      feather: 0,
+      flow: 1,
+      points: [[x, y, 1]],
+    }) as const;
+  const strokes = [
+    stroke("paint", first, 32),
+    stroke("paint", second, 32),
+    stroke("erase", erased, 12),
+  ];
+  const healing = createLayer("heal");
+  const scene = (count: number): Scene => ({
+    frame: imageFrame(size),
+    layers: [
+      createImageLayer("source", "Spots"),
+      {
+        ...healing,
+        patches: [
+          {
+            id: "spots",
+            mode: "remove",
+            feather: 0,
+            opacity: 1,
+            strokes: strokes.slice(0, count),
+          },
+        ],
+      },
+    ],
+  });
+  try {
+    frame(gpu, (f) =>
+      f.pass(
+        image,
+        effect(
+          gpu,
+          `
+      @fragment fn fs_main(@builtin(position) p: vec4f) -> @location(0) vec4f {
+        let noise = fract(sin(dot(floor(p.xy), vec2f(12.9898, 78.233))) * 43758.5453);
+        let spot = distance(p.xy, vec2f(${first.join(", ")})) < 12.0 || distance(p.xy, vec2f(${second.join(", ")})) < 12.0;
+        return vec4f(select(vec3f(0.3 + 0.2 * noise, 0.4, 0.5), vec3f(0.015), spot), 1.0);
+      }
+    `,
+        ),
+      ),
+    );
+    const renders = [];
+    for (const count of [1, 2, 3]) {
+      await renderer.update(scene(count));
+      renders.push({
+        pixels: await renderer.fullImage().readFloats(),
+        solved: renderer
+          .inspect()
+          .passes.some((name) => name.includes("/inpaint/")),
+      });
+    }
+    const original = await image.readFloats();
+    // The largest change in red between two renders over the pixels `within` selects.
+    function change(
+      a: Float32Array,
+      b: Float32Array,
+      within: (x: number, y: number) => boolean,
+    ) {
+      let largest = 0;
+      for (let index = 0; index < a.length; index += 4) {
+        const x = ((index / 4) % size[0]) + 0.5;
+        const y = Math.floor(index / 4 / size[0]) + 0.5;
+        if (within(x, y))
+          largest = Math.max(largest, Math.abs(a[index] - b[index]));
+      }
+      return largest;
+    }
+    const near =
+      ([cx, cy]: readonly [number, number], radius: number) =>
+      (x: number, y: number) =>
+        Math.hypot(x - cx, y - cy) < radius;
+    const [filled, extended, subtracted] = renders.map(({ pixels }) => pixels);
+    return {
+      errors,
+      solved: renders.map(({ solved }) => solved),
+      // The first spot, as the first stroke filled it.
+      keptByAdding: change(filled, extended, near(first, 14)),
+      keptByErasing: change(
+        filled,
+        subtracted,
+        (x, y) => near(first, 14)(x, y) && !near(erased, 8)(x, y),
+      ),
+      // The second spot was dark before the stroke over it, and the erased part is again.
+      secondFilled: Math.min(
+        ...[...extended].filter(
+          (_, index) =>
+            index % 4 === 0 &&
+            near(second, 10)(
+              ((index / 4) % size[0]) + 0.5,
+              Math.floor(index / 4 / size[0]) + 0.5,
+            ),
+        ),
+      ),
+      erasedRestored: change(original, subtracted, near(erased, 4)),
+    };
+  } finally {
+    renderer.dispose();
+    source.dispose();
     gpu.dispose();
   }
 }

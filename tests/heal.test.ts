@@ -51,15 +51,18 @@ test("Remove passes never overwrite distinct uniforms before their frame submits
   const gpu = await init();
   const source = target(gpu, { size: [64, 64], format: "rgba16float" });
   const coverage = target(gpu, { size: [64, 64], format: "r8unorm" });
+  const base = target(gpu, { size: [64, 64], format: "rg16float" });
   const graph = createRenderGraph(gpu);
   const uploads = spyOn(gpu.gpu.queue, "writeBuffer");
+  const lattice = { origin: [0, 0], scale: 1, size: source.size } as const;
   try {
     graph.render([
       inpaintField(
         input(source),
         { coverage: input(coverage), origin: [0, 0] },
-        { origin: [0, 0], extent: source.size },
+        lattice,
         "remove",
+        { texels: input(base), lattice },
       ),
     ]);
     const uniforms = new Map<GPUBuffer, Uint8Array>();
@@ -75,6 +78,7 @@ test("Remove passes never overwrite distinct uniforms before their frame submits
   } finally {
     uploads.mockRestore();
     graph.dispose();
+    base.color.dispose();
     coverage.color.dispose();
     source.color.dispose();
     gpu.dispose();
@@ -179,7 +183,7 @@ function patchesOf(document: ReturnType<typeof createDocument>, layer: string) {
   return healing.patches;
 }
 
-test("a nested Remove retains synthesis when bypassed and invalidates upstream content and proxy changes", async () => {
+test("a nested Remove synthesizes once for its strokes, whatever changes below or hides it, and extends on new strokes", async () => {
   const gpu = await init();
   const source = createImageSource(
     target(gpu, { size: [128, 96], format: "rgba16float" }),
@@ -195,28 +199,36 @@ test("a nested Remove retains synthesis when bypassed and invalidates upstream c
     ...dab,
     points: [[64, 48, 1]],
   });
+  const render = (interactive = false) =>
+    renderer.update(document.scene.getState(), undefined, interactive);
   const solves = () =>
     renderer.inspect().passes.some((name) => name.includes("/inpaint/"));
+  const fields = () =>
+    renderer.inspect().rasters.filter(({ id }) => id.endsWith("/field"));
   try {
-    await renderer.update(document.scene.getState());
+    await render();
     expect(solves()).toBe(true);
+    expect(fields()).toMatchObject([{ id: `${layer}/${patch}/field` }]);
     setHealPatch(document, layer, patch, { opacity: 0.5, feather: 0.4 });
-    await renderer.update(document.scene.getState());
+    await render();
     expect(solves()).toBe(false);
     for (const id of [layer, mask]) {
-      setLayer(document, id, { visible: false });
-      await renderer.update(document.scene.getState());
-      expect(renderer.inspect().cachedTextures).toHaveLength(1);
-      setLayer(document, id, { visible: true });
-      await renderer.update(document.scene.getState());
-      expect(solves()).toBe(false);
-      setLayer(document, id, { opacity: 0 });
-      await renderer.update(document.scene.getState());
-      expect(renderer.inspect().cachedTextures).toHaveLength(1);
-      setLayer(document, id, { opacity: 1 });
-      await renderer.update(document.scene.getState());
-      expect(solves()).toBe(false);
+      for (const change of [{ visible: false }, { opacity: 0 }]) {
+        setLayer(document, id, change);
+        await render();
+        expect(fields()).toHaveLength(1);
+        setLayer(document, id, { visible: true, opacity: 1 });
+        await render();
+        expect(solves()).toBe(false);
+      }
     }
+    setLayer(document, mask, { opacity: 0.5 });
+    setAdjustments(document, { exposure: 1 }, mask);
+    await render();
+    expect(solves()).toBe(false);
+    renderer.setDisplayScale(0.5);
+    await render(true);
+    expect(solves()).toBe(false);
     for (const mode of ["paint", "erase"] as const) {
       addHealStroke(document, layer, patch, {
         ...dab,
@@ -224,35 +236,23 @@ test("a nested Remove retains synthesis when bypassed and invalidates upstream c
         size: 2,
         points: [[64, 48, 1]],
       });
-      await renderer.update(document.scene.getState());
+      // A proxy keeps the field it holds; only full resolution synthesizes the new stroke.
+      await render(true);
+      expect(solves()).toBe(false);
+      await render();
       expect(solves()).toBe(true);
       setHealPatch(document, layer, patch, {
         opacity: mode === "paint" ? 0.6 : 0.5,
       });
-      await renderer.update(document.scene.getState());
+      await render();
       expect(solves()).toBe(false);
     }
-    setLayer(document, mask, { opacity: 0.5 });
-    await renderer.update(document.scene.getState());
-    expect(solves()).toBe(false);
-    setLayer(document, mask, { visible: false });
-    await renderer.update(document.scene.getState());
-    setAdjustments(document, { exposure: 1 }, mask);
-    await renderer.update(document.scene.getState());
-    expect(solves()).toBe(false);
-    setLayer(document, mask, { visible: true });
-    await renderer.update(document.scene.getState());
+    setHealDestination(document, layer, patch, [40, 40]);
+    await render();
     expect(solves()).toBe(true);
-    renderer.setDisplayScale(0.5);
-    await renderer.update(document.scene.getState(), undefined, true);
-    expect(solves()).toBe(true);
-    await renderer.update(document.scene.getState());
-    expect(solves()).toBe(false);
-    setLayer(document, mask, { visible: false });
-    await renderer.update(document.scene.getState());
     deleteLayer(document, mask);
-    await renderer.update(document.scene.getState());
-    expect(renderer.inspect().cachedTextures).toEqual([]);
+    await render();
+    expect(fields()).toEqual([]);
   } finally {
     renderer.dispose();
     document.dispose();

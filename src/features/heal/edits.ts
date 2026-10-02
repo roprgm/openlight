@@ -75,7 +75,10 @@ function editPatches(
   });
 }
 
-/** Adds or subtracts a separate stroke without changing the patch's donor or blend. */
+/**
+ * Adds or subtracts a separate stroke without changing the patch's donor or blend. A Remove patch keeps
+ * its field, which the next synthesis extends.
+ */
 export function addHealStroke(
   document: EditorDocument,
   id: string,
@@ -143,23 +146,21 @@ export function extendHealPatch(
     if (layer.kind !== "heal" || !layer.patches.length) {
       throw Error("Start a heal patch before extending it.");
     }
-    return {
-      ...layer,
-      patches: layer.patches.map((patch, index) =>
-        index === layer.patches.length - 1
-          ? {
-              ...patch,
-              strokes: patch.strokes.with(-1, {
-                ...patch.strokes[patch.strokes.length - 1],
-                points: [
-                  ...patch.strokes[patch.strokes.length - 1].points,
-                  ...added,
-                ],
-              }),
-            }
-          : patch,
-      ),
-    };
+    const patch = layer.patches[layer.patches.length - 1];
+    const last = patch.strokes[patch.strokes.length - 1];
+    const strokes = patch.strokes.with(-1, {
+      ...last,
+      points: [...last.points, ...added],
+    });
+    // A Remove field counts whole strokes, so a stroke that grows takes a new one.
+    if (patch.mode === "remove") {
+      const { field, ...unfilled } = patch;
+      return {
+        ...layer,
+        patches: layer.patches.with(-1, { ...unfilled, strokes }),
+      };
+    }
+    return { ...layer, patches: layer.patches.with(-1, { ...patch, strokes }) };
   });
 }
 
@@ -177,7 +178,7 @@ export function setHealSource(
   });
 }
 
-/** Moves a patch; a Heal/Clone donor stays fixed. */
+/** Moves a patch; a Heal/Clone donor stays fixed, and a Remove patch synthesizes its new place. */
 export function setHealDestination(
   document: EditorDocument,
   id: string,
@@ -189,19 +190,19 @@ export function setHealDestination(
     const patch = patches[index];
     const [x, y] = patch.strokes[0].points[0];
     const delta: Point = [targetX - x, targetY - y];
-    const moved = {
-      ...patch,
-      strokes: patch.strokes.map((stroke) => ({
-        ...stroke,
-        points: stroke.points.map(
-          ([x, y, pressure]) => [x + delta[0], y + delta[1], pressure] as const,
-        ),
-      })),
-    };
-    if (patch.mode === "remove") return patches.with(index, moved);
+    const strokes = patch.strokes.map((stroke) => ({
+      ...stroke,
+      points: stroke.points.map(
+        ([x, y, pressure]) => [x + delta[0], y + delta[1], pressure] as const,
+      ),
+    }));
+    if (patch.mode === "remove") {
+      const { field, ...unfilled } = patch;
+      return patches.with(index, { ...unfilled, strokes });
+    }
     return patches.with(index, {
-      ...moved,
-      mode: patch.mode,
+      ...patch,
+      strokes,
       offset: [patch.offset[0] - delta[0], patch.offset[1] - delta[1]],
     });
   });

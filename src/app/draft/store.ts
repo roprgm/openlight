@@ -22,10 +22,10 @@ export type Draft = { record: DraftRecord; files: ReadonlyMap<string, Blob> };
 
 /** A draft of the document shown as `name`, captured synchronously so the document may change or close meanwhile. */
 export function snapshotDraft(document: EditorDocument, name: string) {
-  const { json, sources, paint } = snapshotScene(document);
+  const { json, sources, paint, fields } = snapshotScene(document);
   return {
     record: { version, name, scene: json },
-    files: new Map<string, Blob>([...sources, ...paint]),
+    files: new Map<string, Blob>([...sources, ...paint, ...fields]),
   };
 }
 
@@ -52,8 +52,8 @@ interface DraftDatabase extends DBSchema {
 }
 
 /**
- * One draft in IndexedDB: the record under a single key, and the files its scene names, its source
- * and the pixels paint settled into, keyed by ID.
+ * One draft in IndexedDB: the record under a single key, and the files its scene names, its source,
+ * the pixels paint settled into, and Remove fields, keyed by ID.
  * Operations run one at a time in call order, so a discard never races a save.
  */
 export function createDraftStore(name = "openlight") {

@@ -8,6 +8,7 @@ import {
 import { strokeSchema } from "@/core/document/brush";
 import type { Point } from "@/core/image/frame";
 import { change, point, unit } from "@/lib/parse";
+import { fieldLongSide } from "./inpaint";
 
 export function findHealPatch(scene: Scene, layerId: string, patchId: string) {
   const layer = findLayer(scene.layers, layerId);
@@ -130,11 +131,32 @@ const patchShape = {
   opacity: unit,
 };
 
+const fieldSide = z.int().check(z.minimum(1), z.maximum(fieldLongSide));
+
+const removeFieldSchema = z.object({
+  texels: z.string().check(z.minLength(1)),
+  strokes: z.int().check(z.minimum(1)),
+  origin: point,
+  scale: z.number().check(z.minimum(1)),
+  size: z.tuple([fieldSide, fieldSide]),
+});
+
 export const healPatchSchema = z.union([
   z.object({
     ...patchShape,
     mode: z._default(donorModeSchema, "heal"),
     offset: point,
   }),
-  z.object({ ...patchShape, mode: z.literal("remove") }),
+  z
+    .object({
+      ...patchShape,
+      mode: z.literal("remove"),
+      field: z.optional(removeFieldSchema),
+    })
+    .check(
+      z.refine(
+        (patch) => (patch.field?.strokes ?? 0) <= patch.strokes.length,
+        "A Remove field covers at most its patch's strokes",
+      ),
+    ),
 ]) satisfies z.ZodMiniType<HealPatch>;

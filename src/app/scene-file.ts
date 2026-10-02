@@ -3,8 +3,10 @@ import {
   createDocument,
   createResources,
   type EditorDocument,
+  fieldTexels,
   type ProcessingLayer,
   paintingOf,
+  removePatches,
   type Scene,
   settledPixels,
   walkLayers,
@@ -61,7 +63,10 @@ export type SceneJson = {
   scene: Scene;
 };
 
-/** The document's scene, the source file it references, and the pixels its paint settled into, read without rendering. */
+/**
+ * The document's scene, the source file it references, the pixels its paint settled into, and its
+ * Remove fields, read without rendering.
+ */
 export function snapshotScene(document: EditorDocument) {
   const scene = document.scene.getState();
   const { source } = scene.layers[0];
@@ -76,6 +81,7 @@ export function snapshotScene(document: EditorDocument) {
     json,
     sources: new Map([[source, file]]),
     paint: settledPixels(document, scene),
+    fields: fieldTexels(document, scene),
   };
 }
 
@@ -202,8 +208,8 @@ const savedSchema = z.extend(header, {
 
 /**
  * Opens a saved scene as a new document, validating every value as the edit that made it.
- * Scene files and drafts both open through here; `files` holds each source's bytes, and the pixels
- * each paint layer settled into, by ID.
+ * Scene files and drafts both open through here; `files` holds each source's bytes, the pixels each
+ * paint layer settled into, and the texels of each Remove field, by ID.
  */
 export async function openScene(
   saved: unknown,
@@ -244,6 +250,15 @@ export async function openScene(
           throw Error("The scene's paint is missing.");
         }
         resources.addPaint(pixels, raster);
+      }
+    }
+    for (const { patch } of removePatches(layers)) {
+      if (patch.field) {
+        const texels = files.get(patch.field.texels);
+        if (!texels) {
+          throw Error("The scene's Remove fields are missing.");
+        }
+        resources.addField(texels, patch.field.texels);
       }
     }
     return createDocument(

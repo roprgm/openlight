@@ -1,6 +1,5 @@
 import type { HealPatch } from "@/core/document";
 import {
-  type CacheKey,
   type Composition,
   merge,
   node,
@@ -14,7 +13,7 @@ import { patchBounds } from "./model";
 
 type HealComposition = Pick<
   Composition,
-  "patch" | "inputId" | "retain" | "cache"
+  "patch" | "inputId" | "retain" | "field" | "keepField"
 >;
 
 function healPatch(
@@ -107,33 +106,24 @@ export function retainHealPatches(
 
 export function heal(
   source: RenderImage,
+  layerId: string,
   patches: readonly HealPatch[],
   name: string,
   composition: HealComposition,
-  dependencies: readonly CacheKey[],
 ) {
   retainHealPatches(patches, name, composition);
   let image = source;
   let inspected: RenderImage | undefined;
-  let content = dependencies;
   for (const patch of patches) {
     if (patch.id === composition.inputId) inspected = image;
     const id = `${name}/${patch.id}`;
     if (!repairsPixels(patch)) continue;
     const coverage = composition.patch(id, patch.strokes);
     if (patch.mode === "remove") {
-      image = removePatch(
-        image,
-        coverage,
-        patch,
-        id,
-        composition.cache,
-        content,
-      );
+      image = removePatch(image, coverage, layerId, patch, id, composition);
     } else {
       image = healPatch(image, coverage, patch, id);
     }
-    content = [...content, patch];
   }
   return { image, input: inspected };
 }

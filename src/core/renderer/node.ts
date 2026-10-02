@@ -1,10 +1,6 @@
 import type { EffectOptions, ShaderSource, Target } from "vgpu";
 
-export type CacheKey = object | number | string | boolean | undefined;
-
 type NodeOptions = {
-  /** Immutable content dependencies for an expensive, retained result. */
-  readonly cacheKeys?: readonly CacheKey[];
   /** Shares state across passes whose shader and non-input bindings are identical. */
   readonly instance?: string;
   readonly set?: EffectOptions["set"];

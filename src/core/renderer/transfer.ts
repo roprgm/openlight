@@ -10,15 +10,32 @@ const copy = weakMemo((gpu: Gpu) => effect(gpu, copyShader));
 /** `GPUMapMode.READ`, which the page's WebGPU types leave out. */
 const mapRead = 1;
 
-/** Bytes a row of an rgba8 or r8 raster takes. */
+/** Bytes a texel takes in the formats rasters use. */
+const texelBytes: Partial<Record<GPUTextureFormat, number>> = {
+  r8unorm: 1,
+  rgba8unorm: 4,
+  rg16float: 4,
+};
+
+/** Bytes a row of a raster takes. */
 function rowBytes({ size, format }: Target) {
-  return size[0] * (format === "r8unorm" ? 1 : 4);
+  const bytes = texelBytes[format];
+  if (!bytes) {
+    throw Error(`Rasters can't transfer ${format}.`);
+  }
+  return size[0] * bytes;
+}
+
+/** Copies a raster into another of the same size and format, which render targets take by drawing. */
+export function copyRaster(gpu: Gpu, source: Target, raster: Target) {
+  const pass = copy(gpu).set({ source, params: { offset: [0, 0] } });
+  frame(gpu, (frame) => frame.pass({ target: raster, clear: false }, pass));
 }
 
 /**
- * Reads an rgba8 or r8 raster band by band and deflates its bytes, rows tightly packed. One mapped
- * buffer takes every band in turn. Nothing may draw into the raster until it resolves, since each band
- * is read after the last.
+ * Reads a raster band by band and deflates its bytes, rows tightly packed. One mapped buffer takes
+ * every band in turn. Nothing may draw into the raster until it resolves, since each band is read
+ * after the last.
  */
 export async function readRaster(gpu: Gpu, raster: Target) {
   const device = gpu.gpu;
@@ -80,7 +97,7 @@ export async function writeRaster(gpu: Gpu, raster: Target, pixels: Blob) {
   let y = 0;
   function draw(rows: number) {
     if (y + rows > height) {
-      throw Error("The paint doesn't match the photo's size.");
+      throw Error("The stored pixels don't match their raster's size.");
     }
     // The queue copies the bytes at once, so the band is free to fill again, and draws in order.
     gpu.gpu.queue.writeTexture(
@@ -123,13 +140,13 @@ export async function writeRaster(gpu: Gpu, raster: Target, pixels: Blob) {
       }
     }
     if (filled % packed !== 0) {
-      throw Error("The paint doesn't match the photo's size.");
+      throw Error("The stored pixels don't match their raster's size.");
     }
     if (filled) {
       draw(filled / packed);
     }
     if (y !== height) {
-      throw Error("The paint doesn't match the photo's size.");
+      throw Error("The stored pixels don't match their raster's size.");
     }
   } finally {
     staging.dispose();
