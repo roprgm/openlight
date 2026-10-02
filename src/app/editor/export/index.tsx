@@ -72,7 +72,7 @@ function FormatSelect({
 }) {
   return (
     <div className="space-y-2">
-      <div className="flex items-center justify-between text-muted">
+      <div className="flex items-center justify-between text-secondary">
         Format
         <Select
           raised
@@ -89,7 +89,7 @@ function FormatSelect({
           }}
         />
       </div>
-      <p className="text-muted">{value.description}</p>
+      <p className="text-secondary">{value.description}</p>
     </div>
   );
 }
@@ -117,7 +117,7 @@ function SizeFields({
     onChange(Math.max(1, Math.round(maxEdge * fraction)));
   return (
     // Units follow their digits, as in a slider; the values' 4px padding reaches past the file size's edge.
-    <div className="grid grid-cols-[auto_1fr] items-center gap-x-3 gap-y-2 text-muted">
+    <div className="grid grid-cols-[auto_1fr] items-center gap-x-3 gap-y-2 text-secondary">
       <span>Width</span>
       <ScrubInput
         aria-label="Width"
@@ -185,7 +185,7 @@ function SaveScene() {
       aria-label="Scene export"
       className="flex flex-col gap-3 p-3.5 shadow-[inset_0_1px_0_var(--color-edge)]"
     >
-      <p className="text-muted">
+      <p className="text-secondary">
         Saves the photo and every edit in one file. Open it to continue editing.
       </p>
       <Button size="lg" className="w-full" onClick={save}>
@@ -273,7 +273,7 @@ export function ExportMode({ onClose }: { onClose: () => void }) {
               <span
                 className={cn(
                   "flex items-center justify-end gap-1.5 text-foreground tabular-nums",
-                  pending && "text-muted",
+                  pending && "text-secondary",
                 )}
               >
                 {encoded ? formatBytes(encoded.bytes) : "…"}

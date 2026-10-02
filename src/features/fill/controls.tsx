@@ -17,7 +17,7 @@ export function FillControls({ id, fill }: { id: string; fill: Fill }) {
   }, [document]);
   return (
     <section className="flex flex-col gap-3 p-3.5">
-      <label className="flex items-center justify-between text-muted">
+      <label className="flex items-center justify-between text-secondary">
         Color
         <span className="flex items-center gap-2">
           <span className="text-foreground uppercase tabular-nums">
@@ -28,7 +28,7 @@ export function FillControls({ id, fill }: { id: string; fill: Fill }) {
             type="color"
             aria-label="Color"
             value={fill.color}
-            className="h-6 w-9 cursor-pointer rounded surface-sunken p-0.5"
+            className="h-6 w-9 cursor-pointer rounded surface-field p-0.5"
             onChange={(event) => {
               document.history.begin();
               setFill(document, { color: event.currentTarget.value }, id);
@@ -36,7 +36,7 @@ export function FillControls({ id, fill }: { id: string; fill: Fill }) {
           />
         </span>
       </label>
-      <div className="flex items-center justify-between text-muted">
+      <div className="flex items-center justify-between text-secondary">
         Blend
         <Select
           raised

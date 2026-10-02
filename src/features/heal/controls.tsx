@@ -16,7 +16,7 @@ function PendingThumbnail({ mode }: { mode: HealPatch["mode"] }) {
     <span
       role="img"
       aria-label="Patch pending"
-      className="grid size-8 shrink-0 place-items-center rounded-sm border border-level-8 bg-level-1 text-muted"
+      className="grid size-8 shrink-0 place-items-center rounded-sm border border-level-8 bg-level-1 text-secondary"
     >
       <PatchModeIcon mode={mode} className="size-4" />
     </span>
@@ -97,7 +97,7 @@ export function HealControls({
   );
   if (!patches.length) {
     return (
-      <p className="p-4 text-center text-muted">
+      <p className="p-4 text-center text-secondary">
         Paint over a spot or object to create the first patch.
       </p>
     );
@@ -129,9 +129,9 @@ export function HealControls({
               <span className="min-w-0 flex-1 truncate">Patch {index + 1}</span>
               <PatchModeIcon
                 mode={patch.mode}
-                className="size-3.5 shrink-0 text-muted"
+                className="size-3.5 shrink-0 text-secondary"
               />
-              <span className="shrink-0 text-muted tabular-nums">
+              <span className="shrink-0 text-secondary tabular-nums">
                 {patchSummary(patch)}
               </span>
             </button>

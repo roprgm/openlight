@@ -32,7 +32,7 @@ export function HealModeButtons() {
           aria-label={entry.label}
           shortcut="H"
           aria-pressed={mode === entry.mode}
-          className="aria-pressed:bg-raised-hover pointer-coarse:size-10"
+          className="aria-pressed:bg-control-hover pointer-coarse:size-10"
           onClick={() => selectMode(entry.mode)}
         >
           <PatchModeIcon mode={entry.mode} className="size-5" />

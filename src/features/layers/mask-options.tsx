@@ -1,4 +1,5 @@
 import { Select } from "@roprgm/ui/select";
+import { Separator } from "@roprgm/ui/separator";
 import { Slider } from "@roprgm/ui/slider";
 import { useDocument, useScene } from "@/components/editor/session";
 import { barSlider, useBarDensity } from "@/components/editor/toolbar-density";
@@ -20,10 +21,7 @@ export function MaskOptions({ layer }: { layer: MaskLayer }) {
   return (
     <>
       {density !== "menu" && (
-        <hr
-          aria-orientation="vertical"
-          className="h-4 w-px border-0 separator"
-        />
+        <Separator orientation="vertical" className="my-auto h-4" />
       )}
       {layer.mask.kind === "radial" && (
         <Slider

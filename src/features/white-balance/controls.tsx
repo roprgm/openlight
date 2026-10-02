@@ -94,7 +94,7 @@ function Action({ label, onClick }: { label: string; onClick: () => void }) {
   return (
     <button
       type="button"
-      className="pointer-events-auto cursor-pointer text-muted hover:text-foreground"
+      className="pointer-events-auto cursor-pointer text-secondary hover:text-foreground"
       onClick={onClick}
     >
       {label}

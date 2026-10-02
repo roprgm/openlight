@@ -26,7 +26,7 @@ export function ToneCurves({
     >
       {!fill && (
         <div className="flex items-center justify-between">
-          <h2 className="text-muted">Curves</h2>
+          <h2 className="text-secondary">Curves</h2>
           <Button
             variant="ghost"
             aria-label="Reset curve"
