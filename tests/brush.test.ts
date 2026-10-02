@@ -1,6 +1,6 @@
 import { expect, mock, test } from "bun:test";
 import { init, target } from "vgpu/mock";
-import { createImageLayer, createMask } from "@/app/editor/layers";
+import { createImageLayer, createLayer, createMask } from "@/app/editor/layers";
 import { createEditorRenderer } from "@/app/editor/renderer";
 import type { BrushStroke, StrokePoint } from "@/core/document";
 import { createDocument, createResources, findLayer } from "@/core/document";
@@ -12,9 +12,11 @@ import {
   addLayer,
   deleteLayer,
   extendStroke,
+  moveLayer,
   paintStroke,
   setLayer,
   setLayerMask,
+  setMaskOperation,
 } from "@/features/layers/edits";
 import { defaultGradient } from "@/features/layers/gradient";
 
@@ -154,6 +156,15 @@ test("brush strokes stamp incrementally, replay after undo, and render a proxy d
       expect(layer.mask.strokes).toHaveLength(1);
       expect(layer.mask.strokes[0].points).toHaveLength(2);
     }
+    document.history.undo();
+    await render();
+    expect(renderer.coverage(mask)).toBeUndefined();
+    expect(
+      renderer.inspect().rasters.some((raster) => raster.id === mask),
+    ).toBe(true);
+    document.history.redo();
+    await render();
+    expect(renderer.coverage(mask)).toBeDefined();
     // A brush subtracting from a gradient turns the whole mask into a raster.
     const gradient = addLayer(document, createMask(defaultGradient([64, 32])));
     setAdjustments(document, { exposure: -1 }, gradient);
@@ -185,15 +196,40 @@ test("brush strokes stamp incrementally, replay after undo, and render a proxy d
     expect(renderer.inspect().passes).toContain(
       `layer/${gradient}/raster-input`,
     );
-    // The child keeps its own coverage for its preview; the gradient combines it into a second texture.
+    // The child keeps its own coverage for its preview; the graph folds it into the gradient's.
     expect(renderer.inspect().rasters.map((raster) => raster.id)).toEqual([
       mask,
       child,
       "stroke view",
-      `${gradient}/group`,
       "stroke buffer",
     ]);
+    expect(renderer.inspect().passes).toEqual(
+      expect.arrayContaining([
+        `mask/${gradient}/gradient`,
+        `mask/${child}/combine`,
+      ]),
+    );
     expect(renderer.coverage(child)?.target.size).toEqual([32, 16]);
+    expect(renderer.coverage(gradient)?.target.size).toEqual([32, 16]);
+    setLayer(document, child, { visible: false });
+    await render();
+    expect(renderer.coverage(child)?.target.size).toEqual([32, 16]);
+    expect(renderer.inspect().passes).not.toContain(`mask/${child}/combine`);
+    setLayer(document, child, { visible: true, opacity: 0 });
+    await render();
+    expect(renderer.coverage(child)?.target.size).toEqual([32, 16]);
+    setLayerMask(document, child, { kind: "brush", strokes: [] });
+    await render();
+    expect(renderer.coverage(child)).toBeUndefined();
+    document.history.undo();
+    setLayer(document, child, { opacity: 1 });
+    // Hiding a group bypasses its effect, but preserves the combined coverage shown in its row.
+    setLayer(document, gradient, { visible: false });
+    await render();
+    expect(renderer.coverage(gradient)?.target.size).toEqual([32, 16]);
+    expect(renderer.inspect().passes).toContain(`mask/${child}/combine`);
+    expect(renderer.inspect().passes).not.toContain(`layer/${gradient}/raster`);
+    setLayer(document, gradient, { visible: true });
     // Erasing inside the child stamps its own raster only, and the group recombines.
     const stampedBefore = renderer.inspect().stamped;
     paintStroke(document, child, { ...stroke, mode: "erase" });
@@ -219,6 +255,76 @@ test("brush strokes stamp incrementally, replay after undo, and render a proxy d
     expect(() => extendStroke(document, gradient, [[1, 1, 1]])).toThrow(
       "brush",
     );
+  } finally {
+    renderer.dispose();
+    document.dispose();
+    gpu.dispose();
+  }
+});
+
+test("a brush yet to paint takes no part in its group", async () => {
+  const gpu = await init();
+  const source = createImageSource(
+    target(gpu, { size: [64, 32], format: "rgba16float" }),
+  );
+  const resources = createResources();
+  const sourceId = resources.add(new File([], "photo.png"), source);
+  const document = createDocument(
+    {
+      frame: imageFrame(source.image.size),
+      layers: [createImageLayer(sourceId, "Photo")],
+    },
+    resources,
+  );
+  const renderer = createEditorRenderer(gpu, source);
+  const passes = async () => {
+    await renderer.update(document.scene.getState());
+    return renderer.inspect().passes;
+  };
+  try {
+    const brush = addLayer(
+      document,
+      createMask({ kind: "brush", strokes: [] }),
+    );
+    setAdjustments(document, { exposure: 1 }, brush);
+    const gradient = addLayer(
+      document,
+      createMask(defaultGradient([64, 32]), "subtract"),
+      { inside: brush },
+    );
+    // Taking away from nothing leaves nothing, so the mask is bypassed.
+    expect(await passes()).toEqual([]);
+    // Adding to it starts from nothing covered.
+    setMaskOperation(document, gradient, "add");
+    expect(await passes()).toEqual(
+      expect.arrayContaining([
+        `mask/${brush}/empty`,
+        `mask/${gradient}/combine`,
+        `layer/${brush}/raster`,
+      ]),
+    );
+    // Intersecting a gradient, it leaves the gradient whole until it paints.
+    const shaped = addLayer(document, createMask(defaultGradient([64, 32])));
+    setAdjustments(document, { exposure: 1 }, shaped);
+    const child = addLayer(
+      document,
+      createMask({ kind: "brush", strokes: [] }, "intersect"),
+      { inside: shaped },
+    );
+    expect(await passes()).toContain(`layer/${shaped}/mix`);
+    paintStroke(document, child, stroke);
+    expect(await passes()).toEqual(
+      expect.arrayContaining([
+        `mask/${shaped}/gradient`,
+        `mask/${child}/combine`,
+        `layer/${shaped}/raster`,
+      ]),
+    );
+    const effect = addLayer(document, createLayer("exposure"));
+    moveLayer(document, child, 0, effect);
+    setLayer(document, effect, { visible: false });
+    await passes();
+    expect(renderer.coverage(child)?.target.size).toEqual([32, 16]);
   } finally {
     renderer.dispose();
     document.dispose();

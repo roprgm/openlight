@@ -8,25 +8,27 @@ import {
 } from "react";
 import { createStore, type StoreApi } from "zustand/vanilla";
 import { useDocument } from "@/components/editor/session";
-import type { Gradient, Mask } from "@/core/document";
+import type { Gradient, Mask, MaskLayer } from "@/core/document";
 import { blurActive } from "@/lib/dom";
+import { defaultLuminanceRange, defaultTolerance } from "./model";
 
-/** Where a new mask goes: inside a mask group, adding or subtracting coverage. */
+/** Where a new mask goes: inside a mask group, combined with its coverage, or else on top. */
 export type Nesting = {
   parentId?: string;
-  operation: "add" | "subtract";
+  operation: MaskLayer["operation"];
 };
-type Pending = Nesting & { shape: Mask["kind"] };
+/** The masks a tool on the canvas draws or picks; a luminance range needs none. */
+type DrawnShape = Exclude<Mask["kind"], "luminance-range">;
+type Pending = Nesting & { shape: Exclude<DrawnShape, "color-range"> };
 type OverlayChoice = "auto" | "shown" | "hidden";
 
 const MaskTool = createContext<{
-  /** Chosen from a mask's Add or Subtract menu; the next mask of that shape goes there. */
+  /** Chosen from a menu; the next mask of that shape goes there. */
   pending: Pending | null;
-  add: (
-    parentId: string,
-    operation: Nesting["operation"],
-    shape: Mask["kind"],
-  ) => void;
+  /**
+   * Starts a range mask at once, or chooses where the next brush or gradient goes.
+   */
+  add: (shape: Mask["kind"], nesting?: Nesting) => void;
   /** Adds the mask where `nesting` says, else where a pending choice says, else on top. */
   create: (mask: Mask, nesting?: Nesting) => void;
   /**
@@ -37,7 +39,10 @@ const MaskTool = createContext<{
   showOverlay: (shown: boolean) => void;
   /** A gradient being drawn, not yet in the scene, tinted like a mask. */
   draft: StoreApi<Gradient | null>;
-  /** Enters editing with the tool of a shape, or leaves it: the layer stays selected, its guides go. */
+  /**
+   * Enters editing with the tool of a shape, or leaves it: the layer stays selected, its guides go.
+   * A luminance range has no tool, so it leaves too.
+   */
   edit: (shape?: Mask["kind"]) => void;
 } | null>(null);
 
@@ -57,8 +62,8 @@ export function MaskToolProvider({
 }: {
   children: ReactNode;
   onCreate: (mask: Mask, nesting: Nesting) => void;
-  /** Activates the tool that draws the shape. */
-  onTool?: (shape: Mask["kind"]) => void;
+  /** Activates the tool that draws or picks the shape. */
+  onTool?: (shape: DrawnShape) => void;
   /** Returns to the tool without a mask canvas. */
   onDone?: () => void;
 }) {
@@ -71,12 +76,35 @@ export function MaskToolProvider({
     () => document.selection.subscribe(() => setPending(null)),
     [document],
   );
+  function edit(shape?: Mask["kind"]) {
+    setPending(null);
+    // Keys after entering or leaving belong to the canvas, not to the row or tab that asked.
+    blurActive();
+    if (shape && shape !== "luminance-range") {
+      onTool?.(shape);
+    } else {
+      onDone?.();
+    }
+  }
   return (
     <MaskTool
       value={{
         pending,
-        add: (parentId, operation, shape) => {
-          setPending({ parentId, operation, shape });
+        add: (shape, nesting = { operation: "add" }) => {
+          if (shape === "luminance-range") {
+            edit();
+            onCreate(defaultLuminanceRange, nesting);
+            return;
+          }
+          if (shape === "color-range") {
+            onCreate(
+              { kind: "color-range", color: null, tolerance: defaultTolerance },
+              nesting,
+            );
+            edit(shape);
+            return;
+          }
+          setPending({ ...nesting, shape });
           onTool?.(shape);
         },
         create: (mask, nesting) => {
@@ -88,16 +116,7 @@ export function MaskToolProvider({
         overlay,
         showOverlay: (shown) => setOverlay(shown ? "shown" : "hidden"),
         draft,
-        edit: (shape) => {
-          setPending(null);
-          // Keys after entering or leaving belong to the canvas, not to the row or tab that asked.
-          blurActive();
-          if (shape) {
-            onTool?.(shape);
-          } else {
-            onDone?.();
-          }
-        },
+        edit,
       }}
     >
       {children}

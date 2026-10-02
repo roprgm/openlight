@@ -27,6 +27,9 @@ export type Workload =
   | "masked-exposure"
   | "radial-exposure"
   | "brush-exposure"
+  | "brush-group"
+  | "luminance-range"
+  | "color-range"
   | "layer-stack"
   | "fill"
   | "lut"
@@ -48,10 +51,12 @@ function summarize(values: number[]) {
   };
 }
 
-const rasterPixelBytes: Record<string, number> = {
+const pixelBytes: Record<string, number> = {
   r8unorm: 1,
   r16float: 2,
   rgba8unorm: 4,
+  rgba16float: 8,
+  rgba32float: 16,
 };
 
 /** Wavy strokes across the image, three painted and one erased. */
@@ -78,8 +83,15 @@ function benchmarkMask(workload: Workload, size: [number, number]): Mask {
       feather: 0.5,
     };
   }
-  if (workload === "brush-exposure") {
+  if (workload === "brush-exposure" || workload === "brush-group") {
     return { kind: "brush", strokes: brushStrokes(size) };
+  }
+  // What the Add menu's range masks select at first: the brighter half, or a sky blue.
+  if (workload === "luminance-range") {
+    return { kind: "luminance-range", low: 50, high: 100, smoothness: 25 };
+  }
+  if (workload === "color-range") {
+    return { kind: "color-range", color: "#6fa8dc", tolerance: 30 };
   }
   return {
     kind: "linear",
@@ -169,16 +181,22 @@ export async function benchmarkRendering(
     workload === "masked-exposure" ||
     workload === "radial-exposure" ||
     workload === "brush-exposure" ||
+    workload === "brush-group" ||
+    workload === "luminance-range" ||
+    workload === "color-range" ||
     workload === "layer-stack"
   ) {
-    effects.push({
-      ...common,
-      id: "benchmark-gradient",
-      name: "Gradient",
-      kind: "mask",
-      operation: "add",
+    const mask = {
       adjustments: defaultAdjustments,
       toneCurve: defaultCurve,
+      kind: "mask",
+    } as const;
+    effects.push({
+      ...common,
+      ...mask,
+      id: "benchmark-gradient",
+      name: "Gradient",
+      operation: "add",
       opacity: 0.75,
       mask: benchmarkMask(workload, size),
       children: [
@@ -189,6 +207,19 @@ export async function benchmarkRendering(
           kind: "exposure",
           exposure: 1,
         },
+        // A brush that a gradient takes away from, so the group combines its children.
+        ...(workload === "brush-group"
+          ? [
+              {
+                ...common,
+                ...mask,
+                id: "benchmark-subtract",
+                name: "Linear Gradient",
+                operation: "subtract",
+                mask: benchmarkMask("masked-exposure", size),
+              } as const,
+            ]
+          : []),
       ],
     });
   }
@@ -405,16 +436,14 @@ export async function benchmarkRendering(
       pixelHash: [...pixelHash]
         .map((value) => value.toString(16).padStart(2, "0"))
         .join(""),
-      // Image targets use rgba16float. Source and driver memory are excluded.
+      // Source and driver memory are excluded.
       intermediateBytes: storage.textures.reduce(
-        (sum, { size, format }) =>
-          sum + size[0] * size[1] * (format === "rgba32float" ? 16 : 8),
+        (sum, { size, format }) => sum + size[0] * size[1] * pixelBytes[format],
         0,
       ),
       // Brush rasters, paint, and the stroke buffer, at source resolution, outside the graph.
       rasterBytes: storage.rasters.reduce(
-        (sum, { size, format }) =>
-          sum + size[0] * size[1] * rasterPixelBytes[format],
+        (sum, { size, format }) => sum + size[0] * size[1] * pixelBytes[format],
         0,
       ),
       image: [...new Uint8Array(await blob.arrayBuffer())],

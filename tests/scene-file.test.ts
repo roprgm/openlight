@@ -82,6 +82,22 @@ test("scene files reopen the photo with every layer for further editing", async 
       ],
     });
     api.setAdjustments({ shadows: 40 }, mask);
+    const tones = api.addLayer("mask", { inside: mask });
+    api.setLayerMask(tones, {
+      kind: "luminance-range",
+      low: 20,
+      high: 80,
+      smoothness: 10,
+    });
+    api.setMaskOperation(tones, "intersect");
+    api.run({
+      type: "add-mask",
+      mask: { kind: "color-range", color: "#336699", tolerance: 40 },
+    });
+    api.run({
+      type: "add-mask",
+      mask: { kind: "color-range", color: null, tolerance: 30 },
+    });
     api.setDetails({ clarity: 30 }, api.addLayer("details", { inside: mask }));
     const subtract = api.addLayer("mask", { inside: mask });
     api.setLayerMask(subtract, {

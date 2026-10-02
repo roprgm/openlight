@@ -1,4 +1,4 @@
-import { luminance, rec2020ToSrgb, srgbToRec2020 } from "../../core/image/color.wgsl";
+import { luminance, rec2020ToSrgb, srgbToRec2020, toOklab } from "../../core/image/color.wgsl";
 
 // Selective color in Oklab: at +/-100 a range turns hue 30 degrees, scales chroma 0..2x or moves luminance one stop.
 // The import above is relative because the shader loader does not resolve the `@/` alias.
@@ -6,21 +6,7 @@ import { luminance, rec2020ToSrgb, srgbToRec2020 } from "../../core/image/color.
 @group(0) @binding(0) var source: texture_2d<f32>;
 @group(0) @binding(1) var<storage, read> settings: array<vec4f>;
 
-// Bjorn Ottosson's public-domain Oklab transforms (2021 matrices):
-// https://bottosson.github.io/posts/oklab/
-fn toOklab(rgb: vec3f) -> vec3f {
-  let lms = mat3x3f(
-    0.4122214708, 0.2119034982, 0.0883024619,
-    0.5363325363, 0.6806995451, 0.2817188376,
-    0.0514459929, 0.1073969566, 0.6299787005,
-  ) * rgb;
-  return mat3x3f(
-    0.2104542553, 1.9779984951, 0.0259040371,
-    0.7936177850, -2.4285922050, 0.7827717662,
-    -0.0040720468, 0.4505937099, -0.8086757660,
-  ) * (sign(lms) * pow(abs(lms), vec3f(1.0 / 3.0)));
-}
-
+// The inverse of toOklab, with the same public-domain matrices.
 fn fromOklab(lab: vec3f) -> vec3f {
   let lms = mat3x3f(
     1.0, 1.0, 1.0,

@@ -80,7 +80,7 @@ Edits update the scene and history synchronously. Rendering may finish later, pa
 
 Images own basic adjustments and a tone curve. Processing layers edit the source image in stack order; the image layer's adjustments and curve then tone the composite, so a local exposure can recover light that the global exposure pushes past white. An effect processes the image below, then its children. A mask processes its basic adjustments, its tone curve, and child effects, then blends that result with its input using coverage × opacity. A neutral mask with no effects does nothing. Hidden layers and zero opacity bypass the complete branch.
 
-Direct mask children of another mask modify coverage instead of processing image pixels: Add sums coverage, Subtract removes it, clamping to 0–1 after each child in stored order. Each child's opacity scales its contribution. Its stored basic adjustments are inactive in this position. Other children process the image within the combined mask. Layer opacity always controls effect strength, preserving the input image's alpha.
+Direct mask children of another mask modify coverage instead of processing image pixels: Add sums coverage, Subtract removes it, clamping to 0–1 after each child in stored order, and Intersect keeps it only where the child covers. Each child's opacity scales its contribution; an Intersect child at opacity `o` keeps `1 − o × (1 − child)` of the coverage. A brush child that has not painted yet takes no part. Its stored basic adjustments are inactive in this position. Other children process the image within the combined mask. Layer opacity always controls effect strength, preserving the input image's alpha.
 
 | Method | Behavior |
 | --- | --- |
@@ -88,8 +88,8 @@ Direct mask children of another mask modify coverage instead of processing image
 | `selectLayer(id)` | Selects any layer. |
 | `setLayer(id, change)` | Updates processing-layer `name`, `visible`, or `opacity` (0–1). |
 | `setExposure(id, value)` | Sets an Exposure layer to -5…5 EV. |
-| `setLayerMask(id, mask)` | Replaces a mask layer's mask: `{ kind: "linear", start, end }`, `{ kind: "radial", center, radius, angle, feather }`, or `{ kind: "brush", strokes }`. Geometry uses source pixels; radial angle is degrees and feather is 0–1. |
-| `setMaskOperation(id, operation)` | Sets `"add"` or `"subtract"`; used when this mask is inside another mask. |
+| `setLayerMask(id, mask)` | Replaces a mask layer's mask: `{ kind: "linear", start, end }`, `{ kind: "radial", center, radius, angle, feather }`, `{ kind: "brush", strokes }`, or a [range](#ranges), `{ kind: "luminance-range", low, high, smoothness }` or `{ kind: "color-range", color, tolerance }`. Geometry uses source pixels; radial angle is degrees and feather is 0–1. |
+| `setMaskOperation(id, operation)` | Sets `"add"`, `"subtract"`, or `"intersect"`; used when this mask is inside another mask. |
 | `duplicateLayer(id)` | Copies a processing layer and its children above itself with independent IDs; selects and returns the new ID. |
 | `moveLayer(id, index, parentId?)` | Moves to a final sibling index, bottom to top. Omit the parent for the root stack, where index 0 is reserved for the image. Image parents, cycles, and third-level nesting are rejected. |
 | `deleteLayer(id)` | Removes a processing layer and its children; undo restores them. |
@@ -97,6 +97,12 @@ Direct mask children of another mask modify coverage instead of processing image
 A linear gradient has full coverage at `start`, zero at `end`; its points must be finite and distinct. A radial gradient covers the ellipse inside `radius`, with positive radii and a feathered falloff toward its edge. Crop, rotation, and viewport navigation do not move it within the document.
 
 A brush mask is a list of strokes, over the pixels earlier strokes settled into, as a Paint layer's are: in the editor they settle every 100 strokes, and `getState()` shows the mask's `raster` ID. `setLayerMask` keeps a `raster` only if it names the document's own settled pixels. Each stroke has `mode` (`"paint"` or `"erase"`), `size` (diameter in source pixels), `feather` and `flow` (0–1), and `points`, each `[x, y, pressure]` in source pixels with pressure 0–1. A paint stroke adds `flow × pressure` of the remaining coverage every quarter diameter along the points, and an erase stroke removes that share of the existing coverage; dabs land sixteen times per diameter, each laying a fraction of that, so soft edges show no ripples. The renderer rasterizes strokes into a cached coverage texture at half the photo's resolution each way and only stamps new points, so appending to the last stroke is cheap and undo replays at most 99. A brush inside another mask keeps its own coverage, paint and erase strokes alike, which the mask adds or subtracts scaled by the brush layer's opacity. A mask with no painted coverage and nothing added to it is bypassed.
+
+### Ranges
+
+A range mask selects pixels of the image below its mask group, before the group's own adjustments, rather than by position. `{ kind: "luminance-range", low, high, smoothness }` selects the pixels whose CIE lightness lies from `low` to `high`, 0 black to 100 white, fading out over `smoothness` past either end; headroom above white counts as white. `{ kind: "color-range", color, tolerance }` selects the pixels whose hue and saturation are near `color`, `#rrggbb` sRGB, however light or dark, more of them as `tolerance` grows. Set `color` to `null` for an unpicked range with no coverage. Every value runs from 0 to 100, and `low` cannot exceed `high`. As a mask's own shape, a range covers the whole photo within it; as a child, it adds, subtracts, or intersects like any mask, so a gradient intersected with a color range darkens only that color across the gradient. Range coverage follows the photo's edges at its full resolution.
+
+The Add menu's **Luminance Range** starts at 50 to 100 with smoothness 25. **Color Range**, including a mask's Add, Subtract, or Intersect entry for one, creates and selects an unpicked mask immediately with tolerance 30. A click on the photo picks its color, averaged over 5 × 5 rendered texels, and a drag keeps picking as one edit. Picks read the image below the mask group as the screen would show it, so the mask's own edit never changes them. Once a color is chosen, the swatch beside the eyedropper opens the browser's color picker. Selecting another kind of layer or deleting the range leaves the picker.
 
 ## LUTs
 
@@ -142,6 +148,8 @@ try {
 | `split` | Divider position from 0 to 1 | 0.5 |
 | `shadows` | Show shadow clipping | `false` |
 | `highlights` | Show highlight clipping | `false` |
+
+The editor also manages `maskOverlay` for the selected mask and `rangeSource` for the mask group being sampled. These transient fields are visible in `getState().preview`; leave them to the active tool.
 
 ## Export
 
