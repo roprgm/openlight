@@ -5,7 +5,7 @@ import type { BrushStroke, HealPatch } from "@/core/document";
 import type { Point } from "@/core/image/frame";
 import { type AnchorDrag, HealAnchor } from "./anchor";
 import { setHealDestination, setHealSource } from "./edits";
-import { patchContains } from "./model";
+import { findHealPatch, patchContains } from "./model";
 
 type Geometry = {
   mode: BrushStroke["mode"];
@@ -196,7 +196,8 @@ export function HealPatchOutline({
     patch.strokes.map((stroke) => geometry(stroke, patch.offset, mapping));
   // Remove previews the contour and solves on drop; donor repairs follow the drag live.
   const moveDestination = (next?: Point) => {
-    if (next) setHealDestination(document, layer, patch.id, next);
+    if (next && findHealPatch(document.scene.getState(), layer, patch.id))
+      setHealDestination(document, layer, patch.id, next);
   };
   const moveSource = (next?: Point) => {
     if (next) setHealSource(document, layer, patch.id, next);

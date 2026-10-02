@@ -159,8 +159,15 @@ export function BrushCanvas({
     document.history.cancel();
   }
   useEffect(() => {
-    const unsubscribe = document.history.status.subscribe(({ editing }) => {
-      if (!editing && stroke.current) finish(false);
+    const unsubscribe = document.history.status.subscribe((state, previous) => {
+      if (
+        stroke.current &&
+        !state.editing &&
+        (previous.editing ||
+          state.undoCount !== previous.undoCount ||
+          state.redoCount !== previous.redoCount)
+      )
+        finish(false);
     });
     return () => {
       unsubscribe();
@@ -181,11 +188,19 @@ export function BrushCanvas({
         onDone();
       }
     },
-    "[": () => brush.resize(1 / 1.25),
-    "]": () => brush.resize(1.25),
+    "[": () => resizeBy(1 / 1.25),
+    "]": () => resizeBy(1.25),
     "shift+[": () => featherBy(-0.1),
     "shift+]": () => featherBy(0.1),
   });
+  function resizeBy(factor: number) {
+    const rounded = Math.round(brush.settings.size * factor);
+    const size =
+      rounded === brush.settings.size
+        ? rounded + Math.sign(factor - 1)
+        : rounded;
+    brush.update({ size });
+  }
   function featherBy(step: number) {
     const feather =
       Math.round((brush.parameters[1].value / 100 + step) * 10) / 10;

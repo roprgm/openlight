@@ -5,7 +5,7 @@ import { useDocumentMapping } from "@/components/editor/mapping";
 import { useRenderer } from "@/components/editor/pipeline";
 import { useDocument, useSelectedLayer } from "@/components/editor/session";
 import { useToolLayer } from "@/components/editor/tool-layer";
-import type { BrushStroke, Layer } from "@/core/document";
+import { type BrushStroke, findLayer, type Layer } from "@/core/document";
 import type { Point } from "@/core/image/frame";
 import { useDisposable } from "@/hooks/use-disposable";
 import {
@@ -171,7 +171,11 @@ export function HealOverlay({
         if (current && "stroke" in current) {
           pending.current = undefined;
           setDraft(undefined);
-          if (committed) {
+          const scene = document.scene.getState();
+          const available = current.patch
+            ? findHealPatch(scene, current.layer, current.patch)
+            : findLayer(scene.layers, current.layer)?.kind === "heal";
+          if (committed && available) {
             if (current.patch) {
               addHealStroke(
                 document,

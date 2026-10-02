@@ -132,6 +132,8 @@ for (const { name, shortcut, presses, label } of [
     await size.press("Enter");
     await canvas.hover();
     await page.mouse.wheel(0, -100);
+    await expect(size).toHaveValue("1");
+    await page.mouse.wheel(0, -100);
     await expect(size).toHaveValue("2");
     await page.mouse.wheel(0, 100_000);
     await expect(size).toHaveValue("1");
@@ -184,6 +186,30 @@ for (const { name, shortcut, presses, label } of [
     await page.mouse.wheel(300, -100);
     await expect(size).toHaveValue("128");
     await expect(center).toHaveCount(1);
+    await size.fill("50");
+    await size.press("Enter");
+    // Tiny trackpad events preserve the same scale as one combined wheel event.
+    await canvas.evaluate((element) => {
+      for (let i = 0; i < 100; i++) {
+        element.dispatchEvent(
+          new WheelEvent("wheel", {
+            deltaY: -1,
+            bubbles: true,
+            cancelable: true,
+          }),
+        );
+      }
+    });
+    await expect(size).toHaveValue("64");
+    await size.fill("1");
+    await size.press("Enter");
+    await canvas.hover();
+    await page.keyboard.press("]");
+    await expect(size).toHaveValue("2");
+    await page.keyboard.press("[");
+    await expect(size).toHaveValue("1");
+    await size.fill("128");
+    await size.press("Enter");
     const bounds = await box(canvas);
     const scale = Math.min(
       (bounds.width - 48) / 1200,

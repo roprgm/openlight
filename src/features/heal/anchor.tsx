@@ -99,8 +99,14 @@ function DraggedAnchor({
       start: point(event, box),
       from: drag.from,
       next: drag.from,
-      unsubscribe: document.history.status.subscribe(({ editing }) => {
-        if (!editing) cancel();
+      unsubscribe: document.history.status.subscribe((state, previous) => {
+        if (
+          !state.editing &&
+          (previous.editing ||
+            state.undoCount !== previous.undoCount ||
+            state.redoCount !== previous.redoCount)
+        )
+          cancel();
       }),
     };
     event.preventDefault();
