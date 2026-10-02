@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="800">
+  <title>Isolated retouch spots</title>
+  <rect width="1200" height="800" fill="#808080"/>
+  <g fill="#305080">
+    <circle cx="350" cy="160" r="6"/>
+    <circle cx="350" cy="260" r="6"/>
+    <circle cx="350" cy="210" r="3"/>
+  </g>
+</svg>

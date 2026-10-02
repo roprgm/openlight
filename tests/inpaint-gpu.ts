@@ -55,13 +55,15 @@ export async function renderInpaintReference(
     mode: "remove",
     feather: 0,
     opacity: 1,
-    stroke: {
-      mode: "paint",
-      size: diameter + 8,
-      feather: 0,
-      flow: 1,
-      points: [[96, 72, 1]],
-    },
+    strokes: [
+      {
+        mode: "paint",
+        size: diameter + 8,
+        feather: 0,
+        flow: 1,
+        points: [[96, 72, 1]],
+      },
+    ],
   };
   const healing = { ...createLayer("heal"), patches: [patch] };
   const scene: Scene = {

@@ -41,13 +41,15 @@ export async function renderHealReference({
             mode,
             feather: 0.25,
             opacity,
-            stroke: {
-              mode: "paint",
-              size: 56,
-              feather: 0,
-              flow: 1,
-              points: [[128, 96, 1]],
-            },
+            strokes: [
+              {
+                mode: "paint",
+                size: 56,
+                feather: 0,
+                flow: 1,
+                points: [[128, 96, 1]],
+              },
+            ],
             offset: [0, 60],
           },
         ],

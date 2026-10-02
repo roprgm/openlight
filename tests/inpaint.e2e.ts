@@ -41,7 +41,7 @@ test("Remove previews each frame, solves on release, exports, undoes, and cancel
         .getState()
         .scene?.layers.find((layer) => layer.kind === "heal");
       return layer?.kind === "heal"
-        ? layer.patches[0]?.stroke.points
+        ? layer.patches[0]?.strokes[0].points
         : undefined;
     });
   const history = await page.evaluate(
@@ -94,7 +94,7 @@ test("Remove previews each frame, solves on release, exports, undoes, and cancel
       .scene?.layers.find((layer) => layer.kind === "heal");
     return layer?.kind === "heal" ? layer.patches : [];
   });
-  expect(patches).toMatchObject([{ mode: "remove", stroke: { size: 320 } }]);
+  expect(patches).toMatchObject([{ mode: "remove", strokes: [{ size: 320 }] }]);
   expect(patches[0]).not.toHaveProperty("offset");
   const after = await readImage(page, undefined, [[350, 200]]);
   for (const channel of after.samples?.[0].slice(0, 3) ?? [])
@@ -147,7 +147,7 @@ test("Remove moves on drop and cancels a pending move on undo, pointer cancellat
       const layer = window.openlight
         .getState()
         .scene?.layers.find((layer) => layer.kind === "heal");
-      return layer?.kind === "heal" ? layer.patches[0]?.stroke.points : [];
+      return layer?.kind === "heal" ? layer.patches[0]?.strokes[0].points : [];
     });
   const initial = await points();
   const history = await page.evaluate(

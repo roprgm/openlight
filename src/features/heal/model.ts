@@ -29,22 +29,55 @@ export function dabTouchesImage(
   );
 }
 
+/** Tests ordered coverage, so an erased hole is available for a new patch. */
+export function patchContains(
+  strokes: readonly BrushStroke[],
+  at: Point,
+  minimumRadius = 0,
+) {
+  let covered = false;
+  for (const stroke of strokes) {
+    const radius =
+      stroke.mode === "paint"
+        ? Math.max(minimumRadius, stroke.size / 2)
+        : stroke.size / 2;
+    const touches = stroke.points.some(([x, y], index) => {
+      const [ax, ay] = stroke.points[Math.max(0, index - 1)];
+      const dx = x - ax;
+      const dy = y - ay;
+      const length = dx * dx + dy * dy;
+      const t = length
+        ? Math.max(
+            0,
+            Math.min(1, ((at[0] - ax) * dx + (at[1] - ay) * dy) / length),
+          )
+        : 0;
+      return Math.hypot(at[0] - ax - t * dx, at[1] - ay - t * dy) <= radius;
+    });
+    if (touches) covered = stroke.mode === "paint";
+  }
+  return covered;
+}
+
 /** Bounds include the whole soft brush edge, with room for a known boundary. */
 export function patchBounds(
-  stroke: BrushStroke,
+  strokes: readonly BrushStroke[],
   size: readonly number[],
   margin = 0,
 ) {
-  const radius = stroke.size / 2 + margin + 4;
   let left = size[0];
   let top = size[1];
   let right = 0;
   let bottom = 0;
-  for (const [x, y] of stroke.points) {
-    left = Math.min(left, x - radius);
-    top = Math.min(top, y - radius);
-    right = Math.max(right, x + radius);
-    bottom = Math.max(bottom, y + radius);
+  for (const stroke of strokes) {
+    if (stroke.mode === "erase") continue;
+    const radius = stroke.size / 2 + margin + 4;
+    for (const [x, y] of stroke.points) {
+      left = Math.min(left, x - radius);
+      top = Math.min(top, y - radius);
+      right = Math.max(right, x + radius);
+      bottom = Math.max(bottom, y + radius);
+    }
   }
   const origin: Point = [
     Math.max(0, Math.floor(left)),
@@ -59,10 +92,10 @@ export function patchBounds(
 
 /** A square around the patch with a little margin, so a thumbnail keeps the stroke's proportions. */
 export function patchThumbnailRegion(
-  stroke: BrushStroke,
+  strokes: readonly BrushStroke[],
   size: readonly number[],
 ): { origin: Point; extent: Point } {
-  const { origin, extent } = patchBounds(stroke, size);
+  const { origin, extent } = patchBounds(strokes, size);
   const side = Math.max(extent[0], extent[1]) * 1.1;
   return {
     origin: [
@@ -87,7 +120,13 @@ export const donorModeSchema = z.enum(["heal", "clone"]);
 const patchShape = {
   id: z.string().check(z.minLength(1)),
   feather: unit,
-  stroke: patchStroke,
+  strokes: z.array(strokeSchema).check(
+    z.minLength(1),
+    z.refine(
+      (strokes) => strokes[0]?.mode === "paint",
+      "Start a patch with paint",
+    ),
+  ),
   opacity: unit,
 };
 

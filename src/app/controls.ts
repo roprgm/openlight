@@ -46,6 +46,7 @@ import { setGrain } from "@/features/grain/edits";
 import { defaultGrain } from "@/features/grain/model";
 import {
   addHealPatch,
+  addHealStroke,
   addRemovePatch,
   setHealSource,
 } from "@/features/heal/edits";
@@ -157,6 +158,8 @@ export function createControls(
       offset: Point,
       mode?: Exclude<HealMode, "remove">,
     ) => addHealPatch(workspace.getDocument(), id, stroke, offset, mode),
+    addHealStroke: (id: string, patch: string, stroke: BrushStroke) =>
+      addHealStroke(workspace.getDocument(), id, patch, stroke),
     addRemovePatch: (id: string, stroke: BrushStroke) =>
       addRemovePatch(workspace.getDocument(), id, stroke),
     setHealSource: (id: string, patchId: string, offset: Point) =>

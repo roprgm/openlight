@@ -39,6 +39,8 @@ type PointerLike = {
   pointerType: string;
 };
 
+export type BrushModifiers = { shift: boolean; alt: boolean };
+
 /** Shared pressure-aware brush input and cursor. The caller owns the scene edit. */
 export function BrushCanvas({
   label,
@@ -55,10 +57,10 @@ export function BrushCanvas({
   label: string;
   erase: boolean;
   /** Starts the first dab or preview and returns whether accepted; a declined stroke leaves nothing behind. */
-  onStart: (stroke: BrushStroke) => boolean;
+  onStart: (stroke: BrushStroke, modifiers: BrushModifiers) => boolean;
   onExtend: (points: readonly StrokePoint[]) => void;
   /** Keeps a local preview outside history; onFinish records the edit on release. */
-  editOnRelease?: boolean;
+  editOnRelease?: boolean | ((modifiers: BrushModifiers) => boolean);
   onComplete?: (signal: AbortSignal) => void | Promise<void>;
   onFinish?: (committed: boolean) => void;
   onPickSource?: (point: Point) => void;
@@ -218,14 +220,22 @@ export function BrushCanvas({
       return;
     }
     setError(undefined);
-    const opened = !editOnRelease && document.history.begin();
-    const started = onStart({
-      mode: erase ? "erase" : "paint",
-      size: brush.settings.size,
-      feather: brush.settings.feather,
-      flow: brush.settings.flow,
-      points: [first],
-    });
+    const modifiers = { shift: event.shiftKey, alt: event.altKey };
+    const deferred =
+      typeof editOnRelease === "function"
+        ? editOnRelease(modifiers)
+        : editOnRelease;
+    const opened = !deferred && document.history.begin();
+    const started = onStart(
+      {
+        mode: erase ? "erase" : "paint",
+        size: brush.settings.size,
+        feather: brush.settings.feather,
+        flow: brush.settings.flow,
+        points: [first],
+      },
+      modifiers,
+    );
     if (!started) {
       if (opened) document.history.cancel();
       return;
@@ -236,7 +246,7 @@ export function BrushCanvas({
       client: [event.clientX, event.clientY],
       box,
       pending: [],
-      editOnRelease,
+      editOnRelease: deferred,
     };
     // The viewport below would otherwise capture the pointer to pan.
     event.preventDefault();
@@ -248,6 +258,8 @@ export function BrushCanvas({
     if (!containsTarget(event)) return;
     const bounds = event.currentTarget.getBoundingClientRect();
     const overHandle =
+      !event.shiftKey &&
+      !event.altKey &&
       event.target instanceof Element &&
       event.target.closest("[data-hide-brush-cursor]");
     setPointerVisible(!overHandle);

@@ -76,7 +76,7 @@ function PatchActions({
 
 /** The brush size, and the opacity once lowered; the donor is edited on the canvas. */
 function patchSummary(patch: HealPatch) {
-  const size = `${Math.round(patch.stroke.size)} px`;
+  const size = `${Math.round(patch.strokes[0].size)} px`;
   return patch.opacity < 1
     ? `${size} · ${Math.round(patch.opacity * 100)}%`
     : size;
@@ -122,7 +122,7 @@ export function HealControls({
               <CoverageThumbnail
                 id={`layer/${id}/${patch.id}`}
                 version={patch}
-                region={patchThumbnailRegion(patch.stroke, source.image.size)}
+                region={patchThumbnailRegion(patch.strokes, source.image.size)}
                 label="Patch shape"
                 fallback={<PendingThumbnail mode={patch.mode} />}
               />

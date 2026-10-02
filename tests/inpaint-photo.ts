@@ -61,7 +61,7 @@ export async function removeFromPhoto(stroke: BrushStroke, spot = false) {
               mode: "remove",
               feather: stroke.feather,
               opacity: 1,
-              stroke: { ...stroke, feather: 0 },
+              strokes: [{ ...stroke, feather: 0 }],
             },
           ],
         },

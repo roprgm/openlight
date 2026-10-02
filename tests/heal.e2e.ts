@@ -148,7 +148,7 @@ test("Healing paints patches, edits them, and undoes", async ({ page }) => {
       const healing = window.openlight
         .getState()
         .scene?.layers.find((item) => item.kind === "heal");
-      return healing?.kind === "heal" ? healing.patches[0].stroke.size : 0;
+      return healing?.kind === "heal" ? healing.patches[0].strokes[0].size : 0;
     }),
   ).toBe(300);
   await size.fill("300");
@@ -237,9 +237,9 @@ test("Healing paints patches, edits them, and undoes", async ({ page }) => {
     return healing?.kind === "heal"
       ? healing.patches
           .filter((patch) => patch.mode !== "remove")
-          .map(({ stroke, offset }) => [
-            Math.round(stroke.points[0][0] + offset[0]),
-            Math.round(stroke.points[0][1] + offset[1]),
+          .map(({ strokes, offset }) => [
+            Math.round(strokes[0].points[0][0] + offset[0]),
+            Math.round(strokes[0].points[0][1] + offset[1]),
           ])
       : [];
   });
@@ -273,7 +273,7 @@ test("Healing paints patches, edits them, and undoes", async ({ page }) => {
           : undefined;
       if (!patch || patch.mode === "remove")
         throw Error("Healing patch missing");
-      return Math.round(patch.stroke.points[0][0] + patch.offset[0]);
+      return Math.round(patch.strokes[0].points[0][0] + patch.offset[0]);
     }, manual.id);
   const beforeDrag = await sourceX();
   const handle = canvas.locator('[data-heal-source-handle="true"]');
@@ -317,7 +317,7 @@ test("Healing paints patches, edits them, and undoes", async ({ page }) => {
       healing?.kind === "heal"
         ? healing.patches.find((item) => item.id === patchId)
         : undefined;
-    return patch?.stroke.points[0][0];
+    return patch?.strokes[0].points[0][0];
   }, manual.id);
   const destination = canvas.locator('[data-heal-destination-handle="true"]');
   const destinationBounds = await destination.boundingBox();
@@ -342,7 +342,7 @@ test("Healing paints patches, edits them, and undoes", async ({ page }) => {
           healing?.kind === "heal"
             ? healing.patches.find((item) => item.id === patchId)
             : undefined;
-        return patch?.stroke.points[0][0];
+        return patch?.strokes[0].points[0][0];
       }, manual.id),
     )
     .not.toBe(beforeDestination);
@@ -565,7 +565,7 @@ test("retouch modes cycle, preserve each family's brush, and keep patches indepe
     });
   }
   expect(await patches()).toMatchObject([
-    { mode: "clone", feather: 0.35, stroke: { size: 20 } },
+    { mode: "clone", feather: 0.35, strokes: [{ size: 20 }] },
   ]);
   const copied = await readImage(page, undefined, [
     [350, 200],
@@ -611,9 +611,9 @@ test("retouch modes cycle, preserve each family's brush, and keep patches indepe
   const third = point(900, 400);
   await page.mouse.click(third[0], third[1]);
   expect(await patches()).toMatchObject([
-    { mode: "clone", feather: 0.45, stroke: { size: 20 } },
-    { mode: "heal", feather: 0.5, stroke: { size: 20 } },
-    { mode: "clone", feather: 0.5, stroke: { size: 20 } },
+    { mode: "clone", feather: 0.45, strokes: [{ size: 20 }] },
+    { mode: "heal", feather: 0.5, strokes: [{ size: 20 }] },
+    { mode: "clone", feather: 0.5, strokes: [{ size: 20 }] },
   ]);
   await page.keyboard.press("ControlOrMeta+z");
   expect(await patches()).toHaveLength(2);

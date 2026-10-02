@@ -118,9 +118,10 @@ export type HealMode = "heal" | "clone" | "remove";
 /** A painted repair: Heal/Clone use a donor offset; Remove synthesizes surrounding texture. */
 export type HealPatch = {
   readonly id: string;
-  /** Feather applied after the stroke's dabs have accumulated into one patch shape. */
+  /** Feather applied after paint and erase strokes have accumulated into one patch shape. */
   readonly feather: number;
-  readonly stroke: BrushStroke;
+  /** Ordered hard strokes; each gesture adds or subtracts coverage without joining paths. */
+  readonly strokes: readonly BrushStroke[];
   readonly opacity: number;
 } & (
   | { readonly mode: "heal" | "clone"; readonly offset: Point }

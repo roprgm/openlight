@@ -70,7 +70,7 @@ export async function benchmarkInpaint(
                     mode: "remove",
                     feather: 0.4,
                     opacity: 1,
-                    stroke: strokeAt(index),
+                    strokes: [strokeAt(index)],
                   },
                 ],
               },
@@ -88,12 +88,12 @@ export async function benchmarkInpaint(
     return {
       async render(index: number) {
         const stroke = strokeAt(index);
-        const coverage = raster.patch("spot", stroke, size);
+        const coverage = raster.patch("spot", [stroke], size);
         graph.render([
           inpaint(
             input(image),
             coverage,
-            patchBounds(stroke, size, 240),
+            patchBounds([stroke], size, 240),
             "inpaint",
           ),
         ]);

@@ -21,14 +21,14 @@ export function removePatch(
   dependencies: readonly CacheKey[],
 ) {
   const dimensions = sourceSize(source);
-  const region = patchBounds(
-    patch.stroke,
-    dimensions,
-    Math.max(32, patch.stroke.size),
-  );
+  const margin = patch.strokes.reduce((margin, stroke) => {
+    if (stroke.mode === "erase") return margin;
+    return Math.max(margin, stroke.size);
+  }, 32);
+  const region = patchBounds(patch.strokes, dimensions, margin);
   const field = cache(
     inpaintField(source, coverage, region, `${name}/inpaint`),
-    [...dependencies, patch.stroke],
+    [...dependencies, patch.strokes],
   );
   const filled = sampleInpaint(source, field, region, `${name}/sample`);
   return merge(
@@ -44,7 +44,7 @@ export function removePatch(
           grid: source.size,
           coverageOrigin: coverage.origin,
           coverageSize: coverage.coverage.size,
-          feather: (patch.stroke.size * patch.feather) / 2,
+          feather: (patch.strokes[0].size * patch.feather) / 2,
           opacity: patch.opacity,
         },
       },

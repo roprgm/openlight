@@ -10,6 +10,7 @@ import type { Point } from "@/core/image/frame";
 import { useDisposable } from "@/hooks/use-disposable";
 import {
   addHealPatch,
+  addHealStroke,
   addRemovePatch,
   extendHealPatch,
   setHealSource,
@@ -55,12 +56,13 @@ export function HealOverlay({
   const layer = useSelectedLayer();
   const healLayer = layer && isHealLayer(layer) ? layer : undefined;
   const patches = healLayer?.patches ?? [];
+  const selected = patches.find((patch) => patch.id === selectedPatch);
   const hovered = patches.some((patch) => patch.id === hoveredPatch)
     ? hoveredPatch
     : undefined;
   const visiblePatch = drawingPatch ?? hovered ?? selectedPatch;
   const pending = useRef<
-    | { layer: string; mode: "remove"; stroke: BrushStroke }
+    | { layer: string; stroke: BrushStroke; patch?: string }
     | {
         layer: string;
         mode: "heal" | "clone";
@@ -74,7 +76,7 @@ export function HealOverlay({
     try {
       if (
         !current ||
-        current.mode === "remove" ||
+        "stroke" in current ||
         !current.automatic ||
         signal.aborted
       )
@@ -88,7 +90,7 @@ export function HealOverlay({
       if (!image) throw Error("Heal input is unavailable.");
       const dimensions = document.resources.get(scene.layers[0].source).image
         .size;
-      const offset = await search.find(image, dimensions, patch.stroke);
+      const offset = await search.find(image, dimensions, patch.strokes);
       // The stroke's group stays open through the search; undo or cancel aborts it and removes the patch.
       if (
         signal.aborted ||
@@ -98,7 +100,7 @@ export function HealOverlay({
       }
       setHealSource(document, current.layer, current.patch, offset);
     } finally {
-      if (current && current.mode !== "remove") {
+      if (current && !("stroke" in current)) {
         setResolvingSource((id) => (id === current.patch ? undefined : id));
       }
     }
@@ -108,8 +110,10 @@ export function HealOverlay({
     <BrushCanvas
       label="Healing canvas"
       erase={false}
-      editOnRelease={mode === "remove"}
-      onStart={(stroke) => {
+      editOnRelease={({ shift, alt }) =>
+        mode === "remove" || Boolean(selected && (shift || alt))
+      }
+      onStart={(stroke, { shift, alt }) => {
         const layer = selectedHealLayer();
         if (!layer) return false;
         const [x, y] = stroke.points[0];
@@ -118,8 +122,18 @@ export function HealOverlay({
         ).image.size;
         if (!dabTouchesImage([x, y], stroke.size / 2, size)) return false;
         const painted = { ...stroke, flow: 1 };
+        if (selected && (shift || alt)) {
+          const stroke: BrushStroke = {
+            ...painted,
+            mode: alt ? "erase" : "paint",
+          };
+          pending.current = { layer: layer.id, patch: selected.id, stroke };
+          setDraft(stroke);
+          setDrawingPatch(selected.id);
+          return true;
+        }
         if (mode === "remove") {
-          pending.current = { layer: layer.id, mode, stroke: painted };
+          pending.current = { layer: layer.id, stroke: painted };
           setDraft(painted);
           selectPatch(undefined);
           return true;
@@ -140,7 +154,7 @@ export function HealOverlay({
       onExtend={(points) => {
         const current = pending.current;
         if (!current) return;
-        if (current.mode === "remove") {
+        if ("stroke" in current) {
           const stroke = {
             ...current.stroke,
             points: [...current.stroke.points, ...points],
@@ -154,19 +168,28 @@ export function HealOverlay({
       onComplete={complete}
       onFinish={(committed) => {
         const current = pending.current;
-        if (current?.mode === "remove") {
+        if (current && "stroke" in current) {
           pending.current = undefined;
           setDraft(undefined);
           if (committed) {
-            selectPatch(
-              addRemovePatch(document, current.layer, current.stroke),
-            );
+            if (current.patch) {
+              addHealStroke(
+                document,
+                current.layer,
+                current.patch,
+                current.stroke,
+              );
+            } else {
+              selectPatch(
+                addRemovePatch(document, current.layer, current.stroke),
+              );
+            }
           }
         }
         setDrawingPatch(undefined);
         if (!committed) setResolvingSource(undefined);
       }}
-      onPickSource={mode === "remove" ? undefined : setSource}
+      onPickSource={mode === "remove" || selected ? undefined : setSource}
       onDone={onDone}
     >
       {draft && (
@@ -174,7 +197,11 @@ export function HealOverlay({
           aria-hidden="true"
           className="pointer-events-none absolute inset-0 size-full overflow-visible"
         >
-          <HealStrokePreview stroke={draft} />
+          <HealStrokePreview
+            strokes={
+              drawingPatch && selected ? [...selected.strokes, draft] : [draft]
+            }
+          />
         </svg>
       )}
       {healLayer && patches.length > 0 && (
@@ -185,7 +212,8 @@ export function HealOverlay({
         >
           {patches.map(
             (patch) =>
-              visiblePatch === patch.id && (
+              visiblePatch === patch.id &&
+              !(draft && drawingPatch === patch.id) && (
                 <g key={`outline-${patch.id}`} data-heal-patch={patch.id}>
                   <HealPatchOutline
                     layer={healLayer.id}

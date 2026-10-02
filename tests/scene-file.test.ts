@@ -93,11 +93,25 @@ test("scene files reopen the photo with every layer for further editing", async 
     });
     api.setMaskOperation(subtract, "subtract");
     const heal = api.addLayer("heal");
-    api.addHealPatch(
+    const firstPatch = api.addHealPatch(
       heal,
       { mode: "paint", size: 4, feather: 0.2, flow: 1, points: [[40, 20, 1]] },
       [-6, 2],
     );
+    api.addHealStroke(heal, firstPatch, {
+      mode: "paint",
+      size: 6,
+      feather: 0.2,
+      flow: 1,
+      points: [[44, 22, 1]],
+    });
+    api.addHealStroke(heal, firstPatch, {
+      mode: "erase",
+      size: 2,
+      feather: 0,
+      flow: 1,
+      points: [[40, 20, 1]],
+    });
     api.addHealPatch(
       heal,
       { mode: "paint", size: 4, feather: 0.2, flow: 1, points: [[48, 20, 1]] },
@@ -257,11 +271,20 @@ test("scene files reopen the photo with every layer for further editing", async 
       (layer: { kind: string }) => layer.kind === "heal",
     );
     delete healing.patches[0].mode;
+    // Earlier files held one painted stroke per patch.
+    for (const patch of healing.patches) {
+      patch.stroke = patch.strokes[0];
+      delete patch.strokes;
+    }
     const older = await openSceneFile(await archive(json), raw.decode);
     const loaded = older.scene.getState();
     expect(loaded.layers[0].whiteBalance).toEqual(asShot);
     expect(loaded.layers.find((layer) => layer.kind === "heal")).toMatchObject({
-      patches: [{ mode: "heal" }, { mode: "clone" }, { mode: "remove" }],
+      patches: [
+        { mode: "heal", strokes: [{ mode: "paint" }] },
+        { mode: "clone", strokes: [{ mode: "paint" }] },
+        { mode: "remove", strokes: [{ mode: "paint" }] },
+      ],
     });
     expect(
       loaded.layers.find((layer) => layer.kind === "vignette"),

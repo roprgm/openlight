@@ -1,5 +1,5 @@
 import { expect, test } from "./fixtures";
-import { readPixel } from "./images";
+import { readImage, readPixel } from "./images";
 import { box } from "./pointer";
 
 for (const { name, shortcut, presses, label } of [
@@ -144,15 +144,36 @@ for (const { name, shortcut, presses, label } of [
     await expect(zoom).not.toHaveText(fit);
     await expect(size).toHaveValue("600");
     await expect(center).toHaveCount(1);
+    // Sample both sides of a visible edge: either scroll direction would move it across a sample.
+    const zoomBounds = await box(canvas);
+    const zoomScale = Number.parseInt(await zoom.innerText(), 10) / 100;
+    // Screenshots include the translucent cursor; keep it away from the sampled edge.
+    await page.mouse.move(
+      zoomBounds.x + zoomBounds.width - 16,
+      zoomBounds.y + zoomBounds.height - 100,
+    );
     const rendered = page
       .getByRole("region", { name: "Image canvas" })
       .locator("canvas");
-    const beforeScrolling = await rendered.screenshot();
+    const edgeSamples = [440, 460].map(
+      (x) =>
+        [
+          zoomBounds.width / 2 + (x - 600) * zoomScale,
+          zoomBounds.height / 2 + (200 - 400) * zoomScale,
+        ] as const,
+    );
+    const edgePixels = async () =>
+      (await readImage(page, await rendered.screenshot(), edgeSamples)).samples;
+    const expectedEdge = [
+      [48, 80, 128, 255],
+      [128, 128, 128, 255],
+    ];
+    await expect.poll(edgePixels).toEqual(expectedEdge);
     for (const x of [60, -60]) {
       await page.mouse.wheel(x, 0);
       await expect(size).toHaveValue("600");
       await expect(zoom).not.toHaveText(fit);
-      expect((await rendered.screenshot()).equals(beforeScrolling)).toBe(true);
+      await expect.poll(edgePixels).toEqual(expectedEdge);
     }
     await zoom.click();
     await expect(zoom).toHaveText(fit);

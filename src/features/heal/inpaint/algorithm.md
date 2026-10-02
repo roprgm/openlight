@@ -4,7 +4,7 @@
 
 The algorithm follows non-local, multiscale texture synthesis with PatchMatch, adapted for parallel GPU execution. It is not a reproduction of every step of the IPOL reference and does not infer hidden semantic content.
 
-1. Crop the stroke with surrounding context: at least 32 source pixels, otherwise one brush diameter on every side, clipped to the image. Exclude the painted object conservatively before creating a color pyramid.
+1. Crop the accumulated patch with surrounding context: at least 32 source pixels, otherwise the largest painted brush diameter on every side, clipped to the image. Combine ordered paint/erase strokes in the shared GPU coverage raster; subtraction does not enlarge the region. Exclude the remaining painted object conservatively before creating a color pyramid.
 2. Work on at most a 512 px long edge. Precompute logarithmic color once. Keep horizontal and vertical texture energy through the pyramid, so coarse colors do not erase fine texture differences.
 3. Initialize from nearby wholly unmasked donors using jump flooding and grow the fill inward at the coarsest level; upsample and preserve the previous level's offsets. A donor's entire 7×7 footprint must be clean.
 4. Alternate parallel PatchMatch propagation at jumps 8, 4, 2, 1 and eight shrinking-radius random proposals with weighted overlapping reconstruction. Use six iterations at the coarsest level, four at finer levels. Compare nine samples across each 7×7 footprint plus texture descriptors; increase reconstructed-region confidence as refinement proceeds.

@@ -7,7 +7,7 @@ import {
   type Layer,
   type StrokePoint,
 } from "@/core/document";
-import { strokePoints } from "@/core/document/brush";
+import { strokePoints, strokeSchema } from "@/core/document/brush";
 import type { Point } from "@/core/image/frame";
 import { parse, point } from "@/lib/parse";
 import { donorModeSchema, patchBlend, patchStroke } from "./model";
@@ -29,7 +29,7 @@ export function addHealPatch(
     id: crypto.randomUUID(),
     mode: parse(donorModeSchema, mode, "Invalid heal mode"),
     feather: painted.feather,
-    stroke: { ...painted, feather: 0 },
+    strokes: [{ ...painted, feather: 0, flow: 1 }],
     opacity: 1,
     offset: parse(point, offset, "Invalid heal source"),
   };
@@ -50,7 +50,7 @@ export function addRemovePatch(
     id: crypto.randomUUID(),
     mode: "remove",
     feather: painted.feather,
-    stroke: { ...painted, feather: 0 },
+    strokes: [{ ...painted, feather: 0, flow: 1 }],
     opacity: 1,
   };
   editLayer(document, id, (layer) => ({
@@ -73,6 +73,22 @@ function editPatches(
     if (index < 0) throw Error("Heal patch is unavailable.");
     return { ...layer, patches: edit(patches, index) };
   });
+}
+
+/** Adds or subtracts a separate stroke without changing the patch's donor or blend. */
+export function addHealStroke(
+  document: EditorDocument,
+  id: string,
+  patchId: string,
+  stroke: BrushStroke,
+) {
+  const painted = parse(strokeSchema, stroke, "Invalid heal stroke");
+  editPatches(document, id, patchId, (patches, index) =>
+    patches.with(index, {
+      ...patches[index],
+      strokes: [...patches[index].strokes, { ...painted, feather: 0, flow: 1 }],
+    }),
+  );
 }
 
 /** Edits the blend while preserving the recorded repair geometry. */
@@ -133,10 +149,13 @@ export function extendHealPatch(
         index === layer.patches.length - 1
           ? {
               ...patch,
-              stroke: {
-                ...patch.stroke,
-                points: [...patch.stroke.points, ...added],
-              },
+              strokes: patch.strokes.with(-1, {
+                ...patch.strokes[patch.strokes.length - 1],
+                points: [
+                  ...patch.strokes[patch.strokes.length - 1].points,
+                  ...added,
+                ],
+              }),
             }
           : patch,
       ),
@@ -168,16 +187,16 @@ export function setHealDestination(
   const [targetX, targetY] = parse(point, destination, "Invalid heal target");
   editPatches(document, id, patchId, (patches, index) => {
     const patch = patches[index];
-    const [x, y] = patch.stroke.points[0];
+    const [x, y] = patch.strokes[0].points[0];
     const delta: Point = [targetX - x, targetY - y];
     const moved = {
       ...patch,
-      stroke: {
-        ...patch.stroke,
-        points: patch.stroke.points.map(
+      strokes: patch.strokes.map((stroke) => ({
+        ...stroke,
+        points: stroke.points.map(
           ([x, y, pressure]) => [x + delta[0], y + delta[1], pressure] as const,
         ),
-      },
+      })),
     };
     if (patch.mode === "remove") return patches.with(index, moved);
     return patches.with(index, {

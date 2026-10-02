@@ -13,6 +13,7 @@ import { imageFrame } from "@/core/image/frame";
 import { setAdjustments } from "@/features/adjustments/edits";
 import {
   addHealPatch,
+  addHealStroke,
   addRemovePatch,
   deleteHealPatch,
   duplicateHealPatch,
@@ -44,6 +45,54 @@ const dab: BrushStroke = {
   points: [[10, 10, 1]],
 };
 
+test("patch strokes add, erase, replay on undo, and move together while retaining the donor", async () => {
+  const gpu = await init();
+  const source = createImageSource(
+    target(gpu, { size: [1024, 1024], format: "rgba16float" }),
+  );
+  const { document, layer } = healFixture([1024, 1024]);
+  const renderer = createEditorRenderer(gpu, source);
+  try {
+    const id = addHealPatch(document, layer, dab, [20, 0], "clone");
+    await renderer.update(document.scene.getState());
+    expect(renderer.inspect().stamped).toBe(1);
+    addHealStroke(document, layer, id, { ...dab, points: [[30, 30, 1]] });
+    await renderer.update(document.scene.getState());
+    expect(renderer.inspect().stamped).toBe(2);
+    addHealStroke(document, layer, id, { ...dab, mode: "erase", size: 1000 });
+    await renderer.update(document.scene.getState());
+    // Erasure outside the patch never grows its raster or repeats earlier dabs.
+    expect(renderer.inspect().stamped).toBe(3);
+    expect(renderer.inspect().rasters[0].size).toEqual([256, 256]);
+    await renderer.update(document.scene.getState());
+    expect(renderer.inspect().stamped).toBe(3);
+    document.history.undo();
+    await renderer.update(document.scene.getState());
+    expect(renderer.inspect().stamped).toBe(5);
+    document.history.redo();
+    await renderer.update(document.scene.getState());
+    expect(renderer.inspect().stamped).toBe(6);
+    setHealDestination(document, layer, id, [20, 25]);
+    expect(patchesOf(document, layer)).toMatchObject([
+      {
+        id,
+        mode: "clone",
+        offset: [10, -15],
+        strokes: [
+          { mode: "paint", points: [[20, 25, 1]] },
+          { mode: "paint", points: [[40, 45, 1]] },
+          { mode: "erase", points: [[20, 25, 1]] },
+        ],
+      },
+    ]);
+  } finally {
+    renderer.dispose();
+    document.dispose();
+    source.dispose();
+    gpu.dispose();
+  }
+});
+
 test("Remove patches edit, move, duplicate, and undo without a donor", () => {
   const { document, layer } = healFixture();
   try {
@@ -60,12 +109,14 @@ test("Remove patches edit, move, duplicate, and undo without a donor", () => {
         mode: "remove",
         opacity: 0.5,
         feather: 0.3,
-        stroke: {
-          points: [
-            [20, 30, 1],
-            [22, 34, 1],
-          ],
-        },
+        strokes: [
+          {
+            points: [
+              [20, 30, 1],
+              [22, 34, 1],
+            ],
+          },
+        ],
       },
       { id: copy, mode: "remove" },
     ]);
@@ -130,6 +181,21 @@ test("a nested Remove retains synthesis when bypassed and invalidates upstream c
       await renderer.update(document.scene.getState());
       expect(solves()).toBe(false);
     }
+    for (const mode of ["paint", "erase"] as const) {
+      addHealStroke(document, layer, patch, {
+        ...dab,
+        mode,
+        size: 2,
+        points: [[64, 48, 1]],
+      });
+      await renderer.update(document.scene.getState());
+      expect(solves()).toBe(true);
+      setHealPatch(document, layer, patch, {
+        opacity: mode === "paint" ? 0.6 : 0.5,
+      });
+      await renderer.update(document.scene.getState());
+      expect(solves()).toBe(false);
+    }
     setLayer(document, mask, { opacity: 0.5 });
     await renderer.update(document.scene.getState());
     expect(solves()).toBe(false);
@@ -191,7 +257,7 @@ test("heal patches reuse brush rasters, scale with the proxy, undo, and release 
     expect(
       created?.kind === "heal" &&
         created.patches.find((item) => item.id === patch),
-    ).toMatchObject({ feather: 0.4, stroke: { size: 30, feather: 0 } });
+    ).toMatchObject({ feather: 0.4, strokes: [{ size: 30, feather: 0 }] });
     renderer.setDisplayScale(0.25);
     await renderer.update(document.scene.getState(), id, true);
     expect(renderer.fullImage().size).toEqual([64, 48]);
@@ -344,7 +410,7 @@ test("one Healing layer composes its patches in order through render nodes", asy
     expect(patchesOf(document, layer)).toMatchObject([
       {
         id: first,
-        stroke: { points: [[80, 60, 1]], size: 24, feather: 0 },
+        strokes: [{ points: [[80, 60, 1]], size: 24, feather: 0 }],
         offset: [14, -12],
         feather: 0.2,
         opacity: 0.6,

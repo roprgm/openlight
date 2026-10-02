@@ -86,6 +86,8 @@ function DraggedAnchor({
       event.button !== 0 ||
       !event.isPrimary ||
       camera.panMode ||
+      event.shiftKey ||
+      event.altKey ||
       !box
     ) {
       return;

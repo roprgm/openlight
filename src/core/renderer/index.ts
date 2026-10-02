@@ -68,7 +68,7 @@ export type Composition = {
   /** Rasterized paint of a paint layer, prepared before composition. */
   paint: (layer: PaintLayer) => PaintInput | undefined;
   /** Rasterized coverage of an effect's own stroke, such as a Healing patch. */
-  patch: (id: string, stroke: BrushStroke) => PatchInput;
+  patch: (id: string, strokes: readonly BrushStroke[]) => PatchInput;
 };
 
 /** App composition describes requested outputs; the engine owns their storage. */
@@ -166,7 +166,7 @@ export function createRenderer(
       retain: (id) => active.add(id),
       coverage: (layer) => masks.coverage(layer.id),
       paint: (layer) => paints.input(layer),
-      patch: (id, stroke) => patches.patch(id, stroke, developed.size),
+      patch: (id, strokes) => patches.patch(id, strokes, developed.size),
     });
     for (const id of instances) {
       if (!active.has(id)) graph.release(`${id}/`);

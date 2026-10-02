@@ -24,7 +24,7 @@ function healPatch(
   name: string,
 ) {
   const dimensions = sourceSize(source);
-  const { origin, extent } = patchBounds(patch.stroke, dimensions, 0);
+  const { origin, extent } = patchBounds(patch.strokes, dimensions, 0);
   const samplers = {
     linearSampler: { minFilter: "linear", magFilter: "linear" },
   } as const;
@@ -81,7 +81,7 @@ function healPatch(
           ...common,
           grid: source.size,
           mode: patch.mode === "clone" ? 4 : 3,
-          feather: (patch.stroke.size * patch.feather) / 2,
+          feather: (patch.strokes[0].size * patch.feather) / 2,
           opacity: patch.opacity,
         },
       },
@@ -120,7 +120,7 @@ export function heal(
     if (patch.id === composition.inputId) inspected = image;
     const id = `${name}/${patch.id}`;
     if (!repairsPixels(patch)) continue;
-    const coverage = composition.patch(id, patch.stroke);
+    const coverage = composition.patch(id, patch.strokes);
     if (patch.mode === "remove") {
       image = removePatch(
         image,

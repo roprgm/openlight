@@ -257,13 +257,15 @@ export async function benchmarkRendering(
       id: "spot",
       feather: 0.4,
       opacity: 1,
-      stroke: {
-        mode: "paint" as const,
-        size: 240,
-        feather: 0,
-        flow: 1,
-        points: [[size[0] / 2, size[1] / 2, 1] as const],
-      },
+      strokes: [
+        {
+          mode: "paint" as const,
+          size: 240,
+          feather: 0,
+          flow: 1,
+          points: [[size[0] / 2, size[1] / 2, 1] as const],
+        },
+      ],
     };
     const donorMode = workload === "clone" ? "clone" : "heal";
     const patch: HealPatch =
