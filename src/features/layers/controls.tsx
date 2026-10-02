@@ -39,6 +39,7 @@ import { useShortcuts } from "@/hooks/use-shortcuts";
 import { layerDrop } from "./drop";
 import { deleteLayer, moveLayer, setLayer } from "./edits";
 import { LayerName } from "./layer-name";
+import { LayerOpacity } from "./layer-opacity";
 import { useMaskTool } from "./mask-tool";
 import { LayerActions } from "./menu";
 import { ImageThumbnail, MaskThumbnail } from "./thumbnails";
@@ -226,7 +227,10 @@ const LayerRow = memo(function LayerRow({
             </Tooltip>
           )}
           {layer.kind !== "image" && (
-            <LayerActions layer={layer} onSelect={onSelect} />
+            <>
+              <LayerOpacity layer={layer} />
+              <LayerActions layer={layer} onSelect={onSelect} />
+            </>
           )}
         </ListItemAction>
       </ListItem>
