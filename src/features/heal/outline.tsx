@@ -74,29 +74,21 @@ function StrokeShape({
 function CoverageMask({
   id,
   shapes,
-  spread = 0,
 }: {
   id: string;
   shapes: readonly Geometry[];
-  spread?: number;
 }) {
   return (
     <mask id={id} maskUnits="userSpaceOnUse">
       <rect width="100%" height="100%" fill="black" />
-      {shapes.map((shape, index) => {
-        const paint = shape.mode === "paint";
-        const width = Math.max(0, shape.width + (paint ? spread : -spread) * 2);
-        return (
-          width > 0 && (
-            <StrokeShape
-              key={index}
-              shape={shape}
-              width={width}
-              color={paint ? "white" : "black"}
-            />
-          )
-        );
-      })}
+      {shapes.map((shape, index) => (
+        <StrokeShape
+          key={index}
+          shape={shape}
+          width={shape.width}
+          color={shape.mode === "paint" ? "white" : "black"}
+        />
+      ))}
     </mask>
   );
 }
@@ -109,35 +101,33 @@ function Outline({
   kind: "destination" | "source";
 }) {
   const mask = useId();
-  const outer = `${mask}-outer`;
-  const inner = `${mask}-inner`;
+  const edge = `${mask}-edge`;
   return (
     <g data-heal-outline={kind} opacity={kind === "source" ? 0.55 : 1}>
       <defs>
-        <CoverageMask id={outer} shapes={shapes} spread={1} />
-        <CoverageMask id={inner} shapes={shapes} spread={-1} />
-        <mask id={mask} maskUnits="userSpaceOnUse">
-          <rect
-            width="100%"
-            height="100%"
-            fill="white"
-            mask={`url(#${outer})`}
+        <CoverageMask id={mask} shapes={shapes} />
+        <filter id={edge}>
+          <feMorphology
+            in="SourceAlpha"
+            operator="dilate"
+            radius="1"
+            result="outer"
           />
-          <rect
-            width="100%"
-            height="100%"
-            fill="black"
-            mask={`url(#${inner})`}
+          <feMorphology
+            in="SourceAlpha"
+            operator="erode"
+            radius="1"
+            result="inner"
           />
-        </mask>
+          <feComposite in="outer" in2="inner" operator="out" result="border" />
+          <feFlood floodColor="white" />
+          <feComposite in2="border" operator="in" />
+          <feDropShadow dx="0" dy="0" stdDeviation="1" floodColor="black" />
+        </filter>
       </defs>
-      <rect
-        width="100%"
-        height="100%"
-        fill="white"
-        mask={`url(#${mask})`}
-        className="drop-shadow-[0_0_1px_black]"
-      />
+      <g filter={`url(#${edge})`}>
+        <rect width="100%" height="100%" fill="white" mask={`url(#${mask})`} />
+      </g>
     </g>
   );
 }

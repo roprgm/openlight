@@ -65,6 +65,24 @@ test("Remove previews each frame, solves on release, exports, undoes, and cancel
     );
     expect(await patchPoints()).toBeUndefined();
   }
+  // The visible border grows with the stroke, beyond the initial circle.
+  const { samples: edge } = await readImage(
+    page,
+    await page.screenshot({
+      clip: {
+        x: Math.round(x + 60 * scale),
+        y: Math.round(y - 160 * scale) - 1,
+        width: 1,
+        height: 3,
+      },
+    }),
+    [
+      [0, 0],
+      [0, 1],
+      [0, 2],
+    ],
+  );
+  expect(edge?.some(([r, g, b]) => Math.min(r, g, b) > 220)).toBe(true);
   // Pausing while held never creates an edit or runs synthesis.
   await page.clock.runFor(500);
   expect(await patchPoints()).toBeUndefined();
