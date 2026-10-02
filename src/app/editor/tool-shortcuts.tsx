@@ -1,14 +1,8 @@
 import { useBrushTool } from "@/components/editor/brush-tool";
-import type { HealMode } from "@/core/document";
 import { useHealing } from "@/features/heal/mode";
+import { nextHealMode } from "@/features/heal/modes";
 import { useShortcuts } from "@/hooks/use-shortcuts";
 import { type Tool, tools, useTool } from "./tools";
-
-function nextHealingMode(mode: HealMode): HealMode {
-  if (mode === "heal") return "clone";
-  if (mode === "clone") return "remove";
-  return "heal";
-}
 
 /** A group's key restores its last mode; pressing it while active cycles its modes. */
 export function ToolShortcuts() {
@@ -23,7 +17,7 @@ export function ToolShortcuts() {
           mode: brush.settings.mode === "color" ? "mask" : "color",
         }),
     ],
-    ["heal", () => healing.selectMode(nextHealingMode(healing.mode))],
+    ["heal", () => healing.selectMode(nextHealMode(healing.mode))],
   ]);
   function select(entry: Tool) {
     const cycle = cycles.get(entry.id);

@@ -50,6 +50,7 @@ test("Healing paints patches, edits them, and undoes", async ({ page }) => {
     [600, 400],
   ]);
   await page.keyboard.press("h");
+  await page.keyboard.press("h");
   const canvas = page.getByLabel("Healing canvas", { exact: true });
   await expect(canvas).toBeVisible();
   expect(await box(canvas)).toEqual(
@@ -388,7 +389,7 @@ test("Healing paints patches, edits them, and undoes", async ({ page }) => {
   ).toHaveValue("50");
 });
 
-test("Healing takes the first stroke after H and finds donors inside a mask", async ({
+test("Healing takes the first stroke after selecting Heal and finds donors inside a mask", async ({
   page,
 }) => {
   await page.goto("/");
@@ -420,6 +421,7 @@ test("Healing takes the first stroke after H and finds donors inside a mask", as
     });
   }
 
+  await page.keyboard.press("h");
   await page.keyboard.press("h");
   await page.mouse.click(spot[0], spot[1]);
   expect(await healedPatches()).toHaveLength(1);
@@ -497,10 +499,6 @@ test("retouch modes cycle, preserve each family's brush, and keep patches indepe
   await page.keyboard.press("h");
   const canvas = page.getByLabel("Healing canvas", { exact: true });
   await expect(canvas).toBeVisible();
-  const layerId = await page.evaluate(
-    () => window.openlight.getState().selectedLayerId,
-  );
-  if (!layerId) throw Error("Healing layer missing.");
   const bounds = await box(canvas);
   const scale = Math.min(
     (bounds.width - 48) / 1200,
@@ -522,10 +520,28 @@ test("retouch modes cycle, preserve each family's brush, and keep patches indepe
   const modes = page.getByRole("group", { name: "Retouch mode" });
   const heal = modes.getByRole("button", { name: "Heal", exact: true });
   const clone = modes.getByRole("button", { name: "Clone", exact: true });
-  await expect(heal).toHaveAttribute("aria-pressed", "true");
-  await expect(
-    modes.getByRole("button", { name: "Remove", exact: true }),
-  ).toBeEnabled();
+  const remove = modes.getByRole("button", { name: "Remove", exact: true });
+  expect(
+    await modes
+      .getByRole("button")
+      .evaluateAll((buttons) =>
+        buttons.map((button) => button.getAttribute("aria-label")),
+      ),
+  ).toEqual(["Remove", "Heal", "Clone"]);
+  await expect(remove).toHaveAttribute("aria-pressed", "true");
+  await page.keyboard.press("b");
+  await page.keyboard.press("h");
+  await expect(remove).toHaveAttribute("aria-pressed", "true");
+  for (const name of ["Heal", "Clone", "Remove", "Heal"]) {
+    await page.keyboard.press("h");
+    await expect(
+      modes.getByRole("button", { name, exact: true }),
+    ).toHaveAttribute("aria-pressed", "true");
+  }
+  const layerId = await page.evaluate(
+    () => window.openlight.getState().selectedLayerId,
+  );
+  if (!layerId) throw Error("Healing layer missing.");
   await clone.click();
   await expect(clone).toHaveAttribute("aria-pressed", "true");
   await page.keyboard.down("Alt");

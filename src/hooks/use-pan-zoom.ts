@@ -163,7 +163,7 @@ export function usePanZoom(
         );
       }
       return pan(view, -event.deltaX, -event.deltaY);
-    });
+    }, constrain && !panMode);
   });
 
   // One listener and observer per element; the wheel handler reads the latest content and bounds.

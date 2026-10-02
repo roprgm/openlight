@@ -5,7 +5,7 @@ import { box } from "./pointer";
 for (const { name, shortcut, presses, label } of [
   { name: "mask", shortcut: "b", presses: 1, label: "Brush canvas" },
   { name: "color", shortcut: "b", presses: 2, label: "Paint canvas" },
-  { name: "retouch", shortcut: "h", presses: 3, label: "Healing canvas" },
+  { name: "retouch", shortcut: "h", presses: 1, label: "Healing canvas" },
 ]) {
   test(`${name} brush menu owns clicks and slider drags without painting or navigating`, async ({
     page,
@@ -104,7 +104,11 @@ for (const { name, shortcut, presses, label } of [
     const state = await page.evaluate(() => window.openlight.getState());
     const zoom = page.getByRole("button", { name: /^\d+%$/ });
     const fit = await zoom.innerText();
+    const cursor = canvas.locator('[data-brush-cursor="true"]');
+    const center = cursor.locator('[data-brush-center="true"]');
     await canvas.hover();
+    await expect(center).toHaveCount(0);
+    // Scrolling up enlarges the brush; scrolling down reduces it.
     await page.mouse.wheel(0, -100);
     await expect(size).toHaveValue("64");
     await page.mouse.wheel(0, 100);
@@ -139,10 +143,26 @@ for (const { name, shortcut, presses, label } of [
     await page.keyboard.up("Control");
     await expect(zoom).not.toHaveText(fit);
     await expect(size).toHaveValue("600");
-    await page.mouse.wheel(60, 0);
-    await expect(size).toHaveValue("600");
+    await expect(center).toHaveCount(1);
+    const rendered = page
+      .getByRole("region", { name: "Image canvas" })
+      .locator("canvas");
+    const beforeScrolling = await rendered.screenshot();
+    for (const x of [60, -60]) {
+      await page.mouse.wheel(x, 0);
+      await expect(size).toHaveValue("600");
+      await expect(zoom).not.toHaveText(fit);
+      expect((await rendered.screenshot()).equals(beforeScrolling)).toBe(true);
+    }
     await zoom.click();
     await expect(zoom).toHaveText(fit);
+    await size.fill("100");
+    await size.press("Enter");
+    await canvas.hover();
+    await expect(center).toHaveCount(0);
+    await page.mouse.wheel(300, -100);
+    await expect(size).toHaveValue("128");
+    await expect(center).toHaveCount(1);
     const bounds = await box(canvas);
     const scale = Math.min(
       (bounds.width - 48) / 1200,
@@ -172,6 +192,14 @@ for (const { name, shortcut, presses, label } of [
     await page.mouse.up();
     await expect
       .poll(() => readPixel(page, { ...sample, x: sample.x + 101 }))
+      .toEqual([48, 80, 128, 255]);
+    await page.keyboard.down("Space");
+    await expect(center).toHaveCount(0);
+    await page.mouse.wheel(60, 40);
+    await page.keyboard.up("Space");
+    await expect(size).toHaveValue("128");
+    await expect
+      .poll(() => readPixel(page, { x: sample.x + 41, y: sample.y - 40 }))
       .toEqual([48, 80, 128, 255]);
     expect(await page.evaluate(() => window.openlight.getState())).toEqual(
       state,

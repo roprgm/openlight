@@ -14,6 +14,7 @@ import { useDocument, useSelectedLayer } from "@/components/editor/session";
 import { findLayer, type HealMode } from "@/core/document";
 import type { Point } from "@/core/image/frame";
 import { setHealPatch } from "./edits";
+import { healModes } from "./modes";
 
 const HealingContext = createContext<{
   brush: Omit<BrushInput, "parameters">;
@@ -38,7 +39,7 @@ export function HealingProvider({
 }) {
   const document = useDocument();
   const brush = useBrushSettings(0.1);
-  const [mode, setMode] = useState<HealMode>("heal");
+  const [mode, setMode] = useState<HealMode>(healModes[0].mode);
   const [source, setSource] = useState<Point>();
   const [selectedPatch, setSelectedPatch] = useState<string>();
   const [hoveredPatch, setHoveredPatch] = useState<string>();

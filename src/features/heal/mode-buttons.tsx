@@ -5,6 +5,7 @@ import type { IconProps } from "@/components/icons/icon";
 import { RemoveIcon } from "@/components/icons/remove";
 import type { HealMode } from "@/core/document";
 import { useHealing } from "./mode";
+import { healModes } from "./modes";
 
 export function PatchModeIcon({
   mode,
@@ -24,36 +25,19 @@ export function HealModeButtons() {
   const { mode, selectMode } = useHealing();
   return (
     <fieldset aria-label="Retouch mode" className="mr-1 flex gap-0.5">
-      <IconButton
-        label="Heal · Copy texture and match surrounding color"
-        aria-label="Heal"
-        shortcut="H"
-        aria-pressed={mode === "heal"}
-        className="aria-pressed:bg-raised-hover pointer-coarse:size-10"
-        onClick={() => selectMode("heal")}
-      >
-        <HealIcon className="size-5" />
-      </IconButton>
-      <IconButton
-        label="Clone · Copy the source without color correction"
-        aria-label="Clone"
-        shortcut="H"
-        aria-pressed={mode === "clone"}
-        className="aria-pressed:bg-raised-hover pointer-coarse:size-10"
-        onClick={() => selectMode("clone")}
-      >
-        <CloneIcon className="size-5" />
-      </IconButton>
-      <IconButton
-        label="Remove · Synthesize texture from surrounding context"
-        aria-label="Remove"
-        shortcut="H"
-        aria-pressed={mode === "remove"}
-        className="aria-pressed:bg-raised-hover pointer-coarse:size-10"
-        onClick={() => selectMode("remove")}
-      >
-        <RemoveIcon className="size-5" />
-      </IconButton>
+      {healModes.map((entry) => (
+        <IconButton
+          key={entry.mode}
+          label={`${entry.label} · ${entry.description}`}
+          aria-label={entry.label}
+          shortcut="H"
+          aria-pressed={mode === entry.mode}
+          className="aria-pressed:bg-raised-hover pointer-coarse:size-10"
+          onClick={() => selectMode(entry.mode)}
+        >
+          <PatchModeIcon mode={entry.mode} className="size-5" />
+        </IconButton>
+      ))}
     </fieldset>
   );
 }

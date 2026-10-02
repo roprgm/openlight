@@ -11,6 +11,7 @@ import { SparklesIcon } from "@/components/icons/sparkles";
 import { setHealPatch } from "./edits";
 import { useHealing, useSelectedHealPatch } from "./mode";
 import { HealModeIcon } from "./mode-buttons";
+import { healModes } from "./modes";
 
 export function HealOptions() {
   const document = useDocument();
@@ -56,11 +57,7 @@ export function HealOptions() {
         header={
           <DockChips
             label="Retouch mode"
-            items={[
-              ["heal", "Heal"],
-              ["clone", "Clone"],
-              ["remove", "Remove"],
-            ]}
+            items={healModes.map(({ mode, label }) => [mode, label] as const)}
             value={mode}
             onChange={selectMode}
           />

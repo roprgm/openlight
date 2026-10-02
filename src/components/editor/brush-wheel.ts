@@ -8,18 +8,13 @@ export function useBrushWheel() {
   const brush = useBrushInput();
   const camera = useViewport();
   const wheel = useEffectEvent((event: WheelEvent) => {
-    // Trackpad pinch is ctrl+wheel; navigation keeps that gesture and horizontal scrolling.
-    if (
-      event.ctrlKey ||
-      event.metaKey ||
-      camera.panMode ||
-      !event.deltaY ||
-      Math.abs(event.deltaX) > Math.abs(event.deltaY)
-    ) {
+    // Trackpad pinch is ctrl+wheel; Space hands all scrolling back to the viewport.
+    if (event.ctrlKey || event.metaKey || camera.panMode) {
       return;
     }
     event.preventDefault();
     event.stopPropagation();
+    if (!event.deltaY) return;
     let delta = event.deltaY;
     if (event.deltaMode === WheelEvent.DOM_DELTA_LINE) delta *= 16;
     if (event.deltaMode === WheelEvent.DOM_DELTA_PAGE)

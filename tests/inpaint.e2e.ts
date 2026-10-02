@@ -16,8 +16,6 @@ test("Remove previews each frame, solves on release, exports, undoes, and cancel
   ).toHaveValue("0.00");
   const before = await readImage(page, undefined, [[350, 200]]);
   await page.keyboard.press("h");
-  await page.keyboard.press("h");
-  await page.keyboard.press("h");
   const remove = page
     .getByRole("group", { name: "Retouch mode" })
     .getByRole("button", { name: "Remove", exact: true });
@@ -132,8 +130,6 @@ test("Remove moves on drop and cancels a pending move on undo, pointer cancellat
   await expect(
     page.getByRole("textbox", { name: "Exposure", exact: true }),
   ).toHaveValue("0.00");
-  await page.keyboard.press("h");
-  await page.keyboard.press("h");
   await page.keyboard.press("h");
   const size = page.getByRole("textbox", { name: "Size", exact: true });
   await size.fill("20");

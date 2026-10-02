@@ -5,7 +5,6 @@ import {
   type PointerEvent,
   type ReactNode,
   useEffect,
-  useId,
   useRef,
   useState,
 } from "react";
@@ -13,6 +12,7 @@ import type { BrushStroke, StrokePoint } from "@/core/document";
 import type { Point } from "@/core/image/frame";
 import { useShortcuts } from "@/hooks/use-shortcuts";
 import { blurActive, containsTarget } from "@/lib/dom";
+import { BrushCursor } from "./brush-cursor";
 import { useBrushInput } from "./brush-input";
 import { useBrushWheel } from "./brush-wheel";
 import { CanvasHint } from "./canvas-hint";
@@ -78,7 +78,6 @@ export function BrushCanvas({
   const [pointerVisible, setPointerVisible] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
-  const gradient = useId();
   function point(event: PointerLike, box: DOMRect): StrokePoint {
     const [x, y] = mapping.toDocument(event.clientX, event.clientY, box);
     return [x, y, event.pointerType === "pen" ? event.pressure : 1];
@@ -276,8 +275,6 @@ export function BrushCanvas({
     event.currentTarget.releasePointerCapture(event.pointerId);
   }
   const radius = brush.settings.size / 2 / mapping.pixelsPerViewportPixel;
-  const color = erase ? "black" : "white";
-  const dash = erase ? "4 3" : undefined;
   const status = error ?? (busy ? "Finishing stroke…" : undefined);
   const cursor = pointerVisible || brush.preview ? pointer : null;
   return (
@@ -309,45 +306,13 @@ export function BrushCanvas({
     >
       {children}
       {cursor && !camera.panMode && (
-        <svg
-          aria-hidden="true"
-          data-brush-cursor="true"
-          data-preview={brush.preview}
-          className="pointer-events-none absolute inset-0 size-full overflow-visible"
-        >
-          <defs>
-            {/* The fill previews the dab: solid inside the feather, fading to the edge. */}
-            <radialGradient id={gradient} cx="0.5" cy="0.5" r="0.5">
-              <stop offset="0" stopColor={color} stopOpacity="0.3" />
-              <stop
-                offset={1 - brush.settings.feather}
-                stopColor={color}
-                stopOpacity="0.3"
-              />
-              <stop offset="1" stopColor={color} stopOpacity="0" />
-            </radialGradient>
-          </defs>
-          <circle
-            cx={cursor[0]}
-            cy={cursor[1]}
-            r={Math.max(2, radius)}
-            fill={`url(#${gradient})`}
-            stroke="white"
-            strokeOpacity="0.9"
-            strokeDasharray={dash}
-          />
-          <circle
-            cx={cursor[0]}
-            cy={cursor[1]}
-            r={Math.max(2, radius)}
-            fill="none"
-            stroke="black"
-            strokeOpacity="0.5"
-            strokeWidth="3"
-            strokeDasharray={dash}
-            style={{ paintOrder: "stroke" }}
-          />
-        </svg>
+        <BrushCursor
+          at={cursor}
+          radius={radius}
+          feather={brush.settings.feather}
+          erase={erase}
+          preview={brush.preview}
+        />
       )}
       {status && <CanvasHint>{status}</CanvasHint>}
       {menu && <BrushMenu at={menu} onClose={() => setMenu(null)} />}
