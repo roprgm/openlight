@@ -581,6 +581,26 @@ test("retouch modes cycle, preserve each family's brush, and keep patches indepe
     [600, 400],
   ]);
   expect(copied.samples?.[0]).toEqual(copied.samples?.[1]);
+  // Clone shares modifier-stroke editing with Heal, but must keep its mode and donor.
+  const originalClone = (await patches())[0];
+  await page.keyboard.down("Shift");
+  await page.mouse.click(target[0] + 40, target[1]);
+  await page.keyboard.up("Shift");
+  expect(await patches()).toMatchObject([
+    { ...originalClone, strokes: [{ mode: "paint" }, { mode: "paint" }] },
+  ]);
+  await page.keyboard.down("Alt");
+  await page.mouse.click(target[0] + 40, target[1]);
+  await page.keyboard.up("Alt");
+  expect(await patches()).toMatchObject([
+    {
+      ...originalClone,
+      strokes: [{ mode: "paint" }, { mode: "paint" }, { mode: "erase" }],
+    },
+  ]);
+  await page.keyboard.press("ControlOrMeta+z");
+  await page.keyboard.press("ControlOrMeta+z");
+  expect(await patches()).toEqual([originalClone]);
   await page.mouse.click(source[0], source[1], { button: "right" });
   const menu = page.getByRole("dialog");
   await expect(

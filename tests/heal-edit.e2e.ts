@@ -2,7 +2,7 @@ import { expect, test } from "./fixtures";
 import { readImage } from "./images";
 import { box } from "./pointer";
 
-for (const mode of ["Remove", "Heal", "Clone"]) {
+for (const mode of ["Remove", "Heal"]) {
   test(`${mode} adds and subtracts separate strokes on the selected patch, on release`, async ({
     page,
   }) => {

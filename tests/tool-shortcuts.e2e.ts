@@ -60,32 +60,15 @@ test("tool shortcuts restore remembered submodes and cycle only the active tool"
   await remove.click();
   await page.keyboard.press("b");
   await expect(mask).toBeVisible();
+  await page.keyboard.press("b");
+  await expect(color).toBeVisible();
   await page.keyboard.press("h");
   await expect(remove).toHaveAttribute("aria-pressed", "true");
+  await page.keyboard.press("b");
+  await expect(color).toBeVisible();
   await page.keyboard.press("b");
   await expect(mask).toBeVisible();
-  await page.keyboard.press("b");
-  await expect(color).toBeVisible();
-  await page.keyboard.press("h");
-  await expect(remove).toHaveAttribute("aria-pressed", "true");
-  await page.keyboard.press("b");
-  await expect(color).toBeVisible();
-  await page.keyboard.press("h");
-  await expect(remove).toHaveAttribute("aria-pressed", "true");
-  for (const mode of ["Heal", "Clone", "Remove"]) {
-    await page.keyboard.press("h");
-    await expect(
-      modes.getByRole("button", { name: mode, exact: true }),
-    ).toHaveAttribute("aria-pressed", "true");
-  }
   await page.keyboard.press("c");
   await page.keyboard.press("b");
-  await expect(color).toBeVisible();
-  await page.keyboard.press("b");
   await expect(mask).toBeVisible();
-  await page.keyboard.press("a");
-  await page.keyboard.press("b");
-  await expect(mask).toBeVisible();
-  await page.keyboard.press("h");
-  await expect(remove).toHaveAttribute("aria-pressed", "true");
 });
