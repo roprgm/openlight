@@ -1,6 +1,7 @@
 import type { Gpu, Target, Timer } from "vgpu";
 import {
   type BrushStroke,
+  hasPaint,
   type MaskLayer,
   type PaintLayer,
   paintingOf,
@@ -10,13 +11,12 @@ import {
 import type { ImageSource, WhiteBalance } from "@/core/image";
 import type { Point } from "@/core/image/frame";
 import { createRenderGraph } from "./graph";
-import { createMaskRaster } from "./mask";
+import { createMaskCoverage } from "./mask";
 import { createPatchRaster, type PatchInput } from "./mask/patches";
 import {
   type CacheKey,
   input,
   type RenderImage,
-  type RenderInput,
   type RenderNode,
 } from "./node";
 import {
@@ -61,10 +61,15 @@ export type Composition = {
   /** Cache a derived image by its immutable content, RAW revision, and proxy factor. */
   cache: (image: RenderNode, dependencies: readonly CacheKey[]) => RenderNode;
   inputId?: string;
+  /** The mask whose ranges' image, the one below it, to keep for picking colors from it. */
+  rangeSourceId?: string;
   /** Keep one stable composition instance and its render-graph resources reusable. */
   retain: (id: string) => void;
-  /** Rasterized coverage of a mask that paints with brushes, prepared before composition. */
-  coverage: (layer: MaskLayer) => RenderInput | undefined;
+  /**
+   * A mask's coverage over `below`, the image it applies to, when a brush or range takes part;
+   * gradients alone leave it to the mix pass.
+   */
+  coverage: (layer: MaskLayer, below: RenderImage) => RenderImage | undefined;
   /** Rasterized paint of a paint layer, prepared before composition. */
   paint: (layer: PaintLayer) => PaintInput | undefined;
   /** Rasterized coverage of an effect's own stroke, such as a Healing patch. */
@@ -81,11 +86,13 @@ export type SceneProcessing = (
   full: RenderImage;
   output: RenderImage;
   input?: RenderImage;
+  rangeSource?: RenderImage;
 };
 
 type RenderRequest = {
   scene: Scene;
   inputId?: string;
+  rangeSourceId?: string;
   /** Source pixels per texel of the composition's source; above 1 renders a reduced proxy. */
   factor: number;
 };
@@ -111,7 +118,7 @@ export function createRenderer(
   const graph = createRenderGraph(gpu, timer);
   const strokes = createStrokes(gpu);
   const brushes = createPaintRaster(gpu, strokes, "r8unorm");
-  const masks = createMaskRaster(gpu, brushes);
+  const masks = createMaskCoverage(brushes);
   const patches = createPatchRaster(gpu, strokes);
   const paints = createPaintRaster(gpu, strokes, "rgba8unorm");
   const proxy = createProxy(gpu);
@@ -123,6 +130,9 @@ export function createRenderer(
   let rendered = false;
   let output = source;
   let inspected: { id: string; image: Target } | undefined;
+  let kept: { id: string; image: Target } | undefined;
+  /** Mask coverage the graph rendered for the overlay and thumbnails, by layer ID. */
+  let shown = new Map<string, Target>();
   let balance = resource.raw?.asShot;
   /** Counts developments, so the proxy follows white-balance changes. */
   let version = 0;
@@ -135,21 +145,22 @@ export function createRenderer(
   let disposed = false;
   let instances = new Set<string>();
   function render(request: RenderRequest) {
-    const { scene, inputId, factor } = request;
+    const { scene, inputId, rangeSourceId, factor } = request;
     if (
       last &&
       last.scene === scene &&
       last.inputId === inputId &&
+      last.rangeSourceId === rangeSourceId &&
       last.factor === factor
     ) {
       return;
     }
     const active = new Set<string>();
     const developed = raw?.render() ?? source;
-    // Every mask and paint layer updates once, bypassed or not, so a hidden one keeps its raster; child masks only shape their parent's coverage.
-    for (const { layer, parent } of walkLayers(scene.layers)) {
-      if (layer.kind === "mask" && parent?.kind !== "mask") {
-        masks.update(layer, developed.size);
+    // Every brush and paint layer updates once, bypassed or not, so hidden layers keep their rasters.
+    for (const { layer } of walkLayers(scene.layers)) {
+      if (layer.kind === "mask" && layer.mask.kind === "brush") {
+        brushes.draw(layer.id, layer.mask, developed.size);
       }
       if (layer.kind === "paint") {
         paints.draw(layer.id, layer, developed.size);
@@ -157,14 +168,31 @@ export function createRenderer(
     }
     const image =
       factor > 1 ? proxy.render(developed, factor, version) : input(developed);
+    const covered = new Map<string, RenderImage>();
+    // Read brush views after every raster has updated, including inactive submasks.
+    for (const { layer } of walkLayers(scene.layers)) {
+      if (
+        layer.kind === "mask" &&
+        layer.mask.kind === "brush" &&
+        hasPaint(layer.mask)
+      ) {
+        const coverage = brushes.coverage(layer.id);
+        if (coverage) covered.set(layer.id, coverage);
+      }
+    }
     const images = compose(image, scene, {
       cache: (image, dependencies) => ({
         ...image,
         cacheKeys: [version, factor, ...dependencies],
       }),
       inputId,
+      rangeSourceId,
       retain: (id) => active.add(id),
-      coverage: (layer) => masks.coverage(layer.id),
+      coverage: (layer, below) =>
+        masks.coverage(layer, below, {
+          retain: (id) => active.add(id),
+          show: (id, coverage) => covered.set(id, coverage),
+        }),
       paint: (layer) => paints.input(layer),
       patch: (id, strokes) => patches.patch(id, strokes, developed.size),
     });
@@ -177,15 +205,28 @@ export function createRenderer(
     patches.sweep();
     paints.sweep();
     strokes.sweep();
+    // Every render shows three images; the inspected input, the range source, and coverage follow.
+    const inputs = images.input ? [images.input] : [];
+    const sources = images.rangeSource ? [images.rangeSource] : [];
     const targets = graph.render([
       images.original,
       images.full,
       images.output,
-      ...(images.input ? [images.input] : []),
+      ...inputs,
+      ...sources,
+      ...covered.values(),
     ]);
     [original, full, output] = targets;
+    const [inputTarget] = targets.slice(3, 3 + inputs.length);
+    const [sourceTarget] = targets.slice(3 + inputs.length);
+    const coverages = targets.slice(3 + inputs.length + sources.length);
     inspected =
-      inputId && targets[3] ? { id: inputId, image: targets[3] } : undefined;
+      inputId && images.input ? { id: inputId, image: inputTarget } : undefined;
+    kept =
+      rangeSourceId && images.rangeSource
+        ? { id: rangeSourceId, image: sourceTarget }
+        : undefined;
+    shown = new Map([...covered.keys()].map((id, i) => [id, coverages[i]]));
     rendered = true;
     last = request;
     for (const listener of listeners) {
@@ -242,22 +283,27 @@ export function createRenderer(
       }
     }
   }
-  /** Interactive updates render at a proxy resolution matched to the display scale. */
+  /**
+   * Interactive updates render at a proxy resolution matched to the display scale. `inputId` keeps a
+   * layer's curve input, and `rangeSourceId` a mask's range source, for reading them.
+   */
   async function update(
     scene: Scene,
     inputId?: string,
     interactive = false,
+    rangeSourceId?: string,
   ): Promise<void> {
     if (disposed) {
       throw Error("Renderer is closed.");
     }
     const factor = interactive ? Math.max(1, Math.floor(1 / displayScale)) : 1;
+    const request = { scene, inputId, rangeSourceId, factor };
     // Renders wait, in order, for a settle, a RAW development, or settled paint to load.
     if (!raw && !pending && !settling && !stalePaint(scene).length) {
-      render({ scene, inputId, factor });
+      render(request);
       return;
     }
-    next = { scene, inputId, factor };
+    next = request;
     pending ??= develop()
       .catch((error) => {
         if (!next) {
@@ -267,7 +313,8 @@ export function createRenderer(
       .finally(() => {
         pending = undefined;
         if (next && !disposed) {
-          return update(next.scene, next.inputId, next.factor > 1);
+          const { scene, inputId, factor, rangeSourceId } = next;
+          return update(scene, inputId, factor > 1, rangeSourceId);
         }
       });
     return pending;
@@ -290,12 +337,14 @@ export function createRenderer(
     outputImage: () => output,
     inputImage: (id: string) =>
       inspected?.id === id ? inspected.image : undefined,
+    /** The image below a mask, which its ranges read, while an update keeps it. */
+    rangeSource: (id: string) => (kept?.id === id ? kept.image : undefined),
     /**
      * A raster by ID and where it sits in the photo: a mask's coverage, for the display overlay and
      * thumbnails, a Healing patch's, or a paint layer's.
      */
     coverage(id: string): { target: Target; origin: Point } | undefined {
-      const target = masks.coverage(id)?.target ?? paints.get(id);
+      const target = shown.get(id) ?? paints.get(id);
       return target ? { target, origin: [0, 0] } : patches.raster(id);
     },
     /** Device pixels shown per source pixel; interactive renders reduce the source to about this density. */

@@ -127,7 +127,29 @@ export type HealPatch = {
   | { readonly mode: "heal" | "clone"; readonly offset: Point }
   | { readonly mode: "remove" }
 );
-export type Mask = Gradient | BrushMask;
+/**
+ * The pixels of the image below the mask group whose lightness, in 0..100 UI units from black to
+ * white, lies within `low` to `high`, fading out over `smoothness` past either end.
+ */
+export type LuminanceRange = {
+  readonly kind: "luminance-range";
+  readonly low: number;
+  readonly high: number;
+  readonly smoothness: number;
+};
+/**
+ * The pixels of the image below the mask group whose hue and saturation are near `color`, `#rrggbb`
+ * sRGB, however light or dark; `null` covers nothing until a color is chosen. `tolerance`, 0..100,
+ * widens the selection.
+ */
+export type ColorRange = {
+  readonly kind: "color-range";
+  readonly color: string | null;
+  readonly tolerance: number;
+};
+/** A mask that selects by the image below it rather than by position. */
+export type RangeMask = LuminanceRange | ColorRange;
+export type Mask = Gradient | BrushMask | RangeMask;
 export type ProcessingLayer = {
   readonly id: string;
   readonly name: string;
@@ -146,7 +168,8 @@ export type ProcessingLayer = {
   | ({ readonly kind: "paint"; readonly blend: Blend } & Painting<PaintStroke>)
   | {
       readonly kind: "mask";
-      readonly operation: "add" | "subtract";
+      /** How a mask inside another mask shapes its coverage. */
+      readonly operation: "add" | "subtract" | "intersect";
       readonly mask: Mask;
       readonly adjustments: Readonly<Adjustments>;
       readonly toneCurve: ToneCurve;
@@ -154,7 +177,7 @@ export type ProcessingLayer = {
 );
 export type MaskLayer = Extract<ProcessingLayer, { kind: "mask" }>;
 export type PaintLayer = Extract<ProcessingLayer, { kind: "paint" }>;
-/** A child mask that adds to or subtracts from its parent's coverage. */
+/** A child mask that adds to, subtracts from, or intersects its parent's coverage. */
 export type MaskModifier = Pick<
   MaskLayer,
   "id" | "mask" | "operation" | "opacity"

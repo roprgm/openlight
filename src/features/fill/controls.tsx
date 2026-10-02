@@ -1,5 +1,5 @@
 import { Select } from "@roprgm/ui/select";
-import { useEffect, useRef } from "react";
+import { ColorInput } from "@/components/editor/color-input";
 import { useDocument } from "@/components/editor/session";
 import type { Fill } from "@/core/document";
 import { blends } from "@/core/image/blend";
@@ -7,14 +7,6 @@ import { setFill } from "./edits";
 
 export function FillControls({ id, fill }: { id: string; fill: Fill }) {
   const document = useDocument();
-  const picker = useRef<HTMLInputElement>(null);
-  // The picker streams input events while dragging; its native change event closes the gesture.
-  useEffect(() => {
-    const input = picker.current;
-    const commit = () => document.history.commit();
-    input?.addEventListener("change", commit);
-    return () => input?.removeEventListener("change", commit);
-  }, [document]);
   return (
     <section className="flex flex-col gap-3 p-3.5">
       <label className="flex items-center justify-between text-secondary">
@@ -23,16 +15,10 @@ export function FillControls({ id, fill }: { id: string; fill: Fill }) {
           <span className="text-foreground uppercase tabular-nums">
             {fill.color}
           </span>
-          <input
-            ref={picker}
-            type="color"
-            aria-label="Color"
+          <ColorInput
+            label="Color"
             value={fill.color}
-            className="h-6 w-9 cursor-pointer rounded surface-field p-0.5"
-            onChange={(event) => {
-              document.history.begin();
-              setFill(document, { color: event.currentTarget.value }, id);
-            }}
+            onChange={(color) => setFill(document, { color }, id)}
           />
         </span>
       </label>

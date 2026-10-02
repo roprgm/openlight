@@ -32,6 +32,7 @@ type Branch = {
   image: RenderImage;
   input?: RenderImage;
   dependencies: readonly CacheKey[];
+  rangeSource?: RenderImage;
 };
 
 function composeLayer(
@@ -48,7 +49,17 @@ function composeLayer(
     layer.id === composition.inputId ||
     (layer.kind === "heal" &&
       layer.patches.some((patch) => patch.id === composition.inputId));
-  if (bypassed && !inspected) {
+  // A mask's ranges read the image below it, hidden or not.
+  const rangeSource =
+    layer.id === composition.rangeSourceId ? below : undefined;
+  const masks = layer.kind === "mask" ? maskModifiers(layer) : [];
+  const coverage =
+    layer.kind === "mask" ? composition.coverage(layer, below) : undefined;
+  // Masks under a hidden effect still preview and pick the processed image they select when shown.
+  const holdsMasks =
+    layer.kind !== "mask" &&
+    layer.children.some((child) => child.kind === "mask");
+  if (bypassed && !inspected && !holdsMasks) {
     for (const { layer: hidden } of walkLayers([layer])) {
       const instance = `layer/${hidden.id}`;
       composition.retain(instance);
@@ -56,11 +67,8 @@ function composeLayer(
         retainHealPatches(hidden.patches, instance, composition);
       }
     }
-    return { image: below, dependencies };
+    return { image: below, rangeSource, dependencies };
   }
-  const masks = layer.kind === "mask" ? maskModifiers(layer) : [];
-  const coverage =
-    layer.kind === "mask" ? composition.coverage(layer) : undefined;
   let input: RenderImage | undefined;
   let edited = below;
   let content = dependencies;
@@ -155,6 +163,7 @@ function composeLayer(
     image,
     input: input ?? children.input,
     dependencies: [...children.dependencies, layer],
+    rangeSource: rangeSource ?? children.rangeSource,
   };
 }
 
@@ -167,13 +176,15 @@ function composeLayers(
   let image = below;
   let input: RenderImage | undefined;
   let content = dependencies;
+  let rangeSource: RenderImage | undefined;
   for (const layer of layers) {
     const branch = composeLayer(image, layer, composition, content);
     image = branch.image;
     input ??= branch.input;
     content = branch.dependencies;
+    rangeSource ??= branch.rangeSource;
   }
-  return { image, input, dependencies: content };
+  return { image, input, rangeSource, dependencies: content };
 }
 
 /**
@@ -227,6 +238,7 @@ export function createEditorRenderer(
           composition.inputId === sourceLayer.id
             ? adjusted
             : (children.input ?? composite.input),
+        rangeSource: children.rangeSource ?? composite.rangeSource,
       };
     },
     timer,

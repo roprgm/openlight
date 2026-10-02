@@ -1,9 +1,11 @@
 import type { EditorDocument } from "./index";
 import type {
   Layer,
+  Mask,
   MaskLayer,
   Painting,
   ProcessingLayer,
+  RangeMask,
   Scene,
 } from "./scene";
 
@@ -53,6 +55,11 @@ export function maskModifiers(layer: MaskLayer) {
     (child): child is MaskLayer =>
       child.kind === "mask" && child.visible && child.opacity > 0,
   );
+}
+
+/** Whether a mask selects by the image below it rather than by position. */
+export function isRangeMask(mask: Mask): mask is RangeMask {
+  return mask.kind === "luminance-range" || mask.kind === "color-range";
 }
 
 /** Whether a painting holds anything: settled pixels or strokes over them. */

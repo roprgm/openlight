@@ -22,6 +22,7 @@ import type {
   Grain,
   HealMode,
   Mask,
+  MaskLayer,
   PaintStroke,
   Preview,
   ToneCurve,
@@ -185,7 +186,7 @@ export function createControls(
       setExposure(workspace.getDocument(), id, exposure),
     setLayerMask: (id: string, mask: Mask) =>
       setLayerMask(workspace.getDocument(), id, mask),
-    setMaskOperation: (id: string, operation: "add" | "subtract") =>
+    setMaskOperation: (id: string, operation: MaskLayer["operation"]) =>
       setMaskOperation(workspace.getDocument(), id, operation),
     duplicateLayer: (id: string) => duplicateLayer(workspace.getDocument(), id),
     deleteLayer: (id: string) => deleteLayer(workspace.getDocument(), id),

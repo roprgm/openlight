@@ -141,7 +141,7 @@ export const commands = {
     }),
   ),
   "add-mask": command(
-    "Adds a mask layer on top of the stack with optional adjustments, as one edit, and returns its layerId. Coordinates are source pixels, unaffected by crop. A linear mask covers fully at start and fades out at end; a radial mask covers an ellipse around center with radius [x, y], angle in degrees, and feather from 0 to 1.",
+    "Adds a mask layer on top of the stack with optional adjustments, as one edit, and returns its layerId. Coordinates are source pixels, unaffected by crop. A linear mask covers fully at start and fades out at end; a radial mask covers an ellipse around center with radius [x, y], angle in degrees, and feather from 0 to 1. A luminance-range mask selects pixels of the photo whose lightness lies from low to high, 0 black to 100 white, fading over smoothness; a color-range mask selects pixels near a #rrggbb color in hue and saturation, however light, within tolerance from 0 to 100. A null color has no coverage until a color is chosen.",
     z.strictObject({
       mask: maskSchema,
       adjustments: z.optional(change(adjustmentsSchema)),

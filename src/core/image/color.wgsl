@@ -23,6 +23,21 @@ export const rec2020ToSrgb = mat3x3f(
   -0.0728, -0.0083, 1.1187,
 );
 
+// Linear sRGB to Oklab, with Bjorn Ottosson's public-domain 2021 matrices:
+// https://bottosson.github.io/posts/oklab/
+export fn toOklab(rgb: vec3f) -> vec3f {
+  let lms = mat3x3f(
+    0.4122214708, 0.2119034982, 0.0883024619,
+    0.5363325363, 0.6806995451, 0.2817188376,
+    0.0514459929, 0.1073969566, 0.6299787005,
+  ) * rgb;
+  return mat3x3f(
+    0.2104542553, 1.9779984951, 0.0259040371,
+    0.7936177850, -2.4285922050, 0.7827717662,
+    -0.0040720468, 0.4505937099, -0.8086757660,
+  ) * (sign(lms) * pow(abs(lms), vec3f(1.0 / 3.0)));
+}
+
 /**
  * Luminance-preserving gamut clip: a color the target cannot show slides toward the gray of its own
  * luminance until it fits, so brightness and hue hold and only saturation is lost. This is the
