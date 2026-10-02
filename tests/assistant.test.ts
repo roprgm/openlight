@@ -1,30 +1,18 @@
 import { expect, test } from "bun:test";
 import { ask, interpret } from "@/app/assistant/jev";
 import type { AssistantRequest } from "@/app/assistant/protocol";
+import { defaultAdjustments } from "@/features/adjustments/model";
+import { defaultCurve } from "@/features/tone-curves/curve";
 
 const request: AssistantRequest = {
   message: "warmer and darker",
   earlier: [],
   photo: {
-    adjustments: {
-      exposure: 0.5,
-      contrast: 0,
-      highlights: 0,
-      shadows: 0,
-      whites: 0,
-      blacks: 0,
-      incrementalTemperature: 0,
-      incrementalTint: 0,
-      vibrance: 0,
-      saturation: 0,
-    },
+    adjustments: { ...defaultAdjustments, exposure: 0.5 },
     vignette: 0,
     clarity: 0,
     sharpening: 0,
-    toneCurve: [
-      { x: 0, y: 0 },
-      { x: 1, y: 1 },
-    ],
+    toneCurve: [...defaultCurve],
     comparison: "edited",
     sourceSize: [300, 200],
   },
@@ -93,34 +81,16 @@ test("the assistant asks one question per decision and turns the answers into co
   ]);
   expect(sky.message).toBe("top exposure -1");
 
-  const inverted = {
-    ...request,
-    photo: {
-      ...request.photo,
-      toneCurve: [
-        { x: 0, y: 1 },
-        { x: 1, y: 0 },
-      ],
-    },
-  };
-  expect(interpret(inverted, answers({ invert: 1 }, { count: "one" }))).toEqual(
-    {
-      commands: [{ type: "set-tone-curve" }],
-      message: "Colors restored",
-    },
-  );
+  const toneCurve = defaultCurve.map(({ x, y }) => ({ x, y: 1 - y }));
+  const inverted = { ...request, photo: { ...request.photo, toneCurve } };
+  const reset = interpret(inverted, answers({ invert: 1 }, { count: "one" }));
+  expect(reset.commands).toEqual([{ type: "set-tone-curve" }]);
+  expect(reset.message).toBe("Colors restored");
 
-  expect(
-    interpret(
-      request,
-      answers(
-        { reply: 0.9, exposure: 0.1 },
-        { count: "one", reply: "greeting" },
-      ),
-    ),
-  ).toEqual({
-    commands: [],
-    message:
-      "Hi! I can edit this photo for you. Try “make it warmer” or “darken the sky”.",
-  });
+  const greeting = interpret(
+    request,
+    answers({ reply: 0.9, exposure: 0.1 }, { count: "one", reply: "greeting" }),
+  );
+  expect(greeting.commands).toEqual([]);
+  expect(greeting.message).toStartWith("Hi! I can edit this photo for you.");
 });

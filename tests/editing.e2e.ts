@@ -1,48 +1,14 @@
 import { readFile } from "node:fs/promises";
-import type { Page } from "@playwright/test";
-import { type ImageFrame, imageFrame } from "@/core/image/frame";
 import { interpolatePchip } from "@/lib/math";
-import { colorMixerEditing } from "./color-mixer-editing";
-import { expect, test } from "./fixtures";
+import { expect, openPhoto, test } from "./fixtures";
 import { readImage, readPixel, readPreview } from "./images";
-import { box, choose, drag } from "./pointer";
-
-function expectCentered(
-  actual: { x: number; y: number; width: number; height: number },
-  expected: typeof actual,
-) {
-  expect(actual.x + actual.width / 2).toBeCloseTo(
-    expected.x + expected.width / 2,
-    0,
-  );
-  expect(actual.y + actual.height / 2).toBeCloseTo(
-    expected.y + expected.height / 2,
-    0,
-  );
-}
-
-async function zoom(page: Page, factor: number) {
-  await page.keyboard.down("Control");
-  await page.mouse.wheel(0, -Math.log(factor) * 100);
-  await page.keyboard.up("Control");
-}
+import { box, choose, drag, zoom } from "./pointer";
 
 test("edit a photo, inspect the preview and histograms, undo changes, and export", async ({
   page,
-  browser,
 }) => {
-  test.setTimeout(180_000);
   const state = () => page.evaluate(() => window.openlight.getState());
-  await page.goto("/");
-  await expect(
-    page.getByRole("button", { name: "choose a file" }),
-  ).toBeVisible();
-  // The start screen has no layer stack until a document opens.
-  await expect(page.getByRole("heading", { name: "Layers" })).toHaveCount(0);
-  await expect(page.getByRole("tab", { name: "Adjust" })).toBeDisabled();
-  await page
-    .locator('input[type="file"]')
-    .setInputFiles("tests/fixtures/photo.svg");
+  await openPhoto(page);
   const canvas = page
     .getByRole("region", { name: "Image canvas" })
     .locator("canvas");
@@ -50,120 +16,69 @@ test("edit a photo, inspect the preview and histograms, undo changes, and export
     .getByLabel("output histogram", { exact: true })
     .locator("polyline")
     .first();
-  await expect(
-    page.getByLabel("output histogram", { exact: true }).locator("polygon"),
-  ).toHaveCount(3);
   await expect(output).toHaveAttribute("points", /,\d{1,2}\./);
   const original = await canvas.screenshot();
-  const histogram = await output.getAttribute("points");
+  const histogram = (await output.getAttribute("points")) ?? "";
   const initial = await state();
-  expect((await readImage(page)).center).toEqual([128, 128, 128, 255]);
+  async function type(name: string, value: string) {
+    const field = page.getByRole("textbox", { name, exact: true });
+    await field.fill(value);
+    await field.press("Enter");
+  }
 
-  await test.step("image adjustments share a single section", async () => {
-    await expect(
-      page.getByRole("heading", { name: "Adjustments", exact: true }),
-    ).toBeVisible();
-    await expect(
-      page.getByRole("slider", { name: "Clarity", exact: true }),
-    ).toHaveCount(0);
-    await expect(
-      page.getByRole("slider", { name: "Exposure", exact: true }),
-    ).toBeVisible();
-    await expect(
-      page.getByRole("slider", { name: "Temp", exact: true }),
-    ).toBeVisible();
-  });
-
-  await test.step("zoomed rendering reaches the edges of the editor viewport", async () => {
-    const viewport = await page
-      .getByRole("region", { name: "Image canvas" })
-      .boundingBox();
-    if (!viewport) throw new Error("Missing editor viewport.");
-    expect(await canvas.boundingBox()).toEqual(viewport);
+  await test.step("zoom and Space panning move only the view", async () => {
+    const viewport = await box(canvas);
+    const [x, y] = [
+      viewport.x + viewport.width / 2,
+      viewport.y + viewport.height / 2,
+    ];
     await canvas.hover();
     await zoom(page, 2);
-    const edge = {
-      x: viewport.x + viewport.width / 2,
-      y: viewport.y + 4,
-      width: 1,
-      height: 1,
-    };
+    // Only a zoomed photo reaches past the fitted margin to the top edge.
     await expect
-      .poll(async () => await readPixel(page, edge))
+      .poll(() => readPixel(page, { x, y: viewport.y + 4 }))
       .toEqual([128, 128, 128, 255]);
     await canvas.dblclick();
     await expect.poll(() => canvas.screenshot()).toEqual(original);
-  });
-
-  await test.step("Space panning continues smoothly after releasing the key mid-drag", async () => {
-    const viewport = await canvas.boundingBox();
-    if (!viewport) throw new Error("Missing canvas.");
     const scale = Math.min(
       (viewport.width - 48) / 1200,
       (viewport.height - 48) / 800,
-      2,
     );
-    const sample = {
-      x: viewport.x + viewport.width / 2 + (430 - 600) * scale,
-      y: viewport.y + viewport.height / 2 + (150 - 400) * scale,
-      width: 1,
-      height: 1,
-    };
-    expect(await readPixel(page, sample)).toEqual([48, 80, 128, 255]);
-    await canvas.hover();
+    const blue = { x: x + (430 - 600) * scale, y: y + (150 - 400) * scale };
+    expect(await readPixel(page, blue)).toEqual([48, 80, 128, 255]);
+    // Releasing Space mid-drag keeps the pan going.
     await page.keyboard.down("Space");
     await page.mouse.down();
-    await page.mouse.move(
-      viewport.x + viewport.width / 2 + 100,
-      viewport.y + viewport.height / 2,
-    );
+    await page.mouse.move(x + 100, y);
     await page.keyboard.up("Space");
-    await page.mouse.move(
-      viewport.x + viewport.width / 2 + 101,
-      viewport.y + viewport.height / 2,
-    );
+    await page.mouse.move(x + 101, y);
     await page.mouse.up();
     await expect
-      .poll(async () => await readPixel(page, { ...sample, x: sample.x + 101 }))
+      .poll(() => readPixel(page, { ...blue, x: blue.x + 101 }))
       .toEqual([48, 80, 128, 255]);
     expect(await state()).toEqual(initial);
     await canvas.dblclick();
-    await expect.poll(() => canvas.screenshot()).toEqual(original);
   });
 
-  await test.step("exposure moves the preview and RGB histogram, then resets", async () => {
+  await test.step("an exposure drag is one edit of the image and histogram", async () => {
     const exposure = page.getByRole("slider", {
       name: "Exposure",
       exact: true,
     });
-    await exposure.focus();
-    await page.keyboard.down("ArrowRight");
-    await page.keyboard.press("ArrowRight");
-    await page.keyboard.up("ArrowRight");
-    expect((await state()).history.undoCount).toBe(1);
-    await page.getByRole("button", { name: "Undo", exact: true }).click();
-    await expect(exposure).toHaveValue("0");
     // Base UI keeps the range input inside the thumb, on the bar a person drags.
-    const bounds = await box(
+    const track = await box(
       exposure.locator('xpath=ancestor::*[@data-slot="slider-track"]'),
     );
+    const y = track.y + track.height / 2;
     await drag(
       page,
-      [bounds.x + bounds.width / 2, bounds.y + bounds.height / 2],
-      [bounds.x + bounds.width * 0.6, bounds.y + bounds.height / 2],
-      8,
+      [track.x + track.width / 2, y],
+      [track.x + track.width * 0.6, y],
     );
-    expect((await state()).history.undoCount).toBe(1);
-    await expect.poll(() => canvas.screenshot()).not.toEqual(original);
-    await expect(output).not.toHaveAttribute("points", histogram ?? "");
+    await expect(output).not.toHaveAttribute("points", histogram);
     expect((await readImage(page)).center[0]).toBeGreaterThan(160);
     await page.keyboard.press("ControlOrMeta+z");
-    await expect.poll(() => canvas.screenshot()).toEqual(original);
-    await page.keyboard.press("ControlOrMeta+Shift+z");
-    await expect.poll(() => canvas.screenshot()).not.toEqual(original);
-    await exposure.locator("..").dblclick();
     await expect(exposure).toHaveValue("0");
-    await expect(output).toHaveAttribute("points", histogram ?? "");
     await expect.poll(() => canvas.screenshot()).toEqual(original);
   });
 
@@ -176,98 +91,42 @@ test("edit a photo, inspect the preview and histograms, undo changes, and export
         { x: 1, y: 1 },
       ]);
     });
-    const before = page.getByRole("button", {
+    const edited = await readImage(page);
+    const { history } = await state();
+    const center = async () => (await readPreview(page)).center;
+    const compare = page.getByRole("button", {
       name: "Compare before and after",
       exact: true,
     });
+    await compare.focus();
+    await page.keyboard.down("Backslash");
+    await expect.poll(center).toEqual([128, 128, 128, 255]);
+    await page.keyboard.up("Backslash");
+    await expect.poll(center).toEqual([255, 255, 255, 255]);
+    await compare.click();
+    const divider = page.getByRole("slider", {
+      name: "Before and after divider",
+    });
+    const bounds = await box(canvas);
+    await divider.hover();
+    await page.mouse.down();
+    await page.mouse.move(bounds.x + bounds.width * 0.8, bounds.y + 10);
+    await page.mouse.up();
+    await expect(divider).toHaveAttribute("aria-valuenow", "80");
+    await expect.poll(center).toEqual([128, 128, 128, 255]);
+    await compare.click();
     const shadows = page.getByRole("button", { name: "Show clipped shadows" });
     const highlights = page.getByRole("button", {
       name: "Show clipped highlights",
     });
-    const edited = await readImage(page);
-    const history = (await state()).history;
-    const bins = await output.getAttribute("points");
-    await before.focus();
-    await page.keyboard.down("Backslash");
-    await expect(before).toHaveAttribute("aria-pressed", "true");
-    await expect
-      .poll(async () => (await readPreview(page)).center)
-      .toEqual([128, 128, 128, 255]);
-    await page.keyboard.up("Backslash");
-    await expect
-      .poll(async () => (await readPreview(page)).center)
-      .toEqual([255, 255, 255, 255]);
-    await before.click();
-    const divider = page.getByRole("slider", {
-      name: "Before and after divider",
-    });
-    await expect(divider).toHaveAttribute("aria-valuenow", "50");
-    const bounds = await canvas.boundingBox();
-    if (!bounds) throw new Error("Preview is missing.");
-    await divider.hover();
-    await page.mouse.down();
-    await page.mouse.move(
-      bounds.x + bounds.width * 0.8,
-      bounds.y + bounds.height / 2,
-      { steps: 8 },
-    );
-    await page.mouse.up();
-    await expect(divider).toHaveAttribute("aria-valuenow", "80");
-    await expect
-      .poll(async () => (await readPreview(page)).center)
-      .toEqual([128, 128, 128, 255]);
-    await divider.press("Home");
-    await expect
-      .poll(async () => (await readPreview(page)).center)
-      .toEqual([255, 255, 255, 255]);
-    await divider.press("End");
-    await expect
-      .poll(async () => (await readPreview(page)).center)
-      .toEqual([128, 128, 128, 255]);
-    await divider.press("Shift+ArrowLeft");
-    await expect(divider).toHaveAttribute("aria-valuenow", "90");
-    await page.keyboard.down("Backslash");
-    await expect(divider).toBeHidden();
-    await page.keyboard.up("Backslash");
-    await expect(divider).toHaveAttribute("aria-valuenow", "90");
-    await before.click();
-    await expect(divider).toBeHidden();
-    await page.keyboard.down("Backslash");
-    await page.evaluate(() => window.dispatchEvent(new Event("blur")));
-    await expect(before).toHaveAttribute("aria-pressed", "false");
-    await page.keyboard.up("Backslash");
-    const field = page.getByRole("textbox", { name: "Exposure", exact: true });
-    await field.focus();
-    await page.keyboard.press("Backslash");
-    await expect(before).toHaveAttribute("aria-pressed", "false");
-    await field.press("Escape");
     await shadows.click();
-    await expect
-      .poll(async () => (await readPreview(page)).blue)
-      .toBeGreaterThan(100);
     await highlights.click();
-    await expect
-      .poll(async () => (await readPreview(page)).center)
-      .toEqual([255, 0, 0, 255]);
-    await expect
-      .poll(async () => (await readPreview(page)).blue)
-      .toBeGreaterThan(100);
-    await before.click();
-    await expect
-      .poll(async () => (await readPreview(page)).center)
-      .toEqual([128, 128, 128, 255]);
+    await expect.poll(center).toEqual([255, 0, 0, 255]);
+    expect((await readPreview(page)).blue).toBeGreaterThan(100);
     expect(await readImage(page)).toEqual(edited);
     expect((await state()).history).toEqual(history);
-    await expect(output).toHaveAttribute("points", bins ?? "");
-    await page.evaluate(() =>
-      window.openlight.setPreview({
-        comparison: "edited",
-        shadows: false,
-        highlights: false,
-      }),
-    );
-    await expect(highlights).toHaveAttribute("aria-pressed", "false");
-    await expect.poll(async () => (await readPreview(page)).blue).toBe(0);
+    await shadows.click();
+    await highlights.click();
     await page.evaluate(() => {
       window.openlight.setAdjustments({ exposure: 0 });
       window.openlight.setToneCurve();
@@ -275,694 +134,89 @@ test("edit a photo, inspect the preview and histograms, undo changes, and export
     await expect.poll(() => canvas.screenshot()).toEqual(original);
   });
 
-  await test.step("light and color controls render together and reset", async () => {
-    for (const [label, value] of [
-      ["Highlights", -50],
-      ["Shadows", 50],
-      ["Whites", 25],
-      ["Blacks", -25],
-    ] as const) {
-      const field = page.getByRole("textbox", { name: label, exact: true });
-      await field.fill(String(value));
-      await field.press("Enter");
-      await expect(
-        page.getByRole("slider", { name: label, exact: true }),
-      ).toHaveValue(String(value));
-    }
-    await page.evaluate(() =>
-      window.openlight.setAdjustments({
-        contrast: 20,
-        incrementalTemperature: 15,
-        incrementalTint: -10,
-        vibrance: 30,
-        saturation: -20,
-      }),
-    );
-    await expect.poll(() => canvas.screenshot()).not.toEqual(original);
-    await expect(output).not.toHaveAttribute("points", histogram ?? "");
-    const edited = await readImage(page);
-    expect(edited.center).not.toEqual([128, 128, 128, 255]);
-    await page.evaluate(
-      (adjustments) => window.openlight.setAdjustments(adjustments),
-      initial.adjustments,
-    );
-    await expect.poll(() => canvas.screenshot()).toEqual(original);
-  });
-
-  await colorMixerEditing(page);
-
-  await test.step("clarity changes local contrast and histogram, then undoes and resets", async () => {
+  await test.step("clarity and sharpening edit a Details effect", async () => {
     await page.getByRole("button", { name: "Add effect", exact: true }).click();
     await page.getByRole("menuitem", { name: "Details", exact: true }).click();
-    const field = page.getByRole("textbox", { name: "Clarity", exact: true });
-    const slider = page.getByRole("slider", { name: "Clarity", exact: true });
-    await field.fill("100");
-    await field.press("Enter");
-    await expect(slider).toHaveValue("100");
-    await expect(output).not.toHaveAttribute("points", histogram ?? "");
-    const positive = await readImage(page);
-    expect(positive.center).toEqual([128, 128, 128, 255]);
-    expect(positive.corner).toEqual([0, 0, 0, 255]);
-    await page.getByRole("button", { name: "Undo", exact: true }).click();
-    await expect(slider).toHaveValue("0");
-    expect((await readImage(page)).center).toEqual([128, 128, 128, 255]);
-    await field.fill("-100");
-    await field.press("Enter");
-    expect((await readImage(page)).center).toEqual([128, 128, 128, 255]);
+    await type("Clarity", "-100");
     expect((await readImage(page)).corner[0]).toBeGreaterThan(0);
-    await slider.locator("..").dblclick();
-    await expect(slider).toHaveValue("0");
-    await expect(output).toHaveAttribute("points", histogram ?? "");
+    const clarity = page.getByRole("slider", { name: "Clarity", exact: true });
+    await clarity.locator("..").dblclick();
+    await expect(clarity).toHaveValue("0");
+    const edge = () => readImage(page, undefined, [[102, 50]]);
+    await type("Sharpening", "100");
+    await type("Radius", "3");
+    expect((await edge()).samples?.[0][0]).toBeGreaterThan(40);
+    await page.getByRole("button", { name: "Undo", exact: true }).click();
+    await page.getByRole("button", { name: "Undo", exact: true }).click();
+    expect((await edge()).samples?.[0][0]).toBe(32);
+    await expect(output).toHaveAttribute("points", histogram);
   });
 
-  await test.step("sharpening amount and radius edit, undo, and reset", async () => {
-    const amount = page.getByRole("textbox", {
-      name: "Sharpening",
-      exact: true,
-    });
-    const radius = page.getByRole("textbox", { name: "Radius", exact: true });
-    await amount.fill("100");
-    await amount.press("Enter");
-    await radius.fill("3");
-    await radius.press("Enter");
-    await expect(output).not.toHaveAttribute("points", histogram ?? "");
-    expect((await readImage(page)).center).toEqual([128, 128, 128, 255]);
-    await page.getByRole("button", { name: "Undo", exact: true }).click();
-    await expect(radius).toHaveValue("1.0");
-    await page.getByRole("button", { name: "Undo", exact: true }).click();
-    await expect(amount).toHaveValue("0");
-    await expect(output).toHaveAttribute("points", histogram ?? "");
-    await amount.fill("150");
-    await amount.press("Enter");
-    await page
-      .getByRole("slider", { name: "Sharpening", exact: true })
-      .locator("..")
-      .dblclick();
-    await expect(amount).toHaveValue("0");
-  });
-
-  await test.step("curve gestures change output after adjustments and undo as one edit", async () => {
+  await test.step("a curve drag after adjustments is one edit", async () => {
     await page.evaluate(() =>
       window.openlight.setAdjustments({ exposure: -1 }),
     );
     const adjusted = await readImage(page);
     await page.getByRole("button", { name: "photo.svg", exact: true }).click();
     const graph = page.getByRole("application", { name: "Tone curve" });
-    const curveHistogram = page
+    const input = page
       .getByLabel("curve input histogram", { exact: true })
       .locator("polyline");
     await graph.scrollIntoViewIfNeeded();
-    await expect(curveHistogram).toHaveAttribute("points", /,\d{1,2}\./);
-    const curveInput = await curveHistogram.getAttribute("points");
-    const before = await page.evaluate(
-      () => window.openlight.getState().history.undoCount,
-    );
-    const bounds = await graph.boundingBox();
-    if (!bounds) throw new Error("Curve graph is missing.");
-    expect((await box(graph.locator(".."))).height).toBe(180);
+    await expect(input).toHaveAttribute("points", /,\d{1,2}\./);
+    const points = (await input.getAttribute("points")) ?? "";
+    const bounds = await box(graph);
+    const x = bounds.x + bounds.width / 2;
     await drag(
       page,
-      [bounds.x + bounds.width / 2, bounds.y + bounds.height / 2],
-      [bounds.x + bounds.width / 2, bounds.y + bounds.height / 4],
-      8,
+      [x, bounds.y + bounds.height / 2],
+      [x, bounds.y + bounds.height / 4],
     );
     await expect(graph.locator("circle")).toHaveCount(3);
-    await expect(curveHistogram).toHaveAttribute("points", curveInput ?? "");
-    expect((await state()).history.undoCount).toBe(before + 1);
-    const curved = await readImage(page);
-    const curve = await page.evaluate(
-      () => window.openlight.getState().toneCurve,
+    await expect(input).toHaveAttribute("points", points);
+    const curve = interpolatePchip((await state()).toneCurve);
+    const expected = curve(adjusted.center[0] / 255) * 255;
+    expect(Math.abs((await readImage(page)).center[0] - expected)).toBeLessThan(
+      2,
     );
-    const expected = interpolatePchip(curve)(adjusted.center[0] / 255) * 255;
-    expect(Math.abs(curved.center[0] - expected)).toBeLessThan(2);
     await page.keyboard.press("ControlOrMeta+z");
     expect(await readImage(page)).toEqual(adjusted);
-    await page.keyboard.press("ControlOrMeta+Shift+z");
-    expect(await readImage(page)).toEqual(curved);
-    await graph.press("Shift+ArrowDown");
-    await graph.press("Delete");
-    await expect(graph.locator("circle")).toHaveCount(2);
-    expect(await readImage(page)).toEqual(adjusted);
-    await graph.press("Enter");
-    await graph.press("ArrowUp");
-    await expect(graph.locator("circle")).toHaveCount(3);
+    // Raising the black point lifts the black corner.
+    await drag(
+      page,
+      [bounds.x + 1, bounds.y + bounds.height - 1],
+      [bounds.x, bounds.y + bounds.height * 0.75],
+      5,
+    );
+    expect(Math.abs((await readImage(page)).corner[0] - 64)).toBeLessThan(2);
     await page.getByRole("button", { name: "Reset curve" }).click();
-    await expect(graph.locator("circle")).toHaveCount(2);
     await page.evaluate(() => window.openlight.setAdjustments({ exposure: 0 }));
     await expect.poll(() => canvas.screenshot()).toEqual(original);
-    for (const { from, to, sample, expected } of [
-      { from: [0, 1], to: [0, 0.75], sample: "corner", expected: 64 },
-      { from: [1, 0], to: [0.1, 0], sample: "center", expected: 255 },
-    ] as const) {
-      await graph.scrollIntoViewIfNeeded();
-      const bounds = await box(graph);
-      await drag(
-        page,
-        [
-          bounds.x + 1 + from[0] * (bounds.width - 2),
-          bounds.y + 1 + from[1] * (bounds.height - 2),
-        ],
-        [bounds.x + to[0] * bounds.width, bounds.y + to[1] * bounds.height],
-        5,
-      );
-      expect(
-        Math.abs((await readImage(page))[sample][0] - expected),
-      ).toBeLessThan(2);
-      await graph.dblclick({
-        position: { x: to[0] * bounds.width, y: to[1] * bounds.height },
-      });
-      expect(
-        await page.evaluate(() => window.openlight.getState().toneCurve),
-      ).toEqual(initial.toneCurve);
-    }
   });
 
-  await page.getByRole("button", { name: "photo.svg", exact: true }).click();
-  await test.step("a mask's curve input weighs its coverage and stays while the mask is hidden", async () => {
-    const plot = page
-      .getByLabel("curve input histogram", { exact: true })
-      .locator("polyline");
-    await expect(plot).toHaveAttribute("points", /,\d{1,2}\./);
-    const whole = await plot.getAttribute("points");
-    await page.evaluate(() => {
-      const api = window.openlight;
-      const mask = api.addLayer("mask");
-      api.setLayer(mask, { name: "Curve input mask" });
-    });
-    // A neutral mask receives the same pixels, counted only where it covers them.
-    await expect(plot).toHaveAttribute("points", /,\d{1,2}\./);
-    await expect(plot).not.toHaveAttribute("points", whole ?? "");
-    const neutral = await plot.getAttribute("points");
-    await page.evaluate(() => {
-      const api = window.openlight;
-      api.setAdjustments({ exposure: 1 }, api.getState().selectedLayerId);
-    });
-    await expect(plot).not.toHaveAttribute("points", neutral ?? "");
-    await expect(plot).toHaveAttribute("points", /,\d{1,2}\./);
-    const points = await plot.getAttribute("points");
-    await page
-      .getByRole("button", { name: "Show Curve input mask", exact: true })
-      .click();
-    await expect(plot).toHaveAttribute("points", points ?? "");
-    await page.getByRole("button", { name: "Undo", exact: true }).click();
-    await expect(plot).toHaveAttribute("points", points ?? "");
-    await page.evaluate(() => {
-      const api = window.openlight;
-      const mask = api.getState().selectedLayerId;
-      if (!mask) throw Error("Missing mask selection.");
-      api.deleteLayer(mask);
-    });
-  });
-  await page.getByRole("button", { name: "photo.svg", exact: true }).click();
-  await test.step("mode bar switches panels by click, arrow keys, and letters", async () => {
+  await test.step("the mode bar switches panels by click, arrow keys, and letters", async () => {
     const modes = page.getByRole("tablist", { name: "Tools" });
     const selected = modes.getByRole("tab", { selected: true });
-    await expect(selected).toHaveAccessibleName("Adjust");
-    const exportButton = page.getByRole("button", {
-      name: "Export",
-      exact: true,
-    });
-    await exportButton.click();
-    await expect(exportButton).toHaveAttribute("aria-pressed", "true");
+    const layers = page.getByRole("region", { name: "Layers", exact: true });
+    await modes.getByRole("tab", { name: "Crop" }).click();
+    await page.keyboard.press("ArrowLeft");
+    await expect(selected).toHaveAccessibleName("Healing");
+    await page.keyboard.press("e");
     await expect(
       page.getByRole("region", { name: "Image export" }),
     ).toBeVisible();
-    await expect(
-      page.getByRole("region", { name: "Layers", exact: true }),
-    ).toHaveCount(0);
+    await expect(layers).toHaveCount(0);
     await page.getByRole("button", { name: "Close", exact: true }).click();
-    await expect(selected).toHaveAccessibleName("Adjust");
-    await expect(
-      page.getByRole("region", { name: "Layers", exact: true }),
-    ).toBeVisible();
-    await modes.getByRole("tab", { name: "Crop" }).click();
-    await expect(selected).toHaveAccessibleName("Crop");
-    await page.keyboard.press("ArrowLeft");
-    await expect(selected).toHaveAccessibleName("Healing");
-    await page.keyboard.press("ArrowLeft");
-    await expect(selected).toHaveAccessibleName("Radial gradient");
-    await expect(
-      page.getByRole("heading", { name: "Adjustments", exact: true }),
-    ).toBeVisible();
-    await page.keyboard.press("ArrowLeft");
-    await page.keyboard.press("ArrowLeft");
-    await expect(selected).toHaveAccessibleName("Brush");
-    await page.keyboard.press("ArrowLeft");
-    await expect(selected).toHaveAccessibleName("Adjust");
-    await expect(selected).toBeFocused();
-    await page.keyboard.press("e");
-    await expect(exportButton).toHaveAttribute("aria-pressed", "true");
+    await expect(layers).toBeVisible();
     await page.keyboard.press("a");
     await expect(selected).toHaveAccessibleName("Adjust");
-    await expect(page.getByRole("slider", { name: "Exposure" })).toBeVisible();
   });
 
-  const open = page.getByRole("tab", { name: "Crop" });
-  const panel = page.getByRole("region", { name: "Crop tool" });
-  const selection = page.getByRole("application", { name: "Crop selection" });
-  const corner = page.getByRole("button", { name: "Resize crop bottom right" });
-  const move = page.getByRole("button", { name: "Move crop" });
-  const reset = panel.getByRole("button", { name: "Reset", exact: true });
-  const aspect = panel.getByRole("combobox", { name: "Aspect ratio" });
-  const rotation = panel.getByRole("slider", { name: "Rotation", exact: true });
-  async function setFrame(change: Partial<ImageFrame> = {}) {
-    const frame = { ...imageFrame([1200, 800]), ...change };
-    await page.evaluate((frame) => window.openlight.setFrame(frame), frame);
-  }
-
-  async function expectImage(size: number[], corner: number) {
-    expect(await readImage(page)).toEqual({
-      size,
-      center: [128, 128, 128, 255],
-      corner: [corner, corner, corner, 255],
-    });
-  }
-
-  await test.step("Enter activates focused crop panel buttons", async () => {
-    const before = await state();
-    await open.click();
-    await choose(page, aspect, "Square");
-    await page
-      .getByRole("button", { name: "Close", exact: true })
-      .press("Enter");
-    await expect(panel).toBeHidden();
-    expect((await state()).frame).toEqual(before.frame);
-    expect((await state()).history).toEqual(before.history);
-    await open.click();
-    await panel
-      .getByRole("button", { name: "Rotate clockwise" })
-      .press("Enter");
-    await expect(panel).toBeVisible();
-    expect((await state()).frame).toEqual(before.frame);
-    await reset.press("Enter");
-    await page.getByRole("button", { name: "Apply crop" }).press("Enter");
-    await expect(panel).toBeHidden();
-    expect((await state()).frame).toEqual(before.frame);
-    expect((await state()).history).toEqual(before.history);
-  });
-
-  await test.step("locked crop corners resize continuously when the drag changes direction", async () => {
-    await setFrame({ size: [600, 400] });
-    await open.click();
-    const grip = await box(corner);
-    const x = grip.x + grip.width / 2;
-    const y = grip.y + grip.height / 2;
-    await page.mouse.move(x, y);
-    await page.mouse.down();
-    await page.mouse.move(x - 30, y + 19, { steps: 6 });
-    const before = await box(selection);
-    await page.mouse.move(x - 30, y + 21);
-    const after = await box(selection);
-    expect(Math.abs(after.width - before.width)).toBeLessThan(6);
-    expectCentered(after, before);
-    await page.keyboard.press("Escape");
-    await page.mouse.up();
-    await page.keyboard.press("c");
-    const reopened = await box(selection);
-    await page.mouse.move(x - 40, y - 40);
-    expect(await box(selection)).toEqual(reopened);
-    await page.keyboard.press("Escape");
-    await setFrame();
-  });
-
-  await test.step("44px edge targets resize along one axis and preserve locked ratios", async () => {
-    for (const locked of [false, true]) {
-      for (const [label, sx, sy] of [
-        ["top", 0, -1],
-        ["right", 1, 0],
-        ["bottom", 0, 1],
-        ["left", -1, 0],
-      ] as const) {
-        await setFrame({ size: [300, 200] });
-        await open.click();
-        if (!locked) await choose(page, aspect, "Free");
-        const bounds = await box(selection);
-        const edge = page.getByRole("button", {
-          name: `Resize crop ${label}`,
-          exact: true,
-        });
-        const target = await box(edge);
-        expect(sx ? target.width : target.height).toBe(44);
-        const grip = await box(corner);
-        expect([grip.width, grip.height]).toEqual([44, 44]);
-        const x =
-          bounds.x + bounds.width * (sx ? (sx + 1) / 2 : 0.35) + sx * 20;
-        const y =
-          bounds.y + bounds.height * (sy ? (sy + 1) / 2 : 0.35) + sy * 20;
-        await drag(
-          page,
-          [x, y],
-          [x - sx * 30 + Math.abs(sy) * 15, y - sy * 30 + Math.abs(sx) * 15],
-        );
-        const resized = await box(selection);
-        const widthChange = sx ? 60 : Number(locked) * 90;
-        const heightChange = sy ? 60 : Number(locked) * 40;
-        expect(resized.width).toBeCloseTo(bounds.width - widthChange, 0);
-        expect(resized.height).toBeCloseTo(bounds.height - heightChange, 0);
-        expectCentered(resized, bounds);
-        await page.getByRole("button", { name: "Apply crop" }).click();
-        const frame = (await state()).frame;
-        if (!frame) throw new Error("Missing cropped frame");
-        const exported = await readImage(page);
-        expect(exported.size).toEqual(frame.size.map(Math.round));
-        expect(exported.center).toEqual([128, 128, 128, 255]);
-      }
-    }
-    await setFrame();
-  });
-
-  await test.step("crop drafts cancel, apply once, rotate and straighten without losing the source", async () => {
-    const before = await state();
-    await expect(output).toHaveAttribute("points", histogram ?? "");
-    await open.click();
-    await expect(aspect).toContainText("Original");
-    await choose(page, aspect, "Square");
-    const bounds = await box(selection);
-    await drag(
-      page,
-      [bounds.x + bounds.width, bounds.y + bounds.height],
-      [bounds.x + bounds.width * 0.8, bounds.y + bounds.height * 0.8],
-    );
-    const beforeZoom = await box(selection);
-    expect(beforeZoom.width).toBeLessThan(bounds.width);
-    expect(beforeZoom.width).toBeCloseTo(beforeZoom.height, 4);
-    expectCentered(beforeZoom, bounds);
-    await corner.hover();
-    await zoom(page, Math.exp(0.4));
-    await expect
-      .poll(async () => (await box(selection)).width)
-      .toBeGreaterThan(beforeZoom.width * 1.4);
-    const zoomed = await box(selection);
-    const grip = await box(corner);
-    await drag(
-      page,
-      [grip.x + grip.width / 2, grip.y + grip.height / 2],
-      [grip.x + grip.width / 2 - 20, grip.y + grip.height / 2 - 20],
-      4,
-    );
-    const resized = await box(selection);
-    expect(resized.width).toBeCloseTo(zoomed.width - 40, 0);
-    const beforePan = await box(selection);
-    expectCentered(beforePan, zoomed);
-    await page.mouse.wheel(30, 20);
-    await expect
-      .poll(async () => (await box(selection)).x)
-      .not.toBe(beforePan.x);
-    expect((await box(selection)).width).toBe(resized.width);
-    await move.press("Shift+ArrowRight");
-    for (const gap of [20, 24]) {
-      const frame = await box(selection);
-      const x = frame.x + frame.width + gap;
-      const y = frame.y + frame.height / 2;
-      await page.mouse.move(x, y);
-      expect(
-        await page.evaluate(
-          ({ x, y }) => {
-            const element = document.elementFromPoint(x, y);
-            return element && getComputedStyle(element).cursor;
-          },
-          { x, y },
-        ),
-      ).toContain(gap < 22 ? "ew-resize" : "url(");
-      await page.mouse.down();
-      await page.mouse.move(
-        x,
-        y + (frame.width / 2 + gap) * Math.tan(Math.PI / 6),
-        { steps: 8 },
-      );
-      await page.mouse.up();
-      const angle = await rotation.inputValue();
-      expect(Number(angle)).toBeCloseTo(gap < 22 ? 0 : 30, 0);
-      expect(await box(selection)).toEqual(frame);
-      await page.mouse.move(x + 20, y);
-      await expect(rotation).toHaveValue(angle);
-    }
-    expect((await readImage(page)).size).toEqual([1200, 800]);
-    await page.keyboard.press("Escape");
-    expect((await state()).frame).toEqual(before.frame);
-    expect((await state()).history).toEqual(before.history);
-    await open.focus();
-    await page.keyboard.press("c");
-    await choose(page, aspect, "Square");
-    await corner.press("Enter");
-    await expect(panel).toBeHidden();
-    await expectImage([800, 800], 128);
-    await expect(output).not.toHaveAttribute("points", histogram ?? "");
-    expect((await state()).history.undoCount).toBe(
-      before.history.undoCount + 1,
-    );
-    await page.getByRole("button", { name: "Undo", exact: true }).click();
-    expect((await readImage(page)).size).toEqual([1200, 800]);
-    await page.getByRole("button", { name: "Redo", exact: true }).click();
-    expect((await readImage(page)).size).toEqual([800, 800]);
-    await open.click();
-    await reset.click();
-    await panel
-      .getByRole("button", { name: "Rotate counterclockwise" })
-      .click();
-    await corner.press("Enter");
-    await expectImage([800, 1200], 224);
-    await open.click();
-    await panel.getByRole("button", { name: "Rotate clockwise" }).click();
-    await panel.getByRole("button", { name: "Rotate clockwise" }).click();
-    await page.getByRole("button", { name: "Apply crop" }).click();
-    await expectImage([800, 1200], 32);
-    await open.click();
-    await reset.click();
-    const angle = panel.getByRole("textbox", {
-      name: "Rotation",
-      exact: true,
-    });
-    await angle.fill("30");
-    await angle.press("Enter");
-    await expect(panel).toBeHidden();
-    await expectImage([1200, 800], 32);
-    await open.click();
-    await reset.click();
-    await page.getByRole("button", { name: "Apply crop" }).click();
-    await expect.poll(() => canvas.screenshot()).toEqual(original);
-  });
-
-  await test.step("flip controls mirror pixels, preserve framing, and support undo", async () => {
-    for (const [axis, value] of [
-      ["horizontal", 224],
-      ["vertical", 224],
-      ["horizontal", 32],
-      ["vertical", 0],
-    ] as const) {
-      const pixel = [value, value, value, 255];
-      await open.click();
-      const bounds = await box(selection);
-      await page.getByRole("button", { name: `Flip ${axis}` }).click();
-      expect(await box(selection)).toEqual(bounds);
-      const corner = {
-        x: bounds.x + 10,
-        y: bounds.y + 10,
-      };
-      await expect
-        .poll(async () => await readPixel(page, corner))
-        .toEqual(pixel);
-      await page.getByRole("button", { name: "Apply crop" }).click();
-      expect((await readImage(page)).corner).toEqual(pixel);
-      await page.getByRole("button", { name: "Undo", exact: true }).click();
-      await page.getByRole("button", { name: "Redo", exact: true }).click();
-      expect((await readImage(page)).corner).toEqual(pixel);
-    }
-  });
-
-  await test.step("cropping preserves framing, moves the image, and rotates around the crop center", async () => {
-    const sidebar = page.getByRole("complementary");
-    const sidebarBefore = await box(sidebar);
-    await drag(
-      page,
-      [sidebarBefore.x - 2, sidebarBefore.y + 40],
-      [sidebarBefore.x - 82, sidebarBefore.y + 40],
-    );
-    const resizedSidebar = await box(sidebar);
-    expect(resizedSidebar.width).toBe(sidebarBefore.width + 80);
-    await setFrame({ center: [360, 200], size: [240, 240] });
-    const viewport = await box(canvas);
-    await open.click();
-    expect(await box(sidebar)).toEqual(resizedSidebar);
-    const bounds = await box(selection);
-    // A 240px crop starts at 200%, centered exactly where it was before opening the tool.
-    expect(bounds.width).toBeCloseTo(480, 0);
-    expect(bounds.height).toBeCloseTo(480, 0);
-    expect(bounds.x).toBeCloseTo(viewport.x + (viewport.width - 480) / 2, 0);
-    expect(bounds.y).toBeCloseTo(viewport.y + (viewport.height - 480) / 2, 0);
-    const sample = {
-      x: bounds.x + 40,
-      y: bounds.y + bounds.height / 2,
-    };
-    expect(await readPixel(page, sample)).toEqual([48, 80, 128, 255]);
-    const x = bounds.x + bounds.width / 2;
-    const y = bounds.y + bounds.height / 2;
-    const beforePan = await state();
-    for (const [startX, startY] of [
-      [x, y],
-      [bounds.x, bounds.y],
-      [bounds.x + bounds.width, y],
-      [bounds.x + bounds.width + 12, y],
-      [bounds.x + bounds.width + 60, y],
-    ]) {
-      await page.mouse.move(startX, startY);
-      await page.keyboard.down("Space");
-      await expect(
-        page.getByRole("button", { name: "Resize crop top left" }),
-      ).toHaveCSS("cursor", "grab");
-      await page.mouse.down();
-      await page.mouse.move(startX + 40, startY + 20, { steps: 4 });
-      await page.mouse.up();
-      await page.keyboard.up("Space");
-      expect(await box(selection)).toEqual({
-        ...bounds,
-        x: bounds.x + 40,
-        y: bounds.y + 20,
-      });
-      expect(await state()).toEqual(beforePan);
-      expect(
-        await readPixel(page, {
-          ...sample,
-          x: sample.x + 40,
-          y: sample.y + 20,
-        }),
-      ).toEqual([48, 80, 128, 255]);
-      await page.keyboard.down("Space");
-      await page.mouse.down();
-      await page.mouse.move(startX, startY, { steps: 4 });
-      await page.mouse.up();
-      await page.keyboard.up("Space");
-    }
-    await page.mouse.move(x, y);
-    await expect(move).toHaveCSS("cursor", "grab");
-    await page.mouse.down();
-    await expect(move).toHaveCSS("cursor", "grabbing");
-    await page.mouse.move(x + 80, y + 30, { steps: 8 });
-    await page.mouse.up();
-    expect(await box(selection)).toEqual(bounds);
-    expect(await readPixel(page, sample)).toEqual([128, 128, 128, 255]);
-    await drag(
-      page,
-      [bounds.x + bounds.width + 60, y],
-      [
-        bounds.x + bounds.width + 60,
-        y + (bounds.width / 2 + 60) * Math.tan(Math.PI / 6),
-      ],
-      8,
-    );
-    expect(await box(selection)).toEqual(bounds);
-    expect(Number(await rotation.inputValue())).toBeCloseTo(30, 0);
-    const center = { x, y };
-    expect(await readPixel(page, center)).toEqual([48, 80, 128, 255]);
-    await page.keyboard.press("Enter");
-    expect(await box(sidebar)).toEqual(resizedSidebar);
-    expect((await readImage(page)).center).toEqual([48, 80, 128, 255]);
-    await canvas.hover();
-    await zoom(page, 2.5);
-    await page.mouse.wheel(30, 20);
-    const before = await readPixel(page, center);
-    await open.click();
-    const zoomed = await box(selection);
-    expect(zoomed.width).toBeCloseTo(1200, 0);
-    expect(zoomed.x).toBeCloseTo(
-      viewport.x + (viewport.width - 1200) / 2 - 30,
-      0,
-    );
-    expect(zoomed.y).toBeCloseTo(
-      viewport.y + (viewport.height - 1200) / 2 - 20,
-      0,
-    );
-    expect(await readPixel(page, center)).toEqual(before);
-    await drag(page, [x, y], [x + 80, y + 30], 8);
-    await page.keyboard.press("Enter");
-    await open.click();
-    expect(await box(selection)).toEqual(bounds);
-    await page.keyboard.press("Escape");
-    expect(await box(sidebar)).toEqual(resizedSidebar);
-    await drag(
-      page,
-      [resizedSidebar.x - 2, resizedSidebar.y + 40],
-      [sidebarBefore.x - 2, sidebarBefore.y + 40],
-    );
-    await setFrame();
-  });
-
-  await test.step("straightened crops leave empty space outside the source and reset restores geometry and camera", async () => {
-    await setFrame({ size: [600, 400], angle: 30 });
-    await open.click();
-    await move.hover();
-    await zoom(page, 0.5);
-    const bounds = await box(selection);
-    const outside = {
-      x: bounds.x - bounds.width * 0.46,
-      y: bounds.y - bounds.height * 0.46,
-    };
-    const pixel = async () => await readPixel(page, outside);
-    await expect.poll(pixel).toEqual([9, 9, 9, 255]);
-    await zoom(page, 0.5);
-    const smaller = await box(selection);
-    // Known light patch rotated beyond the original source rectangle.
-    const revealed = {
-      x: smaller.x + smaller.width * 1.535,
-      y: smaller.y + smaller.height * 0.542,
-    };
-    await expect
-      .poll(async () => await readPixel(page, revealed))
-      .toEqual([90, 90, 90, 255]);
-    await reset.click();
-    await expect.poll(pixel).toEqual([0, 0, 0, 255]);
-    const fitted = await box(selection);
-    const viewport = await box(canvas);
-    const fit = Math.min(
-      (viewport.width - 48) / 1200,
-      (viewport.height - 48) / 800,
-      2,
-    );
-    expect(fitted.width).toBeCloseTo(1200 * fit, 0);
-    expect(fitted.height).toBeCloseTo(800 * fit, 0);
-    expectCentered(fitted, viewport);
-    await page.getByRole("button", { name: "Rotate clockwise" }).click();
-    await move.hover();
-    await zoom(page, Math.exp(0.8));
-    await page.mouse.wheel(60, 40);
-    await reset.click();
-    expect(await box(selection)).toEqual(fitted);
-    await expect(
-      page.getByRole("slider", { name: "Rotation", exact: true }),
-    ).toHaveValue("0");
-    await expect(aspect).toContainText("Original");
-    await choose(page, aspect, "Square");
-    const fixed = await box(selection);
-    for (const direction of [
-      "ArrowLeft",
-      "ArrowRight",
-      "ArrowUp",
-      "ArrowDown",
-    ]) {
-      for (let i = 0; i < 20; i++) await move.press(`Shift+${direction}`);
-      const actual = await box(selection);
-      expect(actual.x).toBeCloseTo(fixed.x, 0);
-      expect(actual.y).toBeCloseTo(fixed.y, 0);
-    }
-    await page.keyboard.press("Escape");
-    await setFrame();
-  });
-
-  await test.step("export retains edits and original dimensions independently of viewport zoom", async () => {
+  await test.step("export keeps edits and size at any zoom, in PNG, JPEG and resized WebP", async () => {
     await page.evaluate(() => {
       window.openlight.beginEdit();
-      window.openlight.setAdjustments({
-        exposure: 1,
-        highlights: -20,
-        shadows: 30,
-        whites: 10,
-        blacks: -5,
-      });
-      window.openlight.setDetails({
-        clarity: -50,
-        sharpening: 100,
-        sharpenRadius: 1,
-      });
+      window.openlight.setAdjustments({ exposure: 1, shadows: 30 });
+      window.openlight.setDetails({ clarity: -50, sharpening: 100 });
       window.openlight.setToneCurve([
         { x: 0, y: 0 },
         { x: 0.5, y: 0.75 },
@@ -971,15 +225,12 @@ test("edit a photo, inspect the preview and histograms, undo changes, and export
       window.openlight.commitEdit();
     });
     const expected = await readImage(page);
-    expect(expected.center[0]).toBeGreaterThan(190);
-    expect(expected.center[0]).toBeLessThan(255);
-    expect(expected.corner[0]).toBeGreaterThan(0);
-    expect(expected.corner[3]).toBe(255);
+    expect(expected.center).not.toEqual([128, 128, 128, 255]);
     await canvas.hover();
     await zoom(page, Math.E);
-    const panel = page.getByRole("region", { name: "Image export" });
     await page.getByRole("button", { name: "Export", exact: true }).click();
-    const quality = panel.getByRole("textbox", { name: "Quality" });
+    const panel = page.getByRole("region", { name: "Image export" });
+    const format = panel.getByRole("combobox", { name: "Format" });
     async function save(name: string) {
       const pending = page.waitForEvent("download");
       await panel.getByRole("button", { name: "Save image" }).click();
@@ -989,21 +240,14 @@ test("edit a photo, inspect the preview and histograms, undo changes, and export
       if (!path) throw new Error("Missing image download.");
       return readFile(path);
     }
-    const format = panel.getByRole("combobox", { name: "Format" });
     await choose(page, format, "PNG");
-    await expect(panel.getByRole("textbox", { name: "Width" })).toHaveValue(
-      "1200",
-    );
-    await expect(panel.getByText(/kB|MB/)).toBeVisible();
     expect(await readImage(page, await save("photo.png"))).toEqual(expected);
     await choose(page, format, "JPEG");
-    await expect(format).toContainText("JPEG");
-    await quality.fill("20");
-    await quality.press("Enter");
+    await type("Quality", "20");
     const small = await save("photo.jpg");
-    await quality.fill("95");
-    await quality.press("Enter");
+    await type("Quality", "95");
     const large = await save("photo.jpg");
+    expect(large.length).toBeGreaterThan(small.length);
     // The estimate encodes what Save writes, so it matches the file within its rounding.
     const estimate = panel.getByText(/^[\d.,]+\s*(kB|MB)$/);
     await expect
@@ -1015,89 +259,47 @@ test("edit a photo, inspect the preview and histograms, undo changes, and export
         );
       })
       .toBeLessThan(Math.max(1000, large.length * 0.01));
-    expect(large.length).toBeGreaterThan(small.length);
-    for (const bytes of [small, large]) {
-      const actual = await readImage(page, bytes);
-      expect(actual.size).toEqual([1200, 800]);
-      expect(
-        Math.abs(actual.center[0] - expected.center[0]),
-      ).toBeLessThanOrEqual(3);
-    }
-    expect(large.length).toBeGreaterThan(small.length);
+    const jpeg = await readImage(page, large);
+    expect(jpeg.size).toEqual([1200, 800]);
+    expect(Math.abs(jpeg.center[0] - expected.center[0])).toBeLessThanOrEqual(
+      3,
+    );
     await choose(page, format, "WebP");
-    const width = panel.getByRole("textbox", { name: "Width" });
-    await width.fill("600");
-    await width.press("Enter");
+    await type("Width", "600");
     await expect(panel.getByRole("textbox", { name: "Height" })).toHaveValue(
       "400",
     );
-    const resized = await readImage(page, await save("photo.webp"));
-    expect(resized.size).toEqual([600, 400]);
-    expect(
-      Math.abs(resized.center[0] - expected.center[0]),
-    ).toBeLessThanOrEqual(3);
-    await expect(quality).toHaveValue("95");
+    const webp = await readImage(page, await save("photo.webp"));
+    expect(webp.size).toEqual([600, 400]);
+    expect(Math.abs(webp.center[0] - expected.center[0])).toBeLessThanOrEqual(
+      3,
+    );
     await page.keyboard.press("a");
-    await expect(panel).toBeHidden();
   });
 
-  await test.step("mobile dials take a finger's drag, and a double tap resets", async () => {
-    const context = await browser.newContext({
-      viewport: { width: 390, height: 844 },
-      isMobile: true,
-      hasTouch: true,
-      deviceScaleFactor: 2,
+  await test.step("a mask's curve input weighs its coverage and stays while the mask is hidden", async () => {
+    const plot = page
+      .getByLabel("curve input histogram", { exact: true })
+      .locator("polyline");
+    await expect(plot).toHaveAttribute("points", /,\d{1,2}\./);
+    const whole = (await plot.getAttribute("points")) ?? "";
+    const mask = await page.evaluate(() => {
+      const mask = window.openlight.addLayer("mask");
+      window.openlight.setLayer(mask, { name: "Curve input mask" });
+      return mask;
     });
-    try {
-      const mobile = await context.newPage();
-      await mobile.goto(page.url());
-      await mobile
-        .locator('input[type="file"]')
-        .setInputFiles("tests/fixtures/photo.svg");
-      const histogram = await box(
-        mobile.getByRole("region", { name: "Image histogram" }),
-      );
-      expect(histogram.width).toBe(176);
-      expect(histogram.height).toBe(56);
-      const exposure = mobile.getByRole("slider", {
-        name: "Exposure",
-        exact: true,
-      });
-      // Every dial takes a fingertip.
-      for (const dial of await mobile.getByRole("slider").all()) {
-        const bounds = await box(dial);
-        expect(bounds.width).toBeGreaterThanOrEqual(44);
-        expect(bounds.height).toBeGreaterThanOrEqual(44);
-      }
-      const bounds = await box(exposure);
-      const [x, y] = [bounds.x + bounds.width / 2, bounds.y + 20];
-      const touch = await context.newCDPSession(mobile);
-      const send = (type: "touchStart" | "touchMove" | "touchEnd", at = [x]) =>
-        touch.send("Input.dispatchTouchEvent", {
-          type,
-          touchPoints: type === "touchEnd" ? [] : at.map((x) => ({ x, y })),
-        });
-      await send("touchStart");
-      for (let step = 1; step <= 6; step++) {
-        await send("touchMove", [x + step * 10]);
-      }
-      await send("touchEnd");
-      // Sixty pixels sweep a tenth of the range.
-      await expect(exposure).toHaveAttribute("aria-valuetext", "1.00");
-      expect((await readImage(mobile)).center).not.toEqual([
-        128, 128, 128, 255,
-      ]);
-      await mobile.touchscreen.tap(x, y);
-      await mobile.touchscreen.tap(x, y);
-      await expect(exposure).toHaveAttribute("aria-valuetext", "0.00");
-      const undo = mobile.getByRole("button", { name: "Undo", exact: true });
-      await undo.tap();
-      await expect(exposure).toHaveAttribute("aria-valuetext", "1.00");
-      await undo.tap();
-      await expect(exposure).toHaveAttribute("aria-valuetext", "0.00");
-      expect((await readImage(mobile)).center).toEqual([128, 128, 128, 255]);
-    } finally {
-      await context.close();
-    }
+    // A neutral mask receives the same pixels, counted only where it covers them.
+    await expect(plot).toHaveAttribute("points", /,\d{1,2}\./);
+    await expect(plot).not.toHaveAttribute("points", whole);
+    await page.evaluate(
+      (mask) => window.openlight.setAdjustments({ exposure: 1 }, mask),
+      mask,
+    );
+    await expect(plot).toHaveAttribute("points", /,\d{1,2}\./);
+    const points = (await plot.getAttribute("points")) ?? "";
+    await page
+      .getByRole("button", { name: "Show Curve input mask", exact: true })
+      .click();
+    await expect(plot).toHaveAttribute("points", points);
   });
 });

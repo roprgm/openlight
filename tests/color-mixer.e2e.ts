@@ -1,7 +1,15 @@
-import { expect, test } from "./fixtures";
+import { expect, openPhoto, test } from "./fixtures";
+import { readImage } from "./images";
+import { box, drag } from "./pointer";
 
 function luminance(rgb: number[]) {
   return rgb[0] * 0.2627 + rgb[1] * 0.678 + rgb[2] * 0.0593;
+}
+
+function expectClose(actual: number[], expected: number[], tolerance = 0.003) {
+  for (const [i, value] of expected.entries()) {
+    expect(Math.abs(actual[i] - value)).toBeLessThan(tolerance);
+  }
 }
 
 test("color mixing preserves luminance, neutrals, alpha and HDR, isolates ranges and joins the hue seam", async ({
@@ -15,57 +23,84 @@ test("color mixing preserves luminance, neutrals, alpha and HDR, isolates ranges
     )) as typeof import("./color-mixer-gpu");
     return probeColorMixer();
   });
-  const [neutral, hueUp, hueDown, gray, lighter, darker, blue, red] = outputs;
+  const rgb = (output: number[], index: number) =>
+    output.slice(index * 4, index * 4 + 3);
+  const alpha = (output: number[]) => output.filter((_, i) => i % 4 === 3);
+  const [neutral, hue, gray, lighter, blue, red] = outputs;
   expect(neutral).toEqual(original);
   for (const output of outputs) {
     expect(output.every(Number.isFinite)).toBe(true);
-    for (let i = 3; i < output.length; i += 4) {
-      expect(output[i]).toBe(original[i]);
-    }
-    for (const index of [8, 9, 10]) {
-      expect(output.slice(index * 4, index * 4 + 4)).toEqual(
-        original.slice(index * 4, index * 4 + 4),
-      );
-    }
+    expect(alpha(output)).toEqual(alpha(original));
+    // Transparent black, mid gray, and HDR white have no color to mix.
+    expect(output.slice(32, 44)).toEqual(original.slice(32, 44));
   }
   for (let index = 0; index < sampleCount; index++) {
-    const input = original.slice(index * 4, index * 4 + 3);
-    const light = luminance(input);
-    for (const output of [hueUp, hueDown, gray]) {
-      expect(
-        Math.abs(luminance(output.slice(index * 4, index * 4 + 3)) - light),
-      ).toBeLessThan(0.003);
-    }
     if (index >= 8 && index <= 10) continue;
-    for (let channel = 0; channel < 3; channel++) {
-      expect(Math.abs(gray[index * 4 + channel] - light)).toBeLessThan(0.003);
-      expect(
-        Math.abs(lighter[index * 4 + channel] - input[channel] * 2),
-      ).toBeLessThan(0.006);
-      expect(
-        Math.abs(darker[index * 4 + channel] - input[channel] / 2),
-      ).toBeLessThan(0.003);
-    }
+    const input = rgb(original, index);
+    const light = luminance(input);
+    expect(Math.abs(luminance(rgb(hue, index)) - light)).toBeLessThan(0.003);
+    expectClose(rgb(gray, index), [light, light, light]);
+    expectClose(
+      rgb(lighter, index),
+      input.map((value) => value * 2),
+      0.006,
+    );
   }
   for (const index of [0, 1, 2, 3, 4, 7]) {
-    for (let channel = 0; channel < 3; channel++) {
-      expect(
-        Math.abs(blue[index * 4 + channel] - original[index * 4 + channel]),
-      ).toBeLessThan(0.003);
-    }
+    expectClose(rgb(blue, index), rgb(original, index));
   }
-  const blueLight = luminance(original.slice(20, 23));
-  for (const channel of blue.slice(20, 23)) {
-    expect(Math.abs(channel - blueLight)).toBeLessThan(0.003);
-  }
-  expect(Math.max(...lighter.slice(44, 47))).toBeGreaterThan(4);
-  expect(hueUp[1]).toBeGreaterThan(original[1]);
-  expect(hueDown[2]).toBeGreaterThan(original[2]);
+  const blueLight = luminance(rgb(original, 5));
+  expectClose(rgb(blue, 5), [blueLight, blueLight, blueLight]);
+  expect(Math.max(...rgb(lighter, 11))).toBeGreaterThan(4);
+  expect(hue[1]).toBeGreaterThan(original[1]);
   for (let i = 0; i < 360; i++) {
-    for (let channel = 0; channel < 3; channel++) {
-      const a = red[(sampleCount + i) * 4 + channel];
-      const b = red[(sampleCount + ((i + 1) % 360)) * 4 + channel];
-      expect(Math.abs(a - b)).toBeLessThan(0.035);
-    }
+    const next = sampleCount + ((i + 1) % 360);
+    expectClose(rgb(red, sampleCount + i), rgb(red, next), 0.035);
   }
+});
+
+test("color mixer drags a vertical slider as one step, exports the selected color, and resets", async ({
+  page,
+}) => {
+  const state = () => page.evaluate(() => window.openlight.getState());
+  await openPhoto(page);
+  await page.getByRole("button", { name: "Add effect", exact: true }).click();
+  await page
+    .getByRole("menuitem", { name: "Color Mixer", exact: true })
+    .click();
+  const before = (await state()).history.undoCount;
+  await page.getByRole("tab", { name: "Saturation", exact: true }).click();
+  const saturation = page.getByRole("slider", {
+    name: "Blue saturation",
+    exact: true,
+  });
+  await saturation.scrollIntoViewIfNeeded();
+  // Base UI keeps a slider's range input inside its thumb, on the bar a person drags.
+  const track = await box(
+    saturation.locator('xpath=ancestor::*[@data-slot="slider-track"]'),
+  );
+  const x = track.x + track.width / 2;
+  await drag(
+    page,
+    [x, track.y + track.height / 2],
+    [x, track.y + track.height / 4],
+  );
+  expect((await state()).colorMixer.saturation[5]).toBeGreaterThan(0);
+  expect((await state()).history.undoCount).toBe(before + 1);
+  const numeric = page.getByRole("textbox", {
+    name: "Blue saturation value",
+    exact: true,
+  });
+  await numeric.fill("-100");
+  await numeric.press("Enter");
+  const { samples } = await readImage(page, undefined, [[350, 200]]);
+  const pixel = samples?.[0] ?? [];
+  expect(pixel).toHaveLength(4);
+  for (const channel of pixel.slice(0, 3)) {
+    expect(Math.abs(channel - 79)).toBeLessThanOrEqual(2);
+  }
+  await saturation.locator("..").dblclick();
+  await expect(saturation).toHaveValue("0");
+  await page.keyboard.press("ControlOrMeta+z");
+  await expect(saturation).toHaveValue("-100");
 });

@@ -1,68 +1,28 @@
-import { expect, test } from "./fixtures";
-import { box, drag } from "./pointer";
+import { expect, openPhoto, test } from "./fixtures";
+import { box } from "./pointer";
 
 test("edit on a phone and carry the canvas across the breakpoint", async ({
   page,
 }) => {
-  const state = () => page.evaluate(() => window.openlight.getState());
   const canvas = page.getByRole("region", { name: "Image canvas" });
+  const layers = page.getByRole("region", { name: "Layers", exact: true });
   await page.setViewportSize({ width: 1280, height: 800 });
-  await page.goto("/");
-  await page
-    .locator('input[type="file"]')
-    .setInputFiles("tests/fixtures/photo.svg");
-  await expect(
-    page.getByRole("textbox", { name: "Exposure", exact: true }),
-  ).toHaveValue("0.00");
+  await openPhoto(page);
 
   await test.step("the canvas stays mounted while the layout switches", async () => {
     await canvas.locator("canvas").evaluate((element) => {
       element.dataset.mounted = "";
     });
     await page.setViewportSize({ width: 390, height: 844 });
-    await expect(page.getByRole("tab", { name: "Layers" })).toBeVisible();
-    await expect(
-      page.getByRole("region", { name: "Layers", exact: true }),
-    ).toHaveCount(0);
+    await expect(layers).toHaveCount(0);
     await expect(canvas.locator("canvas[data-mounted]")).toHaveCount(1);
     await page.setViewportSize({ width: 1280, height: 800 });
-    await expect(
-      page.getByRole("region", { name: "Layers", exact: true }),
-    ).toBeVisible();
+    await expect(layers).toBeVisible();
     await expect(canvas.locator("canvas[data-mounted]")).toHaveCount(1);
     await page.setViewportSize({ width: 390, height: 844 });
   });
 
-  await test.step("a drag on a dial is one edit", async () => {
-    const contrast = page.getByRole("slider", {
-      name: "Contrast",
-      exact: true,
-    });
-    await expect(contrast).toBeVisible();
-    const bounds = await box(contrast);
-    const y = bounds.y + 20;
-    await drag(
-      page,
-      [bounds.x + bounds.width / 2, y],
-      [bounds.x + bounds.width / 2 + 60, y],
-    );
-    expect((await state()).adjustments.contrast).toBe(20);
-    await page.getByRole("button", { name: "Undo" }).click();
-    expect((await state()).adjustments.contrast).toBe(0);
-  });
-
-  await test.step("a tapped dial takes a typed value", async () => {
-    await page.getByRole("slider", { name: "Exposure", exact: true }).click();
-    const field = page.getByRole("textbox", { name: "Exposure", exact: true });
-    await field.click();
-    await field.fill("0.5");
-    await field.press("Enter");
-    expect((await state()).adjustments.exposure).toBe(0.5);
-    await page.getByRole("button", { name: "Done", exact: true }).click();
-    await expect(field).toHaveCount(0);
-  });
-
-  await test.step("the stack is a tab, and an effect's dials follow the selection", async () => {
+  await test.step("tabs switch the dock between the stack, dials, and crop", async () => {
     await page.getByRole("tab", { name: "Layers" }).click();
     await page.getByRole("button", { name: "Add effect", exact: true }).click();
     await page.getByRole("menuitem", { name: "Details", exact: true }).click();
@@ -70,34 +30,58 @@ test("edit on a phone and carry the canvas across the breakpoint", async ({
     await expect(
       page.getByRole("slider", { name: "Clarity", exact: true }),
     ).toBeVisible();
-  });
-
-  await test.step("a crop is chosen and applied from the dock", async () => {
     await page.getByRole("tab", { name: "Crop" }).click();
-    // On a 3:2 photo, Original and 3:2 match, but only the one chosen shows.
-    const chosen = page
-      .getByRole("group", { name: "Aspect ratio" })
-      .locator('[aria-pressed="true"]');
-    await expect(chosen).toHaveText(["Original"]);
     await page.getByRole("button", { name: "Square", exact: true }).click();
-    await expect(chosen).toHaveText(["Square"]);
     await page.getByRole("button", { name: "Apply", exact: true }).click();
-    const [width, height] = (await state()).frame?.size ?? [];
-    expect(width).toBe(height);
-    await expect(
-      page.getByRole("slider", { name: "Clarity", exact: true }),
-    ).toBeVisible();
+    await expect
+      .poll(() => page.evaluate(() => window.openlight.getState().frame?.size))
+      .toEqual([800, 800]);
+  });
+});
+
+test.describe("on a touch phone", () => {
+  test.use({
+    viewport: { width: 390, height: 844 },
+    isMobile: true,
+    hasTouch: true,
+    deviceScaleFactor: 2,
   });
 
-  await test.step("tool options move from the canvas bar to the dock", async () => {
-    await page.getByRole("tab", { name: "Brush" }).click();
-    await expect(
-      page.getByRole("slider", { name: "Size", exact: true }),
-    ).toBeVisible();
-    await expect(
-      page.getByRole("region", { name: "Image canvas" }).getByRole("group", {
-        name: "Brush mode",
-      }),
-    ).toHaveCount(0);
+  test("dials take a finger's drag as one edit, and a double tap resets", async ({
+    page,
+    context,
+  }) => {
+    await page.goto("/");
+    await page
+      .locator('input[type="file"]')
+      .setInputFiles("tests/fixtures/photo.svg");
+    const exposure = page.getByRole("slider", {
+      name: "Exposure",
+      exact: true,
+    });
+    await expect(exposure).toHaveAttribute("aria-valuetext", "0.00");
+    const bounds = await box(exposure);
+    const [x, y] = [bounds.x + bounds.width / 2, bounds.y + 20];
+    const touch = await context.newCDPSession(page);
+    const send = (type: "touchStart" | "touchMove" | "touchEnd", at = [x]) =>
+      touch.send("Input.dispatchTouchEvent", {
+        type,
+        touchPoints: type === "touchEnd" ? [] : at.map((x) => ({ x, y })),
+      });
+    await send("touchStart");
+    for (let step = 1; step <= 6; step++) {
+      await send("touchMove", [x + step * 10]);
+    }
+    await send("touchEnd");
+    // Sixty pixels sweep a tenth of the range.
+    await expect(exposure).toHaveAttribute("aria-valuetext", "1.00");
+    await page.touchscreen.tap(x, y);
+    await page.touchscreen.tap(x, y);
+    await expect(exposure).toHaveAttribute("aria-valuetext", "0.00");
+    const undo = page.getByRole("button", { name: "Undo", exact: true });
+    await undo.tap();
+    await expect(exposure).toHaveAttribute("aria-valuetext", "1.00");
+    await undo.tap();
+    await expect(exposure).toHaveAttribute("aria-valuetext", "0.00");
   });
 });

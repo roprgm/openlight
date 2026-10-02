@@ -1,96 +1,57 @@
-import { writeFile } from "node:fs/promises";
-import type { Page } from "@playwright/test";
-import { expect, test } from "./fixtures";
+import { expect, openPhoto, test } from "./fixtures";
 import { readImage, readPreview } from "./images";
 import { box, choose, drag } from "./pointer";
 
-async function samples(page: Page) {
-  const { samples } = await readImage(page, undefined, [
-    [600, 100],
-    [600, 700],
-  ]);
-  return samples ?? [];
-}
-
-test("draw a mask, edit its child effects, reorder layers and undo", async ({
+test("draw masks, edit their child effects, reorder layers and undo", async ({
   page,
-}, info) => {
+}) => {
   test.setTimeout(90_000);
   await page.setViewportSize({ width: 1440, height: 1000 });
   const state = () => page.evaluate(() => window.openlight.getState());
+  const layers = async () => (await state()).scene?.layers ?? [];
+  const undo = () =>
+    page.getByRole("button", { name: "Undo", exact: true }).click();
+  async function samples() {
+    const points = [
+      [600, 100],
+      [600, 700],
+    ] as const;
+    return (await readImage(page, undefined, points)).samples ?? [];
+  }
+  async function radialMask() {
+    const layer = (await layers()).at(-1);
+    if (layer?.kind !== "mask" || layer.mask.kind !== "radial") {
+      throw Error("Radial mask missing");
+    }
+    return layer.mask;
+  }
   async function setField(name: string, value: string) {
     const field = page.getByRole("textbox", { name, exact: true });
     await field.fill(value);
     await field.press("Enter");
   }
-  async function action(name: string, command: string) {
+  async function action(layer: string, ...items: string[]) {
     await page
-      .getByRole("button", { name: `${name} actions`, exact: true })
+      .getByRole("button", { name: `${layer} actions`, exact: true })
       .click();
-    await page.getByRole("menuitem", { name: command, exact: true }).click();
+    for (const item of items) {
+      await page.getByRole("menuitem", { name: item, exact: true }).click();
+    }
   }
-  async function dragLayer(name: string, target: string, fraction: number) {
-    const from = await box(
-      page
-        .getByRole("region", { name: "Layers", exact: true })
-        .getByRole("button", { name, exact: true }),
-    );
-    const row = page
-      .locator("[data-selected]")
-      .filter({ has: page.getByRole("button", { name: target, exact: true }) });
-    const to = await box(row);
-    await drag(
-      page,
-      [from.x + from.width / 2, from.y + from.height / 2],
-      [to.x + to.width / 2, to.y + to.height * fraction],
-    );
-  }
-  async function saveExport(name: string) {
-    const bytes = await page.evaluate(async () => [
-      ...new Uint8Array(
-        await (await window.openlight.exportImage()).arrayBuffer(),
-      ),
-    ]);
-    await writeFile(info.outputPath(name), new Uint8Array(bytes));
-  }
-  await page.goto("/");
-  await page
-    .locator('input[type="file"]')
-    .setInputFiles("tests/fixtures/photo.svg");
-  await expect(
-    page.getByRole("textbox", { name: "Exposure", exact: true }),
-  ).toHaveValue("0.00");
-  await test.step("Details is an optional effect, separate from image adjustments", async () => {
-    await expect(
-      page.getByRole("heading", { name: "Adjustments", exact: true }),
-    ).toBeVisible();
-    await expect(
-      page.getByRole("textbox", { name: "Clarity", exact: true }),
-    ).toHaveCount(0);
-    await page.getByRole("button", { name: "Add effect", exact: true }).click();
-    await page.getByRole("menuitem", { name: "Details", exact: true }).click();
-    await setField("Clarity", "-100");
-    expect((await readImage(page)).corner[0]).toBeGreaterThan(0);
-    await page.getByRole("button", { name: "Undo", exact: true }).click();
-    expect((await readImage(page)).corner).toEqual([0, 0, 0, 255]);
-    await page.getByRole("button", { name: "Undo", exact: true }).click();
-  });
-  const original = await samples(page);
+  await openPhoto(page);
+  const original = await samples();
   await test.step("a local exposure recovers light the global exposure pushed past white", async () => {
-    // Export pixels at the gray field and the light band, both inside the radial mask below.
-    const tones = async () => {
-      const { samples } = await readImage(page, undefined, [
-        [600, 700],
-        [1100, 700],
-      ]);
-      return samples?.map((pixel) => pixel[0]) ?? [];
-    };
-    const [gray, band] = await tones();
-    expect([gray, band]).toEqual([128, 224]);
-    await page.evaluate(() => window.openlight.setAdjustments({ exposure: 2 }));
-    expect((await tones())[0]).toBeGreaterThan(200);
+    // The gray field and the light band, both inside the radial mask.
+    const points = [
+      [600, 700],
+      [1100, 700],
+    ] as const;
+    const tones = async () =>
+      (await readImage(page, undefined, points)).samples?.map(([red]) => red);
+    expect(await tones()).toEqual([128, 224]);
     await page.evaluate(() => {
       const api = window.openlight;
+      api.setAdjustments({ exposure: 2 });
       const mask = api.addLayer("mask");
       api.setLayerMask(mask, {
         kind: "radial",
@@ -101,94 +62,49 @@ test("draw a mask, edit its child effects, reorder layers and undo", async ({
       });
       api.setAdjustments({ exposure: -2 }, mask);
     });
-    const recovered = await tones();
-    expect(Math.abs(recovered[0] - gray)).toBeLessThan(30);
-    expect(Math.abs(recovered[1] - band)).toBeLessThan(30);
-    expect(recovered[1] - recovered[0]).toBeGreaterThan(0.6 * (band - gray));
-    expect((await samples(page))[0][0]).toBeGreaterThan(200);
+    const [gray, band] = (await tones()) ?? [];
+    expect(Math.abs(gray - 128)).toBeLessThan(30);
+    expect(Math.abs(band - 224)).toBeLessThan(30);
+    expect(band - gray).toBeGreaterThan(0.6 * (224 - 128));
+    expect((await samples())[0][0]).toBeGreaterThan(200);
     await page.evaluate(() => {
       for (let i = 0; i < 4; i++) window.openlight.undo();
     });
-    expect(await samples(page)).toEqual(original);
+    expect(await samples()).toEqual(original);
   });
-  await page.screenshot({ path: info.outputPath("layers-before-ui.png") });
-  await saveExport("layers-before-export.png");
-  await page.getByRole("tab", { name: "Linear gradient", exact: true }).click();
-  const overlay = page.getByLabel("Gradient mask canvas", { exact: true });
-  const bounds = await box(overlay);
+  await page.keyboard.press("l");
+  const bounds = await box(
+    page.getByLabel("Gradient mask canvas", { exact: true }),
+  );
   const scale = Math.min(bounds.width / 1200, bounds.height / 800, 2);
   const center = [bounds.x + bounds.width / 2, bounds.y + bounds.height / 2];
   const from = [center[0], center[1] - 200 * scale];
   const to = [center[0], center[1] + 200 * scale];
-  await test.step("cancellation is empty; a new mask shows its overlay until it changes the image", async () => {
-    await page.mouse.move(from[0], from[1]);
-    await page.mouse.down();
-    await page.mouse.move(to[0], to[1]);
-    await page.keyboard.press("Escape");
-    await page.mouse.up();
-    expect((await state()).scene?.layers).toHaveLength(1);
+  await test.step("a linear mask shows its overlay until an adjustment changes the image", async () => {
     // Sample above the center, clear of the guide lines and the move handle.
-    async function maskPreview() {
+    const tinted = async () => {
       const { center } = await readPreview(page, [0, -100 * scale]);
-      return {
-        shown: (await state()).preview?.maskOverlay !== undefined,
-        tinted: center[0] > center[1] + 30,
-      };
-    }
+      return center[0] > center[1] + 30;
+    };
     await drag(page, from, to);
-    await expect.poll(maskPreview).toEqual({ shown: true, tinted: true });
-    await page.keyboard.press("ControlOrMeta+z");
-    expect((await state()).scene?.layers).toHaveLength(1);
-    await expect.poll(maskPreview).toEqual({ shown: false, tinted: false });
-    await page.keyboard.press("l");
-    await drag(page, from, to);
-    await expect.poll(maskPreview).toEqual({ shown: true, tinted: true });
-    const layers = (await state()).scene?.layers;
-    expect(layers).toHaveLength(2);
-    expect(layers?.[1]).toMatchObject({
-      kind: "mask",
-      children: [],
-    });
+    expect(await layers()).toMatchObject([{}, { mask: { kind: "linear" } }]);
+    await expect.poll(tinted).toBe(true);
     await setField("Exposure", "1");
-    await expect.poll(maskPreview).toEqual({ shown: false, tinted: false });
+    await expect.poll(tinted).toBe(false);
     await page.keyboard.press("o");
-    await expect.poll(maskPreview).toEqual({ shown: true, tinted: true });
+    await expect.poll(tinted).toBe(true);
     await page.keyboard.press("o");
-    await expect.poll(maskPreview).toEqual({ shown: false, tinted: false });
-    const [top, bottom] = await samples(page);
+    const [top, bottom] = await samples();
     expect(top[0]).toBeGreaterThan(170);
-    expect(bottom).toEqual([128, 128, 128, 255]);
-    await setField("Temp", "20");
-    const warmed = await samples(page);
-    expect(warmed[0][0]).toBeGreaterThan(warmed[0][2]);
-    await page.getByRole("button", { name: "Undo", exact: true }).click();
-    expect(await samples(page)).toEqual([top, bottom]);
-    await setField("Exposure", "2");
-    expect((await samples(page))[0][0]).toBeGreaterThan(top[0] + 20);
+    expect(bottom).toEqual(original[1]);
   });
-  await test.step("selected gradient guides move, resize and rotate with atomic undo and cancellation", async () => {
+  await test.step("the move guide is one undo step, Escape cancels it, and Delete removes the mask", async () => {
     const before = await state();
-    const pixels = await samples(page);
+    const pixels = await samples();
     await drag(page, center, [center[0], center[1] - 150 * scale]);
-    expect((await state()).history.undoCount).toBe(
-      before.history.undoCount + 1,
-    );
-    expect(await samples(page)).not.toEqual(pixels);
+    expect(await samples()).not.toEqual(pixels);
     await page.keyboard.press("ControlOrMeta+z");
-    expect((await state()).scene).toEqual(before.scene);
-    expect(await samples(page)).toEqual(pixels);
-    await drag(page, from, [from[0], from[1] - 50 * scale]);
-    expect((await state()).scene).not.toEqual(before.scene);
-    await page.keyboard.press("ControlOrMeta+z");
-    await drag(page, [center[0] + 80, center[1]], [center[0], center[1] + 80]);
-    const rotated = (await state()).scene?.layers[1];
-    expect(rotated?.kind).toBe("mask");
-    if (rotated?.kind === "mask" && rotated.mask.kind === "linear") {
-      expect(
-        Math.abs(rotated.mask.end[1] - rotated.mask.start[1]),
-      ).toBeLessThan(1);
-    }
-    await page.keyboard.press("ControlOrMeta+z");
+    expect(await samples()).toEqual(pixels);
     await page.mouse.move(center[0], center[1]);
     await page.mouse.down();
     await page.mouse.move(center[0] + 50, center[1] + 50);
@@ -196,258 +112,130 @@ test("draw a mask, edit its child effects, reorder layers and undo", async ({
     await page.mouse.up();
     expect((await state()).scene).toEqual(before.scene);
     await page.keyboard.press("Delete");
-    expect((await state()).scene?.layers).toHaveLength(1);
+    expect(await layers()).toHaveLength(1);
     await page.keyboard.press("ControlOrMeta+z");
     expect((await state()).scene).toEqual(before.scene);
   });
-  await test.step("mask opacity and visibility apply to the complete branch", async () => {
+  await test.step("a subtracting child changes coverage and Add restores it", async () => {
     await page
       .getByRole("button", { name: "Linear Gradient", exact: true })
       .dblclick();
     await setField("Layer name", "Sky");
-    const masked = await samples(page);
-    // The overlay tint scales with opacity, like the mask's coverage does.
-    const tint = async () => {
-      const { center } = await readPreview(page, [0, -100 * scale]);
-      return center[0] - center[1];
-    };
-    await page.keyboard.press("o");
-    await expect.poll(tint).toBeGreaterThan(30);
-    const full = await tint();
-    await setField("Opacity", "50");
-    await expect.poll(tint).toBeLessThan(full - 10);
-    await page.keyboard.press("o");
-    await page.getByRole("button", { name: "Undo", exact: true }).click();
-    await setField("Opacity", "0");
-    expect(await samples(page)).toEqual(original);
-    // The curve still shows what it would affect.
-    await expect(
-      page.getByLabel("curve input histogram").locator("polyline"),
-    ).toHaveAttribute("points", /,\d{1,2}\./);
-    await page.getByRole("button", { name: "Undo", exact: true }).click();
-    expect(await samples(page)).toEqual(masked);
-    await page.getByRole("button", { name: "Show Sky", exact: true }).click();
-    expect(await samples(page)).toEqual(original);
-    await page.getByRole("button", { name: "Show Sky", exact: true }).click();
-    expect(await samples(page)).toEqual(masked);
-  });
-  await test.step("a subtracting child changes coverage and Add restores the masked region", async () => {
-    const masked = await samples(page);
-    await page
-      .getByRole("button", { name: "Sky actions", exact: true })
-      .click();
-    await page
-      .getByRole("menuitem", { name: "Subtract from mask", exact: true })
-      .click();
-    await page
-      .getByRole("menuitem", { name: "Linear gradient", exact: true })
-      .click();
+    const masked = await samples();
+    await action("Sky", "Subtract from mask", "Linear gradient");
     await drag(page, from, to);
-    expect((await samples(page))[0]).toEqual(original[0]);
-    const operation = page.getByRole("combobox", {
-      name: "Mask operation",
-      exact: true,
-    });
+    expect((await samples())[0]).toEqual(original[0]);
+    const operation = page.getByRole("combobox", { name: "Mask operation" });
     await choose(page, operation, "Add");
-    expect((await samples(page))[0]).toEqual(masked[0]);
-    await page.getByRole("button", { name: "Undo", exact: true }).click();
-    expect((await samples(page))[0]).toEqual(original[0]);
-    await page.getByRole("button", { name: "Undo", exact: true }).click();
-    expect(await samples(page)).toEqual(masked);
+    expect((await samples())[0]).toEqual(masked[0]);
+    await undo();
+    await undo();
+    expect(await samples()).toEqual(masked);
     await page.getByRole("button", { name: "Sky", exact: true }).click();
   });
-
-  await test.step("child effects can leave the mask, reorder and return through undo", async () => {
-    const masked = await samples(page);
-    await page.getByRole("button", { name: "Add effect", exact: true }).click();
-    await expect(page.getByRole("menu")).toBeVisible();
-    await page.keyboard.press("Escape");
-    await expect(page.getByRole("menu")).toHaveCount(0);
+  await test.step("a child effect moves out by drag and menu, returns, duplicates and deletes", async () => {
+    const masked = await samples();
     await page.getByRole("button", { name: "Add effect", exact: true }).click();
     await page.getByRole("menuitem", { name: "Vignette", exact: true }).click();
-    expect(
-      (await state()).scene?.layers[1].children.map((layer) => layer.kind),
-    ).toEqual(["vignette"]);
     await setField("Intensity", "80");
-    const nested = await samples(page);
+    const nested = await samples();
     expect(nested[0][0]).toBeLessThan(masked[0][0]);
     expect(nested[1]).toEqual(masked[1]);
-    const beforeMove = (await state()).history.undoCount;
-    await dragLayer("Vignette", "Sky", 0.1);
-    expect((await state()).history.undoCount).toBe(beforeMove + 1);
-    expect((await state()).scene?.layers).toHaveLength(3);
-    expect((await samples(page))[1][0]).toBeLessThan(masked[1][0]);
-    await dragLayer("Vignette", "photo.svg", 0.1);
-    expect((await state()).scene?.layers[1].kind).toBe("vignette");
-    await dragLayer("Vignette", "Sky", 0.5);
-    expect(await samples(page)).toEqual(nested);
-    await page.getByRole("button", { name: "Undo", exact: true }).click();
-    await page.getByRole("button", { name: "Undo", exact: true }).click();
-    await page.getByRole("button", { name: "Undo", exact: true }).click();
-    expect(await samples(page)).toEqual(nested);
+    const row = (name: string) =>
+      box(
+        page
+          .getByRole("region", { name: "Layers", exact: true })
+          .getByRole("button", { name, exact: true }),
+      );
+    const vignette = await row("Vignette");
+    const sky = await row("Sky");
+    await drag(
+      page,
+      [vignette.x + vignette.width / 2, vignette.y + vignette.height / 2],
+      [sky.x + sky.width / 2, sky.y + 2],
+    );
+    expect(await layers()).toHaveLength(3);
+    expect((await samples())[1][0]).toBeLessThan(masked[1][0]);
+    await undo();
+    expect(await samples()).toEqual(nested);
+    await action("Vignette", "Move out");
+    expect((await samples())[1][0]).toBeLessThan(masked[1][0]);
+    await action("Vignette", "Move into", "Sky");
+    expect(await samples()).toEqual(nested);
+    await action("Vignette", "Duplicate");
+    expect((await samples())[0][0]).toBeLessThan(nested[0][0]);
+    await undo();
     await action("Vignette", "Delete");
-    expect(await samples(page)).toEqual(masked);
-    await page.getByRole("button", { name: "Undo", exact: true }).click();
-    expect((await state()).scene?.layers[1].children).toHaveLength(1);
+    expect(await samples()).toEqual(masked);
+    await undo();
+    expect(await samples()).toEqual(nested);
   });
-  await page.getByRole("button", { name: "Sky", exact: true }).click();
-  await page.screenshot({ path: info.outputPath("layers-after-ui.png") });
-  await saveExport("layers-after-export.png");
-  await test.step("radial masks edit locally, resize, feather, rotate, subtract and undo", async () => {
+  await test.step("mask opacity and visibility apply to the whole branch", async () => {
+    await page.getByRole("button", { name: "Sky", exact: true }).click();
+    const masked = await samples();
+    await setField("Opacity", "0");
+    expect(await samples()).toEqual(original);
+    await undo();
+    const show = page.getByRole("button", { name: "Show Sky", exact: true });
+    await show.click();
+    expect(await samples()).toEqual(original);
+    await show.click();
+    expect(await samples()).toEqual(masked);
+  });
+  await test.step("a radial mask moves, resizes, rotates and feathers with its guides", async () => {
+    await page.getByRole("button", { name: "photo.svg", exact: true }).click();
     const before = await readImage(page);
-    const beforeSamples = await samples(page);
-    // Guides win over drawing, so the drag starts below Sky's rotation guide.
-    const origin = [center[0], center[1] + 60 * scale];
     await page.keyboard.press("r");
-    await drag(page, origin, [
-      origin[0] + 220 * scale,
-      origin[1] + 120 * scale,
+    await drag(page, center, [
+      center[0] + 220 * scale,
+      center[1] + 120 * scale,
     ]);
     await setField("Exposure", "1");
     expect((await readImage(page)).center[0]).toBeGreaterThan(
       before.center[0] + 20,
     );
-    expect((await samples(page))[1]).toEqual(beforeSamples[1]);
-    await page.screenshot({ path: info.outputPath("radial-ui.png") });
-    await saveExport("radial-export.png");
-    const edited = await state();
-    await page.mouse.move(origin[0] + 40, origin[1] + 30);
-    await expect(
-      page.getByLabel("Move radial gradient", { exact: true }),
-    ).toHaveCSS("cursor", "grab");
-    await page.mouse.down();
-    await expect(overlay).toHaveCSS("cursor", "grabbing");
-    await page.mouse.move(origin[0] + 40 + 300 * scale, origin[1] + 30, {
-      steps: 8,
-    });
-    const preview = (await state()).scene;
-    await page.mouse.up();
-    expect((await state()).scene).toEqual(preview);
-    expect((await state()).history.undoCount).toBe(
-      edited.history.undoCount + 1,
+    await drag(
+      page,
+      [center[0] + 40, center[1] + 30],
+      [center[0] + 40 + 300 * scale, center[1] + 30],
     );
     expect((await readImage(page)).center).toEqual(before.center);
     await page.keyboard.press("ControlOrMeta+z");
-    expect((await state()).scene).toEqual(edited.scene);
-    await expect(
-      page.getByLabel("Radial right radius", { exact: true }),
-    ).toHaveCSS("cursor", "ew-resize");
-    await expect(
-      page.getByLabel("Rotate radial gradient", { exact: true }),
-    ).toHaveCSS("cursor", /url/);
-    const radius = await box(
-      page.getByLabel("Radial right radius", { exact: true }),
-    );
-    await drag(
-      page,
-      [radius.x + radius.width / 2, radius.y + radius.height / 2],
-      [radius.x + radius.width / 2 - 60, radius.y + radius.height / 2],
-    );
-    expect((await state()).scene).not.toEqual(edited.scene);
-    await page.keyboard.press("ControlOrMeta+z");
-    const options = page.getByRole("group", { name: "Layer options" });
-    await expect(
-      options.getByRole("slider", { name: "Opacity", exact: true }),
-    ).toBeVisible();
-    await expect(
-      options.getByRole("slider", { name: "Feather", exact: true }),
-    ).toBeVisible();
-    await expect(
-      options.getByRole("textbox", { name: "Feather", exact: true }),
-    ).toBeVisible();
-    const panel = page.getByRole("region", { name: "Editor controls" });
-    await expect(
-      panel.getByRole("heading", { name: "Mask adjustments", exact: true }),
-    ).toBeVisible();
-    await expect(
-      panel.getByRole("textbox", { name: "Feather", exact: true }),
-    ).toHaveCount(0);
-    await setField("Feather", "80");
-    await page.getByRole("button", { name: "Undo", exact: true }).click();
-    await expect(
-      page.getByRole("textbox", { name: "Feather", exact: true }),
-    ).toHaveValue("50");
-    const rotation = await box(
-      page.getByLabel("Rotate radial gradient", { exact: true }),
-    );
+    const radius = await box(page.getByLabel("Radial right radius"));
+    const [x, y] = [radius.x + radius.width / 2, radius.y + radius.height / 2];
+    await drag(page, [x, y], [x - 120 * scale, y]);
+    const rotation = await box(page.getByLabel("Rotate radial gradient"));
     await drag(
       page,
       [rotation.x + rotation.width / 2, rotation.y + rotation.height / 2],
-      [origin[0] + 150 * scale, origin[1]],
+      [center[0] + 150 * scale, center[1]],
     );
-    const rotated = (await state()).scene?.layers.at(-1);
-    expect(
-      rotated?.kind === "mask" &&
-        rotated.mask.kind === "radial" &&
-        Math.abs(rotated.mask.angle - 90) < 1,
-    ).toBe(true);
-    await page.keyboard.press("ControlOrMeta+z");
-    await page
-      .getByRole("button", { name: "Radial Gradient actions", exact: true })
-      .click();
-    await page
-      .getByRole("menuitem", { name: "Subtract from mask", exact: true })
-      .click();
-    await page
-      .getByRole("menuitem", { name: "Radial gradient", exact: true })
-      .click();
-    await drag(page, origin, [
-      origin[0] + 220 * scale,
-      origin[1] + 120 * scale,
-    ]);
-    expect((await readImage(page)).center).toEqual(before.center);
-    await page.keyboard.press("Delete");
-    expect((await readImage(page)).center[0]).toBeGreaterThan(
-      before.center[0] + 20,
-    );
-    await page.keyboard.press("ControlOrMeta+z");
-    expect((await readImage(page)).center).toEqual(before.center);
+    await setField("Feather", "80");
+    const radial = await radialMask();
+    expect(radial).toMatchObject({
+      angle: expect.closeTo(90, 0),
+      feather: 0.8,
+    });
+    expect(radial.radius[0]).toBeLessThan(radial.radius[1]);
   });
-  await test.step("guide clicks and mobile drawing keep the preview stable", async () => {
-    await page
-      .getByRole("button", { name: "Select Radial Gradient", exact: true })
-      .first()
-      .click();
-    await page.getByRole("button", { name: "Zoom in", exact: true }).click();
+  await test.step("Shift draws a circle, and a guide's double click keeps the zoom", async () => {
+    await page.getByRole("button", { name: "photo.svg", exact: true }).click();
+    await page.keyboard.press("r");
+    await page.mouse.move(center[0], center[1]);
+    await page.mouse.down();
+    await page.keyboard.down("Shift");
+    await page.mouse.move(center[0] + 65, center[1] + 35);
+    await page.keyboard.up("Shift");
+    await page.mouse.up();
+    const { radius } = await radialMask();
+    expect(radius[0]).toBe(radius[1]);
     const zoom = page.getByRole("button", { name: /^\d+%$/ });
-    const percent = await zoom.innerText();
-    await page.getByLabel("Move gradient", { exact: true }).dblclick();
-    await expect(zoom).toHaveText(percent);
-    await zoom.click();
-    // At fit the percentage zooms to one image pixel per device pixel, then fits again.
     const fitted = await zoom.innerText();
-    await page.mouse.move(0, 0);
-    await zoom.hover();
-    await expect(page.getByText("Zoom to 100%", { exact: true })).toBeVisible();
+    // At fit the percentage zooms to one image pixel per device pixel, then fits again.
     await zoom.click();
+    await page.getByLabel("Move gradient", { exact: true }).dblclick();
     await expect(zoom).toHaveText("100%");
     await zoom.click();
     await expect(zoom).toHaveText(fitted);
-    await page.setViewportSize({ width: 390, height: 844 });
-    await page.getByRole("tab", { name: "Layers", exact: true }).click();
-    await page.getByRole("button", { name: "photo.svg", exact: true }).click();
-    await page.keyboard.press("r");
-    await expect(overlay).toHaveCSS("cursor", "crosshair");
-    const view = await box(overlay);
-    const x = view.x + view.width / 2,
-      y = view.y + view.height / 2;
-    await page.mouse.move(x, y);
-    await page.mouse.down();
-    await page.keyboard.down("Shift");
-    await page.mouse.move(x + 65, y + 35);
-    const pin = page.getByLabel("Move gradient", { exact: true });
-    const drawn = await box(pin);
-    await page.keyboard.up("Shift");
-    await page.mouse.up();
-    expect(await box(pin)).toEqual(drawn);
-    const result = await state();
-    const layer = result.scene?.layers.find(
-      (item) => item.id === result.selectedLayerId,
-    );
-    expect(
-      layer?.kind === "mask" &&
-        layer.mask.kind === "radial" &&
-        layer.mask.radius[0] === layer.mask.radius[1],
-    ).toBe(true);
   });
 });

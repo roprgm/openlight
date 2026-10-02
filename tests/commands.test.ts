@@ -15,21 +15,16 @@ import { imageFrame } from "@/core/image/frame";
 
 test("commands validate their input, return the layer they edit, and reset as one edit", async () => {
   const gpu = await init();
-  const source = createImageSource(
-    target(gpu, { size: [32, 16], format: "rgba16float" }),
-  );
   const resources = createResources();
-  const sourceId = resources.add(new File([], "photo.png"), source);
-  const document = createDocument(
-    {
-      frame: imageFrame(source.image.size),
-      layers: [{ ...createImageLayer(sourceId, "Photo"), id: "base" }],
-    },
-    resources,
-  );
+  const image = target(gpu, { size: [32, 16], format: "rgba16float" });
+  const file = new File([], "photo.png");
+  const source = resources.add(file, createImageSource(image));
+  const base = { ...createImageLayer(source, "Photo"), id: "base" };
+  const frame = imageFrame(image.size);
+  const document = createDocument({ frame, layers: [base] }, resources);
   const workspace = createWorkspace();
   await workspace.open("photo.png", async () => document);
-  const { run } = createControls(gpu, workspace);
+  const { run, setVignette } = createControls(gpu, workspace);
   const opened = document.scene.getState();
   const undoCount = () => document.history.status.getState().undoCount;
 
@@ -39,22 +34,18 @@ test("commands validate their input, return the layer they edit, and reset as on
   expect(() => run({ type: "set-vignette", intensity: 101 })).toThrow(
     "Invalid set-vignette intensity",
   );
-  expect(undoCount()).toBe(0);
+  // The edit that would create the layer fails, so the layer is not left behind.
+  expect(() => setVignette({ intensity: 101 })).toThrow(
+    "Invalid vignette adjustment",
+  );
+  expect(document.scene.getState()).toBe(opened);
 
-  expect(run({ type: "set-adjustments", exposure: 1 })).toEqual({
-    layerId: "base",
-  });
+  expect(run({ type: "set-adjustments", exposure: 1 }).layerId).toBe("base");
   const vignette = run({ type: "set-vignette", intensity: 40 }).layerId;
   expect(run({ type: "set-vignette", softness: 80 }).layerId).toBe(vignette);
   const mask = run({
     type: "add-mask",
-    mask: {
-      kind: "radial",
-      center: [16, 8],
-      radius: [8, 4],
-      angle: 0,
-      feather: 0.5,
-    },
+    mask: { kind: "linear", start: [0, 0], end: [32, 16] },
     adjustments: { exposure: -1 },
   }).layerId;
   expect(document.scene.getState().layers.at(-1)).toMatchObject({
@@ -70,6 +61,7 @@ test("commands validate their input, return the layer they edit, and reset as on
   expect(undoCount()).toBe(6);
   run({ type: "undo" });
   expect(document.scene.getState()).toEqual(edited);
+  workspace.dispose();
 });
 
 test("range masks select tones or a color, validate their bounds, and intersect other masks", async () => {

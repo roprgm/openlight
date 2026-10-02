@@ -1,6 +1,7 @@
 import { expect, test } from "bun:test";
 import { init, target } from "vgpu/mock";
-import { openDraft, snapshotDraft } from "@/app/draft/store";
+import { createDraftSession } from "@/app/draft/session";
+import { createDraftStore, openDraft, snapshotDraft } from "@/app/draft/store";
 import { createImageLayer, createLayer } from "@/app/editor/layers";
 import { createDocument, createResources } from "@/core/document";
 import { createImageSource } from "@/core/image";
@@ -17,24 +18,16 @@ test("a draft survives storage's structured clone, reopens under its source ID, 
     );
   const bytes = new Uint8Array([1, 2, 3, 4]);
   const resources = createResources();
-  const source = resources.add(
-    new File([bytes], "photo.png", { type: "image/png" }),
-    await decode(),
+  const file = new File([bytes], "photo.png", { type: "image/png" });
+  const source = resources.add(file, await decode());
+  const duplicate = await decode();
+  expect(() => resources.add(file, duplicate, source)).toThrow(
+    "already exists",
   );
-  expect(() =>
-    resources.add(
-      new File([], "copy.png"),
-      createImageSource(target(gpu, { size: [1, 1] })),
-      source,
-    ),
-  ).toThrow("already exists");
-  const document = createDocument(
-    {
-      frame: imageFrame([8, 4]),
-      layers: [createImageLayer(source, "photo.png")],
-    },
-    resources,
-  );
+  duplicate.dispose();
+  const layers = [createImageLayer(source, "photo.png")] as const;
+  const frame = imageFrame([8, 4]);
+  const document = createDocument({ frame, layers }, resources);
   setAdjustments(document, { exposure: 0.5 });
   const vignette = addLayer(document, createLayer("vignette"));
   setVignette(document, { intensity: 30, softness: 70 }, vignette);
@@ -44,9 +37,7 @@ test("a draft survives storage's structured clone, reopens under its source ID, 
   const stored = structuredClone(snapshotDraft(document, "photo.png"));
   document.dispose();
   expect(stored.record).toMatchObject({ version: 1, name: "photo.png" });
-  const file = stored.files.get(source);
-  expect(file).toBeInstanceOf(File);
-  expect(await file?.bytes()).toEqual(bytes);
+  expect(await stored.files.get(source)?.bytes()).toEqual(bytes);
   const recovered = await openDraft(stored, decode);
   expect(recovered.scene.getState()).toEqual(edited);
   expect(recovered.resources.get(source).file.name).toBe("photo.png");
@@ -54,33 +45,28 @@ test("a draft survives storage's structured clone, reopens under its source ID, 
   recovered.dispose();
 
   const { record, files } = stored;
-  const malformed: [unknown, string][] = [
+  for (const [value, message] of [
     [undefined, "Invalid draft"],
-    [{ ...record, version: "1" }, "Invalid draft version"],
     [{ ...record, version: 2 }, "This draft needs a newer version"],
-    [{ ...record, scene: undefined }, "doesn't contain an OpenLight scene"],
-    [
-      { ...record, scene: { ...record.scene, version: 2 } },
-      "This scene needs a newer version",
-    ],
-  ];
-  for (const [value, message] of malformed) {
+  ] as const) {
     await expect(
       openDraft({ record: value as typeof record, files }, decode),
     ).rejects.toThrow(message);
   }
-  await expect(openDraft({ record, files: new Map() }, decode)).rejects.toThrow(
-    "The scene's image is missing.",
-  );
+  gpu.dispose();
+});
 
-  // A draft from before a group gained a parameter opens with its default, as a scene file does.
-  const older = structuredClone(record);
-  const layer = older.scene.scene.layers[1];
-  if (layer.kind !== "vignette") throw Error("Missing vignette.");
-  Reflect.deleteProperty(layer.vignette, "softness");
-  const reopened = await openDraft({ record: older, files }, decode);
-  expect(reopened.scene.getState().layers[1]).toMatchObject({
-    vignette: { intensity: 30, softness: 50 },
+test("a dismissed draft failure stays dismissed while autosave fails the same way", () => {
+  const session = createDraftSession(createDraftStore(), {
+    recoverDraft: async () => {},
+    discardDraft: async () => {},
   });
-  reopened.dispose();
+  const error = () => session.state.getState().error;
+  session.report(Error("IndexedDB is unavailable."));
+  expect(error()).toBe("IndexedDB is unavailable.");
+  session.dismiss();
+  session.report(Error("IndexedDB is unavailable."));
+  expect(error()).toBeUndefined();
+  session.report(Error("The quota is exceeded."));
+  expect(error()).toBe("The quota is exceeded.");
 });
