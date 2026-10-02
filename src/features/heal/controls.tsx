@@ -3,22 +3,22 @@ import { ListItem, ListItemAction } from "@roprgm/ui/list-item";
 import { Menu, MenuContent, MenuItem, MenuTrigger } from "@roprgm/ui/menu";
 import { CoverageThumbnail } from "@/components/editor/coverage-thumbnail";
 import { useDocument } from "@/components/editor/session";
-import { HealIcon } from "@/components/icons/heal";
 import { Icon } from "@/components/icons/icon";
 import type { HealPatch } from "@/core/document";
 import { deleteHealPatch, duplicateHealPatch } from "./edits";
 import { useHealing } from "./mode";
+import { PatchModeIcon } from "./mode-buttons";
 import { patchThumbnailRegion } from "./model";
 
 /** A patch still finding its donor has no raster yet. */
-function PendingThumbnail() {
+function PendingThumbnail({ mode }: { mode: HealPatch["mode"] }) {
   return (
     <span
       role="img"
       aria-label="Patch pending"
       className="grid size-8 shrink-0 place-items-center rounded-sm border border-level-8 bg-level-1 text-secondary"
     >
-      <HealIcon className="size-4" />
+      <PatchModeIcon mode={mode} className="size-4" />
     </span>
   );
 }
@@ -76,7 +76,7 @@ function PatchActions({
 
 /** The brush size, and the opacity once lowered; the donor is edited on the canvas. */
 function patchSummary(patch: HealPatch) {
-  const size = `${Math.round(patch.stroke.size)} px`;
+  const size = `${Math.round(patch.strokes[0].size)} px`;
   return patch.opacity < 1
     ? `${size} · ${Math.round(patch.opacity * 100)}%`
     : size;
@@ -116,17 +116,24 @@ export function HealControls({
               type="button"
               aria-label={`Select patch ${index + 1}`}
               aria-pressed={selectedPatch === patch.id}
-              onClick={() => selectPatch(patch.id)}
+              onClick={(event) => {
+                selectPatch(patch.id);
+                event.currentTarget.blur();
+              }}
               className="flex min-w-0 flex-1 items-center gap-2 self-stretch px-2 text-left"
             >
               <CoverageThumbnail
                 id={`layer/${id}/${patch.id}`}
                 version={patch}
-                region={patchThumbnailRegion(patch.stroke, source.image.size)}
+                region={patchThumbnailRegion(patch.strokes, source.image.size)}
                 label="Patch shape"
-                fallback={<PendingThumbnail />}
+                fallback={<PendingThumbnail mode={patch.mode} />}
               />
               <span className="min-w-0 flex-1 truncate">Patch {index + 1}</span>
+              <PatchModeIcon
+                mode={patch.mode}
+                className="size-3.5 shrink-0 text-secondary"
+              />
               <span className="shrink-0 text-secondary tabular-nums">
                 {patchSummary(patch)}
               </span>

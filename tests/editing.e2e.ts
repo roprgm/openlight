@@ -452,10 +452,12 @@ test("edit a photo, inspect the preview and histograms, undo changes, and export
     // A neutral mask receives the same pixels, counted only where it covers them.
     await expect(plot).toHaveAttribute("points", /,\d{1,2}\./);
     await expect(plot).not.toHaveAttribute("points", whole ?? "");
+    const neutral = await plot.getAttribute("points");
     await page.evaluate(() => {
       const api = window.openlight;
       api.setAdjustments({ exposure: 1 }, api.getState().selectedLayerId);
     });
+    await expect(plot).not.toHaveAttribute("points", neutral ?? "");
     await expect(plot).toHaveAttribute("points", /,\d{1,2}\./);
     const points = await plot.getAttribute("points");
     await page

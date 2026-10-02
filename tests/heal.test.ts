@@ -1,6 +1,6 @@
-import { expect, test } from "bun:test";
+import { expect, spyOn, test } from "bun:test";
 import { init, target } from "vgpu/mock";
-import { createImageLayer, createLayer } from "@/app/editor/layers";
+import { createImageLayer, createLayer, createMask } from "@/app/editor/layers";
 import { createEditorRenderer } from "@/app/editor/renderer";
 import {
   type BrushStroke,
@@ -10,8 +10,12 @@ import {
 } from "@/core/document";
 import { createImageSource } from "@/core/image";
 import { imageFrame } from "@/core/image/frame";
+import { createRenderGraph, input } from "@/core/renderer";
+import { setAdjustments } from "@/features/adjustments/edits";
 import {
   addHealPatch,
+  addHealStroke,
+  addRemovePatch,
   deleteHealPatch,
   duplicateHealPatch,
   extendHealPatch,
@@ -19,7 +23,8 @@ import {
   setHealPatch,
   setHealSource,
 } from "@/features/heal/edits";
-import { addLayer, deleteLayer } from "@/features/layers/edits";
+import { inpaintField } from "@/features/heal/inpaint";
+import { addLayer, deleteLayer, setLayer } from "@/features/layers/edits";
 
 function healFixture(size: readonly [number, number] = [64, 64]) {
   const resources = createResources();
@@ -42,11 +47,219 @@ const dab: BrushStroke = {
   points: [[10, 10, 1]],
 };
 
+test("Remove passes never overwrite distinct uniforms before their frame submits", async () => {
+  const gpu = await init();
+  const source = target(gpu, { size: [64, 64], format: "rgba16float" });
+  const coverage = target(gpu, { size: [64, 64], format: "r8unorm" });
+  const graph = createRenderGraph(gpu);
+  const uploads = spyOn(gpu.gpu.queue, "writeBuffer");
+  try {
+    graph.render([
+      inpaintField(
+        input(source),
+        { coverage: input(coverage), origin: [0, 0] },
+        { origin: [0, 0], extent: source.size },
+        "remove",
+      ),
+    ]);
+    const uniforms = new Map<GPUBuffer, Uint8Array>();
+    for (const [buffer, , data] of uploads.mock.calls) {
+      const bytes = ArrayBuffer.isView(data)
+        ? new Uint8Array(data.buffer, data.byteOffset, data.byteLength)
+        : new Uint8Array(data);
+      const previous = uniforms.get(buffer);
+      if (previous) expect(bytes).toEqual(previous);
+      uniforms.set(buffer, bytes.slice());
+    }
+    expect(uniforms.size).toBeGreaterThan(1);
+  } finally {
+    uploads.mockRestore();
+    graph.dispose();
+    coverage.color.dispose();
+    source.color.dispose();
+    gpu.dispose();
+  }
+});
+
+test("patch strokes add, erase, replay on undo, and move together while retaining the donor", async () => {
+  const gpu = await init();
+  const source = createImageSource(
+    target(gpu, { size: [1024, 1024], format: "rgba16float" }),
+  );
+  const { document, layer } = healFixture([1024, 1024]);
+  const renderer = createEditorRenderer(gpu, source);
+  try {
+    const id = addHealPatch(document, layer, dab, [20, 0], "clone");
+    await renderer.update(document.scene.getState());
+    expect(renderer.inspect().stamped).toBe(1);
+    addHealStroke(document, layer, id, { ...dab, points: [[30, 30, 1]] });
+    await renderer.update(document.scene.getState());
+    expect(renderer.inspect().stamped).toBe(2);
+    addHealStroke(document, layer, id, { ...dab, mode: "erase", size: 1000 });
+    await renderer.update(document.scene.getState());
+    // Erasure outside the patch never grows its raster or repeats earlier dabs.
+    expect(renderer.inspect().stamped).toBe(3);
+    expect(renderer.inspect().rasters[0].size).toEqual([256, 256]);
+    await renderer.update(document.scene.getState());
+    expect(renderer.inspect().stamped).toBe(3);
+    document.history.undo();
+    await renderer.update(document.scene.getState());
+    expect(renderer.inspect().stamped).toBe(5);
+    document.history.redo();
+    await renderer.update(document.scene.getState());
+    expect(renderer.inspect().stamped).toBe(6);
+    setHealDestination(document, layer, id, [20, 25]);
+    expect(patchesOf(document, layer)).toMatchObject([
+      {
+        id,
+        mode: "clone",
+        offset: [10, -15],
+        strokes: [
+          { mode: "paint", points: [[20, 25, 1]] },
+          { mode: "paint", points: [[40, 45, 1]] },
+          { mode: "erase", points: [[20, 25, 1]] },
+        ],
+      },
+    ]);
+  } finally {
+    renderer.dispose();
+    document.dispose();
+    source.dispose();
+    gpu.dispose();
+  }
+});
+
+test("Remove patches edit, move, duplicate, and undo without a donor", () => {
+  const { document, layer } = healFixture();
+  try {
+    document.history.begin();
+    const patch = addRemovePatch(document, layer, { ...dab, feather: 0.3 });
+    extendHealPatch(document, layer, [[12, 14, 1]]);
+    document.history.commit();
+    setHealPatch(document, layer, patch, { opacity: 0.5 });
+    setHealDestination(document, layer, patch, [20, 30]);
+    const copy = duplicateHealPatch(document, layer, patch);
+    expect(patchesOf(document, layer)).toMatchObject([
+      {
+        id: patch,
+        mode: "remove",
+        opacity: 0.5,
+        feather: 0.3,
+        strokes: [
+          {
+            points: [
+              [20, 30, 1],
+              [22, 34, 1],
+            ],
+          },
+        ],
+      },
+      { id: copy, mode: "remove" },
+    ]);
+    expect(patchesOf(document, layer)[0]).not.toHaveProperty("offset");
+    expect(() => setHealSource(document, layer, patch, [10, 10])).toThrow(
+      "no donor",
+    );
+    document.history.undo();
+    expect(patchesOf(document, layer)).toHaveLength(1);
+    document.history.undo();
+    document.history.undo();
+    document.history.undo();
+    expect(patchesOf(document, layer)).toHaveLength(0);
+    document.history.redo();
+    expect(patchesOf(document, layer)[0].mode).toBe("remove");
+  } finally {
+    document.dispose();
+  }
+});
+
 function patchesOf(document: ReturnType<typeof createDocument>, layer: string) {
   const healing = findLayer(document.scene.getState().layers, layer);
   if (healing?.kind !== "heal") throw Error("Healing layer missing.");
   return healing.patches;
 }
+
+test("a nested Remove retains synthesis when bypassed and invalidates upstream content and proxy changes", async () => {
+  const gpu = await init();
+  const source = createImageSource(
+    target(gpu, { size: [128, 96], format: "rgba16float" }),
+  );
+  const { document } = healFixture([128, 96]);
+  const renderer = createEditorRenderer(gpu, source);
+  const mask = addLayer(
+    document,
+    createMask({ kind: "linear", start: [0, 0], end: [0, 96] }),
+  );
+  const layer = addLayer(document, createLayer("heal"), { inside: mask });
+  const patch = addRemovePatch(document, layer, {
+    ...dab,
+    points: [[64, 48, 1]],
+  });
+  const solves = () =>
+    renderer.inspect().passes.some((name) => name.includes("/inpaint/"));
+  try {
+    await renderer.update(document.scene.getState());
+    expect(solves()).toBe(true);
+    setHealPatch(document, layer, patch, { opacity: 0.5, feather: 0.4 });
+    await renderer.update(document.scene.getState());
+    expect(solves()).toBe(false);
+    for (const id of [layer, mask]) {
+      setLayer(document, id, { visible: false });
+      await renderer.update(document.scene.getState());
+      expect(renderer.inspect().cachedTextures).toHaveLength(1);
+      setLayer(document, id, { visible: true });
+      await renderer.update(document.scene.getState());
+      expect(solves()).toBe(false);
+      setLayer(document, id, { opacity: 0 });
+      await renderer.update(document.scene.getState());
+      expect(renderer.inspect().cachedTextures).toHaveLength(1);
+      setLayer(document, id, { opacity: 1 });
+      await renderer.update(document.scene.getState());
+      expect(solves()).toBe(false);
+    }
+    for (const mode of ["paint", "erase"] as const) {
+      addHealStroke(document, layer, patch, {
+        ...dab,
+        mode,
+        size: 2,
+        points: [[64, 48, 1]],
+      });
+      await renderer.update(document.scene.getState());
+      expect(solves()).toBe(true);
+      setHealPatch(document, layer, patch, {
+        opacity: mode === "paint" ? 0.6 : 0.5,
+      });
+      await renderer.update(document.scene.getState());
+      expect(solves()).toBe(false);
+    }
+    setLayer(document, mask, { opacity: 0.5 });
+    await renderer.update(document.scene.getState());
+    expect(solves()).toBe(false);
+    setLayer(document, mask, { visible: false });
+    await renderer.update(document.scene.getState());
+    setAdjustments(document, { exposure: 1 }, mask);
+    await renderer.update(document.scene.getState());
+    expect(solves()).toBe(false);
+    setLayer(document, mask, { visible: true });
+    await renderer.update(document.scene.getState());
+    expect(solves()).toBe(true);
+    renderer.setDisplayScale(0.5);
+    await renderer.update(document.scene.getState(), undefined, true);
+    expect(solves()).toBe(true);
+    await renderer.update(document.scene.getState());
+    expect(solves()).toBe(false);
+    setLayer(document, mask, { visible: false });
+    await renderer.update(document.scene.getState());
+    deleteLayer(document, mask);
+    await renderer.update(document.scene.getState());
+    expect(renderer.inspect().cachedTextures).toEqual([]);
+  } finally {
+    renderer.dispose();
+    document.dispose();
+    source.dispose();
+    gpu.dispose();
+  }
+});
 
 test("heal patches reuse brush rasters, scale with the proxy, undo, and release with the layer", async () => {
   const gpu = await init();
@@ -80,7 +293,7 @@ test("heal patches reuse brush rasters, scale with the proxy, undo, and release 
     expect(
       created?.kind === "heal" &&
         created.patches.find((item) => item.id === patch),
-    ).toMatchObject({ feather: 0.4, stroke: { size: 30, feather: 0 } });
+    ).toMatchObject({ feather: 0.4, strokes: [{ size: 30, feather: 0 }] });
     renderer.setDisplayScale(0.25);
     await renderer.update(document.scene.getState(), id, true);
     expect(renderer.fullImage().size).toEqual([64, 48]);
@@ -199,7 +412,11 @@ test("one Healing layer composes its patches in order through render nodes", asy
       points: [[64, 48, 1]],
     };
     const first = addHealPatch(document, layer, stroke, [30, 0]);
-    const second = addHealPatch(document, layer, stroke, [-30, 0]);
+    const second = addHealPatch(document, layer, stroke, [-30, 0], "clone");
+    expect(patchesOf(document, layer).map((patch) => patch.mode)).toEqual([
+      "heal",
+      "clone",
+    ]);
     await renderer.update(document.scene.getState(), layer);
     expect(renderer.inspect().passes).toContain(
       `layer/${layer}/${first}/blend`,
@@ -215,6 +432,11 @@ test("one Healing layer composes its patches in order through render nodes", asy
     expect(renderer.inputImage(second)).toBeDefined();
     expect(renderer.inputImage(second)).not.toBe(firstInput);
     const correctionGraph = renderer.inspect();
+    expect(
+      correctionGraph.passes.filter((name) =>
+        name.startsWith(`layer/${layer}/${second}/`),
+      ),
+    ).toEqual([`layer/${layer}/${second}/blend`]);
     setHealDestination(document, layer, first, [80, 60]);
     setHealPatch(document, layer, first, { feather: 0.2, opacity: 0.6 });
     await renderer.update(document.scene.getState(), second);
@@ -224,7 +446,7 @@ test("one Healing layer composes its patches in order through render nodes", asy
     expect(patchesOf(document, layer)).toMatchObject([
       {
         id: first,
-        stroke: { points: [[80, 60, 1]], size: 24, feather: 0 },
+        strokes: [{ points: [[80, 60, 1]], size: 24, feather: 0 }],
         offset: [14, -12],
         feather: 0.2,
         opacity: 0.6,

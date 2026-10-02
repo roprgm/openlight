@@ -10,9 +10,9 @@ function matchSource(
   pixels: Float32Array,
   size: readonly number[],
   dimensions: readonly number[],
-  stroke: BrushStroke,
+  strokes: readonly BrushStroke[],
 ): Point {
-  const { origin, extent } = patchBounds(stroke, dimensions);
+  const { origin, extent } = patchBounds(strokes, dimensions);
   const [left, top] = origin;
   const [width, height] = extent;
   function color(x: number, y: number, channel: number) {
@@ -99,7 +99,7 @@ export function createHealSearch(gpu: Gpu, timer?: Timer) {
     async find(
       image: Target,
       dimensions: readonly number[],
-      stroke: BrushStroke,
+      strokes: readonly BrushStroke[],
     ) {
       const ratio = Math.min(1, 512 / Math.max(...image.size));
       const size: [number, number] = [
@@ -122,7 +122,7 @@ export function createHealSearch(gpu: Gpu, timer?: Timer) {
         await thumbnail.readFloats(),
         size,
         dimensions,
-        stroke,
+        strokes,
       );
     },
     inspect: graph.inspect,

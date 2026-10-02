@@ -13,7 +13,12 @@ import type { Point } from "@/core/image/frame";
 import { createRenderGraph } from "./graph";
 import { createMaskCoverage } from "./mask";
 import { createPatchRaster, type PatchInput } from "./mask/patches";
-import { input, type RenderImage } from "./node";
+import {
+  type CacheKey,
+  input,
+  type RenderImage,
+  type RenderNode,
+} from "./node";
 import {
   type AcceptPainting,
   createPaintRaster,
@@ -34,6 +39,7 @@ export {
 } from "./display";
 export type { PatchInput } from "./mask/patches";
 export {
+  type CacheKey,
   input,
   merge,
   type NodeDefinition,
@@ -52,6 +58,8 @@ export { transformImages } from "./transform";
 export { createRenderGraph };
 
 export type Composition = {
+  /** Cache a derived image by its immutable content, RAW revision, and proxy factor. */
+  cache: (image: RenderNode, dependencies: readonly CacheKey[]) => RenderNode;
   inputId?: string;
   /** The mask whose ranges' image, the one below it, to keep for picking colors from it. */
   rangeSourceId?: string;
@@ -65,7 +73,7 @@ export type Composition = {
   /** Rasterized paint of a paint layer, prepared before composition. */
   paint: (layer: PaintLayer) => PaintInput | undefined;
   /** Rasterized coverage of an effect's own stroke, such as a Healing patch. */
-  patch: (id: string, stroke: BrushStroke) => PatchInput;
+  patch: (id: string, strokes: readonly BrushStroke[]) => PatchInput;
 };
 
 /** App composition describes requested outputs; the engine owns their storage. */
@@ -173,6 +181,10 @@ export function createRenderer(
       }
     }
     const images = compose(image, scene, {
+      cache: (image, dependencies) => ({
+        ...image,
+        cacheKeys: [version, factor, ...dependencies],
+      }),
       inputId,
       rangeSourceId,
       retain: (id) => active.add(id),
@@ -182,7 +194,7 @@ export function createRenderer(
           show: (id, coverage) => covered.set(id, coverage),
         }),
       paint: (layer) => paints.input(layer),
-      patch: (id, stroke) => patches.patch(id, stroke, developed.size),
+      patch: (id, strokes) => patches.patch(id, strokes, developed.size),
     });
     for (const id of instances) {
       if (!active.has(id)) graph.release(`${id}/`);

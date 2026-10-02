@@ -5,11 +5,21 @@ import {
   useContext,
   useState,
 } from "react";
+import {
+  type BrushInput,
+  brushParameters,
+  useBrushSettings,
+} from "@/components/editor/brush-input";
+import { useDocument, useSelectedLayer } from "@/components/editor/session";
+import { findLayer, type HealMode } from "@/core/document";
 import type { Point } from "@/core/image/frame";
+import { setHealPatch } from "./edits";
+import { healModes } from "./modes";
 
 const HealingContext = createContext<{
-  feather: number;
-  setFeather: (feather: number) => void;
+  brush: Omit<BrushInput, "parameters">;
+  mode: HealMode;
+  selectMode: (mode: HealMode) => void;
   /** A donor chosen with Alt-click for the next strokes; without one, each stroke searches. */
   source?: Point;
   setSource: (source?: Point) => void;
@@ -19,7 +29,7 @@ const HealingContext = createContext<{
   hoverPatch: (id?: string) => void;
 } | null>(null);
 
-/** Owns the tool's next-stroke feather and patch selection, shared by the canvas, bar, and sidebar. */
+/** Settings outlive tool visits; each recorded patch keeps its own mode and blend. */
 export function HealingProvider({
   children,
   onEdit,
@@ -27,22 +37,40 @@ export function HealingProvider({
   children: ReactNode;
   onEdit?: () => void;
 }) {
-  const [feather, setFeather] = useState(0.1);
+  const document = useDocument();
+  const brush = useBrushSettings(0.2);
+  const [mode, setMode] = useState<HealMode>(healModes[0].mode);
   const [source, setSource] = useState<Point>();
   const [selectedPatch, setSelectedPatch] = useState<string>();
   const [hoveredPatch, setHoveredPatch] = useState<string>();
   const selectPatch = useCallback(
     (id?: string) => {
       setSelectedPatch(id);
-      if (id) onEdit?.();
+      if (!id) return;
+      const layer = findLayer(
+        document.scene.getState().layers,
+        document.selection.getState().layerId,
+      );
+      const patch =
+        layer?.kind === "heal" &&
+        layer.patches.find((patch) => patch.id === id);
+      if (patch) setMode(patch.mode);
+      onEdit?.();
     },
-    [onEdit],
+    [document, onEdit],
   );
+  function selectMode(mode: HealMode) {
+    setMode(mode);
+    setSelectedPatch(undefined);
+    setHoveredPatch(undefined);
+    onEdit?.();
+  }
   return (
     <HealingContext
       value={{
-        feather,
-        setFeather,
+        brush,
+        mode,
+        selectMode,
         source,
         setSource,
         selectedPatch,
@@ -60,4 +88,37 @@ export function useHealing() {
   const context = useContext(HealingContext);
   if (!context) throw Error("A healing provider is required.");
   return context;
+}
+
+export function useSelectedHealPatch() {
+  const { selectedPatch } = useHealing();
+  const layer = useSelectedLayer();
+  if (layer?.kind !== "heal") return undefined;
+  return layer.patches.find((patch) => patch.id === selectedPatch);
+}
+
+/** The controls edit the selected patch's feather and remember it for the next stroke. */
+export function useHealBrush(): BrushInput {
+  const { brush } = useHealing();
+  const document = useDocument();
+  const layer = useSelectedLayer();
+  const selected = useSelectedHealPatch();
+  function update(change: Parameters<typeof brush.update>[0]) {
+    brush.update(change);
+    if (change.feather !== undefined && selected && layer?.kind === "heal") {
+      setHealPatch(document, layer.id, selected.id, {
+        feather: change.feather,
+      });
+    }
+  }
+  const settings = {
+    ...brush.settings,
+    feather: selected?.feather ?? brush.settings.feather,
+  };
+  return {
+    ...brush,
+    settings,
+    update,
+    parameters: brushParameters({ ...brush, settings, update }),
+  };
 }
