@@ -211,6 +211,18 @@ test("brush strokes stamp incrementally, replay after undo, and render a proxy d
     );
     expect(renderer.coverage(child)?.target.size).toEqual([32, 16]);
     expect(renderer.coverage(gradient)?.target.size).toEqual([32, 16]);
+    setLayer(document, child, { visible: false });
+    await render();
+    expect(renderer.coverage(child)?.target.size).toEqual([32, 16]);
+    expect(renderer.inspect().passes).not.toContain(`mask/${child}/combine`);
+    setLayer(document, child, { visible: true, opacity: 0 });
+    await render();
+    expect(renderer.coverage(child)?.target.size).toEqual([32, 16]);
+    setLayerMask(document, child, { kind: "brush", strokes: [] });
+    await render();
+    expect(renderer.coverage(child)).toBeUndefined();
+    document.history.undo();
+    setLayer(document, child, { opacity: 1 });
     // Hiding a group bypasses its effect, but preserves the combined coverage shown in its row.
     setLayer(document, gradient, { visible: false });
     await render();

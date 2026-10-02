@@ -15,8 +15,6 @@ import emptyShader from "./empty.wgsl";
 import gradientShader from "./gradient.wgsl";
 import rangeShader from "./range.wgsl";
 
-type Size = readonly [number, number];
-
 /** Where a render keeps what a mask's coverage made: pass instances to keep, and coverage to show. */
 type CoverageOutputs = {
   retain: (instance: string) => void;
@@ -61,20 +59,9 @@ const linear: GPUSamplerDescriptor = {
 export function createMaskCoverage(brushes: PaintRaster) {
   return {
     /**
-     * Draws the brushes of a mask and of the children that shape it, painted or not, so an emptied
-     * brush keeps its cleared raster while it lasts. `size` is the photo's.
-     */
-    update(layer: MaskLayer, size: Size) {
-      for (const { id, mask } of maskOps(layer)) {
-        if (mask.kind === "brush") {
-          brushes.draw(id, mask, size);
-        }
-      }
-    },
-    /**
      * A mask's coverage over `below`, the image it applies to, or nothing when the mix pass computes
-     * it or, as for a brush yet to paint with nothing added, it covers nothing. Read it once every mask
-     * updated.
+     * it or, as for a brush yet to paint with nothing added, it covers nothing. Read it after all brush
+     * rasters have updated.
      */
     coverage(
       layer: MaskLayer,
@@ -99,11 +86,7 @@ export function createMaskCoverage(brushes: PaintRaster) {
       /** One op's own coverage, or nothing for a brush yet to paint. */
       function covered(name: string, { id, mask }: MaskModifier) {
         if (mask.kind === "brush") {
-          const coverage = hasPaint(mask) ? brushes.coverage(id) : undefined;
-          if (coverage) {
-            show(id, coverage);
-          }
-          return coverage;
+          return hasPaint(mask) ? brushes.coverage(id) : undefined;
         }
         if (isGradient(mask)) {
           return generate(

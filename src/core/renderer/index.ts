@@ -1,6 +1,7 @@
 import type { Gpu, Target, Timer } from "vgpu";
 import {
   type BrushStroke,
+  hasPaint,
   type MaskLayer,
   type PaintLayer,
   paintingOf,
@@ -148,10 +149,10 @@ export function createRenderer(
     }
     const active = new Set<string>();
     const developed = raw?.render() ?? source;
-    // Every mask and paint layer updates once, bypassed or not, so a hidden one keeps its raster; child masks only shape their parent's coverage.
-    for (const { layer, parent } of walkLayers(scene.layers)) {
-      if (layer.kind === "mask" && parent?.kind !== "mask") {
-        masks.update(layer, developed.size);
+    // Every brush and paint layer updates once, bypassed or not, so hidden layers keep their rasters.
+    for (const { layer } of walkLayers(scene.layers)) {
+      if (layer.kind === "mask" && layer.mask.kind === "brush") {
+        brushes.draw(layer.id, layer.mask, developed.size);
       }
       if (layer.kind === "paint") {
         paints.draw(layer.id, layer, developed.size);
@@ -160,6 +161,17 @@ export function createRenderer(
     const image =
       factor > 1 ? proxy.render(developed, factor, version) : input(developed);
     const covered = new Map<string, RenderImage>();
+    // Read brush views after every raster has updated, including inactive submasks.
+    for (const { layer } of walkLayers(scene.layers)) {
+      if (
+        layer.kind === "mask" &&
+        layer.mask.kind === "brush" &&
+        hasPaint(layer.mask)
+      ) {
+        const coverage = brushes.coverage(layer.id);
+        if (coverage) covered.set(layer.id, coverage);
+      }
+    }
     const images = compose(image, scene, {
       inputId,
       rangeSourceId,
