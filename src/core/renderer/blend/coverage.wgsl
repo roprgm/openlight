@@ -9,3 +9,13 @@ export fn gradientCoverage(position: vec2f, first: vec2f, second: vec2f, kind: u
  let direction = second - first;
  return 1.0 - clamp(dot(position - first, direction) / dot(direction, direction), 0.0, 1.0);
 }
+
+// A child mask's coverage applied to its group's, at the child's opacity: operation 0 adds, 1
+// subtracts, and 2 intersects, keeping the group only where the child covers.
+export fn combineCoverage(group: f32, child: f32, operation: u32, opacity: f32) -> f32 {
+ if (operation == 2u) {
+  return group * (1.0 - opacity * (1.0 - child));
+ }
+ let sign = select(1.0, -1.0, operation == 1u);
+ return clamp(group + sign * opacity * child, 0.0, 1.0);
+}

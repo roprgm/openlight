@@ -55,6 +55,14 @@ export function node(
   return { ...options, name, shader };
 }
 
+/** A node that draws from its settings alone, such as a gradient's coverage, into an image of `output`'s kind. */
+export function generate(
+  output: Pick<RenderNode, "size" | "format" | "scale">,
+  definition: NodeDefinition,
+): RenderNode {
+  return { ...definition, ...output, inputs: {} };
+}
+
 /** Connects named shader inputs; the shader defines how to combine them. */
 export function merge(
   inputs: RenderNode["inputs"],

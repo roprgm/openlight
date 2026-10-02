@@ -1,29 +1,37 @@
 import { Select } from "@roprgm/ui/select";
+import { Separator } from "@roprgm/ui/separator";
 import { Slider } from "@roprgm/ui/slider";
 import { useDocument, useScene } from "@/components/editor/session";
 import { barSlider, useBarDensity } from "@/components/editor/toolbar-density";
-import { locateLayer, type MaskLayer } from "@/core/document";
+import { isRangeMask, locateLayer, type MaskLayer } from "@/core/document";
 import { setLayerMask, setMaskOperation } from "./edits";
+import { RangeOptions } from "./range-options";
 
-/** The selected mask's options in the canvas bar: a radial feather and a child's operation. Its overlay toggles in the stack. */
+const operations = [
+  { value: "add", label: "Add" },
+  { value: "subtract", label: "Subtract" },
+  { value: "intersect", label: "Intersect" },
+] as const;
+
+/**
+ * The selected mask's options in the canvas bar: a radial feather, a range's color and numbers, and a
+ * child's operation. Its overlay toggles in the stack.
+ */
 export function MaskOptions({ layer }: { layer: MaskLayer }) {
   const document = useDocument();
   const density = useBarDensity();
   const parent = useScene(
     (scene) => locateLayer(scene.layers, layer.id)?.parent,
   );
-  const radial = layer.mask.kind === "radial";
+  const { mask } = layer;
   const child = parent?.kind === "mask";
-  if (!radial && !child) {
+  if (mask.kind !== "radial" && !isRangeMask(mask) && !child) {
     return null;
   }
   return (
     <>
       {density !== "menu" && (
-        <hr
-          aria-orientation="vertical"
-          className="h-4 w-px border-0 separator"
-        />
+        <Separator orientation="vertical" className="my-auto h-4" />
       )}
       {layer.mask.kind === "radial" && (
         <Slider
@@ -45,6 +53,7 @@ export function MaskOptions({ layer }: { layer: MaskLayer }) {
           }}
         />
       )}
+      {isRangeMask(mask) && <RangeOptions id={layer.id} mask={mask} />}
       {child && (
         <Select
           raised
@@ -52,10 +61,7 @@ export function MaskOptions({ layer }: { layer: MaskLayer }) {
           aria-label="Mask operation"
           tooltip="Combine with the parent mask"
           value={layer.operation}
-          items={[
-            { value: "add", label: "Add" },
-            { value: "subtract", label: "Subtract" },
-          ]}
+          items={operations}
           onValueChange={(operation) =>
             operation && setMaskOperation(document, layer.id, operation)
           }

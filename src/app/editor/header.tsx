@@ -28,7 +28,7 @@ export function EditorHeader({
           <Tooltip>
             <TooltipTrigger
               render={
-                <span className="min-w-0 truncate text-muted">{file}</span>
+                <span className="min-w-0 truncate text-secondary">{file}</span>
               }
             />
             <TooltipContent>{file}</TooltipContent>

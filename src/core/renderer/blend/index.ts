@@ -1,16 +1,23 @@
-import type { Mask, MaskModifier } from "@/core/document";
-import {
-  merge,
-  node,
-  type RenderImage,
-  type RenderInput,
-} from "@/core/renderer/node";
+import type { Gradient, Mask, MaskLayer, MaskModifier } from "@/core/document";
+import { merge, node, type RenderImage } from "@/core/renderer/node";
 import shader from "./mix.wgsl";
 import rasterShader from "./raster.wgsl";
 
-const emptyModifiers = new Float32Array(8);
+const emptyModifiers = new Float32Array(12);
 
-/** Uniform fields for one gradient; kind 0 means full coverage. Brush masks have no analytical form. */
+/** Mask operations as the shaders number them. */
+export const operations: Record<MaskLayer["operation"], number> = {
+  add: 0,
+  subtract: 1,
+  intersect: 2,
+};
+
+/** Whether a mask has an analytical form; brushes and ranges only exist in a raster. */
+export function isGradient(mask: Mask): mask is Gradient {
+  return mask.kind === "linear" || mask.kind === "radial";
+}
+
+/** Uniform fields for one gradient; kind 0 means full coverage. */
 export function gradientParams(mask?: Mask) {
   if (mask?.kind === "radial") {
     return {
@@ -30,30 +37,34 @@ export function gradientParams(mask?: Mask) {
   };
 }
 
-/** The modifiers with an analytical form; brush children only exist inside a raster. */
+/** The modifiers with an analytical form. */
 export function gradientModifiers(modifiers: readonly MaskModifier[]) {
-  return modifiers.filter(({ mask }) => mask.kind !== "brush");
+  return modifiers.filter(({ mask }) => isGradient(mask));
 }
 
-/** Two vec4 per gradient modifier: geometry, then signed strength, kind, feather, and angle. */
+/** Three vec4 per gradient modifier: geometry; strength, kind, feather, and angle; then operation. */
 export function modifierData(modifiers: readonly MaskModifier[]) {
   const gradients = gradientModifiers(modifiers);
   if (!gradients.length) {
     return emptyModifiers;
   }
-  const data = new Float32Array(gradients.length * 8);
+  const data = new Float32Array(gradients.length * 12);
   gradients.forEach(({ mask, opacity, operation }, index) => {
     const { first, second, kind, feather, angle } = gradientParams(mask);
     data.set(
       [
         ...first,
         ...second,
-        operation === "add" ? opacity : -opacity,
+        opacity,
         kind,
         feather,
         angle,
+        operations[operation],
+        0,
+        0,
+        0,
       ],
-      index * 8,
+      index * 12,
     );
   });
   return data;
@@ -61,7 +72,8 @@ export function modifierData(modifiers: readonly MaskModifier[]) {
 
 /**
  * Interpolates an adjustment result without changing image coverage or HDR headroom.
- * Rasterized coverage replaces the analytical gradients when a brush is involved.
+ * Rasterized coverage replaces the analytical gradients when a brush or range is involved; without it,
+ * such a mask covers nothing yet.
  */
 export function mixAdjustment(
   name: string,
@@ -70,7 +82,7 @@ export function mixAdjustment(
   opacity: number,
   mask?: Mask,
   modifiers: readonly MaskModifier[] = [],
-  coverage?: RenderInput,
+  coverage?: RenderImage,
 ) {
   if (original === edited || opacity === 0) {
     return original;
@@ -89,7 +101,7 @@ export function mixAdjustment(
       }),
     );
   }
-  if (mask?.kind === "brush") {
+  if (mask && !isGradient(mask)) {
     return original;
   }
   const gradients = gradientModifiers(modifiers);
@@ -119,7 +131,7 @@ export function maskInput(
   image: RenderImage,
   mask: Mask,
   modifiers: readonly MaskModifier[] = [],
-  coverage?: RenderInput,
+  coverage?: RenderImage,
 ) {
   if (coverage) {
     return merge(
@@ -132,7 +144,7 @@ export function maskInput(
       }),
     );
   }
-  if (mask.kind === "brush") {
+  if (!isGradient(mask)) {
     return image;
   }
   const gradients = gradientModifiers(modifiers);

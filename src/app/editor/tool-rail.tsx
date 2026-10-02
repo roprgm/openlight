@@ -25,7 +25,7 @@ function RailLink({
             target="_blank"
             rel="noreferrer"
             aria-label={label}
-            className="grid place-items-center rounded-md p-1.5 text-muted transition-colors hover:bg-hover hover:text-foreground"
+            className="grid place-items-center rounded-md p-1.5 text-secondary transition-colors hover:bg-hover hover:text-foreground"
           />
         }
       >

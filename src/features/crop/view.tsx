@@ -213,7 +213,7 @@ export function CropEditor({ onClose }: { onClose: () => void }) {
           <Button variant="ghost" size="sm" onClick={reset}>
             Reset
           </Button>
-          <span className="flex-1 truncate text-center text-muted tabular-nums">
+          <span className="flex-1 truncate text-center text-secondary tabular-nums">
             {size}
           </span>
           <Button variant="ghost" size="sm" onClick={onClose}>
@@ -249,7 +249,7 @@ export function CropEditor({ onClose }: { onClose: () => void }) {
         >
           <PanelBody header={<PanelHeader title="Crop" onClose={onClose} />}>
             <section aria-label="Crop tool" className="space-y-5 p-3.5">
-              <div className="flex items-center justify-between text-muted">
+              <div className="flex items-center justify-between text-secondary">
                 Aspect ratio
                 <Select
                   raised
@@ -266,7 +266,7 @@ export function CropEditor({ onClose }: { onClose: () => void }) {
                 aria-label="Rotate and flip image"
                 className="grid grid-cols-4 items-center gap-2"
               >
-                <h3 className="col-span-3 text-muted">Rotate & flip</h3>
+                <h3 className="col-span-3 text-secondary">Rotate & flip</h3>
                 <Button
                   variant="ghost"
                   size="sm"
@@ -284,11 +284,11 @@ export function CropEditor({ onClose }: { onClose: () => void }) {
                 ))}
               </section>
               <Slider {...rotation} />
-              <p className="text-muted">
+              <p className="text-secondary">
                 Drag edges or corners to crop, inside to move, outside to
                 rotate. Space + drag to pan; Ctrl/⌘ + scroll to zoom.
               </p>
-              <p className="tabular-nums text-muted">{size}</p>
+              <p className="tabular-nums text-secondary">{size}</p>
             </section>
           </PanelBody>
           <div className="p-3">

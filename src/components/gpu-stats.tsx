@@ -16,7 +16,7 @@ const megabytes = (bytes: number) => `${(bytes / 2 ** 20).toFixed(1)} MB`;
 function Row({ label, value }: { label: string; value: string }) {
   return (
     <>
-      <dt className="text-muted">{label}</dt>
+      <dt className="text-secondary">{label}</dt>
       <dd>{value}</dd>
     </>
   );

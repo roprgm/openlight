@@ -12,14 +12,17 @@ import { AdjustIcon } from "@/components/icons/adjust";
 import { BrushIcon } from "@/components/icons/brush";
 import { CropIcon } from "@/components/icons/crop";
 import { ExportIcon } from "@/components/icons/export";
+import { EyedropperIcon } from "@/components/icons/eyedropper";
 import { HealIcon } from "@/components/icons/heal";
 import { LinearGradientIcon } from "@/components/icons/linear-gradient";
 import { RadialGradientIcon } from "@/components/icons/radial-gradient";
+import { findLayer } from "@/core/document";
 import { CropEditor } from "@/features/crop/view";
 import { HealOptions } from "@/features/heal/options";
 import { HealOverlay } from "@/features/heal/overlay";
 import { addLayer } from "@/features/layers/edits";
 import { GradientOverlay } from "@/features/layers/gradient-overlay";
+import { RangePicker } from "@/features/layers/range-picker";
 import { useShortcuts } from "@/hooks/use-shortcuts";
 import { BrushToolCanvas, BrushToolOptions } from "./brush";
 import { ExportMode } from "./export";
@@ -132,6 +135,16 @@ export const tools = [
     group: "edit",
     View: CropEditor,
   },
+  {
+    id: "color-range",
+    label: "Color range",
+    shortLabel: "Color",
+    key: "k",
+    Icon: EyedropperIcon,
+    // Color ranges pick from the canvas, but their masks come from the layer menus, not the rail.
+    group: "mask",
+    Canvas: RangePicker,
+  },
   exportTool,
 ] as const;
 
@@ -144,7 +157,15 @@ export type Tool = (typeof tools)[number];
 export function ToolProvider({ children }: { children: ReactNode }) {
   const [tool, setTool] = useState<Tool>(adjust);
   const brush = useBrushTool();
+  const document = useDocument();
   function select(entry: Tool) {
+    if (entry.id === "color-range") {
+      const selected = document.selection.getState().layerId;
+      const layer = findLayer(document.scene.getState().layers, selected);
+      if (layer?.kind !== "mask" || layer.mask.kind !== "color-range") {
+        return;
+      }
+    }
     if (entry === tool && entry.id === "brush") {
       brush.update({
         mode: brush.settings.mode === "color" ? "mask" : "color",

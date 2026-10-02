@@ -83,7 +83,7 @@ function Arc({
       <circle className="stroke-hover" cx="24" cy="24" r={radius} />
       {length > 0.1 && (
         <circle
-          className="stroke-muted group-data-[scrubbing=true]:stroke-foreground group-data-[selected=true]:stroke-foreground"
+          className="stroke-secondary group-data-[scrubbing=true]:stroke-foreground group-data-[selected=true]:stroke-foreground"
           cx="24"
           cy="24"
           r={radius}
@@ -233,9 +233,9 @@ export function Dial({
     >
       <span
         className={cn(
-          "relative grid place-items-center rounded-full surface-sunken tabular-nums transition group-data-[scrubbing=true]:scale-108",
+          "relative grid place-items-center rounded-full surface-field tabular-nums transition group-data-[scrubbing=true]:scale-108",
           color ? "size-9" : "size-11.5",
-          edited ? "text-foreground" : "text-faint",
+          edited ? "text-foreground" : "text-muted",
         )}
       >
         <Arc value={value} min={min} max={max} origin={origin} />
@@ -250,7 +250,7 @@ export function Dial({
       </span>
       <span
         className={cn(
-          "whitespace-nowrap text-muted group-data-[scrubbing=true]:text-foreground group-data-[selected=true]:text-foreground",
+          "whitespace-nowrap text-secondary group-data-[scrubbing=true]:text-foreground group-data-[selected=true]:text-foreground",
           color && "tabular-nums",
         )}
       >

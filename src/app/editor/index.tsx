@@ -1,4 +1,5 @@
 import { Button } from "@roprgm/ui/button";
+import { Separator } from "@roprgm/ui/separator";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@roprgm/ui/tooltip";
 import type { ReactNode } from "react";
 import type { Workspace } from "@/app/workspace";
@@ -101,7 +102,7 @@ function ExportButton() {
           <Button
             size="sm"
             aria-pressed={exporting}
-            className="ml-1 aria-pressed:bg-raised-hover pointer-coarse:h-8"
+            className="ml-1 aria-pressed:bg-control-hover pointer-coarse:h-8"
             onClick={() => setTool(exporting ? tools[0] : exportTool)}
           >
             Export
@@ -187,10 +188,7 @@ function DocumentEditor({
               open={<OpenButton onOpen={onOpen} />}
             >
               <HistoryControls />
-              <hr
-                aria-orientation="vertical"
-                className="mx-1 h-4 w-px border-0 separator"
-              />
+              <Separator orientation="vertical" className="mx-1 my-auto h-4" />
               <ComparisonControl />
               <ExportButton />
             </EditorHeader>

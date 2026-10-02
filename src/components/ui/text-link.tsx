@@ -11,7 +11,7 @@ const link = cva(
         default:
           "text-foreground decoration-disabled hover:decoration-foreground",
         muted:
-          "decoration-level-6 hover:text-foreground hover:decoration-muted",
+          "decoration-level-6 hover:text-foreground hover:decoration-secondary",
       },
     },
     defaultVariants: { variant: "default" },

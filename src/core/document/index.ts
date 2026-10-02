@@ -11,6 +11,7 @@ export type {
   BrushMask,
   BrushStroke,
   ColorMixer,
+  ColorRange,
   CurvePoint,
   Details,
   EffectLayer,
@@ -22,6 +23,7 @@ export type {
   Layer,
   LinearGradient,
   LookupTable,
+  LuminanceRange,
   Mask,
   MaskLayer,
   MaskModifier,
@@ -30,6 +32,7 @@ export type {
   PaintStroke,
   ProcessingLayer,
   RadialGradient,
+  RangeMask,
   Scene,
   StrokePoint,
   ToneCurve,
@@ -40,6 +43,7 @@ export {
   editLayer,
   findLayer,
   hasPaint,
+  isRangeMask,
   locateLayer,
   maskModifiers,
   paintingOf,
@@ -61,6 +65,8 @@ export type Preview = {
     /** The layer's opacity, which scales the tint like it scales the effect. */
     readonly opacity?: number;
   };
+  /** The mask whose ranges' image, the one below it, renders keep while a color is picked from it. */
+  rangeSource?: string;
 };
 
 /** Scenes contain only plain values; unchanged branches keep their identity. */

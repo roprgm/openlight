@@ -26,6 +26,7 @@ import { vignette } from "@/features/vignette/pass";
 type Branch = {
   image: RenderImage;
   input?: RenderImage;
+  rangeSource?: RenderImage;
 };
 
 function composeLayer(
@@ -41,12 +42,19 @@ function composeLayer(
     layer.id === composition.inputId ||
     (layer.kind === "heal" &&
       layer.patches.some((patch) => patch.id === composition.inputId));
-  if (bypassed && !inspected) {
-    return { image: below };
-  }
+  // A mask's ranges read the image below it, hidden or not.
+  const rangeSource =
+    layer.id === composition.rangeSourceId ? below : undefined;
   const masks = layer.kind === "mask" ? maskModifiers(layer) : [];
   const coverage =
-    layer.kind === "mask" ? composition.coverage(layer) : undefined;
+    layer.kind === "mask" ? composition.coverage(layer, below) : undefined;
+  // Masks under a hidden effect still preview and pick the processed image they select when shown.
+  const holdsMasks =
+    layer.kind !== "mask" &&
+    layer.children.some((child) => child.kind === "mask");
+  if (bypassed && !inspected && !holdsMasks) {
+    return { image: below, rangeSource };
+  }
   let input: RenderImage | undefined;
   let edited = below;
   switch (layer.kind) {
@@ -120,7 +128,11 @@ function composeLayer(
     masks,
     coverage,
   );
-  return { image, input: input ?? children.input };
+  return {
+    image,
+    input: input ?? children.input,
+    rangeSource: rangeSource ?? children.rangeSource,
+  };
 }
 
 function composeLayers(
@@ -130,12 +142,14 @@ function composeLayers(
 ): Branch {
   let image = below;
   let input: RenderImage | undefined;
+  let rangeSource: RenderImage | undefined;
   for (const layer of layers) {
     const branch = composeLayer(image, layer, composition);
     image = branch.image;
     input ??= branch.input;
+    rangeSource ??= branch.rangeSource;
   }
-  return { image, input };
+  return { image, input, rangeSource };
 }
 
 /**
@@ -183,6 +197,7 @@ export function createEditorRenderer(
           composition.inputId === sourceLayer.id
             ? adjusted
             : (children.input ?? composite.input),
+        rangeSource: children.rangeSource ?? composite.rangeSource,
       };
     },
     timer,
