@@ -84,11 +84,15 @@ export function RangeOptions({ id, mask }: { id: string; mask: RangeMask }) {
     <>
       {mask.kind === "color-range" && (
         <span className="flex items-center gap-1">
-          <ColorInput
-            label="Range color"
-            value={mask.color}
-            onChange={(color) => setLayerMask(document, id, { ...mask, color })}
-          />
+          {mask.color !== null && (
+            <ColorInput
+              label="Range color"
+              value={mask.color}
+              onChange={(color) =>
+                setLayerMask(document, id, { ...mask, color })
+              }
+            />
+          )}
           <IconButton
             label="Pick a color from the photo"
             size="icon-sm"

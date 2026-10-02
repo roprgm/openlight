@@ -13,14 +13,12 @@ import { useShortcuts } from "@/hooks/use-shortcuts";
 import { createColorSampler } from "./color-sample";
 import { setLayerMask } from "./edits";
 import { useMaskTool } from "./mask-tool";
-import { defaultTolerance } from "./model";
 
 type Drag = {
   pointer: number;
   /** The viewport bounds measured once; pointer capture keeps them valid for the drag. */
   box: DOMRect;
   target: string;
-  adding: boolean;
   opened: boolean;
   /** Whether the drag was cancelled, so colors still to land change nothing. */
   cancelled: boolean;
@@ -29,8 +27,7 @@ type Drag = {
 };
 
 /**
- * Picks color ranges from the photo: a click gives the selected color range the color under the
- * pointer, or makes a new one where a menu chose or on top, and dragging keeps picking as one edit.
+ * Picks colors from the photo for the selected color range; a drag is one edit.
  * Colors come from the image below the range's mask group, the one it selects from, so its own edit
  * never feeds back. Enter or Escape leaves.
  */
@@ -54,16 +51,16 @@ export function RangePicker() {
   const size = document.resources.get(
     useScene((scene) => scene.layers[0].source),
   ).image.size;
-  const pending = tool.pending?.shape === "color-range" ? tool.pending : null;
-  const creating = Boolean(pending) || !editing;
-  // A new color range reads below its parent, or, going on top, the whole photo as it shows.
-  const source = creating ? pending?.parentId : group;
   const [error, setError] = useState("");
   const live = useRef(true);
   useEffect(() => {
-    document.preview.setState({ rangeSource: source });
+    if (!editing) {
+      tool.edit();
+      return;
+    }
+    document.preview.setState({ rangeSource: group });
     return () => document.preview.setState({ rangeSource: undefined });
-  }, [document, source]);
+  }, [document, editing, group, tool.edit]);
   const drag = useRef<Drag | null>(null);
   const inFlight = useRef(new Set<Drag>());
   /** The previous drag's end, which a new drag's colors wait for so the two edits never overlap. */
@@ -82,18 +79,14 @@ export function RangePicker() {
       setLayerMask(document, id, { ...layer.mask, color });
     }
   }
-  /**
-   * Picks the color under the pointer. A new range is its own edit, made with the first color to
-   * land, whichever read that is; the picking that follows, that color included, is one more.
-   */
+  /** Picks the color under the pointer and waits for the previous pick to land. */
   function pick(current: Drag, event: PointerEvent) {
     const [x, y] = mapping.toDocument(
       event.clientX,
       event.clientY,
       current.box,
     );
-    const image = () =>
-      source ? renderer.rangeSource(source) : renderer.fullImage();
+    const image = () => renderer.rangeSource(group);
     const color = sampler.sample(image, [x / size[0], y / size[1]]);
     current.landed = Promise.all([current.landed, color])
       .then(([, color]) => {
@@ -107,19 +100,6 @@ export function RangePicker() {
               setError("Finish the current edit before picking a color.");
             }
             return;
-          }
-          if (creating) {
-            current.adding = true;
-            try {
-              tool.create({
-                kind: "color-range",
-                color,
-                tolerance: defaultTolerance,
-              });
-              current.target = document.selection.getState().layerId;
-            } finally {
-              current.adding = false;
-            }
           }
           if (document.selection.getState().layerId !== current.target) {
             cancelDrag(current);
@@ -165,7 +145,7 @@ export function RangePicker() {
     live.current = true;
     const selection = document.selection.subscribe(({ layerId }) => {
       for (const current of inFlight.current) {
-        if (!current.adding && current.target !== layerId) {
+        if (current.target !== layerId) {
           cancelDrag(current);
         }
       }
@@ -200,7 +180,7 @@ export function RangePicker() {
   });
   function start(event: PointerEvent<HTMLDivElement>) {
     const box = camera.ref.current?.getBoundingClientRect();
-    if (event.button !== 0 || !event.isPrimary || !box) {
+    if (event.button !== 0 || !event.isPrimary || !box || !editing) {
       return;
     }
     event.stopPropagation();
@@ -209,7 +189,6 @@ export function RangePicker() {
       pointer: event.pointerId,
       box,
       target: selected,
-      adding: false,
       opened: false,
       cancelled: false,
       landed: ended.current,

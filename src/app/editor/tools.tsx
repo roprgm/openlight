@@ -16,6 +16,7 @@ import { EyedropperIcon } from "@/components/icons/eyedropper";
 import { HealIcon } from "@/components/icons/heal";
 import { LinearGradientIcon } from "@/components/icons/linear-gradient";
 import { RadialGradientIcon } from "@/components/icons/radial-gradient";
+import { findLayer } from "@/core/document";
 import { CropEditor } from "@/features/crop/view";
 import { HealOptions } from "@/features/heal/options";
 import { HealOverlay } from "@/features/heal/overlay";
@@ -156,7 +157,15 @@ export type Tool = (typeof tools)[number];
 export function ToolProvider({ children }: { children: ReactNode }) {
   const [tool, setTool] = useState<Tool>(adjust);
   const brush = useBrushTool();
+  const document = useDocument();
   function select(entry: Tool) {
+    if (entry.id === "color-range") {
+      const selected = document.selection.getState().layerId;
+      const layer = findLayer(document.scene.getState().layers, selected);
+      if (layer?.kind !== "mask" || layer.mask.kind !== "color-range") {
+        return;
+      }
+    }
     if (entry === tool && entry.id === "brush") {
       brush.update({
         mode: brush.settings.mode === "color" ? "mask" : "color",

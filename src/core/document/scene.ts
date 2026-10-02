@@ -135,11 +135,12 @@ export type LuminanceRange = {
 };
 /**
  * The pixels of the image below the mask group whose hue and saturation are near `color`, `#rrggbb`
- * sRGB, however light or dark; `tolerance`, 0..100, widens the selection.
+ * sRGB, however light or dark; `null` covers nothing until a color is chosen. `tolerance`, 0..100,
+ * widens the selection.
  */
 export type ColorRange = {
   readonly kind: "color-range";
-  readonly color: string;
+  readonly color: string | null;
   readonly tolerance: number;
 };
 /** A mask that selects by the image below it rather than by position. */

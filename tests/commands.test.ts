@@ -124,8 +124,12 @@ test("range masks select tones or a color, validate their bounds, and intersect 
     mask: { ...blue, color: "#6fa8dc" },
     operation: "intersect",
   });
+  api.setLayerMask(child, { ...blue, color: null });
+  expect(layer(child)).toMatchObject({
+    mask: { kind: "color-range", color: null },
+  });
   expect(() =>
     Reflect.apply(api.setMaskOperation, undefined, [child, "union"]),
   ).toThrow("Invalid mask operation");
-  expect(document.history.status.getState().undoCount).toBe(4);
+  expect(document.history.status.getState().undoCount).toBe(5);
 });

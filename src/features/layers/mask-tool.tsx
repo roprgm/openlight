@@ -10,7 +10,7 @@ import { createStore, type StoreApi } from "zustand/vanilla";
 import { useDocument } from "@/components/editor/session";
 import type { Gradient, Mask, MaskLayer } from "@/core/document";
 import { blurActive } from "@/lib/dom";
-import { defaultLuminanceRange } from "./model";
+import { defaultLuminanceRange, defaultTolerance } from "./model";
 
 /** Where a new mask goes: inside a mask group, combined with its coverage, or else on top. */
 export type Nesting = {
@@ -19,15 +19,14 @@ export type Nesting = {
 };
 /** The masks a tool on the canvas draws or picks; a luminance range needs none. */
 type DrawnShape = Exclude<Mask["kind"], "luminance-range">;
-type Pending = Nesting & { shape: DrawnShape };
+type Pending = Nesting & { shape: Exclude<DrawnShape, "color-range"> };
 type OverlayChoice = "auto" | "shown" | "hidden";
 
 const MaskTool = createContext<{
   /** Chosen from a menu; the next mask of that shape goes there. */
   pending: Pending | null;
   /**
-   * Starts a mask of `shape` where `nesting` says, or on top: a luminance range at once, any other
-   * once its tool draws or picks it.
+   * Starts a range mask at once, or chooses where the next brush or gradient goes.
    */
   add: (shape: Mask["kind"], nesting?: Nesting) => void;
   /** Adds the mask where `nesting` says, else where a pending choice says, else on top. */
@@ -95,6 +94,14 @@ export function MaskToolProvider({
           if (shape === "luminance-range") {
             edit();
             onCreate(defaultLuminanceRange, nesting);
+            return;
+          }
+          if (shape === "color-range") {
+            onCreate(
+              { kind: "color-range", color: null, tolerance: defaultTolerance },
+              nesting,
+            );
+            edit(shape);
             return;
           }
           setPending({ ...nesting, shape });

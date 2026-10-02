@@ -47,7 +47,7 @@ export const maskSchema = z.discriminatedUnion("kind", [
     ),
   z.object({
     kind: z.literal("color-range"),
-    color: hexColor,
+    color: z.nullable(hexColor),
     tolerance: percent,
   }),
 ]) satisfies z.ZodMiniType<Mask>;

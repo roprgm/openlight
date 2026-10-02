@@ -3,8 +3,7 @@ import { luminance, rec2020ToSrgb, toOklab } from "../../image/color.wgsl";
 
 // A range mask's coverage: how much it keeps of each pixel of the image below its group.
 struct Params {
- // 1 is luminance, with low, high, and smoothness from 0 to 1; 2 is color, with the sRGB color in xyz
- // and tolerance from 0 to 1.
+ // 0 is an unpicked color with no coverage; 1 is luminance; 2 is a chosen color.
  kind: u32,
  range: vec4f,
 }
@@ -24,6 +23,9 @@ fn tint(srgb: vec3f) -> vec2f {
 }
 
 fn kept(color: vec3f) -> f32 {
+ if (params.kind == 0u) {
+  return 0.0;
+ }
  if (params.kind == 1u) {
   let light = lightness(color);
   let soft = max(params.range.z, 0.0001);

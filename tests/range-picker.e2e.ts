@@ -110,6 +110,9 @@ test("a delayed pick stays with its original selection", async ({ page }) => {
   await pick(page);
   await page.waitForFunction(() => window.rangeSampleGate.waiting);
   await page.evaluate((id) => window.openlight.selectLayer(id), second);
+  await expect(
+    page.getByRole("application", { name: "Color range canvas" }),
+  ).toBeVisible();
   await page.evaluate(() => window.rangeSampleGate.release());
   await page.waitForFunction(() => window.rangeSampleGate.settled > 0);
   await expect
@@ -135,10 +138,18 @@ test("a delayed pick stays with its original selection", async ({ page }) => {
   expect(colors).toEqual(["#000000", "#ffffff"]);
 });
 
-test("leaving the picker cancels a delayed pick", async ({ page }) => {
+test("leaving the picker cancels a delayed pick but keeps its new mask", async ({
+  page,
+}) => {
   await open(page);
   await page.getByRole("button", { name: "Add effect" }).click();
   await page.getByRole("menuitem", { name: "Color Range" }).click();
+  const initial = await page.evaluate(() => window.openlight.getState());
+  expect(initial.scene?.layers.at(-1)).toMatchObject({
+    kind: "mask",
+    mask: { kind: "color-range", color: null },
+  });
+  expect(initial.selectedLayerId).toBe(initial.scene?.layers.at(-1)?.id);
   await page.evaluate(() => window.rangeSampleGate.pauseNext());
   await pick(page);
   await page.waitForFunction(() => window.rangeSampleGate.waiting);
@@ -156,13 +167,116 @@ test("leaving the picker cancels a delayed pick", async ({ page }) => {
       }),
     )
     .toBe(false);
-  const masks = await page.evaluate(
-    () =>
-      window.openlight
-        .getState()
-        .scene?.layers.filter((item) => item.kind === "mask").length,
+  const mask = await page.evaluate(() =>
+    window.openlight.getState().scene?.layers.at(-1),
   );
-  expect(masks).toBe(0);
+  expect(mask).toMatchObject({
+    kind: "mask",
+    mask: { kind: "color-range", color: null },
+  });
+});
+
+test("adding another color range and selecting an existing one retargets the picker", async ({
+  page,
+}) => {
+  await open(page);
+  const add = async () => {
+    await page.getByRole("button", { name: "Add effect" }).click();
+    await page.getByRole("menuitem", { name: "Color Range" }).click();
+    return page.evaluate(() => window.openlight.getState().selectedLayerId);
+  };
+  const first = await add();
+  const second = await add();
+  expect(second).not.toBe(first);
+  const picker = page.getByRole("application", { name: "Color range canvas" });
+  await expect(picker).toBeVisible();
+  await pick(page);
+  await expect
+    .poll(() =>
+      page.evaluate(() => window.openlight.getState().scene?.layers.at(-1)),
+    )
+    .toMatchObject({ mask: { color: "#e07020" } });
+  await page
+    .getByRole("button", { name: "Select Color Range", exact: true })
+    .last()
+    .click();
+  await expect(picker).toBeVisible();
+  await pick(page);
+  await expect
+    .poll(() =>
+      page.evaluate((id) => {
+        const layer = window.openlight
+          .getState()
+          .scene?.layers.find((item) => item.id === id);
+        return layer?.kind === "mask" && layer.mask.kind === "color-range"
+          ? layer.mask.color
+          : undefined;
+      }, first),
+    )
+    .toBe("#e07020");
+  const colors = await page.evaluate(
+    ([a, b]) =>
+      [a, b].map((id) => {
+        const layer = window.openlight
+          .getState()
+          .scene?.layers.find((item) => item.id === id);
+        return layer?.kind === "mask" && layer.mask.kind === "color-range"
+          ? layer.mask.color
+          : undefined;
+      }),
+    [first, second],
+  );
+  expect(colors).toEqual(["#e07020", "#e07020"]);
+});
+
+test("selection away or deletion leaves the picker, and K needs a color range", async ({
+  page,
+}) => {
+  await open(page);
+  const picker = page.getByRole("application", { name: "Color range canvas" });
+  await page.keyboard.press("k");
+  await expect(picker).toHaveCount(0);
+  await page.getByRole("button", { name: "Add effect" }).click();
+  await page.getByRole("menuitem", { name: "Color Range" }).click();
+  const id = await page.evaluate(
+    () => window.openlight.getState().selectedLayerId ?? "",
+  );
+  expect(id).not.toBe("");
+  await expect(picker).toBeVisible();
+  await page.evaluate(() => {
+    const api = window.openlight;
+    api.selectLayer(api.getState().scene?.layers[0].id ?? "");
+  });
+  await expect(picker).toHaveCount(0);
+  await page
+    .getByRole("button", { name: "Select Color Range", exact: true })
+    .last()
+    .click();
+  await expect(picker).toBeVisible();
+  await page.evaluate(() => window.rangeSampleGate.pauseNext());
+  await pick(page);
+  await page.waitForFunction(() => window.rangeSampleGate.waiting);
+  await page.evaluate((layerId) => window.openlight.deleteLayer(layerId), id);
+  await expect(picker).toHaveCount(0);
+  await page.evaluate(() => window.rangeSampleGate.release());
+  await page.waitForFunction(() => window.rangeSampleGate.settled > 0);
+  expect(
+    await page.evaluate(
+      (layerId) =>
+        window.openlight
+          .getState()
+          .scene?.layers.some((layer) => layer.id === layerId),
+      id,
+    ),
+  ).toBe(false);
+  await page.getByRole("button", { name: "Undo", exact: true }).click();
+  await expect(picker).toHaveCount(0);
+  await page
+    .getByRole("button", { name: "Select Color Range", exact: true })
+    .click();
+  await expect(picker).toBeVisible();
+  await page.getByRole("button", { name: "Undo", exact: true }).click();
+  await expect(picker).toHaveCount(0);
 });
 
 test("an old pending pick cannot cancel a new gesture's history", async ({

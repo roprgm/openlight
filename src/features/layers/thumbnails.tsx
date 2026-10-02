@@ -114,9 +114,13 @@ function MaskFallback({ mask }: { mask: Mask }) {
       return (
         <span
           role="img"
-          aria-label="Color range thumbnail"
+          aria-label={
+            mask.color === null
+              ? "Unpicked color range thumbnail"
+              : "Color range thumbnail"
+          }
           className={frame}
-          style={{ backgroundColor: mask.color }}
+          style={{ backgroundColor: mask.color ?? undefined }}
         />
       );
     default:

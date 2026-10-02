@@ -181,3 +181,54 @@ test("a range intersects, or is shaped by, gradient and brush masks", async ({
   }, id);
   expect(darkened(await quadrantColors(page))).toEqual(["light"]);
 });
+
+test("an unpicked color range has no coverage, including as an intersection", async ({
+  page,
+}) => {
+  await open(page);
+  const original = await quadrantColors(page);
+  await addEffect(page, "Color Range");
+  const state = await page.evaluate(() => window.openlight.getState());
+  expect(state.scene?.layers.at(-1)).toMatchObject({
+    kind: "mask",
+    mask: { kind: "color-range", color: null },
+  });
+  expect(state.selectedLayerId).toBe(state.scene?.layers.at(-1)?.id);
+  await expect(page.getByLabel("Range color")).toHaveCount(0);
+  await setField(page, "Exposure", "-2");
+  expect(await quadrantColors(page)).toEqual(original);
+  await page.keyboard.press("Escape");
+
+  const { parent, child } = await page.evaluate(() => {
+    const api = window.openlight;
+    const parent = api.addLayer("mask");
+    api.setLayerMask(parent, {
+      kind: "linear",
+      start: [101, 100],
+      end: [99, 100],
+    });
+    api.setAdjustments({ exposure: -2 }, parent);
+    const child = api.addLayer("mask", { inside: parent });
+    api.setLayerMask(child, {
+      kind: "color-range",
+      color: null,
+      tolerance: 30,
+    });
+    api.setMaskOperation(child, "intersect");
+    return { parent, child };
+  });
+  expect(await quadrantColors(page)).toEqual(original);
+  await page.evaluate(
+    (id) => window.openlight.setMaskOperation(id, "subtract"),
+    child,
+  );
+  const subtracted = await quadrantColors(page);
+  expect(subtracted.light[0]).toBeLessThan(original.light[0] - 60);
+  expect(subtracted.orange[0]).toBeLessThan(original.orange[0] - 60);
+  await page.evaluate(
+    (id) => window.openlight.setMaskOperation(id, "add"),
+    child,
+  );
+  expect(await quadrantColors(page)).toEqual(subtracted);
+  await page.evaluate((id) => window.openlight.deleteLayer(id), parent);
+});

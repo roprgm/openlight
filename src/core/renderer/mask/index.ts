@@ -37,6 +37,9 @@ function rangeParams(mask: RangeMask) {
     const { low, high, smoothness } = mask;
     return { kind: 1, range: [low, high, smoothness, 0].map((v) => v / 100) };
   }
+  if (mask.color === null) {
+    return { kind: 0, range: [0, 0, 0, 0] };
+  }
   return {
     kind: 2,
     range: [...parseColor(mask.color), mask.tolerance / 100],
