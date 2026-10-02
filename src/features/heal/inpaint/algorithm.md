@@ -10,13 +10,13 @@ The algorithm follows non-local, multiscale texture synthesis with PatchMatch, a
 4. Alternate parallel PatchMatch propagation at jumps 8, 4, 2, 1 and eight shrinking-radius random proposals with weighted overlapping reconstruction. Use six iterations at the coarsest level, four at finer levels. Compare nine samples across each 7×7 footprint plus texture descriptors; increase reconstructed-region confidence as refinement proceeds.
 5. Sample donors at whole source texels from the original source for the final image rather than exporting the averaged matching pyramid. Different pixels can use different offsets. Apply the existing inward feather, patch opacity, and original alpha in a separate blend.
 
-Known, wholly clean patches skip search. Candidate comparison stops once its nonnegative partial error cannot beat the current score. Uniforms, shaders, and temporary textures are shared across iterations; the graph retains only a bounded correspondence field for opacity/feather edits and separates RAW/proxy revisions. Random proposals are deterministic for the same inputs.
+Known, wholly clean patches skip search. Candidate comparison stops once its nonnegative partial error cannot beat the current score. Each search pass owns its uniforms; vgpu shares shader modules and pipelines, and the graph reuses temporary textures across iterations. Reconstruction passes share an effect because they have no uniforms. The graph retains only a bounded correspondence field for opacity/feather edits and separates RAW/proxy revisions. Random proposals are deterministic for the same inputs.
 
 ## Limits
 
 Small defects in uniform or recurring texture and locally supported boundaries work best. Large missing regions, perspective, unique structures, and several competing backgrounds are ambiguous. Straight edges can continue when they have good local donors; mortar, rails, text, faces, and other precise structures can break or repeat. The local search cannot recover content that only appears elsewhere in the photo. A coarse matching grid can lose features smaller than its texel spacing; output sampling preserves donor detail but cannot recover correspondence detail lost during matching. If there are no clean donors, the affected pixels remain unchanged.
 
-The user should paint over the entire object, including its halo or shadow. Pixels left outside the stroke are treated as valid context. A larger selection is not necessarily easier: it removes more evidence.
+The user should paint over the entire object, including its halo or shadow. Pixels left outside the stroke are treated as valid context. A larger selection is not necessarily easier: it removes more evidence. Adding distant strokes to one patch expands its bounding region and makes the shared matching grid coarser; separate patches preserve more detail for distant spots.
 
 ## Verification and measurement
 

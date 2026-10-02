@@ -36,7 +36,6 @@ function nearest(features: RenderImage, name: string) {
     image = merge(
       { features, previous: image },
       node(`${name}/nearest/${jump}`, nearestShader, {
-        instance: `${name}/nearest/jump`,
         format: "rgba32float",
         set: { params: { jump } },
       }),
@@ -74,6 +73,7 @@ function solve(
     confidence: 0,
     radius: coarse ? 1e10 : 4,
   };
+  let iteration = 0;
   let field = merge(
     {
       source,
@@ -99,7 +99,6 @@ function solve(
       field = merge(
         { source, features, nearest: closest, current, field },
         node(`${name}/seed/${radius}`, matchShader, {
-          instance: `${name}/match`,
           format: "rgba32float",
           set: {
             params: {
@@ -107,7 +106,7 @@ function solve(
               initialize: 0,
               radius,
               confidence: 1,
-              iteration: radius,
+              iteration: ++iteration,
             },
           },
         }),
@@ -121,21 +120,20 @@ function solve(
     }
   }
   const iterations = coarse ? 4 : 6;
-  for (let iteration = 0; iteration < iterations; iteration++) {
+  for (let refinement = 0; refinement < iterations; refinement++) {
     for (const jump of [8, 4, 2, 1]) {
       field = merge(
         { source, features, nearest: closest, current, field },
-        node(`${name}/iteration/${iteration}/match/${jump}`, matchShader, {
-          instance: `${name}/match`,
+        node(`${name}/iteration/${refinement}/match/${jump}`, matchShader, {
           format: "rgba32float",
           set: {
             params: {
               ...params,
               initialize: 0,
               radius: 1e10,
-              iteration: iteration * 4 + jump,
+              iteration: ++iteration,
               jump,
-              confidence: 0.2 + 0.8 * (iteration / iterations),
+              confidence: 0.2 + 0.8 * (refinement / iterations),
             },
           },
         }),
@@ -144,7 +142,7 @@ function solve(
     current = reconstruct(
       source,
       field,
-      `${name}/iteration/${iteration}/vote`,
+      `${name}/iteration/${refinement}/vote`,
       `${name}/reconstruct`,
     );
   }

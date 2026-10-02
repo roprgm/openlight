@@ -1,4 +1,4 @@
-import { expect, test } from "bun:test";
+import { expect, spyOn, test } from "bun:test";
 import { init, target } from "vgpu/mock";
 import { createImageLayer, createLayer, createMask } from "@/app/editor/layers";
 import { createEditorRenderer } from "@/app/editor/renderer";
@@ -10,6 +10,7 @@ import {
 } from "@/core/document";
 import { createImageSource } from "@/core/image";
 import { imageFrame } from "@/core/image/frame";
+import { createRenderGraph, input } from "@/core/renderer";
 import { setAdjustments } from "@/features/adjustments/edits";
 import {
   addHealPatch,
@@ -22,6 +23,7 @@ import {
   setHealPatch,
   setHealSource,
 } from "@/features/heal/edits";
+import { inpaintField } from "@/features/heal/inpaint";
 import { addLayer, deleteLayer, setLayer } from "@/features/layers/edits";
 
 function healFixture(size: readonly [number, number] = [64, 64]) {
@@ -44,6 +46,40 @@ const dab: BrushStroke = {
   flow: 1,
   points: [[10, 10, 1]],
 };
+
+test("Remove passes never overwrite distinct uniforms before their frame submits", async () => {
+  const gpu = await init();
+  const source = target(gpu, { size: [64, 64], format: "rgba16float" });
+  const coverage = target(gpu, { size: [64, 64], format: "r8unorm" });
+  const graph = createRenderGraph(gpu);
+  const uploads = spyOn(gpu.gpu.queue, "writeBuffer");
+  try {
+    graph.render([
+      inpaintField(
+        input(source),
+        { coverage: input(coverage), origin: [0, 0] },
+        { origin: [0, 0], extent: source.size },
+        "remove",
+      ),
+    ]);
+    const uniforms = new Map<GPUBuffer, Uint8Array>();
+    for (const [buffer, , data] of uploads.mock.calls) {
+      const bytes = ArrayBuffer.isView(data)
+        ? new Uint8Array(data.buffer, data.byteOffset, data.byteLength)
+        : new Uint8Array(data);
+      const previous = uniforms.get(buffer);
+      if (previous) expect(bytes).toEqual(previous);
+      uniforms.set(buffer, bytes.slice());
+    }
+    expect(uniforms.size).toBeGreaterThan(1);
+  } finally {
+    uploads.mockRestore();
+    graph.dispose();
+    coverage.color.dispose();
+    source.color.dispose();
+    gpu.dispose();
+  }
+});
 
 test("patch strokes add, erase, replay on undo, and move together while retaining the donor", async () => {
   const gpu = await init();
