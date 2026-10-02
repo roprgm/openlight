@@ -644,6 +644,23 @@ test("retouch modes cycle, preserve each family's brush, and keep patches indepe
     .getByRole("button", { name: "Select patch 1", exact: true })
     .click();
   await expect(clone).toHaveAttribute("aria-pressed", "true");
+  await expect(feather).toHaveValue("45");
+  const cursorFeather = canvas
+    .locator('[data-brush-cursor="true"] stop')
+    .nth(1);
+  await page.mouse.move(target[0] + 80, target[1]);
+  await expect(cursorFeather).toHaveAttribute("offset", "0.55");
+  await feather.fill("80");
+  await feather.press("Enter");
+  await page.mouse.move(target[0] + 80, target[1]);
+  await expect(feather).toHaveValue("80");
+  await expect(cursorFeather).toHaveAttribute("offset", `${1 - 0.8}`);
+  await page.keyboard.press("ControlOrMeta+z");
+  await expect(feather).toHaveValue("45");
+  await expect(cursorFeather).toHaveAttribute("offset", "0.55");
+  const next = point(950, 600);
+  await page.mouse.click(next[0], next[1]);
+  expect((await patches()).at(-1)?.feather).toBe(0.45);
   await page
     .getByRole("button", { name: "Select patch 2", exact: true })
     .click();

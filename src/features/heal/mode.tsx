@@ -111,16 +111,14 @@ export function useHealBrush(): BrushInput {
       });
     }
   }
-  const [size, feather] = brushParameters({ ...brush, update });
+  const settings = {
+    ...brush.settings,
+    feather: selected?.feather ?? brush.settings.feather,
+  };
   return {
     ...brush,
+    settings,
     update,
-    parameters: [
-      size,
-      {
-        ...feather,
-        value: Math.round((selected?.feather ?? brush.settings.feather) * 100),
-      },
-    ],
+    parameters: brushParameters({ ...brush, settings, update }),
   };
 }

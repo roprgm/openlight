@@ -202,8 +202,7 @@ export function BrushCanvas({
     brush.update({ size });
   }
   function featherBy(step: number) {
-    const feather =
-      Math.round((brush.parameters[1].value / 100 + step) * 10) / 10;
+    const feather = Math.round((brush.settings.feather + step) * 10) / 10;
     brush.update({ feather: Math.min(1, Math.max(0, feather)) });
   }
   function start(event: PointerEvent<HTMLDivElement>) {

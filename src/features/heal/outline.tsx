@@ -1,6 +1,7 @@
 import { memo, type PointerEvent, useId, useState } from "react";
 import { useDocumentMapping } from "@/components/editor/mapping";
 import { useDocument } from "@/components/editor/session";
+import { useViewport } from "@/components/editor/viewport";
 import type { BrushStroke, HealPatch } from "@/core/document";
 import type { Point } from "@/core/image/frame";
 import { type AnchorDrag, HealAnchor } from "./anchor";
@@ -14,6 +15,7 @@ type Geometry = {
   first: Point;
   last: Point;
   width: number;
+  bounds: { left: number; top: number; right: number; bottom: number };
 };
 type Mapping = ReturnType<typeof useDocumentMapping>;
 
@@ -26,6 +28,16 @@ function geometry(
     mapping.toScreen([x + offset[0], y + offset[1]]),
   );
   const width = stroke.size / mapping.pixelsPerViewportPixel;
+  let left = Infinity;
+  let top = Infinity;
+  let right = -Infinity;
+  let bottom = -Infinity;
+  for (const [x, y] of points) {
+    left = Math.min(left, x - width / 2);
+    top = Math.min(top, y - width / 2);
+    right = Math.max(right, x + width / 2);
+    bottom = Math.max(bottom, y + width / 2);
+  }
   return {
     mode: stroke.mode,
     center: points[0],
@@ -33,6 +45,7 @@ function geometry(
     first: points[0],
     last: points.at(-1) ?? points[0],
     width,
+    bounds: { left, top, right, bottom },
   };
 }
 
@@ -74,12 +87,14 @@ function StrokeShape({
 function CoverageMask({
   id,
   shapes,
+  region,
 }: {
   id: string;
   shapes: readonly Geometry[];
+  region?: { x: number; y: number; width: number; height: number };
 }) {
   return (
-    <mask id={id} maskUnits="userSpaceOnUse">
+    <mask id={id} maskUnits="userSpaceOnUse" {...region}>
       <rect width="100%" height="100%" fill="black" />
       {shapes.map((shape, index) => (
         <StrokeShape
@@ -102,11 +117,31 @@ function Outline({
 }) {
   const mask = useId();
   const edge = `${mask}-edge`;
+  const { viewport } = useViewport();
+  // Keep the artificial raster edge outside the viewport, including the filter's support.
+  const left = Math.max(
+    -4,
+    Math.min(...shapes.map((shape) => shape.bounds.left)) - 4,
+  );
+  const top = Math.max(
+    -4,
+    Math.min(...shapes.map((shape) => shape.bounds.top)) - 4,
+  );
+  const right = Math.min(
+    viewport[0] + 4,
+    Math.max(...shapes.map((shape) => shape.bounds.right)) + 4,
+  );
+  const bottom = Math.min(
+    viewport[1] + 4,
+    Math.max(...shapes.map((shape) => shape.bounds.bottom)) + 4,
+  );
+  if (right <= left || bottom <= top) return null;
+  const region = { x: left, y: top, width: right - left, height: bottom - top };
   return (
     <g data-heal-outline={kind} opacity={kind === "source" ? 0.55 : 1}>
       <defs>
-        <CoverageMask id={mask} shapes={shapes} />
-        <filter id={edge}>
+        <CoverageMask id={mask} shapes={shapes} region={region} />
+        <filter id={edge} filterUnits="userSpaceOnUse" {...region}>
           <feMorphology
             in="SourceAlpha"
             operator="dilate"
@@ -126,7 +161,7 @@ function Outline({
         </filter>
       </defs>
       <g filter={`url(#${edge})`}>
-        <rect width="100%" height="100%" fill="white" mask={`url(#${mask})`} />
+        <rect {...region} fill="white" mask={`url(#${mask})`} />
       </g>
     </g>
   );

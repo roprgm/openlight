@@ -122,6 +122,30 @@ test("Remove previews each frame, solves on release, exports, undoes, and cancel
   await page.keyboard.press("ControlOrMeta+z");
   const undone = await readImage(page, undefined, [[350, 200]]);
   expect(undone.samples).toEqual(before.samples);
+  // A brush crossing the viewport edge has no artificial contour along the clipping boundary.
+  await page.mouse.move(bounds.x + 30, bounds.y + bounds.height / 2);
+  await page.mouse.down();
+  await page.clock.runFor(17);
+  const { samples: clippedEdge } = await readImage(
+    page,
+    await page.screenshot({
+      clip: {
+        x: bounds.x,
+        y: bounds.y + bounds.height / 2,
+        width: 2,
+        height: 1,
+      },
+    }),
+    [
+      [0, 0],
+      [1, 0],
+    ],
+  );
+  expect(
+    clippedEdge?.every((pixel) => Math.min(...pixel.slice(0, 3)) < 220),
+  ).toBe(true);
+  await page.keyboard.press("Escape");
+  await page.mouse.up();
   for (const cancel of ["Escape", "pointercancel", "exit", "ControlOrMeta+z"]) {
     if (!(await canvas.isVisible())) await page.keyboard.press("h");
     await page.mouse.move(x, y);

@@ -41,8 +41,15 @@ export function HealOverlay({
   const mapping = useDocumentMapping();
   const gpu = useGpu();
   const search = useDisposable(() => createHealSearch(gpu), [gpu]);
-  const { mode, source, setSource, selectedPatch, selectPatch, hoveredPatch } =
-    useHealing();
+  const {
+    brush,
+    mode,
+    source,
+    setSource,
+    selectedPatch,
+    selectPatch,
+    hoveredPatch,
+  } = useHealing();
   const [drawingPatch, setDrawingPatch] = useState<string>();
   const [draft, setDraft] = useState<BrushStroke>();
   const [resolvingSource, setResolvingSource] = useState<string>();
@@ -121,6 +128,8 @@ export function HealOverlay({
           document.scene.getState().layers[0].source,
         ).image.size;
         if (!dabTouchesImage([x, y], stroke.size / 2, size)) return false;
+        // Keep the displayed feather when starting a stroke changes the patch selection.
+        brush.update({ feather: stroke.feather });
         const painted = { ...stroke, flow: 1 };
         if (selected && (shift || alt)) {
           const stroke: BrushStroke = {
