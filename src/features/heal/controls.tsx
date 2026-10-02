@@ -116,7 +116,10 @@ export function HealControls({
               type="button"
               aria-label={`Select patch ${index + 1}`}
               aria-pressed={selectedPatch === patch.id}
-              onClick={() => selectPatch(patch.id)}
+              onClick={(event) => {
+                selectPatch(patch.id);
+                event.currentTarget.blur();
+              }}
               className="flex min-w-0 flex-1 items-center gap-2 self-stretch px-2 text-left"
             >
               <CoverageThumbnail
