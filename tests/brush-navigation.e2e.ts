@@ -169,17 +169,17 @@ for (const { name, shortcut, presses, label } of [
     const center = cursor.locator('[data-brush-center="true"]');
     await canvas.hover();
     await expect(center).toHaveCount(0);
-    // Scrolling up enlarges the brush; scrolling down reduces it.
-    await page.mouse.wheel(0, -100);
-    await expect(size).toHaveValue("64");
+    // Positive vertical deltas enlarge the brush; negative deltas reduce it.
     await page.mouse.wheel(0, 100);
+    await expect(size).toHaveValue("64");
+    await page.mouse.wheel(0, -100);
     await expect(size).toHaveValue("50");
     // Several wheel events before a React render must accumulate, not overwrite each other.
     await canvas.evaluate((element) => {
       for (let i = 0; i < 2; i++) {
         element.dispatchEvent(
           new WheelEvent("wheel", {
-            deltaY: -100,
+            deltaY: 100,
             bubbles: true,
             cancelable: true,
           }),
@@ -192,13 +192,13 @@ for (const { name, shortcut, presses, label } of [
     await size.fill("1");
     await size.press("Enter");
     await canvas.hover();
-    await page.mouse.wheel(0, -100);
+    await page.mouse.wheel(0, 100);
     await expect(size).toHaveValue("1");
-    await page.mouse.wheel(0, -100);
+    await page.mouse.wheel(0, 100);
     await expect(size).toHaveValue("2");
-    await page.mouse.wheel(0, 100_000);
-    await expect(size).toHaveValue("1");
     await page.mouse.wheel(0, -100_000);
+    await expect(size).toHaveValue("1");
+    await page.mouse.wheel(0, 100_000);
     await expect(size).toHaveValue("1000");
     // Chromium represents a trackpad pinch as ctrl+wheel.
     await page.keyboard.down("Control");
@@ -244,7 +244,7 @@ for (const { name, shortcut, presses, label } of [
     await size.press("Enter");
     await canvas.hover();
     await expect(center).toHaveCount(0);
-    await page.mouse.wheel(300, -100);
+    await page.mouse.wheel(300, 100);
     await expect(size).toHaveValue("128");
     await expect(center).toHaveCount(1);
     await size.fill("50");
@@ -254,7 +254,7 @@ for (const { name, shortcut, presses, label } of [
       for (let i = 0; i < 100; i++) {
         element.dispatchEvent(
           new WheelEvent("wheel", {
-            deltaY: -1,
+            deltaY: 1,
             bubbles: true,
             cancelable: true,
           }),

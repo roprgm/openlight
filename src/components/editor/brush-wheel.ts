@@ -19,7 +19,7 @@ export function useBrushWheel() {
     if (event.deltaMode === WheelEvent.DOM_DELTA_LINE) delta *= 16;
     if (event.deltaMode === WheelEvent.DOM_DELTA_PAGE)
       delta *= camera.viewport[1];
-    brush.resize(Math.exp(-delta / 400));
+    brush.resize(Math.exp(delta / 400));
   });
   useEffect(() => {
     const element = ref.current;
