@@ -38,7 +38,7 @@ export function HealingProvider({
   onEdit?: () => void;
 }) {
   const document = useDocument();
-  const brush = useBrushSettings(0.1);
+  const brush = useBrushSettings(0.2);
   const [mode, setMode] = useState<HealMode>(healModes[0].mode);
   const [source, setSource] = useState<Point>();
   const [selectedPatch, setSelectedPatch] = useState<string>();

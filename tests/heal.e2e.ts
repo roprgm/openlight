@@ -74,7 +74,7 @@ test("Healing paints patches, edits them, and undoes", async ({ page }) => {
   await size.press("Enter");
   await expect(brushCursor).toHaveCount(0);
   const feather = page.getByRole("textbox", { name: "Feather", exact: true });
-  await expect(feather).toHaveValue("10");
+  await expect(feather).toHaveValue("20");
   await feather.focus();
   await expect(brushCursor).toHaveAttribute("data-preview", "true");
   await feather.fill("0");
