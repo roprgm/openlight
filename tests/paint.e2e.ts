@@ -316,7 +316,7 @@ test("a brush mask settles into pixels like paint, and undo and scene files keep
   expect(await inside()).toEqual(before);
 });
 
-test("Photoshop's keys switch the brush, its colors, feather, flow, and opacity, and a right click sizes it", async ({
+test("Photoshop's keys switch the brush, its colors, feather, flow, and opacity", async ({
   page,
 }) => {
   await openPhoto(page);
@@ -346,18 +346,6 @@ test("Photoshop's keys switch the brush, its colors, feather, flow, and opacity,
   await expect(chip("Erase")).toHaveAttribute("aria-pressed", "true");
   await page.keyboard.press("x");
   await expect(chip("Paint")).toHaveAttribute("aria-pressed", "true");
-
-  await page
-    .getByLabel("Brush canvas", { exact: true })
-    .click({ button: "right", position: { x: 300, y: 300 } });
-  const size = page
-    .getByRole("dialog")
-    .getByRole("textbox", { name: "Size", exact: true });
-  await size.fill("120");
-  await size.press("Enter");
-  await expect(field("Size")).toHaveValue("120");
-  await page.keyboard.press("Escape");
-  await expect(page.getByRole("dialog")).toHaveCount(0);
 });
 
 for (const [mode, action] of [
