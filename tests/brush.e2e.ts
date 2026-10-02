@@ -53,7 +53,11 @@ test("paint a brush mask, adjust it in the sidebar, erase, and undo", async ({
     page.getByRole("heading", { name: "Mask adjustments", exact: true }),
   ).toBeVisible();
   const bounds = await box(canvas);
-  const scale = Math.min(bounds.width / 1200, bounds.height / 800, 2);
+  const scale = Math.min(
+    (bounds.width - 48) / 1200,
+    (bounds.height - 48) / 800,
+    2,
+  );
   const center = [bounds.x + bounds.width / 2, bounds.y + bounds.height / 2];
   const from = [center[0] - 150 * scale, center[1]];
   const to = [center[0] + 150 * scale, center[1]];
@@ -83,7 +87,7 @@ test("paint a brush mask, adjust it in the sidebar, erase, and undo", async ({
     expect(mask).toMatchObject({ kind: "mask", name: "Brush" });
     if (mask?.kind === "mask" && mask.mask.kind === "brush") {
       expect(mask.mask.strokes).toHaveLength(1);
-      expect(mask.mask.strokes[0].size).toBe(200);
+      expect(mask.mask.strokes[0].size).toBeCloseTo(200 / scale, 6);
       expect(mask.mask.strokes[0].points.length).toBeGreaterThan(2);
     }
     expect((await state()).selectedLayerId).toBe(mask?.id);

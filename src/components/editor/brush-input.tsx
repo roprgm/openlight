@@ -1,10 +1,15 @@
 import { createContext, type ReactNode, useContext, useState } from "react";
-import type { BrushStroke } from "@/core/document";
 import { clamp } from "@/lib/math";
 import type { Parameter } from "./parameter";
-import { useDocument, useScene } from "./session";
 
-export type BrushShape = Pick<BrushStroke, "size" | "feather" | "flow">;
+export type BrushShape = {
+  /** Diameter in viewport pixels; BrushCanvas converts it to source pixels for each stroke. */
+  size: number;
+  feather: number;
+  flow: number;
+};
+
+const maxSize = 1000;
 
 type BrushSettings = {
   settings: BrushShape;
@@ -21,18 +26,8 @@ export type BrushInput = BrushSettings & {
 
 /** Each brush family keeps its own settings for the lifetime of the document. */
 export function useBrushSettings(feather: number) {
-  const document = useDocument();
-  const sourceId = useScene((scene) => scene.layers[0].source);
-  const size = document.resources.get(sourceId).image.size;
-  const longest = Math.max(...size);
-  const maxSize = Math.max(1, Math.round(longest / 2));
-  // 3% of the image in steps of 5, never under 10 px unless the image itself is that small.
-  const initialSize = Math.min(
-    maxSize,
-    Math.max(10, Math.round((longest * 0.03) / 5) * 5),
-  );
   const [settings, setSettings] = useState<BrushShape>({
-    size: initialSize,
+    size: 50,
     feather,
     flow: 1,
   });
@@ -75,7 +70,6 @@ export function brushParameters({
       value: settings.size,
       min: 1,
       max: maxSize,
-      format: (value) => `${value}px`,
       valueWidth: `${maxSize}`.length,
       onEditingChange: setPreview,
       onChange: (size) => update({ size: Math.round(size) }),

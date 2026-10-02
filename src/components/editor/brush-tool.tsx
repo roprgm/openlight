@@ -58,7 +58,7 @@ export function useBrushTool() {
 }
 
 /**
- * Brush settings outlive strokes and tool switches; they start relative to the image size. The mode
+ * Brush settings outlive strokes and tool switches; size stays fixed on screen. The mode
  * follows the selection onto a paint layer or brush mask, so the brush paints what is selected.
  */
 export function BrushProvider({ children }: { children: ReactNode }) {

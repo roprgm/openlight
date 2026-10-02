@@ -84,7 +84,11 @@ test("Healing paints patches, edits them, and undoes", async ({ page }) => {
     await toolbar.evaluate((element) => element.getBoundingClientRect().width),
   ).toBe(initialToolbarWidth);
   const bounds = await box(canvas);
-  const scale = Math.min(bounds.width / 1200, bounds.height / 800, 2);
+  const scale = Math.min(
+    (bounds.width - 48) / 1200,
+    (bounds.height - 48) / 800,
+    2,
+  );
   await page.mouse.click(
     bounds.x + bounds.width / 2 - 250 * scale,
     bounds.y + bounds.height / 2 - 200 * scale,
@@ -105,6 +109,8 @@ test("Healing paints patches, edits them, and undoes", async ({ page }) => {
   }
   expect(layer.patches).toHaveLength(1);
   // A click in the canvas margin, where the brush cannot reach the image, creates nothing.
+  await size.fill("20");
+  await size.press("Enter");
   await page.mouse.click(bounds.x + 4, bounds.y + 4);
   expect(
     await page.evaluate(() => {
@@ -116,6 +122,8 @@ test("Healing paints patches, edits them, and undoes", async ({ page }) => {
       };
     }),
   ).toEqual({ patches: 1, editing: false });
+  await size.fill("300");
+  await size.press("Enter");
   await expect(page.getByText("Patch 1", { exact: true })).toBeVisible();
   const patchList = page.getByRole("list", { name: "Healing patches" });
   await expect(
@@ -150,7 +158,7 @@ test("Healing paints patches, edits them, and undoes", async ({ page }) => {
         .scene?.layers.find((item) => item.kind === "heal");
       return healing?.kind === "heal" ? healing.patches[0].strokes[0].size : 0;
     }),
-  ).toBe(300);
+  ).toBeCloseTo(300 / scale, 6);
   await size.fill("300");
   await size.press("Enter");
   expect(layer.patches[0]).toMatchObject({ mode: "heal" });
@@ -167,7 +175,7 @@ test("Healing paints patches, edits them, and undoes", async ({ page }) => {
   expect(after.samples?.[1]).toEqual(before.samples?.[1]);
   expect(after.samples?.[2]).toEqual([128, 128, 128, 255]);
   await page.evaluate(
-    ({ id, patch }) => window.openlight.setHealSource(id, patch, [0, 360]),
+    ({ id, patch }) => window.openlight.setHealSource(id, patch, [20, 360]),
     { id: layer.id, patch: layer.patches[0].id },
   );
   expect(
@@ -562,7 +570,11 @@ test("retouch modes cycle, preserve each family's brush, and keep patches indepe
     });
   }
   expect(await patches()).toMatchObject([
-    { mode: "clone", feather: 0.35, strokes: [{ size: 20 }] },
+    {
+      mode: "clone",
+      feather: 0.35,
+      strokes: [{ size: expect.closeTo(20 / scale, 6) }],
+    },
   ]);
   const copied = await readImage(page, undefined, [
     [350, 200],
@@ -608,9 +620,21 @@ test("retouch modes cycle, preserve each family's brush, and keep patches indepe
   const third = point(900, 400);
   await page.mouse.click(third[0], third[1]);
   expect(await patches()).toMatchObject([
-    { mode: "clone", feather: 0.45, strokes: [{ size: 20 }] },
-    { mode: "heal", feather: 0.5, strokes: [{ size: 20 }] },
-    { mode: "clone", feather: 0.5, strokes: [{ size: 20 }] },
+    {
+      mode: "clone",
+      feather: 0.45,
+      strokes: [{ size: expect.closeTo(20 / scale, 6) }],
+    },
+    {
+      mode: "heal",
+      feather: 0.5,
+      strokes: [{ size: expect.closeTo(20 / scale, 6) }],
+    },
+    {
+      mode: "clone",
+      feather: 0.5,
+      strokes: [{ size: expect.closeTo(20 / scale, 6) }],
+    },
   ]);
   await page.keyboard.press("ControlOrMeta+z");
   expect(await patches()).toHaveLength(2);

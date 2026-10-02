@@ -78,6 +78,67 @@ for (const { name, shortcut, presses, label } of [
     ).toHaveValue("90");
   });
 
+  test(`${name} brush keeps its screen size across zoom while new strokes scale in the image`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    await page.goto("/");
+    await page
+      .locator('input[type="file"]')
+      .setInputFiles("tests/fixtures/photo.svg");
+    await expect(
+      page.getByRole("textbox", { name: "Exposure", exact: true }),
+    ).toHaveValue("0.00");
+    for (let i = 0; i < presses; i++) await page.keyboard.press(shortcut);
+    const canvas = page.getByLabel(label, { exact: true });
+    await expect(canvas).toBeVisible();
+    const size = page.getByRole("textbox", { name: "Size", exact: true });
+    await expect(size).toHaveValue("50");
+    await size.fill("100");
+    await size.press("Enter");
+    const bounds = await box(canvas);
+    const cursor = canvas.locator('[data-brush-cursor="true"] circle').first();
+    const strokes = () =>
+      page.evaluate(() => {
+        const { scene, selectedLayerId } = window.openlight.getState();
+        const layer = scene?.layers.find(
+          (layer) => layer.id === selectedLayerId,
+        );
+        if (layer?.kind === "paint") return layer.strokes;
+        if (layer?.kind === "mask" && layer.mask.kind === "brush")
+          return layer.mask.strokes;
+        if (layer?.kind === "heal")
+          return layer.patches.flatMap((patch) => patch.strokes);
+        return [];
+      });
+    const x = bounds.x + bounds.width / 2 + 180;
+    const y = bounds.y + bounds.height / 2 + 120;
+    await page.mouse.move(x, y);
+    await expect(cursor).toHaveAttribute("r", "50");
+    await page.mouse.click(x, y);
+    await expect.poll(async () => (await strokes()).length).toBe(1);
+    const first = (await strokes())[0];
+    await page.getByRole("button", { name: "Zoom in", exact: true }).click();
+    await page.getByRole("button", { name: "Zoom in", exact: true }).click();
+    await page.mouse.move(x + 180, y);
+    await expect(cursor).toHaveAttribute("r", "50");
+    await expect(size).toHaveValue("100");
+    await page.mouse.click(x + 180, y);
+    await expect.poll(async () => (await strokes()).length).toBe(2);
+    const recorded = await strokes();
+    expect(recorded[0]).toEqual(first);
+    expect(recorded[1].size).toBeCloseTo(first.size / 1.25 ** 2, 6);
+    // Navigating does not resize existing content; each stroke remains one undo step.
+    await page.keyboard.press("ControlOrMeta+z");
+    expect(await strokes()).toEqual([first]);
+    await page.keyboard.press("ControlOrMeta+Shift+z");
+    expect(await strokes()).toEqual(recorded);
+    await page.getByRole("button", { name: /^\d+%$/ }).click();
+    await page.mouse.move(x, y);
+    await expect(cursor).toHaveAttribute("r", "50");
+    await expect(size).toHaveValue("100");
+  });
+
   test(`${name} wheel sizes the brush while pinch zoom and Space-drag navigate`, async ({
     page,
   }) => {
@@ -138,13 +199,13 @@ for (const { name, shortcut, presses, label } of [
     await page.mouse.wheel(0, 100_000);
     await expect(size).toHaveValue("1");
     await page.mouse.wheel(0, -100_000);
-    await expect(size).toHaveValue("600");
+    await expect(size).toHaveValue("1000");
     // Chromium represents a trackpad pinch as ctrl+wheel.
     await page.keyboard.down("Control");
     await page.mouse.wheel(0, -80);
     await page.keyboard.up("Control");
     await expect(zoom).not.toHaveText(fit);
-    await expect(size).toHaveValue("600");
+    await expect(size).toHaveValue("1000");
     await expect(center).toHaveCount(1);
     // Sample both sides of a visible edge: either scroll direction would move it across a sample.
     const zoomBounds = await box(canvas);
@@ -173,7 +234,7 @@ for (const { name, shortcut, presses, label } of [
     await expect.poll(edgePixels).toEqual(expectedEdge);
     for (const x of [60, -60]) {
       await page.mouse.wheel(x, 0);
-      await expect(size).toHaveValue("600");
+      await expect(size).toHaveValue("1000");
       await expect(zoom).not.toHaveText(fit);
       await expect.poll(edgePixels).toEqual(expectedEdge);
     }

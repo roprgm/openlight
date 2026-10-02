@@ -244,7 +244,7 @@ export function BrushCanvas({
     const started = onStart(
       {
         mode: erase ? "erase" : "paint",
-        size: brush.settings.size,
+        size: brush.settings.size * mapping.pixelsPerViewportPixel,
         feather: brush.settings.feather,
         flow: brush.settings.flow,
         points: [first],
@@ -301,7 +301,7 @@ export function BrushCanvas({
     finish(true);
     event.currentTarget.releasePointerCapture(event.pointerId);
   }
-  const radius = brush.settings.size / 2 / mapping.pixelsPerViewportPixel;
+  const radius = brush.settings.size / 2;
   const status = error ?? (busy ? "Finishing stroke…" : undefined);
   const cursor = pointerVisible || brush.preview ? pointer : null;
   return (

@@ -71,7 +71,7 @@ test("Remove previews each frame, solves on release, exports, undoes, and cancel
     await page.screenshot({
       clip: {
         x: Math.round(x + 60 * scale),
-        y: Math.round(y - 160 * scale) - 1,
+        y: Math.round(y - 160) - 1,
         width: 1,
         height: 3,
       },
@@ -112,7 +112,9 @@ test("Remove previews each frame, solves on release, exports, undoes, and cancel
       .scene?.layers.find((layer) => layer.kind === "heal");
     return layer?.kind === "heal" ? layer.patches : [];
   });
-  expect(patches).toMatchObject([{ mode: "remove", strokes: [{ size: 320 }] }]);
+  expect(patches).toMatchObject([
+    { mode: "remove", strokes: [{ size: expect.closeTo(320 / scale, 6) }] },
+  ]);
   expect(patches[0]).not.toHaveProperty("offset");
   const after = await readImage(page, undefined, [[350, 200]]);
   for (const channel of after.samples?.[0].slice(0, 3) ?? [])
