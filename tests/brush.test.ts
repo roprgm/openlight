@@ -1,6 +1,6 @@
 import { expect, mock, test } from "bun:test";
 import { init, target } from "vgpu/mock";
-import { createImageLayer, createMask } from "@/app/editor/layers";
+import { createImageLayer, createLayer, createMask } from "@/app/editor/layers";
 import { createEditorRenderer } from "@/app/editor/renderer";
 import type { BrushStroke, StrokePoint } from "@/core/document";
 import { createDocument, createResources, findLayer } from "@/core/document";
@@ -12,6 +12,7 @@ import {
   addLayer,
   deleteLayer,
   extendStroke,
+  moveLayer,
   paintStroke,
   setLayer,
   setLayerMask,
@@ -155,6 +156,15 @@ test("brush strokes stamp incrementally, replay after undo, and render a proxy d
       expect(layer.mask.strokes).toHaveLength(1);
       expect(layer.mask.strokes[0].points).toHaveLength(2);
     }
+    document.history.undo();
+    await render();
+    expect(renderer.coverage(mask)).toBeUndefined();
+    expect(
+      renderer.inspect().rasters.some((raster) => raster.id === mask),
+    ).toBe(true);
+    document.history.redo();
+    await render();
+    expect(renderer.coverage(mask)).toBeDefined();
     // A brush subtracting from a gradient turns the whole mask into a raster.
     const gradient = addLayer(document, createMask(defaultGradient([64, 32])));
     setAdjustments(document, { exposure: -1 }, gradient);
@@ -201,6 +211,13 @@ test("brush strokes stamp incrementally, replay after undo, and render a proxy d
     );
     expect(renderer.coverage(child)?.target.size).toEqual([32, 16]);
     expect(renderer.coverage(gradient)?.target.size).toEqual([32, 16]);
+    // Hiding a group bypasses its effect, but preserves the combined coverage shown in its row.
+    setLayer(document, gradient, { visible: false });
+    await render();
+    expect(renderer.coverage(gradient)?.target.size).toEqual([32, 16]);
+    expect(renderer.inspect().passes).toContain(`mask/${child}/combine`);
+    expect(renderer.inspect().passes).not.toContain(`layer/${gradient}/raster`);
+    setLayer(document, gradient, { visible: true });
     // Erasing inside the child stamps its own raster only, and the group recombines.
     const stampedBefore = renderer.inspect().stamped;
     paintStroke(document, child, { ...stroke, mode: "erase" });
@@ -291,6 +308,11 @@ test("a brush yet to paint takes no part in its group", async () => {
         `layer/${shaped}/raster`,
       ]),
     );
+    const effect = addLayer(document, createLayer("exposure"));
+    moveLayer(document, child, 0, effect);
+    setLayer(document, effect, { visible: false });
+    await passes();
+    expect(renderer.coverage(child)?.target.size).toEqual([32, 16]);
   } finally {
     renderer.dispose();
     document.dispose();

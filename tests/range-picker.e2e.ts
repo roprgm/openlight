@@ -1,5 +1,6 @@
 import type { Page } from "@playwright/test";
 import { expect, test } from "./fixtures";
+import { readImage } from "./images";
 import { box } from "./pointer";
 
 declare global {
@@ -18,7 +19,7 @@ const photo = Buffer.from(
   '<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200"><rect width="200" height="200" fill="#e07020"/></svg>',
 );
 
-async function open(page: Page) {
+async function open(page: Page, buffer = photo) {
   await page.addInitScript(() => {
     const mapAsync = GPUBuffer.prototype.mapAsync;
     let paused = false;
@@ -68,7 +69,7 @@ async function open(page: Page) {
   await page.locator('input[type="file"]').setInputFiles({
     name: "orange.svg",
     mimeType: "image/svg+xml",
-    buffer: photo,
+    buffer,
   });
   await expect(page.getByRole("textbox", { name: "Exposure" })).toHaveValue(
     "0.00",
@@ -83,6 +84,83 @@ async function pick(page: Page) {
     canvas.y + canvas.height / 2,
   );
 }
+
+test.describe("mixed pointers", () => {
+  test.use({ hasTouch: true });
+
+  test("a touch cannot replace an active mouse pick", async ({ page }) => {
+    await open(
+      page,
+      Buffer.from(
+        '<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200"><rect width="100" height="200" fill="#e07020"/><rect x="100" width="100" height="200" fill="#2060d0"/></svg>',
+      ),
+    );
+    await page.getByRole("button", { name: "Add effect" }).click();
+    await page.getByRole("menuitem", { name: "Color Range" }).click();
+    const canvas = await box(
+      page.getByRole("application", { name: "Color range canvas" }),
+    );
+    const x = canvas.x + canvas.width / 2 - 20;
+    const y = canvas.y + canvas.height / 2;
+    await page.mouse.move(x, y);
+    await page.mouse.down();
+    await expect(page.getByLabel("Range color")).toHaveValue("#e07020");
+    await page.touchscreen.tap(x, y);
+    await page.mouse.move(x + 40, y);
+    await expect(page.getByLabel("Range color")).toHaveValue("#2060d0");
+    await page.mouse.up();
+    await expect
+      .poll(() =>
+        page.evaluate(() => {
+          const { history } = window.openlight.getState();
+          return "editing" in history && history.editing;
+        }),
+      )
+      .toBe(false);
+    await page.getByRole("button", { name: "Undo", exact: true }).click();
+    await expect(page.getByLabel("Range color")).toHaveCount(0);
+  });
+});
+
+test("a range inside a hidden effect can still pick its source color", async ({
+  page,
+}) => {
+  await open(page);
+  const original = (await readImage(page)).center;
+  const parent = await page.evaluate(() => {
+    const api = window.openlight;
+    const parent = api.addLayer("exposure");
+    api.setExposure(parent, -1);
+    const child = api.addLayer("mask", { inside: parent });
+    api.setLayerMask(child, {
+      kind: "color-range",
+      color: null,
+      tolerance: 30,
+    });
+    return parent;
+  });
+  const exposed = (await readImage(page)).center;
+  await page.evaluate(
+    (id) => window.openlight.setLayer(id, { visible: false }),
+    parent,
+  );
+  const before = await page.evaluate(
+    () => window.openlight.getState().history.undoCount,
+  );
+  await page
+    .getByRole("button", { name: "Pick a color from the photo" })
+    .click();
+  await pick(page);
+  const color = `#${exposed
+    .slice(0, 3)
+    .map((channel) => channel.toString(16).padStart(2, "0"))
+    .join("")}`;
+  await expect(page.getByLabel("Range color")).toHaveValue(color);
+  expect((await readImage(page)).center).toEqual(original);
+  expect(
+    await page.evaluate(() => window.openlight.getState().history.undoCount),
+  ).toBe(before + 1);
+});
 
 test("a delayed pick stays with its original selection", async ({ page }) => {
   await open(page);

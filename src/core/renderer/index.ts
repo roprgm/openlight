@@ -320,7 +320,7 @@ export function createRenderer(
      * thumbnails, a Healing patch's, or a paint layer's.
      */
     coverage(id: string): { target: Target; origin: Point } | undefined {
-      const target = shown.get(id) ?? masks.brush(id)?.target ?? paints.get(id);
+      const target = shown.get(id) ?? paints.get(id);
       return target ? { target, origin: [0, 0] } : patches.raster(id);
     },
     /** Device pixels shown per source pixel; interactive renders reduce the source to about this density. */

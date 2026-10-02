@@ -199,7 +199,7 @@ test("an unpicked color range has no coverage, including as an intersection", as
   expect(await quadrantColors(page)).toEqual(original);
   await page.keyboard.press("Escape");
 
-  const { parent, child } = await page.evaluate(() => {
+  const child = await page.evaluate(() => {
     const api = window.openlight;
     const parent = api.addLayer("mask");
     api.setLayerMask(parent, {
@@ -215,7 +215,7 @@ test("an unpicked color range has no coverage, including as an intersection", as
       tolerance: 30,
     });
     api.setMaskOperation(child, "intersect");
-    return { parent, child };
+    return child;
   });
   expect(await quadrantColors(page)).toEqual(original);
   await page.evaluate(
@@ -230,5 +230,4 @@ test("an unpicked color range has no coverage, including as an intersection", as
     child,
   );
   expect(await quadrantColors(page)).toEqual(subtracted);
-  await page.evaluate((id) => window.openlight.deleteLayer(id), parent);
 });

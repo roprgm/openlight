@@ -99,7 +99,11 @@ export function createMaskCoverage(brushes: PaintRaster) {
       /** One op's own coverage, or nothing for a brush yet to paint. */
       function covered(name: string, { id, mask }: MaskModifier) {
         if (mask.kind === "brush") {
-          return hasPaint(mask) ? brushes.coverage(id) : undefined;
+          const coverage = hasPaint(mask) ? brushes.coverage(id) : undefined;
+          if (coverage) {
+            show(id, coverage);
+          }
+          return coverage;
         }
         if (isGradient(mask)) {
           return generate(
@@ -152,8 +156,6 @@ export function createMaskCoverage(brushes: PaintRaster) {
       }
       return group;
     },
-    /** A brush's raster with its open stroke laid over it, if it has one. */
-    brush: (id: string) => brushes.coverage(id),
     sweep: () => brushes.sweep(),
     inspect: () => brushes.inspect(),
     dispose: () => brushes.dispose(),

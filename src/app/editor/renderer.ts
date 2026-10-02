@@ -45,12 +45,16 @@ function composeLayer(
   // A mask's ranges read the image below it, hidden or not.
   const rangeSource =
     layer.id === composition.rangeSourceId ? below : undefined;
-  if (bypassed && !inspected) {
-    return { image: below, rangeSource };
-  }
   const masks = layer.kind === "mask" ? maskModifiers(layer) : [];
   const coverage =
     layer.kind === "mask" ? composition.coverage(layer, below) : undefined;
+  // Masks under a hidden effect still preview and pick the processed image they select when shown.
+  const holdsMasks =
+    layer.kind !== "mask" &&
+    layer.children.some((child) => child.kind === "mask");
+  if (bypassed && !inspected && !holdsMasks) {
+    return { image: below, rangeSource };
+  }
   let input: RenderImage | undefined;
   let edited = below;
   switch (layer.kind) {

@@ -102,7 +102,7 @@ A brush mask is a list of strokes, over the pixels earlier strokes settled into,
 
 A range mask selects pixels of the image below its mask group, before the group's own adjustments, rather than by position. `{ kind: "luminance-range", low, high, smoothness }` selects the pixels whose CIE lightness lies from `low` to `high`, 0 black to 100 white, fading out over `smoothness` past either end; headroom above white counts as white. `{ kind: "color-range", color, tolerance }` selects the pixels whose hue and saturation are near `color`, `#rrggbb` sRGB, however light or dark, more of them as `tolerance` grows. Set `color` to `null` for an unpicked range with no coverage. Every value runs from 0 to 100, and `low` cannot exceed `high`. As a mask's own shape, a range covers the whole photo within it; as a child, it adds, subtracts, or intersects like any mask, so a gradient intersected with a color range darkens only that color across the gradient. Range coverage follows the photo's edges at its full resolution.
 
-The Add menu's **Luminance Range** starts at 50 to 100 with smoothness 25. **Color Range**, including a mask's Add, Subtract, or Intersect entry for one, creates and selects an unpicked mask immediately with tolerance 30. A click on the photo picks its color, averaged over 5 × 5 pixels, and a drag keeps picking as one edit. Picks read the image below the mask group as the screen would show it, so the mask's own edit never changes them. Once a color is chosen, the swatch beside the eyedropper opens the browser's color picker. Selecting another kind of layer or deleting the range leaves the picker.
+The Add menu's **Luminance Range** starts at 50 to 100 with smoothness 25. **Color Range**, including a mask's Add, Subtract, or Intersect entry for one, creates and selects an unpicked mask immediately with tolerance 30. A click on the photo picks its color, averaged over 5 × 5 rendered texels, and a drag keeps picking as one edit. Picks read the image below the mask group as the screen would show it, so the mask's own edit never changes them. Once a color is chosen, the swatch beside the eyedropper opens the browser's color picker. Selecting another kind of layer or deleting the range leaves the picker.
 
 ## LUTs
 
@@ -148,6 +148,8 @@ try {
 | `split` | Divider position from 0 to 1 | 0.5 |
 | `shadows` | Show shadow clipping | `false` |
 | `highlights` | Show highlight clipping | `false` |
+
+The editor also manages `maskOverlay` for the selected mask and `rangeSource` for the mask group being sampled. These transient fields are visible in `getState().preview`; leave them to the active tool.
 
 ## Export
 

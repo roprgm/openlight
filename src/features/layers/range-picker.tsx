@@ -93,6 +93,10 @@ export function RangePicker() {
         if (!color || current.cancelled || document.closed) {
           return;
         }
+        if (document.selection.getState().layerId !== current.target) {
+          cancelDrag(current);
+          return;
+        }
         if (!current.opened) {
           if (document.history.status.getState().editing) {
             current.cancelled = true;
@@ -101,19 +105,7 @@ export function RangePicker() {
             }
             return;
           }
-          if (document.selection.getState().layerId !== current.target) {
-            cancelDrag(current);
-            return;
-          }
           current.opened = document.history.begin();
-          if (!current.opened) {
-            cancelDrag(current);
-            return;
-          }
-        }
-        if (document.selection.getState().layerId !== current.target) {
-          cancelDrag(current);
-          return;
         }
         recolor(current.target, color);
       })
@@ -180,7 +172,13 @@ export function RangePicker() {
   });
   function start(event: PointerEvent<HTMLDivElement>) {
     const box = camera.ref.current?.getBoundingClientRect();
-    if (event.button !== 0 || !event.isPrimary || !box || !editing) {
+    if (
+      event.button !== 0 ||
+      !event.isPrimary ||
+      !box ||
+      !editing ||
+      drag.current
+    ) {
       return;
     }
     event.stopPropagation();
@@ -222,8 +220,16 @@ export function RangePicker() {
       onPointerDown={start}
       onPointerMove={move}
       onPointerUp={finish}
-      onPointerCancel={() => end(true)}
-      onLostPointerCapture={() => end(false)}
+      onPointerCancel={(event) => {
+        if (drag.current?.pointer === event.pointerId) {
+          end(true);
+        }
+      }}
+      onLostPointerCapture={(event) => {
+        if (drag.current?.pointer === event.pointerId) {
+          end(false);
+        }
+      }}
     >
       <CanvasHint>
         {error || "Click or drag over the photo to pick the color to select"}
