@@ -95,7 +95,7 @@ export function RangeOptions({ id, mask }: { id: string; mask: RangeMask }) {
             className="rounded-full"
             onClick={() => tool.edit("color-range")}
           >
-            <EyedropperIcon className="size-4.5 drop-shadow-(--text-shadow-default)" />
+            <EyedropperIcon className="size-4.5" />
           </IconButton>
         </span>
       )}

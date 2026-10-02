@@ -1,4 +1,4 @@
-import { type PointerEvent, useEffect, useRef } from "react";
+import { type PointerEvent, useEffect, useRef, useState } from "react";
 import { useGpu } from "vgpu-react";
 import { useStore } from "zustand";
 import { CanvasHint } from "@/components/editor/canvas-hint";
@@ -19,12 +19,13 @@ type Drag = {
   pointer: number;
   /** The viewport bounds measured once; pointer capture keeps them valid for the drag. */
   box: DOMRect;
-  /** Whether a color has landed and opened the drag's edit. */
-  started: boolean;
+  target: string;
+  adding: boolean;
+  opened: boolean;
   /** Whether the drag was cancelled, so colors still to land change nothing. */
   cancelled: boolean;
   /** The latest color to land, which the drag waits for before it ends. */
-  landed: Promise<unknown>;
+  landed: Promise<void>;
 };
 
 /**
@@ -57,16 +58,25 @@ export function RangePicker() {
   const creating = Boolean(pending) || !editing;
   // A new color range reads below its parent, or, going on top, the whole photo as it shows.
   const source = creating ? pending?.parentId : group;
+  const [error, setError] = useState("");
+  const live = useRef(true);
   useEffect(() => {
     document.preview.setState({ rangeSource: source });
     return () => document.preview.setState({ rangeSource: undefined });
   }, [document, source]);
   const drag = useRef<Drag | null>(null);
+  const inFlight = useRef(new Set<Drag>());
   /** The previous drag's end, which a new drag's colors wait for so the two edits never overlap. */
-  const ended = useRef<Promise<unknown>>(Promise.resolve());
-  /** Gives the selected color range a color, while it is one. */
-  function recolor(color: string) {
-    const id = document.selection.getState().layerId;
+  const ended = useRef<Promise<void>>(Promise.resolve());
+  function cancelDrag(current: Drag) {
+    current.cancelled = true;
+    if (current.opened) {
+      current.opened = false;
+      document.history.cancel();
+    }
+  }
+  /** Gives the drag's color range a color, while it is one. */
+  function recolor(id: string, color: string) {
     const layer = findLayer(document.scene.getState().layers, id);
     if (layer?.kind === "mask" && layer.mask.kind === "color-range") {
       setLayerMask(document, id, { ...layer.mask, color });
@@ -85,23 +95,54 @@ export function RangePicker() {
     const image = () =>
       source ? renderer.rangeSource(source) : renderer.fullImage();
     const color = sampler.sample(image, [x / size[0], y / size[1]]);
-    current.landed = Promise.all([current.landed, color]).then(([, color]) => {
-      if (!color || current.cancelled || document.closed) {
-        return;
-      }
-      if (!current.started) {
-        current.started = true;
-        if (creating) {
-          tool.create({
-            kind: "color-range",
-            color,
-            tolerance: defaultTolerance,
-          });
+    current.landed = Promise.all([current.landed, color])
+      .then(([, color]) => {
+        if (!color || current.cancelled || document.closed) {
+          return;
         }
-        document.history.begin();
-      }
-      recolor(color);
-    });
+        if (!current.opened) {
+          if (document.history.status.getState().editing) {
+            current.cancelled = true;
+            if (live.current) {
+              setError("Finish the current edit before picking a color.");
+            }
+            return;
+          }
+          if (creating) {
+            current.adding = true;
+            try {
+              tool.create({
+                kind: "color-range",
+                color,
+                tolerance: defaultTolerance,
+              });
+              current.target = document.selection.getState().layerId;
+            } finally {
+              current.adding = false;
+            }
+          }
+          if (document.selection.getState().layerId !== current.target) {
+            cancelDrag(current);
+            return;
+          }
+          current.opened = document.history.begin();
+          if (!current.opened) {
+            cancelDrag(current);
+            return;
+          }
+        }
+        if (document.selection.getState().layerId !== current.target) {
+          cancelDrag(current);
+          return;
+        }
+        recolor(current.target, color);
+      })
+      .catch(() => {
+        cancelDrag(current);
+        if (live.current) {
+          setError("Couldn't pick a color. Try again.");
+        }
+      });
   }
   function end(cancel: boolean) {
     const current = drag.current;
@@ -109,12 +150,46 @@ export function RangePicker() {
       return;
     }
     drag.current = null;
-    current.cancelled = cancel;
-    ended.current = current.landed.finally(() =>
-      cancel ? document.history.cancel() : document.history.commit(),
-    );
+    if (cancel) {
+      cancelDrag(current);
+    }
+    ended.current = current.landed.then(() => {
+      inFlight.current.delete(current);
+      if (current.opened) {
+        current.opened = false;
+        document.history.commit();
+      }
+    });
   }
-  useEffect(() => () => end(true), []);
+  useEffect(() => {
+    live.current = true;
+    const selection = document.selection.subscribe(({ layerId }) => {
+      for (const current of inFlight.current) {
+        if (!current.adding && current.target !== layerId) {
+          cancelDrag(current);
+        }
+      }
+    });
+    const history = document.history.status.subscribe(({ editing }) => {
+      if (!editing) {
+        for (const current of inFlight.current) {
+          if (current.opened) {
+            current.opened = false;
+            current.cancelled = true;
+          }
+        }
+      }
+    });
+    return () => {
+      live.current = false;
+      selection();
+      history();
+      end(true);
+      for (const current of inFlight.current) {
+        cancelDrag(current);
+      }
+    };
+  }, [document]);
   useShortcuts({
     escape: () => (drag.current ? end(true) : tool.edit()),
     enter: () => {
@@ -133,11 +208,15 @@ export function RangePicker() {
     const current: Drag = {
       pointer: event.pointerId,
       box,
-      started: false,
+      target: selected,
+      adding: false,
+      opened: false,
       cancelled: false,
       landed: ended.current,
     };
     drag.current = current;
+    inFlight.current.add(current);
+    setError("");
     pick(current, event);
   }
   function move(event: PointerEvent<HTMLDivElement>) {
@@ -168,7 +247,7 @@ export function RangePicker() {
       onLostPointerCapture={() => end(false)}
     >
       <CanvasHint>
-        Click or drag over the photo to pick the color to select
+        {error || "Click or drag over the photo to pick the color to select"}
       </CanvasHint>
     </div>
   );

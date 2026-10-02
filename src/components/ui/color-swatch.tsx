@@ -31,7 +31,7 @@ export function ColorSwatch({
     <span
       {...props}
       className={cn(
-        "relative block size-5 shrink-0 rounded-sm surface-raised focus-ring",
+        "relative block size-5 shrink-0 rounded-sm surface-control focus-ring",
         className,
       )}
       style={{ backgroundColor: value }}
