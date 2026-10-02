@@ -78,6 +78,11 @@ for (const mode of ["Remove", "Heal", "Clone"]) {
     await page.mouse.move(...point(355, 260));
     const preview = canvas.locator('[data-heal-stroke-preview="true"]');
     await expect(preview).toBeVisible();
+    // Feather shortcuts must not discard a modifier stroke that is still being drawn.
+    await page.keyboard.press("BracketRight");
+    await expect(preview).toBeVisible();
+    await page.keyboard.press("BracketLeft");
+    await expect(feather).toHaveValue("0");
     expect(await patches()).toEqual([original]);
     expect(
       await page.evaluate(() => window.openlight.getState().history.undoCount),

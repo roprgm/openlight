@@ -5,6 +5,7 @@ import {
   type PointerEvent,
   type ReactNode,
   useEffect,
+  useEffectEvent,
   useRef,
   useState,
 } from "react";
@@ -158,6 +159,7 @@ export function BrushCanvas({
     }
     document.history.cancel();
   }
+  const cancelStroke = useEffectEvent(() => finish(false));
   useEffect(() => {
     const unsubscribe = document.history.status.subscribe((state, previous) => {
       if (
@@ -167,11 +169,11 @@ export function BrushCanvas({
           state.undoCount !== previous.undoCount ||
           state.redoCount !== previous.redoCount)
       )
-        finish(false);
+        cancelStroke();
     });
     return () => {
       unsubscribe();
-      finish(false);
+      cancelStroke();
       brush.setPreview(false);
     };
   }, []);
@@ -202,6 +204,7 @@ export function BrushCanvas({
     brush.update({ size });
   }
   function featherBy(step: number) {
+    if (stroke.current) return;
     const feather = Math.round((brush.settings.feather + step) * 10) / 10;
     brush.update({ feather: Math.min(1, Math.max(0, feather)) });
   }
