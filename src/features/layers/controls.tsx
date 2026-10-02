@@ -87,7 +87,7 @@ function LayerThumbnail({
   }
   const Icon = effects.find(({ kind }) => kind === layer.kind)?.Icon;
   return (
-    <span className="grid size-8 shrink-0 place-items-center rounded border border-edge/50 bg-level-1/40 text-muted">
+    <span className="grid size-8 shrink-0 place-items-center rounded border border-edge/50 bg-level-1/40 text-secondary">
       {Icon && <Icon className="size-4" />}
     </span>
   );
@@ -139,7 +139,7 @@ const LayerRow = memo(function LayerRow({
         selected={selected === layer.id}
         muted={!visible}
         style={{ paddingLeft: depth * 12 }}
-        className="gap-0 pointer-coarse:h-12 data-[dragging=true]:opacity-40 data-[drop=inside]:ring-1 data-[drop=inside]:ring-primary data-[drop=inside]:ring-inset data-[drop=before]:before:absolute data-[drop=before]:before:inset-x-0 data-[drop=before]:before:-top-px data-[drop=before]:before:border-t-2 data-[drop=before]:before:border-primary data-[drop=after]:after:absolute data-[drop=after]:after:inset-x-0 data-[drop=after]:after:-bottom-px data-[drop=after]:after:border-b-2 data-[drop=after]:after:border-primary"
+        className="gap-0 pointer-coarse:h-12 data-[dragging=true]:opacity-40 data-[drop=inside]:ring-1 data-[drop=inside]:ring-accent data-[drop=inside]:ring-inset data-[drop=before]:before:absolute data-[drop=before]:before:inset-x-0 data-[drop=before]:before:-top-px data-[drop=before]:before:border-t-2 data-[drop=before]:before:border-accent data-[drop=after]:after:absolute data-[drop=after]:after:inset-x-0 data-[drop=after]:after:-bottom-px data-[drop=after]:after:border-b-2 data-[drop=after]:after:border-accent"
       >
         <Tooltip disabled={isImage}>
           <TooltipTrigger
@@ -154,7 +154,7 @@ const LayerRow = memo(function LayerRow({
                     setLayer(document, layer.id, { visible: !visible });
                   }
                 }}
-                className="grid h-full w-8 shrink-0 place-items-center text-muted hover:text-foreground disabled:text-disabled aria-[pressed=false]:text-disabled pointer-coarse:w-11"
+                className="grid h-full w-8 shrink-0 place-items-center text-secondary hover:text-foreground disabled:text-disabled aria-[pressed=false]:text-disabled pointer-coarse:w-11"
               >
                 <Icon className="size-3.5">
                   <path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Z" />
@@ -184,7 +184,7 @@ const LayerRow = memo(function LayerRow({
           <Tooltip>
             <TooltipTrigger
               render={
-                <span className="grid size-6 shrink-0 place-items-center text-muted">
+                <span className="grid size-6 shrink-0 place-items-center text-secondary">
                   {operation.sign}
                 </span>
               }
@@ -200,7 +200,7 @@ const LayerRow = memo(function LayerRow({
             aria-label={expandLabel}
             aria-expanded={expanded}
             onClick={() => setCollapsed(expanded)}
-            className="grid size-6 shrink-0 place-items-center text-muted hover:text-foreground"
+            className="grid size-6 shrink-0 place-items-center text-secondary hover:text-foreground"
           >
             <Icon className="size-3 transition-transform" style={chevronStyle}>
               <path d="m9 5 7 7-7 7" />
@@ -212,7 +212,7 @@ const LayerRow = memo(function LayerRow({
             <Tooltip>
               <TooltipTrigger
                 render={
-                  <span className="grid size-7 shrink-0 place-items-center text-muted">
+                  <span className="grid size-7 shrink-0 place-items-center text-secondary">
                     <Icon className="size-3.5">
                       <rect x="6" y="10" width="12" height="10" rx="2" />
                       <path d="M8 10V7a4 4 0 0 1 8 0v3" />

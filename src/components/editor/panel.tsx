@@ -42,7 +42,7 @@ export function EditorPanel({
       {...props}
     >
       <div
-        className="absolute inset-y-0 -left-1 z-20 w-2 cursor-col-resize touch-none after:absolute after:inset-y-0 after:left-1 after:w-px after:transition-colors hover:after:bg-raised"
+        className="absolute inset-y-0 -left-1 z-20 w-2 cursor-col-resize touch-none after:absolute after:inset-y-0 after:left-1 after:w-px after:transition-colors hover:after:bg-control"
         onPointerDown={(event) =>
           event.currentTarget.setPointerCapture(event.pointerId)
         }

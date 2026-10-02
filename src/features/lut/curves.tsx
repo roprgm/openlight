@@ -36,7 +36,7 @@ export function LutCurves({
 }) {
   return (
     <section className="flex flex-col gap-2.5">
-      <h2 className="text-muted">Gray response</h2>
+      <h2 className="text-secondary">Gray response</h2>
       <svg
         role="img"
         aria-label="Each channel's output for grays from black to white"

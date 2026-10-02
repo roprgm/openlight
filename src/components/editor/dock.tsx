@@ -78,7 +78,7 @@ export function DockChips<T extends string>({
 function Readout({ parameter }: { parameter: Parameter }) {
   return (
     <p className="flex items-baseline gap-2 whitespace-nowrap">
-      <span className="text-muted">{parameter.label}</span>
+      <span className="text-secondary">{parameter.label}</span>
       <span className="font-medium text-foreground tabular-nums">
         {formatValue(parameter.value, parameter.step, parameter.format)}
       </span>
@@ -90,7 +90,7 @@ function Readout({ parameter }: { parameter: Parameter }) {
 function Picked({ parameter }: { parameter: Parameter }) {
   return (
     <p className="flex items-center gap-2 whitespace-nowrap">
-      <span className="text-muted">{parameter.label}</span>
+      <span className="text-secondary">{parameter.label}</span>
       <ScrubInput
         {...parameter}
         aria-label={parameter.label}
@@ -172,7 +172,7 @@ export function DockControls({
     >
       {hint && (
         // Above the histogram and zoom control, which sit in the canvas's bottom corners.
-        <p className="pointer-events-none absolute bottom-full left-1/2 z-10 mb-21 w-72 max-w-[calc(100%-1.5rem)] -translate-x-1/2 rounded-md bg-level-4/80 px-3 py-1.5 text-center text-balance text-muted backdrop-blur-sm">
+        <p className="pointer-events-none absolute bottom-full left-1/2 z-10 mb-21 w-72 max-w-[calc(100%-1.5rem)] -translate-x-1/2 rounded-md bg-level-4/80 px-3 py-1.5 text-center text-balance text-secondary backdrop-blur-sm">
           Drag a dial to change it, double{"\u2011"}tap to reset, tap to type a
           value
         </p>

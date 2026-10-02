@@ -9,7 +9,7 @@ export function FillControls({ id, fill }: { id: string; fill: Fill }) {
   const document = useDocument();
   return (
     <section className="flex flex-col gap-3 p-3.5">
-      <label className="flex items-center justify-between text-muted">
+      <label className="flex items-center justify-between text-secondary">
         Color
         <span className="flex items-center gap-2">
           <span className="text-foreground uppercase tabular-nums">
@@ -22,7 +22,7 @@ export function FillControls({ id, fill }: { id: string; fill: Fill }) {
           />
         </span>
       </label>
-      <div className="flex items-center justify-between text-muted">
+      <div className="flex items-center justify-between text-secondary">
         Blend
         <Select
           raised
