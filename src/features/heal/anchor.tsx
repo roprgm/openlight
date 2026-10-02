@@ -144,18 +144,27 @@ function DraggedAnchor({
     end(true);
   }
   return (
-    <circle
-      {...{ [`data-heal-${kind}-handle`]: "true" }}
-      data-hide-brush-cursor="true"
-      cx={center[0]}
-      cy={center[1]}
-      {...marker}
-      className="pointer-events-auto cursor-grab active:cursor-grabbing"
-      onPointerDown={start}
-      onPointerMove={move}
-      onPointerUp={finish}
-      onPointerCancel={cancel}
-      onLostPointerCapture={cancel}
-    />
+    <g>
+      <circle
+        cx={center[0]}
+        cy={center[1]}
+        {...marker}
+        className="pointer-events-none"
+      />
+      <circle
+        {...{ [`data-heal-${kind}-handle`]: "true" }}
+        data-hide-brush-cursor="true"
+        cx={center[0]}
+        cy={center[1]}
+        r={14}
+        fill="transparent"
+        className="pointer-events-auto cursor-grab active:cursor-grabbing"
+        onPointerDown={start}
+        onPointerMove={move}
+        onPointerUp={finish}
+        onPointerCancel={cancel}
+        onLostPointerCapture={cancel}
+      />
+    </g>
   );
 }

@@ -279,19 +279,16 @@ test("Healing paints patches, edits them, and undoes", async ({ page }) => {
   const handle = canvas.locator('[data-heal-source-handle="true"]');
   const handleBounds = await handle.boundingBox();
   if (!handleBounds) throw Error("Healing source handle is unavailable");
-  await handle.hover();
+  const grabX = handleBounds.x + handleBounds.width / 2 + 11;
+  const grabY = handleBounds.y + handleBounds.height / 2;
+  await page.mouse.move(grabX, grabY);
+  await expect(handle).toHaveCSS("cursor", "grab");
   await expect(canvas.locator("svg:has(radialGradient)")).toHaveCount(0);
   await page.mouse.move(bounds.x + 10, bounds.y + 10);
   await expect(canvas.locator("svg:has(radialGradient)")).toHaveCount(1);
-  await page.mouse.move(
-    handleBounds.x + handleBounds.width / 2,
-    handleBounds.y + handleBounds.height / 2,
-  );
+  await page.mouse.move(grabX, grabY);
   await page.mouse.down();
-  await page.mouse.move(
-    handleBounds.x + handleBounds.width / 2 + 30,
-    handleBounds.y + handleBounds.height / 2,
-  );
+  await page.mouse.move(grabX + 30, grabY);
   // The repair follows the donor while it is dragged, not only once it drops.
   await expect.poll(sourceX).not.toBe(beforeDrag);
   await page.mouse.up();
