@@ -21,7 +21,8 @@ test("a color layer renders its fill, validates its settings, and keeps a mask f
   const image = target(gpu, { size: [16, 8], format: "rgba16float" });
   const layers = [createImageLayer("photo", "Photo")] as const;
   const document = createDocument({ frame: imageFrame(image.size), layers });
-  const renderer = createEditorRenderer(gpu, createImageSource(image));
+  const source = createImageSource(image);
+  const renderer = createEditorRenderer(gpu, source);
   expect(parseColor("#ff8000")).toEqual([1, 128 / 255, 0]);
   const mask = addLayer(document, createMask(defaultGradient([16, 8])));
   const neutral = () => {
@@ -53,5 +54,8 @@ test("a color layer renders its fill, validates its settings, and keeps a mask f
   expect(neutral()).toBe(true);
   setAdjustments(document, { contrast: 5 }, mask);
   expect(neutral()).toBe(false);
+  renderer.dispose();
+  document.dispose();
+  source.dispose();
   gpu.dispose();
 });

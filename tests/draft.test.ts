@@ -24,6 +24,7 @@ test("a draft survives storage's structured clone, reopens under its source ID, 
   expect(() => resources.add(file, duplicate, source)).toThrow(
     "already exists",
   );
+  duplicate.dispose();
   const layers = [createImageLayer(source, "photo.png")] as const;
   const frame = imageFrame([8, 4]);
   const document = createDocument({ frame, layers }, resources);
@@ -52,6 +53,7 @@ test("a draft survives storage's structured clone, reopens under its source ID, 
       openDraft({ record: value as typeof record, files }, decode),
     ).rejects.toThrow(message);
   }
+  gpu.dispose();
 });
 
 test("a dismissed draft failure stays dismissed while autosave fails the same way", () => {

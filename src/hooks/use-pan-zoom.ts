@@ -1,4 +1,5 @@
 import {
+  type MouseEvent,
   type PointerEvent,
   useCallback,
   useEffect,
@@ -12,7 +13,7 @@ import { useStore } from "zustand";
 import { createStore } from "zustand/vanilla";
 import type { Point } from "@/core/image/frame";
 import type { View } from "@/core/renderer";
-import { isTyping } from "@/lib/dom";
+import { containsTarget, isTyping } from "@/lib/dom";
 
 const fit: View = { zoom: 1, pan: [0, 0] };
 export const createCamera = () => createStore<View>(() => fit);
@@ -162,7 +163,7 @@ export function usePanZoom(
         );
       }
       return pan(view, -event.deltaX, -event.deltaY);
-    });
+    }, constrain && !panMode);
   });
 
   // One listener and observer per element; the wheel handler reads the latest content and bounds.
@@ -214,7 +215,11 @@ export function usePanZoom(
     element.setPointerCapture(pointerId);
   }
   function startDrag(event: PointerEvent<HTMLElement>) {
-    if (event.button !== 0 || pointers.current.size === 2) {
+    if (
+      !containsTarget(event) ||
+      event.button !== 0 ||
+      pointers.current.size === 2
+    ) {
       return;
     }
     track(event.pointerId, [event.clientX, event.clientY], event.currentTarget);
@@ -227,7 +232,7 @@ export function usePanZoom(
   }
   const handlers = {
     onPointerDownCapture: (event: PointerEvent<HTMLElement>) => {
-      if (panMode && event.button === 0) {
+      if (panMode && event.button === 0 && containsTarget(event)) {
         event.preventDefault();
         event.stopPropagation();
         startDrag(event);
@@ -267,7 +272,9 @@ export function usePanZoom(
     onPointerUp: release,
     onPointerCancel: release,
     onLostPointerCapture: release,
-    onDoubleClick: () => resetView(),
+    onDoubleClick: (event: MouseEvent<HTMLElement>) => {
+      if (containsTarget(event)) resetView();
+    },
   };
 
   return {

@@ -11,11 +11,13 @@ type Drag = {
   /** The value when the drag began; a live edit changes the rendered value under the pointer. */
   from: Point;
   next: Point;
+  unsubscribe: () => void;
 };
 
 /** A dragged value: the destination's first point or the donor offset, changed as one history edit. */
 export type AnchorDrag = {
   from: Point;
+  editOnRelease?: boolean;
   /** Follows the pointer; no value ends the drag. */
   onDrag: (next?: Point) => void;
   onDrop: (next: Point) => void;
@@ -69,24 +71,43 @@ function DraggedAnchor({
     return mapping.toDocument(event.clientX, event.clientY, box);
   }
   function cancel() {
-    if (!current.current) return;
+    const active = current.current;
+    if (!active) return;
     current.current = undefined;
+    active.unsubscribe();
     drag.onDrag();
     end(false);
   }
-  useEffect(() => () => end(false), []);
+  useEffect(() => () => cancel(), []);
   function start(event: PointerEvent<SVGCircleElement>) {
     const box = camera.ref.current?.getBoundingClientRect();
-    if (event.button !== 0 || !event.isPrimary || camera.panMode || !box) {
+    if (
+      current.current ||
+      event.button !== 0 ||
+      !event.isPrimary ||
+      camera.panMode ||
+      event.shiftKey ||
+      event.altKey ||
+      !box
+    ) {
       return;
     }
-    opened.current = document.history.begin();
+    opened.current = !drag.editOnRelease && document.history.begin();
     current.current = {
       pointer: event.pointerId,
       box,
       start: point(event, box),
       from: drag.from,
       next: drag.from,
+      unsubscribe: document.history.status.subscribe((state, previous) => {
+        if (
+          !state.editing &&
+          (previous.editing ||
+            state.undoCount !== previous.undoCount ||
+            state.redoCount !== previous.redoCount)
+        )
+          cancel();
+      }),
     };
     event.preventDefault();
     event.stopPropagation();
@@ -108,6 +129,7 @@ function DraggedAnchor({
     const active = current.current;
     if (!active || active.pointer !== event.pointerId) return;
     current.current = undefined;
+    active.unsubscribe();
     event.stopPropagation();
     event.currentTarget.releasePointerCapture(event.pointerId);
     const moved =
@@ -122,18 +144,27 @@ function DraggedAnchor({
     end(true);
   }
   return (
-    <circle
-      {...{ [`data-heal-${kind}-handle`]: "true" }}
-      data-hide-brush-cursor="true"
-      cx={center[0]}
-      cy={center[1]}
-      {...marker}
-      className="pointer-events-auto cursor-grab active:cursor-grabbing"
-      onPointerDown={start}
-      onPointerMove={move}
-      onPointerUp={finish}
-      onPointerCancel={cancel}
-      onLostPointerCapture={cancel}
-    />
+    <g>
+      <circle
+        cx={center[0]}
+        cy={center[1]}
+        {...marker}
+        className="pointer-events-none"
+      />
+      <circle
+        {...{ [`data-heal-${kind}-handle`]: "true" }}
+        data-hide-brush-cursor="true"
+        cx={center[0]}
+        cy={center[1]}
+        r={14}
+        fill="transparent"
+        className="pointer-events-auto cursor-grab active:cursor-grabbing"
+        onPointerDown={start}
+        onPointerMove={move}
+        onPointerUp={finish}
+        onPointerCancel={cancel}
+        onLostPointerCapture={cancel}
+      />
+    </g>
   );
 }

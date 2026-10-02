@@ -1,5 +1,6 @@
 import type { HealPatch } from "@/core/document";
 import {
+  type CacheKey,
   type Composition,
   merge,
   node,
@@ -8,18 +9,22 @@ import {
   sourceSize,
 } from "@/core/renderer";
 import shader from "./heal.wgsl";
+import { removePatch } from "./inpaint/pass";
 import { patchBounds } from "./model";
 
-type HealComposition = Pick<Composition, "patch" | "inputId" | "retain">;
+type HealComposition = Pick<
+  Composition,
+  "patch" | "inputId" | "retain" | "cache"
+>;
 
 function healPatch(
   source: RenderImage,
   { coverage, origin: coverageOrigin }: PatchInput,
-  patch: HealPatch,
+  patch: Extract<HealPatch, { mode: "heal" | "clone" }>,
   name: string,
 ) {
   const dimensions = sourceSize(source);
-  const { origin, extent } = patchBounds(patch.stroke, dimensions, 0);
+  const { origin, extent } = patchBounds(patch.strokes, dimensions, 0);
   const samplers = {
     linearSampler: { minFilter: "linear", magFilter: "linear" },
   } as const;
@@ -32,37 +37,39 @@ function healPatch(
     coverageSize: coverage.size,
   };
   let correction = source;
-  // Coarse-to-fine harmonic extension of the destination/donor log color ratio.
-  // The correction is smooth; the donor retains its full-resolution texture.
-  for (const resolution of [4, 8, 16, 32, 64, 128]) {
-    const ratio = Math.min(1, resolution / Math.max(...extent));
-    const size: [number, number] = [
-      Math.max(2, Math.ceil(extent[0] * ratio)),
-      Math.max(2, Math.ceil(extent[1] * ratio)),
-    ];
-    const params = { ...common, grid: size, feather: 0, opacity: 1 };
-    correction = merge(
-      { source, coverage, previous: correction },
-      node(`${name}/${resolution}/seed`, shader, {
-        size,
-        samplers,
-        set: { params: { ...params, mode: resolution === 4 ? 0 : 1 } },
-      }),
-    );
-    const iterations = resolution === 4 ? 32 : 8;
-    for (let i = 0; i < iterations; i++) {
+  if (patch.mode === "heal") {
+    // Coarse-to-fine harmonic extension of the destination/donor log color ratio.
+    // The correction is smooth; the donor retains its full-resolution texture.
+    for (const resolution of [4, 8, 16, 32, 64, 128]) {
+      const ratio = Math.min(1, resolution / Math.max(...extent));
+      const size: [number, number] = [
+        Math.max(2, Math.ceil(extent[0] * ratio)),
+        Math.max(2, Math.ceil(extent[1] * ratio)),
+      ];
+      const params = { ...common, grid: size, feather: 0, opacity: 1 };
       correction = merge(
         { source, coverage, previous: correction },
-        node(`${name}/${resolution}/relax-${i}`, shader, {
-          instance: `${name}/${resolution}/relax`,
+        node(`${name}/${resolution}/seed`, shader, {
           size,
           samplers,
-          set: { params: { ...params, mode: 2 } },
+          set: { params: { ...params, mode: resolution === 4 ? 0 : 1 } },
         }),
       );
-    }
-    if (resolution >= Math.max(...extent)) {
-      break;
+      const iterations = resolution === 4 ? 32 : 8;
+      for (let i = 0; i < iterations; i++) {
+        correction = merge(
+          { source, coverage, previous: correction },
+          node(`${name}/${resolution}/relax-${i}`, shader, {
+            instance: `${name}/${resolution}/relax`,
+            size,
+            samplers,
+            set: { params: { ...params, mode: 2 } },
+          }),
+        );
+      }
+      if (resolution >= Math.max(...extent)) {
+        break;
+      }
     }
   }
   return merge(
@@ -73,8 +80,8 @@ function healPatch(
         params: {
           ...common,
           grid: source.size,
-          mode: 3,
-          feather: (patch.stroke.size * patch.feather) / 2,
+          mode: patch.mode === "clone" ? 4 : 3,
+          feather: (patch.strokes[0].size * patch.feather) / 2,
           opacity: patch.opacity,
         },
       },
@@ -82,21 +89,51 @@ function healPatch(
   );
 }
 
+function repairsPixels(patch: HealPatch) {
+  return (
+    patch.mode === "remove" || patch.offset[0] !== 0 || patch.offset[1] !== 0
+  );
+}
+
+export function retainHealPatches(
+  patches: readonly HealPatch[],
+  name: string,
+  composition: Pick<Composition, "retain">,
+) {
+  for (const patch of patches) {
+    if (repairsPixels(patch)) composition.retain(`${name}/${patch.id}`);
+  }
+}
+
 export function heal(
   source: RenderImage,
   patches: readonly HealPatch[],
   name: string,
   composition: HealComposition,
+  dependencies: readonly CacheKey[],
 ) {
+  retainHealPatches(patches, name, composition);
   let image = source;
   let inspected: RenderImage | undefined;
+  let content = dependencies;
   for (const patch of patches) {
     if (patch.id === composition.inputId) inspected = image;
     const id = `${name}/${patch.id}`;
-    if (patch.offset[0] === 0 && patch.offset[1] === 0) continue;
-    const coverage = composition.patch(id, patch.stroke);
-    composition.retain(id);
-    image = healPatch(image, coverage, patch, id);
+    if (!repairsPixels(patch)) continue;
+    const coverage = composition.patch(id, patch.strokes);
+    if (patch.mode === "remove") {
+      image = removePatch(
+        image,
+        coverage,
+        patch,
+        id,
+        composition.cache,
+        content,
+      );
+    } else {
+      image = healPatch(image, coverage, patch, id);
+    }
+    content = [...content, patch];
   }
   return { image, input: inspected };
 }

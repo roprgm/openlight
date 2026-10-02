@@ -36,6 +36,7 @@ import {
 import { FillControls } from "@/features/fill/controls";
 import { GrainControls, grainParameters } from "@/features/grain/controls";
 import { HealControls } from "@/features/heal/controls";
+import { HealModeButtons } from "@/features/heal/mode-buttons";
 import { Histogram } from "@/features/histogram";
 import { setLayer } from "@/features/layers/edits";
 import { OverlayToggle } from "@/features/layers/overlay-toggle";
@@ -207,6 +208,7 @@ export function AdjustPanel() {
       header={
         <PanelHeader title={panelTitle(target) ?? target.name}>
           {mask && <OverlayToggle />}
+          {target.kind === "heal" && <HealModeButtons />}
         </PanelHeader>
       }
     >

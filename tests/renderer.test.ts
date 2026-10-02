@@ -133,6 +133,8 @@ test.each([1, 16])(
     expect(calls.createRenderPipeline).toBe(pipelines);
     expect(render(0)).toBe(source);
     expect(graph.inspect().textures).toHaveLength(0);
+    graph.dispose();
+    source.color.dispose();
     gpu.dispose();
   },
 );
@@ -149,7 +151,9 @@ test("rendering follows grouped edits and undo, reuses pipelines, and releases o
   const renderer = createRenderer(gpu, resource);
   const notify = mock(() => {});
   const detach = renderer.subscribe(notify);
-  document.scene.subscribe((scene) => renderer.update(scene));
+  const unsubscribe = document.scene.subscribe((scene) =>
+    renderer.update(scene),
+  );
   const display = createDisplay(gpu);
   const draw = () =>
     frame(gpu, (frame) =>
@@ -224,5 +228,10 @@ test("rendering follows grouped edits and undo, reuses pipelines, and releases o
     expect(() => owned.color.view).toThrow("destroyed");
   }
   expect(() => source.color.view).not.toThrow();
+  unsubscribe();
+  document.dispose();
+  resource.dispose();
+  canvas.color.dispose();
+  display.dispose();
   gpu.dispose();
 });

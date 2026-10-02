@@ -5,15 +5,17 @@ import {
   type PointerEvent,
   type ReactNode,
   useEffect,
-  useId,
+  useEffectEvent,
   useRef,
   useState,
 } from "react";
 import type { BrushStroke, StrokePoint } from "@/core/document";
 import type { Point } from "@/core/image/frame";
 import { useShortcuts } from "@/hooks/use-shortcuts";
-import { blurActive } from "@/lib/dom";
-import { useBrushParameters, useBrushTool } from "./brush-tool";
+import { blurActive, containsTarget } from "@/lib/dom";
+import { BrushCursor } from "./brush-cursor";
+import { useBrushInput } from "./brush-input";
+import { useBrushWheel } from "./brush-wheel";
 import { CanvasHint } from "./canvas-hint";
 import { useDocumentMapping } from "./mapping";
 import { useDocument } from "./session";
@@ -27,6 +29,7 @@ type Stroke = {
   /** The viewport bounds measured once; pointer capture keeps them valid for the drag. */
   box: DOMRect;
   pending: StrokePoint[];
+  editOnRelease: boolean;
   frame?: number;
 };
 
@@ -37,13 +40,15 @@ type PointerLike = {
   pointerType: string;
 };
 
+export type BrushModifiers = { shift: boolean; alt: boolean };
+
 /** Shared pressure-aware brush input and cursor. The caller owns the scene edit. */
 export function BrushCanvas({
   label,
   erase,
-  feather,
   onStart,
   onExtend,
+  editOnRelease = false,
   onComplete,
   onFinish,
   onPickSource,
@@ -52,11 +57,11 @@ export function BrushCanvas({
 }: {
   label: string;
   erase: boolean;
-  /** Overrides the shared brush feather for tools that own their stroke softness. */
-  feather?: number;
-  /** Records the first dab and returns whether the stroke started; a declined stroke leaves nothing behind. */
-  onStart: (stroke: BrushStroke) => boolean;
+  /** Starts the first dab or preview and returns whether accepted; a declined stroke leaves nothing behind. */
+  onStart: (stroke: BrushStroke, modifiers: BrushModifiers) => boolean;
   onExtend: (points: readonly StrokePoint[]) => void;
+  /** Keeps a local preview outside history; onFinish records the edit on release. */
+  editOnRelease?: boolean | ((modifiers: BrushModifiers) => boolean);
   onComplete?: (signal: AbortSignal) => void | Promise<void>;
   onFinish?: (committed: boolean) => void;
   onPickSource?: (point: Point) => void;
@@ -64,9 +69,9 @@ export function BrushCanvas({
   children?: ReactNode;
 }) {
   const document = useDocument();
-  const brush = useBrushTool();
-  const strokeFeather = feather ?? brush.settings.feather;
+  const brush = useBrushInput();
   const camera = useViewport();
+  const wheelRef = useBrushWheel();
   const mapping = useDocumentMapping();
   const stroke = useRef<Stroke | null>(null);
   const completing = useRef<AbortController | null>(null);
@@ -76,10 +81,27 @@ export function BrushCanvas({
   const [pointerVisible, setPointerVisible] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
-  const gradient = useId();
   function point(event: PointerLike, box: DOMRect): StrokePoint {
     const [x, y] = mapping.toDocument(event.clientX, event.clientY, box);
     return [x, y, event.pointerType === "pen" ? event.pressure : 1];
+  }
+  function flush(current: Stroke) {
+    current.frame = undefined;
+    if (!current.pending.length) {
+      return true;
+    }
+    const points = current.pending;
+    current.pending = [];
+    try {
+      onExtend(points);
+      return true;
+    } catch (error) {
+      stroke.current = null;
+      onFinish?.(false);
+      if (!current.editOnRelease) document.history.cancel();
+      setError(String(error));
+      return false;
+    }
   }
   /** Ends the stroke; a cancelled stroke restores the scene. */
   function finish(commit: boolean) {
@@ -94,12 +116,13 @@ export function BrushCanvas({
       return;
     }
     stroke.current = null;
-    onFinish?.(commit);
     if (current.frame !== undefined) {
       cancelAnimationFrame(current.frame);
     }
+    if (commit && !flush(current)) return;
+    onFinish?.(commit);
+    if (current.editOnRelease) return;
     if (commit) {
-      flush(current);
       if (!onComplete) {
         document.history.commit();
         return;
@@ -136,28 +159,24 @@ export function BrushCanvas({
     }
     document.history.cancel();
   }
-  function flush(current: Stroke) {
-    current.frame = undefined;
-    if (!current.pending.length) {
-      return;
-    }
-    const points = current.pending;
-    current.pending = [];
-    try {
-      onExtend(points);
-    } catch (error) {
-      document.history.cancel();
-      stroke.current = null;
-      setError(String(error));
-    }
-  }
-  useEffect(
-    () => () => {
-      finish(false);
+  const cancelStroke = useEffectEvent(() => finish(false));
+  useEffect(() => {
+    const unsubscribe = document.history.status.subscribe((state, previous) => {
+      if (
+        stroke.current &&
+        !state.editing &&
+        (previous.editing ||
+          state.undoCount !== previous.undoCount ||
+          state.redoCount !== previous.redoCount)
+      )
+        cancelStroke();
+    });
+    return () => {
+      unsubscribe();
+      cancelStroke();
       brush.setPreview(false);
-    },
-    [],
-  );
+    };
+  }, []);
   useEffect(() => {
     if (!brush.preview || pointer) return;
     const bounds = camera.ref.current?.getBoundingClientRect();
@@ -171,16 +190,30 @@ export function BrushCanvas({
         onDone();
       }
     },
-    "[": () => brush.update({ size: Math.round(brush.settings.size / 1.25) }),
-    "]": () => brush.update({ size: Math.round(brush.settings.size * 1.25) }),
+    "[": () => resizeBy(1 / 1.25),
+    "]": () => resizeBy(1.25),
     "shift+[": () => featherBy(-0.1),
     "shift+]": () => featherBy(0.1),
   });
+  function resizeBy(factor: number) {
+    const rounded = Math.round(brush.settings.size * factor);
+    const size =
+      rounded === brush.settings.size
+        ? rounded + Math.sign(factor - 1)
+        : rounded;
+    brush.update({ size });
+  }
   function featherBy(step: number) {
+    if (stroke.current) return;
     const feather = Math.round((brush.settings.feather + step) * 10) / 10;
     brush.update({ feather: Math.min(1, Math.max(0, feather)) });
   }
   function start(event: PointerEvent<HTMLDivElement>) {
+    // Portaled controls share the React tree, but their gestures belong to the UI.
+    if (!containsTarget(event)) {
+      event.stopPropagation();
+      return;
+    }
     const current = stroke.current;
     if (current?.touch && event.pointerType === "touch" && !event.isPrimary) {
       // A second finger means a pinch: drop the stroke and let the viewport take both fingers.
@@ -204,14 +237,22 @@ export function BrushCanvas({
       return;
     }
     setError(undefined);
-    const opened = document.history.begin();
-    const started = onStart({
-      mode: erase ? "erase" : "paint",
-      size: brush.settings.size,
-      feather: strokeFeather,
-      flow: brush.settings.flow,
-      points: [first],
-    });
+    const modifiers = { shift: event.shiftKey, alt: event.altKey };
+    const deferred =
+      typeof editOnRelease === "function"
+        ? editOnRelease(modifiers)
+        : editOnRelease;
+    const opened = !deferred && document.history.begin();
+    const started = onStart(
+      {
+        mode: erase ? "erase" : "paint",
+        size: brush.settings.size * mapping.pixelsPerViewportPixel,
+        feather: brush.settings.feather,
+        flow: brush.settings.flow,
+        points: [first],
+      },
+      modifiers,
+    );
     if (!started) {
       if (opened) document.history.cancel();
       return;
@@ -222,6 +263,7 @@ export function BrushCanvas({
       client: [event.clientX, event.clientY],
       box,
       pending: [],
+      editOnRelease: deferred,
     };
     // The viewport below would otherwise capture the pointer to pan.
     event.preventDefault();
@@ -230,8 +272,11 @@ export function BrushCanvas({
     blurActive();
   }
   function move(event: PointerEvent<HTMLDivElement>) {
+    if (!containsTarget(event)) return;
     const bounds = event.currentTarget.getBoundingClientRect();
     const overHandle =
+      !event.shiftKey &&
+      !event.altKey &&
       event.target instanceof Element &&
       event.target.closest("[data-hide-brush-cursor]");
     setPointerVisible(!overHandle);
@@ -248,7 +293,6 @@ export function BrushCanvas({
     for (const item of events.length ? events : [native]) {
       current.pending.push(point(item, current.box));
     }
-    // One edit per frame keeps the queue from outrunning the display.
     current.frame ??= requestAnimationFrame(() => flush(current));
   }
   function end(event: PointerEvent<HTMLDivElement>) {
@@ -259,19 +303,19 @@ export function BrushCanvas({
     finish(true);
     event.currentTarget.releasePointerCapture(event.pointerId);
   }
-  const radius = brush.settings.size / 2 / mapping.pixelsPerViewportPixel;
-  const color = erase ? "black" : "white";
-  const dash = erase ? "4 3" : undefined;
+  const radius = brush.settings.size / 2;
   const status = error ?? (busy ? "Finishing stroke…" : undefined);
   const cursor = pointerVisible || brush.preview ? pointer : null;
   return (
     <div
+      ref={wheelRef}
       role="application"
       aria-label={label}
       className="absolute inset-0 cursor-none touch-none data-[pan=true]:pointer-events-none"
       data-pan={camera.panMode}
       onDoubleClick={(event) => event.stopPropagation()}
       onContextMenu={(event) => {
+        if (!containsTarget(event)) return;
         event.preventDefault();
         const bounds = event.currentTarget.getBoundingClientRect();
         setMenu([event.clientX - bounds.left, event.clientY - bounds.top]);
@@ -280,54 +324,24 @@ export function BrushCanvas({
       onPointerMove={move}
       onPointerUp={end}
       onPointerLeave={() => setPointerVisible(false)}
-      onPointerCancel={() => finish(false)}
-      onLostPointerCapture={() => {
-        if (stroke.current) {
+      onPointerCancel={(event) => {
+        if (stroke.current?.pointer === event.pointerId) finish(false);
+      }}
+      onLostPointerCapture={(event) => {
+        if (stroke.current?.pointer === event.pointerId) {
           finish(false);
         }
       }}
     >
       {children}
       {cursor && !camera.panMode && (
-        <svg
-          aria-hidden="true"
-          data-brush-cursor="true"
-          data-preview={brush.preview}
-          className="pointer-events-none absolute inset-0 size-full overflow-visible"
-        >
-          <defs>
-            {/* The fill previews the dab: solid inside the feather, fading to the edge. */}
-            <radialGradient id={gradient} cx="0.5" cy="0.5" r="0.5">
-              <stop offset="0" stopColor={color} stopOpacity="0.3" />
-              <stop
-                offset={1 - strokeFeather}
-                stopColor={color}
-                stopOpacity="0.3"
-              />
-              <stop offset="1" stopColor={color} stopOpacity="0" />
-            </radialGradient>
-          </defs>
-          <circle
-            cx={cursor[0]}
-            cy={cursor[1]}
-            r={Math.max(2, radius)}
-            fill={`url(#${gradient})`}
-            stroke="white"
-            strokeOpacity="0.9"
-            strokeDasharray={dash}
-          />
-          <circle
-            cx={cursor[0]}
-            cy={cursor[1]}
-            r={Math.max(2, radius)}
-            fill="none"
-            stroke="black"
-            strokeOpacity="0.5"
-            strokeWidth="3"
-            strokeDasharray={dash}
-            style={{ paintOrder: "stroke" }}
-          />
-        </svg>
+        <BrushCursor
+          at={cursor}
+          radius={radius}
+          feather={brush.settings.feather}
+          erase={erase}
+          preview={brush.preview}
+        />
       )}
       {status && <CanvasHint>{status}</CanvasHint>}
       {menu && <BrushMenu at={menu} onClose={() => setMenu(null)} />}
@@ -337,7 +351,7 @@ export function BrushCanvas({
 
 /** The brush's size and feather where a right click opened them, as Photoshop's brush menu. */
 function BrushMenu({ at, onClose }: { at: Point; onClose: () => void }) {
-  const [size, feather] = useBrushParameters();
+  const [size, feather] = useBrushInput().parameters;
   return (
     <Popover open onOpenChange={(open) => !open && onClose()}>
       <PopoverTrigger

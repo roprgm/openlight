@@ -20,6 +20,7 @@ import type {
   Details,
   Fill,
   Grain,
+  HealMode,
   Mask,
   MaskLayer,
   PaintStroke,
@@ -44,7 +45,12 @@ import { defaultDetails } from "@/features/details/model";
 import { setFill } from "@/features/fill/edits";
 import { setGrain } from "@/features/grain/edits";
 import { defaultGrain } from "@/features/grain/model";
-import { addHealPatch, setHealSource } from "@/features/heal/edits";
+import {
+  addHealPatch,
+  addHealStroke,
+  addRemovePatch,
+  setHealSource,
+} from "@/features/heal/edits";
 import {
   addLayer,
   deleteLayer,
@@ -147,8 +153,16 @@ export function createControls(
       const document = workspace.getDocument();
       editEffect(document, "fill", id, (id) => setFill(document, change, id));
     },
-    addHealPatch: (id: string, stroke: BrushStroke, offset: Point) =>
-      addHealPatch(workspace.getDocument(), id, stroke, offset),
+    addHealPatch: (
+      id: string,
+      stroke: BrushStroke,
+      offset: Point,
+      mode?: Exclude<HealMode, "remove">,
+    ) => addHealPatch(workspace.getDocument(), id, stroke, offset, mode),
+    addHealStroke: (id: string, patch: string, stroke: BrushStroke) =>
+      addHealStroke(workspace.getDocument(), id, patch, stroke),
+    addRemovePatch: (id: string, stroke: BrushStroke) =>
+      addRemovePatch(workspace.getDocument(), id, stroke),
     setHealSource: (id: string, patchId: string, offset: Point) =>
       setHealSource(workspace.getDocument(), id, patchId, offset),
     addPaintStroke: (id: string, stroke: PaintStroke) =>

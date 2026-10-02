@@ -37,6 +37,22 @@ import { parse, withDefaults } from "@/lib/parse";
 /** Raised only when older files can no longer load as written; a parameter added later takes its default. */
 const version = 1;
 
+const savedHealPatch = z.pipe(
+  z.transform((input) => {
+    if (
+      typeof input !== "object" ||
+      input === null ||
+      "strokes" in input ||
+      !("stroke" in input)
+    ) {
+      return input;
+    }
+    const { stroke, ...patch } = input;
+    return { ...patch, strokes: [stroke] };
+  }),
+  healPatchSchema,
+);
+
 /** A saved scene: the scene as edited and the name and type of each source file, stored beside it by ID. */
 export type SceneJson = {
   format: "openlight";
@@ -106,7 +122,7 @@ function processingLayer(children: z.ZodMiniType<readonly ProcessingLayer[]>) {
       z.object({
         ...base,
         kind: z.literal("heal"),
-        patches: z.array(healPatchSchema),
+        patches: z.array(savedHealPatch),
       }),
       z.object({ ...base, kind: z.literal("paint"), ...paintShape }),
       z.object({

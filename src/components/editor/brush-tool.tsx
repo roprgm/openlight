@@ -6,19 +6,19 @@ import {
   useState,
 } from "react";
 import { findLayer, type Layer } from "@/core/document";
-import { clamp } from "@/lib/math";
+import {
+  type BrushInput,
+  type BrushShape,
+  brushParameters,
+  useBrushSettings,
+} from "./brush-input";
 import type { Parameter } from "./parameter";
-import { useDocument, useScene } from "./session";
+import { useDocument } from "./session";
 
 /** What the brush paints: color on a paint layer, or coverage on a brush mask. */
 export type BrushMode = "color" | "mask";
 
-export type BrushSettings = {
-  /** Diameter in source pixels. */
-  size: number;
-  /** Soft edge as a fraction of the radius, 0 to 1. */
-  feather: number;
-  flow: number;
+export type BrushSettings = BrushShape & {
   erase: boolean;
   mode: BrushMode;
   /** The primary color, which strokes paint, and the secondary, as `#rrggbb`. */
@@ -39,17 +39,15 @@ export function brushMode(layer: Layer | undefined): BrushMode | undefined {
   return undefined;
 }
 
-const BrushTool = createContext<{
-  settings: BrushSettings;
-  /** The mode the next stroke uses: the setting, inverted while Alt is held. */
-  erase: boolean;
-  /** The largest useful diameter: half the image's long edge. */
-  maxSize: number;
-  /** Keeps the brush cursor visible while a setting that shapes it is edited. */
-  preview: boolean;
-  setPreview: (preview: boolean) => void;
-  update: (change: Partial<BrushSettings>) => void;
-} | null>(null);
+const BrushTool = createContext<
+  | (Omit<BrushInput, "settings" | "update"> & {
+      settings: BrushSettings;
+      /** The mode the next stroke uses: the setting, inverted while Alt is held. */
+      erase: boolean;
+      update: (change: Partial<BrushSettings>) => void;
+    })
+  | null
+>(null);
 
 export function useBrushTool() {
   const tool = useContext(BrushTool);
@@ -60,30 +58,16 @@ export function useBrushTool() {
 }
 
 /**
- * Brush settings outlive strokes and tool switches; they start relative to the image size. The mode
+ * Brush settings outlive strokes and tool switches; size stays fixed on screen. The mode
  * follows the selection onto a paint layer or brush mask, so the brush paints what is selected.
  */
 export function BrushProvider({ children }: { children: ReactNode }) {
   const document = useDocument();
-  const sourceId = useScene((scene) => scene.layers[0].source);
-  const size = document.resources.get(sourceId).image.size;
-  const longest = Math.max(size[0], size[1]);
-  const maxSize = Math.max(1, Math.round(longest / 2));
-  // 3% of the image in steps of 5, never under 10 px unless the image itself is that small.
-  const initialSize = Math.min(
-    maxSize,
-    Math.max(10, Math.round((longest * 0.03) / 5) * 5),
-  );
-  const [settings, setSettings] = useState<BrushSettings>({
-    size: initialSize,
-    feather: 0.5,
-    flow: 1,
-    erase: false,
-    mode: "mask",
-    colors: defaultColors,
-  });
+  const brush = useBrushSettings(0.5);
+  const [paint, setPaint] = useState<
+    Pick<BrushSettings, "erase" | "mode" | "colors">
+  >({ erase: false, mode: "mask", colors: defaultColors });
   const [alt, setAlt] = useState(false);
-  const [preview, setPreview] = useState(false);
   useEffect(
     () =>
       document.selection.subscribe(({ layerId }) => {
@@ -91,7 +75,7 @@ export function BrushProvider({ children }: { children: ReactNode }) {
           findLayer(document.scene.getState().layers, layerId),
         );
         if (mode) {
-          setSettings((settings) => ({ ...settings, mode }));
+          setPaint((paint) => ({ ...paint, mode }));
         }
       }),
     [document],
@@ -105,21 +89,23 @@ export function BrushProvider({ children }: { children: ReactNode }) {
     window.addEventListener("blur", () => setAlt(false), { signal });
     return () => controller.abort();
   }, []);
-  function update(change: Partial<BrushSettings>) {
-    setSettings((settings) => ({
-      ...settings,
-      ...change,
-      size: clamp(change.size ?? settings.size, 1, maxSize),
-    }));
+  function update({ size, feather, flow, ...change }: Partial<BrushSettings>) {
+    brush.update({ size, feather, flow });
+    setPaint((paint) => ({ ...paint, ...change }));
   }
+  const settings = { ...brush.settings, ...paint };
+  const [size, feather] = brushParameters(brush);
+  const parameters: [Parameter, Parameter] = [
+    size,
+    { ...feather, defaultValue: 50 },
+  ];
   return (
     <BrushTool
       value={{
+        ...brush,
         settings,
+        parameters,
         erase: settings.erase !== alt,
-        maxSize,
-        preview,
-        setPreview,
         update,
       }}
     >
@@ -137,32 +123,9 @@ export function flowAt(share: number) {
 
 /** The next stroke's size, feather, and flow, for sliders and dials wherever they show. */
 export function useBrushParameters(): [Parameter, Parameter, Parameter] {
-  const { settings, maxSize, setPreview, update } = useBrushTool();
+  const { settings, parameters, update } = useBrushTool();
   return [
-    {
-      id: "size",
-      label: "Size",
-      value: settings.size,
-      min: 1,
-      max: maxSize,
-      format: (value) => `${value}px`,
-      valueWidth: `${maxSize}`.length,
-      onEditingChange: setPreview,
-      onChange: (size) => update({ size: Math.round(size) }),
-    },
-    {
-      id: "feather",
-      label: "Feather",
-      value: Math.round(settings.feather * 100),
-      min: 0,
-      max: 100,
-      defaultValue: 50,
-      origin: 0,
-      format: (value) => `${value}%`,
-      valueWidth: 3,
-      onEditingChange: setPreview,
-      onChange: (value) => update({ feather: value / 100 }),
-    },
+    ...parameters,
     {
       id: "flow",
       label: "Flow",

@@ -1,3 +1,4 @@
+import { patchCoverage } from "./coverage.wgsl";
 struct Params {
   origin: vec2f,
   extent: vec2f,
@@ -35,36 +36,10 @@ fn correction(uv: vec2f) -> vec3f {
   }
   return textureSampleLevel(previous, linearSampler, uv, 0.0).rgb;
 }
-// Softens the hard patch coverage inward by `radius`, never outward.
-fn patchCoverage(
-  texture: texture_2d<f32>,
-  textureSampler: sampler,
-  p: vec2f,
-  dimensions: vec2f,
-  radius: f32,
-) -> f32 {
-  let uv = p / dimensions;
-  let center = textureSampleLevel(texture, textureSampler, uv, 0.0).r;
-  if (radius < 0.5) {
-    return center;
-  }
-  let directions = array(
-    vec2f(1.0, 0.0), vec2f(-1.0, 0.0), vec2f(0.0, 1.0), vec2f(0.0, -1.0),
-    vec2f(0.707, 0.707), vec2f(-0.707, 0.707), vec2f(0.707, -0.707), vec2f(-0.707, -0.707),
-  );
-  var total = center * 4.0;
-  for (var i = 0u; i < 8u; i++) {
-    let direction = directions[i] * radius / dimensions;
-    total += textureSampleLevel(texture, textureSampler, uv + direction * 0.35, 0.0).r * 2.0;
-    total += textureSampleLevel(texture, textureSampler, uv + direction * 0.85, 0.0).r;
-  }
-  // Feather only the covered side of the hard patch boundary.
-  return min(center, total / 28.0);
-}
 
 @fragment fn fs_main(@builtin(position) position: vec4f) -> @location(0) vec4f {
   let uv = position.xy / params.grid;
-  if (params.mode == 3u) {
+  if (params.mode == 3u || params.mode == 4u) {
     let p = uv * params.dimensions;
     let original = color(p);
     if (any(p < params.origin) || any(p > params.origin + params.extent)) {
@@ -74,6 +49,9 @@ fn patchCoverage(
     let donor = p + params.offset;
     if (amount == 0.0 || any(donor < vec2f(0.5)) || any(donor > params.dimensions - 0.5)) {
       return original;
+    }
+    if (params.mode == 4u) {
+      return vec4f(mix(original.rgb, color(donor).rgb, amount), original.a);
     }
     let donorColor = max(color(donor).rgb, vec3f(0.0));
     let delta = textureSampleLevel(previous, linearSampler, (p - params.origin) / params.extent, 0.0).rgb;

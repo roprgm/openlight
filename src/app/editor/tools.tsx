@@ -6,7 +6,6 @@ import {
   useContext,
   useState,
 } from "react";
-import { useBrushTool } from "@/components/editor/brush-tool";
 import { useDocument } from "@/components/editor/session";
 import { AdjustIcon } from "@/components/icons/adjust";
 import { BrushIcon } from "@/components/icons/brush";
@@ -16,14 +15,12 @@ import { EyedropperIcon } from "@/components/icons/eyedropper";
 import { HealIcon } from "@/components/icons/heal";
 import { LinearGradientIcon } from "@/components/icons/linear-gradient";
 import { RadialGradientIcon } from "@/components/icons/radial-gradient";
-import { findLayer } from "@/core/document";
 import { CropEditor } from "@/features/crop/view";
 import { HealOptions } from "@/features/heal/options";
 import { HealOverlay } from "@/features/heal/overlay";
 import { addLayer } from "@/features/layers/edits";
 import { GradientOverlay } from "@/features/layers/gradient-overlay";
 import { RangePicker } from "@/features/layers/range-picker";
-import { useShortcuts } from "@/hooks/use-shortcuts";
 import { BrushToolCanvas, BrushToolOptions } from "./brush";
 import { ExportMode } from "./export";
 import { createLayer } from "./layers";
@@ -150,34 +147,8 @@ export const tools = [
 
 export type Tool = (typeof tools)[number];
 
-/**
- * Holds the active tool, and each tool's key selects it in either layout. The Brush's key, pressed on
- * the Brush, switches it between color and mask.
- */
+/** The selected tool outlives its canvas and controls in either layout. */
 export function ToolProvider({ children }: { children: ReactNode }) {
   const [tool, setTool] = useState<Tool>(adjust);
-  const brush = useBrushTool();
-  const document = useDocument();
-  function select(entry: Tool) {
-    if (entry.id === "color-range") {
-      const selected = document.selection.getState().layerId;
-      const layer = findLayer(document.scene.getState().layers, selected);
-      if (layer?.kind !== "mask" || layer.mask.kind !== "color-range") {
-        return;
-      }
-    }
-    if (entry === tool && entry.id === "brush") {
-      brush.update({
-        mode: brush.settings.mode === "color" ? "mask" : "color",
-      });
-      return;
-    }
-    setTool(entry);
-  }
-  useShortcuts(
-    Object.fromEntries(
-      tools.map((entry) => [entry.key, () => select(entry)] as const),
-    ),
-  );
   return <ToolContext value={{ tool, setTool }}>{children}</ToolContext>;
 }

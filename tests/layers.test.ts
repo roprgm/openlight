@@ -149,6 +149,7 @@ test("nested layers compose in order, move atomically, and duplicate with indepe
   expect(find(exposure)).toBeUndefined();
   document.history.undo();
   expect(find(exposure)).toBeDefined();
+  renderer.dispose();
   workspace.dispose();
   gpu.dispose();
 });

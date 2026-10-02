@@ -53,5 +53,8 @@ test("color edits validate, skip no-ops, and reset, and a neutral mixer renders 
   expect(await passes()).toEqual([]);
   document.history.undo();
   expect(document.scene.getState()).toEqual(scene);
+  renderer.dispose();
+  document.dispose();
+  source.dispose();
   gpu.dispose();
 });

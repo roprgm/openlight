@@ -1,64 +1,32 @@
 import { Chip } from "@roprgm/ui/chip";
+import { IconButton } from "@roprgm/ui/icon-button";
 import { Slider } from "@roprgm/ui/slider";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@roprgm/ui/tooltip";
-import { useBrushTool } from "@/components/editor/brush-tool";
-import { DockControls } from "@/components/editor/dock";
+import { useBrushInput } from "@/components/editor/brush-input";
+import { DockChips, DockControls } from "@/components/editor/dock";
 import type { Parameter } from "@/components/editor/parameter";
 import { useDocument, useSelectedLayer } from "@/components/editor/session";
 import { barSlider, useBarDensity } from "@/components/editor/toolbar-density";
+import { SparklesIcon } from "@/components/icons/sparkles";
 import { setHealPatch } from "./edits";
-import { useHealing } from "./mode";
+import { useHealing, useSelectedHealPatch } from "./mode";
+import { HealModeIcon } from "./mode-buttons";
+import { healModes } from "./modes";
 
 export function HealOptions() {
   const document = useDocument();
-  const { settings, maxSize, setPreview, update } = useBrushTool();
-  const {
-    feather: nextFeather,
-    setFeather,
-    source,
-    setSource,
-    selectedPatch,
-  } = useHealing();
+  const { parameters: brushParameters } = useBrushInput();
+  const { source, setSource, mode, selectMode } = useHealing();
   const layer = useSelectedLayer();
-  const selected =
-    layer?.kind === "heal"
-      ? layer.patches.find((patch) => patch.id === selectedPatch)
-      : undefined;
+  const selected = useSelectedHealPatch();
   const density = useBarDensity();
-  const feather = selected?.feather ?? nextFeather;
+  const modeLabel = `${mode[0].toUpperCase()}${mode.slice(1)} mode`;
   function changePatch(change: Parameters<typeof setHealPatch>[3]) {
     if (selected && layer?.kind === "heal") {
       setHealPatch(document, layer.id, selected.id, change);
     }
   }
-  const parameters: Parameter[] = [
-    {
-      id: "size",
-      label: "Size",
-      value: settings.size,
-      min: 1,
-      max: maxSize,
-      format: (value) => `${value}px`,
-      valueWidth: `${maxSize}`.length,
-      onEditingChange: setPreview,
-      onChange: (value) => update({ size: Math.round(value) }),
-    },
-    {
-      id: "feather",
-      label: "Feather",
-      value: feather * 100,
-      min: 0,
-      max: 100,
-      format: (value) => `${value}%`,
-      valueWidth: 3,
-      onEditingChange: setPreview,
-      onChange: (value) => {
-        const feather = value / 100;
-        setFeather(feather);
-        changePatch({ feather });
-      },
-    },
-  ];
+  const parameters: Parameter[] = [...brushParameters];
   if (selected) {
     parameters.push({
       id: "opacity",
@@ -71,7 +39,7 @@ export function HealOptions() {
       onChange: (value) => changePatch({ opacity: value / 100 }),
     });
   }
-  const automatic = source && (
+  const automatic = source && mode !== "remove" && (
     <Tooltip>
       <TooltipTrigger
         render={
@@ -84,10 +52,41 @@ export function HealOptions() {
     </Tooltip>
   );
   if (density === "dock") {
-    return <DockControls header={automatic} parameters={parameters} />;
+    return (
+      <DockControls
+        header={
+          <DockChips
+            label="Retouch mode"
+            items={healModes.map(({ mode, label }) => [mode, label] as const)}
+            value={mode}
+            onChange={selectMode}
+          />
+        }
+        action={
+          source &&
+          mode !== "remove" && (
+            <IconButton
+              label="Use automatic source · Alt-click sets a source"
+              className="pointer-coarse:size-10"
+              onClick={() => setSource(undefined)}
+            >
+              <SparklesIcon className="size-5" />
+            </IconButton>
+          )
+        }
+        parameters={parameters}
+      />
+    );
   }
   return (
     <>
+      <span
+        role="img"
+        aria-label={modeLabel}
+        className="grid size-6 shrink-0 place-items-center"
+      >
+        <HealModeIcon className="size-4" />
+      </span>
       {parameters.map(({ id, ...parameter }) => (
         <Slider key={id} {...parameter} variant={barSlider(density)} />
       ))}

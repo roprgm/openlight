@@ -218,6 +218,9 @@ test("brush strokes stamp incrementally, replay after undo, and render a proxy d
     setLayerMask(document, gradient, { kind: "brush", strokes: [invalid] }),
   ).toThrow();
   expect(() => extendStroke(document, gradient, [[1, 1, 1]])).toThrow("brush");
+  renderer.dispose();
+  document.dispose();
+  source.dispose();
   gpu.dispose();
 });
 

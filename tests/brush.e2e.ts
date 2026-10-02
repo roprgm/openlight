@@ -32,7 +32,11 @@ test("paint a brush mask, adjust it in the sidebar, erase, and undo", async ({
   await page.getByRole("tab", { name: "Brush", exact: true }).click();
   const canvas = page.getByLabel("Brush canvas", { exact: true });
   const bounds = await box(canvas);
-  const scale = Math.min(bounds.width / 1200, bounds.height / 800, 2);
+  const scale = Math.min(
+    (bounds.width - 48) / 1200,
+    (bounds.height - 48) / 800,
+    2,
+  );
   const center = [bounds.x + bounds.width / 2, bounds.y + bounds.height / 2];
   const from = [center[0] - 150 * scale, center[1]];
   const to = [center[0] + 150 * scale, center[1]];
@@ -56,7 +60,10 @@ test("paint a brush mask, adjust it in the sidebar, erase, and undo", async ({
     expect(current.scene?.layers[1]).toMatchObject({
       id: current.selectedLayerId,
       name: "Brush",
-      mask: { kind: "brush", strokes: [{ size: 200 }] },
+      mask: {
+        kind: "brush",
+        strokes: [{ size: expect.closeTo(200 / scale, 6) }],
+      },
     });
     const [inside, above] = await samples();
     expect(inside[0]).toBeGreaterThan(original[0][0] + 40);

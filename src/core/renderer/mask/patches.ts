@@ -3,7 +3,7 @@ import type { BrushStroke } from "@/core/document";
 import type { Point } from "@/core/image/frame";
 import { input, type RenderInput } from "@/core/renderer/node";
 import { createRasterCache } from "@/core/renderer/raster-cache";
-import { extendsStroke, type Strokes } from "@/core/renderer/strokes";
+import { extendsStrokes, type Strokes } from "@/core/renderer/strokes";
 import type { DabWalk } from "@/core/renderer/strokes/dabs";
 
 type Size = readonly [number, number];
@@ -13,7 +13,7 @@ const tile = 256;
 type Patch = {
   target: Target;
   origin: Point;
-  stroke?: BrushStroke;
+  strokes?: readonly BrushStroke[];
   /** Where the stroke's dabs stopped, to go on from there as it grows. */
   walk?: DabWalk;
 };
@@ -22,16 +22,27 @@ type Patch = {
 export type PatchInput = { coverage: RenderInput; origin: Point };
 
 /** The tiles a stroke's dabs reach, within the photo. */
-function strokeTiles(stroke: BrushStroke, [width, height]: Size) {
-  const radius = stroke.size / 2 + 1;
-  const xs = stroke.points.map(([x]) => x);
-  const ys = stroke.points.map(([, y]) => y);
+function strokeTiles(strokes: readonly BrushStroke[], [width, height]: Size) {
+  let left = width;
+  let top = height;
+  let right = 0;
+  let bottom = 0;
+  for (const stroke of strokes) {
+    if (stroke.mode === "erase") continue;
+    const radius = stroke.size / 2 + 1;
+    for (const [x, y] of stroke.points) {
+      left = Math.min(left, x - radius);
+      top = Math.min(top, y - radius);
+      right = Math.max(right, x + radius);
+      bottom = Math.max(bottom, y + radius);
+    }
+  }
   const snap = (value: number, round: (value: number) => number, end: number) =>
     Math.min(end, Math.max(0, round(value / tile) * tile));
-  const left = snap(Math.min(...xs) - radius, Math.floor, width);
-  const top = snap(Math.min(...ys) - radius, Math.floor, height);
-  const right = snap(Math.max(...xs) + radius, Math.ceil, width);
-  const bottom = snap(Math.max(...ys) + radius, Math.ceil, height);
+  left = snap(left, Math.floor, width);
+  top = snap(top, Math.floor, height);
+  right = snap(right, Math.ceil, width);
+  bottom = snap(bottom, Math.ceil, height);
   return {
     origin: [left, top] as Point,
     size: [Math.max(1, right - left), Math.max(1, bottom - top)] as const,
@@ -49,28 +60,31 @@ export function createPatchRaster(gpu: Gpu, strokes: Strokes) {
     origin: [0, 0],
   }));
   return {
-    patch(id: string, stroke: BrushStroke, size: Size): PatchInput {
-      const tiles = strokeTiles(stroke, size);
+    patch(id: string, painted: readonly BrushStroke[], size: Size): PatchInput {
+      const tiles = strokeTiles(painted, size);
       const patch = patches.reserve(id, tiles.size);
       const moved =
         patch.origin[0] !== tiles.origin[0] ||
         patch.origin[1] !== tiles.origin[1];
-      if (moved || !patch.stroke || !extendsStroke(patch.stroke, stroke)) {
+      if (moved || !patch.strokes || !extendsStrokes(patch.strokes, painted)) {
         strokes.clear(patch.target);
         Object.assign(patch, {
           origin: tiles.origin,
-          stroke: undefined,
+          strokes: undefined,
           walk: undefined,
         });
       }
-      if (patch.stroke !== stroke) {
-        patch.walk = strokes.stamp(
-          patch.target,
-          stroke,
-          patch.walk,
-          patch.origin,
-        );
-        patch.stroke = stroke;
+      if (patch.strokes !== painted) {
+        const from = Math.max(0, (patch.strokes?.length ?? 0) - 1);
+        for (let i = from; i < painted.length; i++) {
+          patch.walk = strokes.stamp(
+            patch.target,
+            painted[i],
+            i === from ? patch.walk : undefined,
+            patch.origin,
+          );
+        }
+        patch.strokes = painted;
       }
       return { coverage: input(patch.target), origin: patch.origin };
     },
