@@ -4,12 +4,12 @@ import {
   createDocument,
   createResources,
   type EditorDocument,
-  type FieldRecord,
-  fieldRecords,
   type ProcessingLayer,
   paintingOf,
+  type RemoveField,
   removePatches,
   type Scene,
+  sceneFields,
   settledPixels,
   walkLayers,
 } from "@/core/document";
@@ -57,7 +57,10 @@ const savedHealPatch = z.pipe(
   healPatchSchema,
 );
 
-/** Where a saved Remove field's texels sit, or, while it waits to be synthesized, the field it extends. */
+/**
+ * Where a saved Remove field's texels sit, or nothing while it waits to be synthesized. Files from when
+ * a field extended an earlier one may name that `base`, which opening ignores.
+ */
 type SavedField =
   | {
       readonly origin: readonly [number, number];
@@ -89,7 +92,7 @@ export function snapshotScene(document: EditorDocument) {
     scene,
     source: { id: source, file: document.resources.get(source).file },
     paint: settledPixels(document, scene),
-    fields: fieldRecords(document, scene),
+    fields: sceneFields(document, scene),
   };
 }
 
@@ -101,18 +104,17 @@ export type SceneSnapshot = ReturnType<typeof snapshotScene>;
  */
 export async function completeScene(
   document: EditorDocument,
-  { scene, source, paint, fields: records }: SceneSnapshot,
+  { scene, source, paint, fields: taken }: SceneSnapshot,
 ) {
-  const completed = await completeFields(document, records);
   const fields: Record<string, SavedField> = {};
   const texels = new Map<string, Blob>();
-  for (const [id, record] of completed) {
-    if (record.field) {
-      const { texels: data, ...lattice } = record.field;
+  for (const [id, field] of await completeFields(document, taken)) {
+    if (field) {
+      const { texels: data, ...lattice } = field;
       fields[id] = lattice;
       texels.set(id, data);
     } else {
-      fields[id] = record.base ? { base: record.base } : {};
+      fields[id] = {};
     }
   }
   const json: SceneJson = {
@@ -289,43 +291,30 @@ function migrateFields(saved: unknown) {
     Reflect.get(Object(migrated.scene), "layers"),
   )) {
     if (patch.mode !== "remove") continue;
-    const strokes = Array.isArray(patch.strokes) ? patch.strokes.length : 0;
+    // A patch from before patches held strokes held one.
+    const strokes = Array.isArray(patch.strokes) ? patch.strokes.length : 1;
     const {
       texels,
       strokes: covered,
       ...lattice
     } = isRecord(patch.field) ? patch.field : {};
-    if (typeof texels !== "string") {
-      const reserved = crypto.randomUUID();
-      patch.field = reserved;
-      fields[reserved] = {};
-      continue;
-    }
-    fields[texels] = lattice;
-    if (typeof covered === "number" && covered < strokes) {
-      const extending = crypto.randomUUID();
-      patch.field = extending;
-      fields[extending] = { base: texels };
-    } else {
+    if (typeof texels === "string" && covered === strokes) {
+      fields[texels] = lattice;
       patch.field = texels;
+    } else {
+      const reserved = crypto.randomUUID();
+      fields[reserved] = {};
+      patch.field = reserved;
     }
   }
   return { ...migrated, fields };
 }
 
-/** Whether every field a patch names, and every field one extends, is saved, with no loop of bases. */
+/** Whether every field a patch names is saved. */
 function fieldsComplete(scene: Scene, fields: SceneJson["fields"]) {
-  for (const { patch } of removePatches(scene.layers)) {
-    const seen = new Set<string>();
-    let id: string | undefined = patch.field;
-    while (id) {
-      const field: SavedField | undefined = fields[id];
-      if (!field || seen.has(id)) return false;
-      seen.add(id);
-      id = "base" in field ? field.base : undefined;
-    }
-  }
-  return true;
+  return [...removePatches(scene.layers)].every(({ patch }) =>
+    Object.hasOwn(fields, patch.field),
+  );
 }
 
 /**
@@ -350,17 +339,17 @@ export async function openScene(
   if (!fieldsComplete(scene, fields)) {
     throw Error("The scene's Remove fields are missing.");
   }
-  const records = new Map<string, FieldRecord>();
+  const stored = new Map<string, RemoveField | undefined>();
   for (const [id, field] of Object.entries(fields)) {
     if (!("origin" in field)) {
-      records.set(id, field);
+      stored.set(id, undefined);
       continue;
     }
     const texels = files.get(id);
     if (!texels) {
       throw Error("The scene's Remove fields are missing.");
     }
-    records.set(id, { field: { texels, ...field } });
+    stored.set(id, { texels, ...field });
   }
   const [image, ...layers] = scene.layers;
   const source = sources[image.source];
@@ -393,8 +382,8 @@ export async function openScene(
         resources.addPaint(pixels, raster);
       }
     }
-    for (const [id, record] of records) {
-      resources.addField(id, record);
+    for (const [id, field] of stored) {
+      resources.addField(id, field);
     }
     return createDocument(
       {

@@ -260,22 +260,25 @@ test("Remove synthesizes a spot once, without donor selection, and follows the l
   expect(result.releasedFields).toBe(0);
 });
 
-test("Remove keeps what it filled when a stroke adds to or erases part of the patch", async ({
+test("Remove synthesizes the whole patch again when a stroke adds to or erases part of it", async ({
   page,
 }) => {
   await page.goto("/tests/gpu.html");
   const result = await page.evaluate(async () => {
     const path = "/tests/inpaint-gpu.ts";
-    const { renderInpaintExtension } = (await import(
+    const { renderInpaintReshape } = (await import(
       path
     )) as typeof import("./inpaint-gpu");
-    return renderInpaintExtension();
+    return renderInpaintReshape();
   });
   expect(result.errors).toEqual([]);
-  expect(result.solved).toEqual([true, true, true]);
-  expect(result.keptByAdding).toBeLessThan(0.002);
-  expect(result.keptByErasing).toBeLessThan(0.002);
-  expect(result.secondFilled).toBeGreaterThan(0.25);
+  // The first stroke stops short of the bar's tip, which stays dark.
+  expect(result.missedTip).toBeLessThan(0.05);
+  // A stroke over the tip fills as painting both at once does, and nothing of the bar stays.
+  expect(result.added).toBeLessThan(0.002);
+  expect(result.barLeft).toBeGreaterThan(0.25);
+  // Erasing part of the patch synthesizes the rest again too, and restores what it erases.
+  expect(result.erased).toBeLessThan(0.002);
   expect(result.erasedRestored).toBe(0);
 });
 

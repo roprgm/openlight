@@ -61,7 +61,7 @@ export function addRemovePatch(
   return patch.id;
 }
 
-/** A patch with new strokes; a Remove patch takes a new field, which extends its earlier one. */
+/** A patch with new strokes; a Remove patch takes a new field, synthesized for its whole new shape. */
 function withStrokes(
   document: EditorDocument,
   patch: HealPatch,
@@ -70,8 +70,7 @@ function withStrokes(
   if (patch.mode !== "remove") {
     return { ...patch, strokes };
   }
-  const field = document.resources.reserveField(patch.field);
-  return { ...patch, strokes, field };
+  return { ...patch, strokes, field: document.resources.reserveField() };
 }
 
 /** Rewrites the patch list around one patch, found by id. */
@@ -90,8 +89,8 @@ function editPatches(
 }
 
 /**
- * Adds or subtracts a separate stroke without changing the patch's donor or blend. A Remove patch takes
- * a new field, which extends its earlier one.
+ * Adds or subtracts a separate stroke without changing the patch's donor or blend. A Remove patch
+ * synthesizes its whole new shape.
  */
 export function addHealStroke(
   document: EditorDocument,
@@ -209,9 +208,7 @@ export function setHealDestination(
       ),
     }));
     if (patch.mode === "remove") {
-      // A patch in a new place keeps nothing it filled.
-      const field = document.resources.reserveField();
-      return patches.with(index, { ...patch, strokes, field });
+      return patches.with(index, withStrokes(document, patch, strokes));
     }
     return patches.with(index, {
       ...patch,

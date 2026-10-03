@@ -185,16 +185,6 @@ test("scene files reopen the photo with every layer for further editing", async 
       await archive({
         ...json,
         fields: {
-          [removal.field]: { base: "loop" },
-          loop: { base: removal.field },
-        },
-      }),
-      "Remove fields are missing",
-    ],
-    [
-      await archive({
-        ...json,
-        fields: {
           [removal.field]: { origin: [40, 12], scale: 1, size: [16, 16] },
         },
       }),
@@ -259,7 +249,8 @@ test("scene files reopen the photo with every layer for further editing", async 
     ],
   });
   expect(older.resources.field("inline")).toEqual({
-    field: { texels: expect.any(Blob), ...lattice },
+    texels: expect.any(Blob),
+    ...lattice,
   });
 
   expect(

@@ -13,14 +13,12 @@ import finishShader from "./finish.wgsl";
 import matchShader from "./match.wgsl";
 import nearestShader from "./nearest.wgsl";
 import offsetsShader from "./offsets.wgsl";
-import pinShader from "./pin.wgsl";
 import prepareShader from "./prepare.wgsl";
 import pyramidShader from "./pyramid.wgsl";
 import reconstructShader from "./reconstruct.wgsl";
 
 export type InpaintRegion = { origin: Point; extent: Point };
 /** An earlier field whose filled texels a new synthesis keeps. */
-export type InpaintBase = { texels: RenderImage; lattice: FieldLattice };
 /** Texels along a field's longer side at most; a larger region takes larger texels. */
 export const fieldLongSide = 512;
 const samplers = {
@@ -65,38 +63,11 @@ function reconstruct(
   );
 }
 
-/** A base field to pin in one level, whose texels span `scale` source pixels from `origin`. */
-type Pinning = { base: InpaintBase; origin: Point; scale: number };
-
-/** Pins the texels the base filled to their donors. */
-function pin(
-  source: RenderImage,
-  field: RenderImage,
-  { base, origin, scale }: Pinning,
-  name: string,
-) {
-  return merge(
-    { source, field, base: base.texels },
-    node(name, pinShader, {
-      format: "rgba32float",
-      set: {
-        params: {
-          origin,
-          scale,
-          baseOrigin: base.lattice.origin,
-          baseScale: base.lattice.scale,
-        },
-      },
-    }),
-  );
-}
-
 function solve(
   source: RenderImage,
   features: RenderImage,
   coarse: RenderImage | undefined,
   name: string,
-  pinning?: Pinning,
 ) {
   const closest = nearest(features, name);
   const params = {
@@ -121,7 +92,6 @@ function solve(
       set: { params },
     }),
   );
-  if (pinning) field = pin(source, field, pinning, `${name}/pin`);
   let current = reconstruct(
     source,
     field,
@@ -184,32 +154,8 @@ function solve(
   return field;
 }
 
-/**
- * The texels a field over `bounds` takes. An extension keeps its base's texels while they fit, so the
- * texels the base filled keep their donors exactly.
- */
-export function fieldLattice(
-  bounds: InpaintRegion,
-  base?: FieldLattice,
-): FieldLattice {
-  const end = [
-    bounds.origin[0] + bounds.extent[0],
-    bounds.origin[1] + bounds.extent[1],
-  ] as const;
-  if (base) {
-    const { scale } = base;
-    const origin: Point = [
-      base.origin[0] +
-        Math.floor((bounds.origin[0] - base.origin[0]) / scale) * scale,
-      base.origin[1] +
-        Math.floor((bounds.origin[1] - base.origin[1]) / scale) * scale,
-    ];
-    const size: Point = [
-      Math.ceil((end[0] - origin[0]) / scale),
-      Math.ceil((end[1] - origin[1]) / scale),
-    ];
-    if (Math.max(...size) <= fieldLongSide) return { origin, scale, size };
-  }
+/** The texels a field over `bounds` takes. */
+export function fieldLattice(bounds: InpaintRegion): FieldLattice {
   const scale = Math.max(1, Math.max(...bounds.extent) / fieldLongSide);
   return {
     origin: bounds.origin,
@@ -223,15 +169,13 @@ export function fieldLattice(
 
 /**
  * Multiscale, non-local synthesis of each hole texel's offset to its donor, in texels, at full
- * resolution; texels a `base` filled keep their donors. Every pixel operation stays on the GPU; no
- * React or readback.
+ * resolution. Every pixel operation stays on the GPU; no React or readback.
  */
 export function inpaintField(
   source: RenderImage,
   patch: PatchInput,
   lattice: FieldLattice,
   name: string,
-  base?: InpaintBase,
 ): RenderNode {
   const params = {
     origin: lattice.origin,
@@ -275,14 +219,11 @@ export function inpaintField(
   }
   let field: RenderImage | undefined;
   for (let level = pyramid.length - 1; level >= 0; level--) {
-    // Each level halves the one below, so its texels span twice the source pixels.
-    const scale = lattice.scale * 2 ** level;
     field = solve(
       pyramid[level],
       descriptors[level],
       field,
       `${name}/level/${level}`,
-      base && { base, origin: lattice.origin, scale },
     );
   }
   if (!field) throw Error("An inpainting pyramid is required.");

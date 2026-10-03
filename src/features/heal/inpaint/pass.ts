@@ -20,9 +20,8 @@ import shader from "./blend.wgsl";
 type FieldComposition = Pick<Composition, "field" | "keepField">;
 
 /**
- * The field a patch shows: its own, or else one synthesized from the image below at full resolution,
- * which keeps what the field it extends filled. A proxy shows that field meanwhile, since its reduced
- * image would synthesize another.
+ * The field a patch shows: its own, or else one synthesized for its whole shape from the image below at
+ * full resolution. A proxy shows none until then, since its reduced image would synthesize another.
  */
 function patchField(
   source: RenderImage,
@@ -33,16 +32,9 @@ function patchField(
   composition: FieldComposition,
 ): { texels: RenderImage; lattice: FieldLattice } | undefined {
   const held = composition.field(patch);
-  if (held?.complete) return held;
-  if (source.scale.some((scale) => scale > 1)) return held;
-  const lattice = fieldLattice(region, held?.lattice);
-  const texels = inpaintField(
-    source,
-    coverage,
-    lattice,
-    `${name}/inpaint`,
-    held,
-  );
+  if (held || source.scale.some((scale) => scale > 1)) return held;
+  const lattice = fieldLattice(region);
+  const texels = inpaintField(source, coverage, lattice, `${name}/inpaint`);
   composition.keepField(patch, lattice, texels);
   return { texels, lattice };
 }
