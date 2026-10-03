@@ -1,6 +1,6 @@
 import { expect, test } from "./fixtures";
 import { readImage } from "./images";
-import { box } from "./pointer";
+import { box, drag } from "./pointer";
 
 test("healing preserves an edge, alpha, and HDR texture at full and proxy resolution", async ({
   page,
@@ -360,6 +360,28 @@ test("Healing paints patches, edits them, and undoes", async ({ page }) => {
   });
   await opacity.fill("50");
   await opacity.press("Enter");
+  // The patch's row drags its opacity to zero as one edit, as a layer's row does.
+  const opacityOf = () =>
+    page.evaluate((patchId) => {
+      const healing = window.openlight
+        .getState()
+        .scene?.layers.find((item) => item.kind === "heal");
+      return healing?.kind === "heal"
+        ? healing.patches.find((item) => item.id === patchId)?.opacity
+        : undefined;
+    }, manual.id);
+  const rowOpacity = await box(
+    patchList.getByRole("textbox", { name: "Patch 1 opacity", exact: true }),
+  );
+  const rowY = rowOpacity.y + rowOpacity.height / 2;
+  await drag(
+    page,
+    [rowOpacity.x + rowOpacity.width / 2, rowY],
+    [rowOpacity.x - 300, rowY],
+  );
+  expect(await opacityOf()).toBe(0);
+  await page.keyboard.press("ControlOrMeta+z");
+  expect(await opacityOf()).toBe(0.5);
   const thumbnail = patchList.getByLabel("Patch shape").first();
   const thumbnailBytes = await thumbnail.screenshot();
   const thumbnailMask = await page.evaluate(

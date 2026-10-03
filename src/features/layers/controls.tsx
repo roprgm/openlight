@@ -21,6 +21,7 @@ import {
   useState,
 } from "react";
 import { useStore } from "zustand";
+import { OpacityInput } from "@/components/editor/opacity-input";
 import { PanelHeader } from "@/components/editor/panel";
 import { useDocument, useScene } from "@/components/editor/session";
 import { Icon, type IconProps } from "@/components/icons/icon";
@@ -39,7 +40,6 @@ import { useShortcuts } from "@/hooks/use-shortcuts";
 import { layerDrop } from "./drop";
 import { deleteLayer, moveLayer, setLayer } from "./edits";
 import { LayerName } from "./layer-name";
-import { LayerOpacity } from "./layer-opacity";
 import { useMaskTool } from "./mask-tool";
 import { LayerActions } from "./menu";
 import { ImageThumbnail, MaskThumbnail } from "./thumbnails";
@@ -228,7 +228,13 @@ const LayerRow = memo(function LayerRow({
           )}
           {layer.kind !== "image" && (
             <>
-              <LayerOpacity layer={layer} />
+              <OpacityInput
+                label={`${layer.name} opacity`}
+                value={layer.opacity}
+                onChange={(opacity) =>
+                  setLayer(document, layer.id, { opacity })
+                }
+              />
               <LayerActions layer={layer} onSelect={onSelect} />
             </>
           )}
