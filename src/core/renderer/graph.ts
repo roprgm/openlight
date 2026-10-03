@@ -47,14 +47,23 @@ function plan(outputs: readonly RenderImage[]) {
 
 const sizeKey = (image: { size: readonly number[]; format: string }) =>
   `${image.size[0]}x${image.size[1]} ${image.format}`;
+/** Texels of the largest target in a set of counts by size key. */
+const largest = (counts: ReadonlyMap<string, number>) =>
+  Math.max(
+    0,
+    ...[...counts.keys()].map((key) => {
+      const [width, height] = key.split(" ")[0].split("x").map(Number);
+      return width * height;
+    }),
+  );
 
 /** Owns effects, storage buffers, and transient targets for one renderer. */
 export function createRenderGraph(gpu: Gpu, timer?: Timer) {
   const pool: Target[] = [];
   /**
-   * How many targets of each size the last two distinct sets of sizes used, most recent first. An
-   * interactive proxy and the full image alternate between two such sets, and keeping both saves
-   * reallocating full-size targets on every gesture, which a phone's GPU memory can't absorb.
+   * How many targets of each size the last two distinct sets of sizes used, most recent first, the
+   * older one kept only while its targets are no larger than the newer one's: a render that zooms
+   * in keeps the small set it returns to, and one that zooms out lets the large set go.
    */
   let recent: Map<string, number>[] = [];
   const effects = new Map<string, Pass>();
@@ -182,10 +191,12 @@ export function createRenderGraph(gpu: Gpu, timer?: Timer) {
         [...b.keys()].every((key) => a.has(key));
       const sameMode = (counts: Map<string, number>) =>
         contains(counts, used) || contains(used, counts);
-      recent = [used, ...recent.filter((counts) => !sameMode(counts))].slice(
-        0,
-        2,
-      );
+      recent = [
+        used,
+        ...recent.filter(
+          (counts) => !sameMode(counts) && largest(counts) <= largest(used),
+        ),
+      ].slice(0, 2);
       // Past these counts, an idle target is an old crop size or an old peak.
       const kept = new Map<string, number>();
       for (const image of pool) {

@@ -55,7 +55,9 @@ fn overlayCoverage(point: vec2f) -> f32 {
   var sample = textureSampleLevel(source, sourceSampler, p, 0.0);
   sample = vec4f(toWorking(sample.rgb, primaries.image), sample.a);
   if (uv.x < split) {
-    sample = textureSampleLevel(original, sourceSampler, point, 0.0);
+    // The source shows only where the frame reaches it, as the transform pass leaves the image.
+    let reached = all(point >= vec2f(0.0)) && all(point <= vec2f(1.0));
+    sample = select(vec4f(0.0), textureSampleLevel(original, sourceSampler, point, 0.0), reached);
     sample = vec4f(toWorking(sample.rgb, primaries.original), sample.a);
   }
   var color = previewColor(sample, view);

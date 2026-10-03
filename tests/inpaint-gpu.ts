@@ -84,9 +84,9 @@ export async function renderInpaintReference(
       f.pass(clean, shader(false));
     });
     await gpu.gpu.queue.onSubmittedWorkDone();
-    renderer.setDisplayScale(0.5);
+    renderer.setDisplayScale(proxy ? 0.5 : 1);
     const start = performance.now();
-    // Only full resolution synthesizes; a proxy then shows the field it keeps.
+    // A patch waiting for its field synthesizes in full whatever the display; a proxy then shows the field it keeps.
     await renderer.update(scene);
     await gpu.gpu.queue.onSubmittedWorkDone();
     const completedMs = performance.now() - start;

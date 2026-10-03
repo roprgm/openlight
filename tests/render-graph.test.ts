@@ -99,16 +99,18 @@ test("a shared branch renders once and reuses effects, buffers, and temporary st
   expect(graph.render([shared])[0]).toBe(saved);
   expect(graph.inspect().textures).toHaveLength(1);
   expect(() => output.color.view).toThrow("destroyed");
-  // A proxy size and the full size alternate without reallocating; a third size lets the oldest go.
+  // A larger idle set goes once a smaller size renders; a smaller one stays while a larger renders.
   const sized = (size: number) =>
     mixed(source, "shared", { size: [size, size] });
   const [proxy] = graph.render([sized(4)]);
   expect(proxy.size).toEqual([4, 4]);
-  expect(graph.render([shared])[0]).toBe(saved);
-  expect(graph.render([sized(4)])[0]).toBe(proxy);
-  graph.render([sized(2)]);
-  expect(graph.inspect().textures).toHaveLength(2);
   expect(() => saved.color.view).toThrow("destroyed");
+  const [full] = graph.render([shared]);
+  expect(graph.inspect().textures).toHaveLength(2);
+  expect(graph.render([sized(4)])[0]).toBe(proxy);
+  expect(() => full.color.view).toThrow("destroyed");
+  graph.render([sized(2)]);
+  expect(graph.inspect().textures).toHaveLength(1);
   // Removing a composition retires its cached effect so its name can be reused.
   graph.release("shared");
   const replacement = merge(

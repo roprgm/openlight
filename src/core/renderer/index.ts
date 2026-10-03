@@ -102,6 +102,8 @@ type RenderRequest = {
   rangeSourceId?: string;
   /** Source pixels per texel of the composition's source; above 1 renders a reduced proxy. */
   factor: number;
+  /** An open gesture, which renders at the display's density even while a Remove field waits. */
+  interactive: boolean;
 };
 
 function sameBalance(a: WhiteBalance | undefined, b: WhiteBalance | undefined) {
@@ -322,6 +324,16 @@ export function createRenderer(
       }
     });
   }
+  /** Whether a Remove patch waits for a field neither this renderer nor the document holds; only a full render synthesizes one. */
+  function waitingField(scene: Scene) {
+    return [...removePatches(scene.layers)].some(
+      ({ patch }) => !fields.get(patch.field) && !savedField(patch.field),
+    );
+  }
+  /** Source pixels per texel that the display's density asks for. */
+  function displayFactor() {
+    return Math.max(1, Math.floor(1 / displayScale));
+  }
   /** Paintings whose rasters must load settled pixels before they draw. */
   function stalePaint(scene: Scene) {
     const stale = [];
@@ -375,8 +387,9 @@ export function createRenderer(
     }
   }
   /**
-   * Interactive updates render at a proxy resolution matched to the display scale. `inputId` keeps a
-   * layer's curve input, and `rangeSourceId` a mask's range source, for reading them.
+   * Renders reduce the source to the display's density, a proxy, except that a Remove patch waiting
+   * for its field renders in full outside a gesture, since only a full render synthesizes one. `inputId`
+   * keeps a layer's curve input, and `rangeSourceId` a mask's range source, for reading them.
    */
   async function update(
     scene: Scene,
@@ -387,8 +400,8 @@ export function createRenderer(
     if (disposed) {
       throw Error("Renderer is closed.");
     }
-    const factor = interactive ? Math.max(1, Math.floor(1 / displayScale)) : 1;
-    const request = { scene, inputId, rangeSourceId, factor };
+    const factor = !interactive && waitingField(scene) ? 1 : displayFactor();
+    const request = { scene, inputId, rangeSourceId, factor, interactive };
     // Renders wait, in order, for a settle, a RAW development, or settled paint and fields to load.
     if (
       !raw &&
@@ -410,8 +423,8 @@ export function createRenderer(
       .finally(() => {
         pending = undefined;
         if (next && !disposed) {
-          const { scene, inputId, factor, rangeSourceId } = next;
-          return update(scene, inputId, factor > 1, rangeSourceId);
+          const { scene, inputId, interactive, rangeSourceId } = next;
+          return update(scene, inputId, interactive, rangeSourceId);
         }
       });
     return pending;
@@ -459,11 +472,29 @@ export function createRenderer(
       const target = shown.get(id) ?? paints.get(id);
       return target ? { target, origin: [0, 0] } : patches.raster(id);
     },
-    /** Device pixels shown per source pixel; interactive renders reduce the source to about this density. */
+    /**
+     * Device pixels shown per source pixel; renders reduce the source to about this density. The last
+     * scene renders again, after the frame that reports it, once the density asks for another reduction.
+     */
     setDisplayScale(scale: number) {
-      if (Number.isFinite(scale) && scale > 0) {
-        displayScale = scale;
+      if (!Number.isFinite(scale) || scale <= 0) {
+        return;
       }
+      displayScale = scale;
+      const shown = last;
+      if (!shown || shown.factor === displayFactor()) {
+        return;
+      }
+      queueMicrotask(() => {
+        if (!disposed && last === shown) {
+          void update(
+            shown.scene,
+            shown.inputId,
+            shown.interactive,
+            shown.rangeSourceId,
+          );
+        }
+      });
     },
     inspect: () => ({
       ...graph.inspect(),

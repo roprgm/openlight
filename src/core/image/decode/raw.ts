@@ -21,22 +21,36 @@ export async function decodeRaw(gpu: Gpu, file: File) {
     } finally {
       initial.dispose();
     }
+    const { asShot } = source;
+    const developed = original;
     const raw: RawDevelopment = {
-      asShot: source.asShot,
+      asShot,
       createPass() {
-        const output = target(gpu, {
-          size: source.size,
-          format: "rgba16float",
-        });
+        // The as-shot development is the image the source keeps; another balance gets its own.
+        let output: Target | undefined;
         const pass = source.createDevelopPass();
         let calibration = source.calibration;
         let dirty = true;
         return {
           async prepare(balance) {
-            calibration = await source.calibrate(balance);
+            const shot =
+              balance.temperature === asShot.temperature &&
+              balance.tint === asShot.tint;
+            calibration = shot
+              ? source.calibration
+              : await source.calibrate(balance);
             dirty = true;
           },
           render() {
+            if (calibration === source.calibration) {
+              output?.color.dispose();
+              output = undefined;
+              return developed;
+            }
+            output ??= target(gpu, {
+              size: source.size,
+              format: "rgba16float",
+            });
             if (dirty) {
               pass.render({ destination: output.color.gpu, calibration });
               dirty = false;
@@ -45,7 +59,7 @@ export async function decodeRaw(gpu: Gpu, file: File) {
           },
           dispose() {
             pass.dispose();
-            output.color.dispose();
+            output?.color.dispose();
           },
         };
       },

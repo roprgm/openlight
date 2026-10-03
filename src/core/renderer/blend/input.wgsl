@@ -1,6 +1,7 @@
 import { combineCoverage, gradientCoverage } from "./coverage.wgsl";
 
-// The image a curve receives, with gradient coverage as alpha, drawn at the histogram's few texels.
+// The image a curve receives, with gradient coverage as alpha, drawn at the histogram's few texels,
+// one source texel each, as the histogram counted them at full size.
 struct Params {
  kind: u32,
  first: vec2f,

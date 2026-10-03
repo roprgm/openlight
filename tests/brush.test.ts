@@ -122,6 +122,8 @@ test("brush strokes stamp incrementally, replay after undo, and render a proxy d
   expect(renderer.outputImage().size).toEqual([16, 8]);
   expect(inspect().stamped).toBe(21);
   document.history.commit();
+  // The view shows every source pixel again, so the render returns to full size.
+  renderer.setDisplayScale(1);
   await render();
   const rendered = notify.mock.calls.length;
   await render();

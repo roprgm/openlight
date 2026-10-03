@@ -289,6 +289,46 @@ test("a nested Remove synthesizes once for its strokes, whatever changes below o
   }
 });
 
+test("renders follow the display's density, except that a Remove patch waiting for its field renders in full once", async () => {
+  const gpu = await init();
+  const source = createImageSource(
+    target(gpu, { size: [128, 96], format: "rgba16float" }),
+  );
+  const { document } = healFixture([128, 96]);
+  const renderer = createEditorRenderer(gpu, source, {
+    field: (id) => document.resources.field(id),
+  });
+  const render = (interactive = false) =>
+    renderer.update(document.scene.getState(), undefined, interactive);
+  const size = () => renderer.outputImage().size;
+  try {
+    renderer.setDisplayScale(0.5);
+    await render();
+    expect(size()).toEqual([64, 48]);
+    const layer = addLayer(document, createLayer("heal"));
+    addRemovePatch(document, layer, { ...dab, points: [[64, 48, 1]] });
+    // A gesture keeps the proxy and shows the patch unfilled; its end synthesizes the field in full.
+    await render(true);
+    expect(size()).toEqual([64, 48]);
+    await render();
+    expect(size()).toEqual([128, 96]);
+    expect(
+      renderer.inspect().rasters.some(({ id }) => id.endsWith("/field")),
+    ).toBe(true);
+    setAdjustments(document, { exposure: 1 });
+    await render();
+    expect(size()).toEqual([64, 48]);
+    // A finer display renders the last scene again, after the frame that reports it.
+    renderer.setDisplayScale(1);
+    await Promise.resolve();
+    expect(size()).toEqual([128, 96]);
+  } finally {
+    renderer.dispose();
+    document.dispose();
+    gpu.dispose();
+  }
+});
+
 test("a snapshot taken while a Remove field is read back keeps it once its photo closes", async () => {
   const gpu = await init();
   const source = createImageSource(
@@ -399,6 +439,8 @@ test("heal patches reuse brush rasters, scale with the proxy, undo, and release 
     expect(renderer.inspect().stamped).toBeGreaterThan(stamped);
     const extended = renderer.inspect().stamped;
     document.history.commit();
+    // The view shows every source pixel again, so the render returns to full size.
+    renderer.setDisplayScale(1);
     await renderer.update(document.scene.getState());
     expect(renderer.fullImage().size).toEqual([256, 192]);
     expect(renderer.inspect().stamped).toBe(extended);

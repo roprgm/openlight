@@ -150,6 +150,11 @@ const linear: GPUSamplerDescriptor = {
   minFilter: "linear",
   magFilter: "linear",
 };
+/** One source texel per input texel, as the histogram counted them at full size. */
+const nearest: GPUSamplerDescriptor = {
+  minFilter: "nearest",
+  magFilter: "nearest",
+};
 
 /**
  * The image a layer's curve receives, with the mask's coverage as alpha, so a histogram of it weighs
@@ -169,7 +174,7 @@ export function curveInput(
       { image, coverage },
       node(`${name}/raster-input`, rasterInputShader, {
         ...output,
-        samplers: { imageSampler: linear },
+        samplers: { imageSampler: nearest, coverageSampler: linear },
       }),
     );
   }
@@ -179,7 +184,7 @@ export function curveInput(
     { image },
     node(`${name}/input`, inputShader, {
       ...output,
-      samplers: { imageSampler: linear },
+      samplers: { imageSampler: nearest },
       storage: { modifiers: modifierData(gradients) },
       set: {
         params: {

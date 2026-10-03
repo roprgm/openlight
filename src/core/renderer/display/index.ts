@@ -171,14 +171,25 @@ export async function renderCoverage(
   }
 }
 
-/** Draws an image into an off-screen canvas of `size` and takes its pixels; one display serves each GPU. */
-export async function renderBitmap(gpu: Gpu, image: Target, size: Point) {
+/**
+ * Draws an image, in the working space's primaries unless said, into an off-screen canvas of `size`
+ * and takes its pixels; one display serves each GPU.
+ */
+export async function renderBitmap(
+  gpu: Gpu,
+  image: Target,
+  size: Point,
+  primaries?: Primaries,
+) {
   const display = bitmapDisplay(gpu);
   const canvas = new OffscreenCanvas(size[0], size[1]);
   const output = surface(gpu, canvas, { size, dpr: 1 });
   try {
     frame(gpu, (frame) =>
-      display(frame, output, image, { view: { zoom: 1, pan: [0, 0] } }),
+      display(frame, output, image, {
+        view: { zoom: 1, pan: [0, 0] },
+        primaries,
+      }),
     );
     // Finish the draw before the 2D canvas reads it; otherwise Chrome waits a full second for the sync.
     await gpu.gpu.queue.onSubmittedWorkDone();
