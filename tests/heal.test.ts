@@ -267,8 +267,7 @@ test("a nested Remove synthesizes once for its strokes, whatever changes below o
       await render();
       expect(solves()).toBe(false);
     }
-    // Undo and redo reach every stroke version's saved field, and show it without solving again, even
-    // when the field it extends is the one held.
+    // Undo and redo reach every stroke version's saved field, and show it without solving again.
     for (const travel of ["undo", "redo"] as const) {
       for (let step = 0; step < 4; step++) {
         document.history[travel]();
