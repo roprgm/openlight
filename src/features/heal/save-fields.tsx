@@ -119,13 +119,13 @@ export function watchRemoveFields(
     if ([...removePatches(scene.layers)].every(({ patch }) => saved(patch))) {
       return;
     }
-    document.replacing(
-      save()
-        .catch((error) =>
-          console.error("A Remove field couldn't be saved.", error),
-        )
-        .then(() => rendered && check()),
+    // The check after it keeps its own pass before this one settles, so a snapshot waits for both,
+    // and a failure reaches the snapshot as well as the console.
+    const pass = save().finally(() => rendered && check());
+    void pass.catch((error) =>
+      console.error("A Remove field couldn't be saved.", error),
     );
+    document.replacing(pass);
   }
   const unsubscribe = renderer.subscribe(check);
   const detach = document.history.status.subscribe(check);

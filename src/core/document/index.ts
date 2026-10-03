@@ -219,10 +219,13 @@ export function createDocument(initial: Scene, resources = createResources()) {
       const done = () => inFlight.delete(work);
       void work.then(done, done);
     },
-    /** Resolves once in-place replacements in flight finish, so a snapshot holds what the editor shows. */
+    /**
+     * Resolves once in-place replacements in flight finish, so a snapshot holds what the editor shows,
+     * and rejects when one fails, since the snapshot would lack it.
+     */
     async replaced() {
       while (inFlight.size) {
-        await Promise.allSettled(inFlight);
+        await Promise.all(inFlight);
       }
     },
     /** Whether the document was disposed, so work that outlived it can drop its result. */

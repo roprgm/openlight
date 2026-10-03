@@ -263,28 +263,31 @@ test("a nested Remove synthesizes once for its strokes, whatever changes below o
   }
 });
 
-test("Remove fields save once no gesture is open, a stroke added during a readback takes its field as a base, and snapshots wait for a readback", async () => {
+test("Remove fields save once no gesture is open, a stroke added during a readback takes its field as a base, and snapshots wait for a readback and fail with it", async () => {
   const { document, layer } = healFixture();
-  // A renderer whose renders the test runs, and whose readbacks finish, oldest first, when it says.
+  // A renderer whose renders the test runs, and whose readbacks finish or fail, oldest first, when it
+  // says.
   let render = () => {};
-  const reads: (() => void)[] = [];
+  const reads: ((error?: Error) => void)[] = [];
   const renderer = {
     subscribe(listener: () => void) {
       render = listener;
       return () => {};
     },
     readField: () =>
-      new Promise<{ texels: Blob; lattice: FieldLattice }>((resolve) =>
-        reads.push(() =>
-          resolve({
-            texels: new Blob(["field"]),
-            lattice: { origin: [0, 0], scale: 1, size: [8, 8] },
-          }),
+      new Promise<{ texels: Blob; lattice: FieldLattice }>((resolve, reject) =>
+        reads.push((error) =>
+          error
+            ? reject(error)
+            : resolve({
+                texels: new Blob(["field"]),
+                lattice: { origin: [0, 0], scale: 1, size: [8, 8] },
+              }),
         ),
       ),
   };
-  async function finish() {
-    reads.shift()?.();
+  async function finish(error?: Error) {
+    reads.shift()?.(error);
     await new Promise((resolve) => setTimeout(resolve, 0));
   }
   const patches = () =>
@@ -320,6 +323,20 @@ test("Remove fields save once no gesture is open, a stroke added during a readba
       .then(() => patches()[0].field?.strokes);
     await finish();
     expect(await snapshot).toBe(3);
+
+    // A failed readback fails the snapshot waiting on it, and a render during it checks again.
+    const errors = spyOn(console, "error").mockImplementation(() => {});
+    addHealStroke(document, layer, first, dab);
+    const failed = document.replaced().then(
+      () => undefined,
+      (error: Error) => error.message,
+    );
+    render();
+    await finish(Error("Device lost"));
+    expect(await failed).toBe("Device lost");
+    expect(errors).toHaveBeenCalledTimes(1);
+    expect(reads).toHaveLength(1);
+    errors.mockRestore();
   } finally {
     stop();
     document.dispose();
