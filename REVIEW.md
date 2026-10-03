@@ -1,6 +1,6 @@
 # Review
 
-A review checks a change before its PR is ready: substantial changes get one, and anyone can ask for one. Code should stay a small, readable example of how the application works; [AGENTS.md](AGENTS.md) and [ARCHITECTURE.md](ARCHITECTURE.md) hold the rules.
+A review checks a change before its PR is ready: substantial changes get one, and anyone can ask for one. Code should stay a small, readable example of how the application works; [AGENTS.md](AGENTS.md) and [ARCHITECTURE.md](ARCHITECTURE.md) hold the rules. Working code is half of the question; the other half is whether the change is the smallest correct one.
 
 ## Scope
 
@@ -26,13 +26,17 @@ New features and substantial UI or design changes show the affected interface in
 
 ## Read the diff
 
-- **Size:** Does the change match the request? Could it be smaller or live closer to the behavior it changes?
-- **Ownership:** Does each module keep one responsibility and stay in its layer? Does feature behavior stay in its feature?
+Before judging the lines, work out how the request could be solved with what the code already has, then compare that with the change.
+
+- **Size:** Does each added module, option, branch, and test come from the request? Could the change extend an existing model or primitive instead of adding one beside it? Flag abstractions with one caller and code for cases nothing reaches.
+- **Root cause:** Is the fix where the problem starts, rather than an adapter, conversion, or special case around a model? Does it repeat something that exists, such as a second brush or loader, where one shared primitive would be less code? When the right fix is larger than the request, name it.
+- **Ownership:** Does each module keep one responsibility and stay in its layer? Does feature behavior stay in its feature? Do edits, processing, and rendering run without React?
 - **State:** Is each fact stored once and behavior driven by it rather than by DOM structure or timing? Is external input validated at its boundary?
+- **Performance:** Does pixel work run on the GPU, without readbacks the result does not need? Does work follow what changed rather than repeat on every render or pointer event?
 - **Lifetime:** Do edits, grouping, cancellation, and undo work together? Can async work outlive its document? Is every resource and subscription released?
-- **Tests:** Would a user workflow test fail if the change broke? Flag tests that protect no workflow or regression.
+- **Tests:** Would a user workflow test fail if the change broke, and is it the smallest test that would? Flag tests that protect no workflow or regression.
 - **Architecture:** If the structure changed, was it agreed and is [ARCHITECTURE.md](ARCHITECTURE.md) updated?
 
 ## Report
 
-For each finding, name the code, the concrete problem, and the smallest fix; separate required changes from optional ones. List the checks run and any gaps.
+For each finding, name the code, the concrete problem, and the smallest fix; separate required changes from optional ones. A simpler implementation that removes code without losing behavior is required. List the checks run and any gaps.
