@@ -5,6 +5,14 @@ import shader from "./adjustments.wgsl";
 import { exposure } from "./exposure";
 import { defaultAdjustments } from "./model";
 
+/** Whether exposure is the only value moved from its default, which the lighter exposure pass covers. */
+export function isExposureOnly(values: Adjustments) {
+  return Object.entries(values).every(
+    ([key, value]) =>
+      key === "exposure" || value === Reflect.get(defaultAdjustments, key),
+  );
+}
+
 /**
  * Exposure alone takes the lighter pass; the full shader runs under its own name once another value
  * moves. Either develops an input in other `primaries` into the working space, so an 8-bit source
@@ -15,11 +23,7 @@ export function adjustments(
   name = "layer",
   primaries: Primaries = "rec2020",
 ) {
-  const exposureOnly = Object.entries(values).every(
-    ([key, value]) =>
-      key === "exposure" || value === Reflect.get(defaultAdjustments, key),
-  );
-  if (exposureOnly) {
+  if (isExposureOnly(values)) {
     return exposure(`${name}/exposure`, values.exposure, primaries);
   }
   return node(`${name}/adjustments`, shader, {

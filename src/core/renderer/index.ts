@@ -26,7 +26,14 @@ import {
 import { createProxy } from "./proxy";
 import { createStrokes } from "./strokes";
 
-export { curveInput, mixAdjustment } from "./blend";
+export {
+  curveInput,
+  gradientModifiers,
+  gradientParams,
+  isGradient,
+  mixAdjustment,
+  modifierData,
+} from "./blend";
 export {
   type Clipping,
   type CoverageRegion,

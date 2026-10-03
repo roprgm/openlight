@@ -102,7 +102,7 @@ test("brush strokes stamp incrementally, replay after undo, and render a proxy d
   paintStroke(document, mask, stroke);
   await render(undefined, true);
   expect(inspect()).toMatchObject({
-    passes: [`layer/${mask}/exposure`, `layer/${mask}/raster`],
+    passes: [`layer/${mask}/mask-raster`],
     stamped: 1,
     // The open stroke waits in the stroke buffer, and the mask reads it laid over its raster in the view.
     rasters: [
@@ -154,8 +154,7 @@ test("brush strokes stamp incrementally, replay after undo, and render a proxy d
   await render(gradient);
   expect(renderer.inputImage(gradient)).toBeDefined();
   expect(inspect().passes).toEqual([
-    `layer/${mask}/exposure`,
-    `layer/${mask}/raster`,
+    `layer/${mask}/mask-raster`,
     `layer/${gradient}/exposure`,
     `layer/${gradient}/input`,
   ]);
@@ -167,8 +166,8 @@ test("brush strokes stamp incrementally, replay after undo, and render a proxy d
     { inside: gradient },
   );
   await render();
-  expect(inspect().passes).toContain(`layer/${gradient}/raster`);
-  expect(inspect().passes).not.toContain(`layer/${gradient}/mix`);
+  expect(inspect().passes).toContain(`layer/${gradient}/mask-raster`);
+  expect(inspect().passes).not.toContain(`layer/${gradient}/mask`);
   await render(gradient);
   expect(inspect().passes).toContain(`layer/${gradient}/raster-input`);
   // The child keeps its own coverage for its preview; the graph folds it into the gradient's.
@@ -203,7 +202,9 @@ test("brush strokes stamp incrementally, replay after undo, and render a proxy d
   await render();
   expect(renderer.coverage(gradient)?.target.size).toEqual([32, 16]);
   expect(renderer.inspect().passes).toContain(`mask/${child}/combine`);
-  expect(renderer.inspect().passes).not.toContain(`layer/${gradient}/raster`);
+  expect(renderer.inspect().passes).not.toContain(
+    `layer/${gradient}/mask-raster`,
+  );
   setLayer(document, gradient, { visible: true });
   // Erasing inside the child stamps its own raster only, and the group recombines.
   const stamped = inspect().stamped;
@@ -214,7 +215,7 @@ test("brush strokes stamp incrementally, replay after undo, and render a proxy d
   deleteLayer(document, mask);
   await render();
   expect(inspect().rasters).toEqual([]);
-  expect(inspect().passes).toContain(`layer/${gradient}/mix`);
+  expect(inspect().passes).toContain(`layer/${gradient}/mask`);
   const invalid = { ...stroke, flow: 2 };
   expect(() =>
     setLayerMask(document, gradient, { kind: "brush", strokes: [invalid] }),
@@ -264,7 +265,7 @@ test("a brush yet to paint takes no part in its group", async () => {
       expect.arrayContaining([
         `mask/${brush}/empty`,
         `mask/${gradient}/combine`,
-        `layer/${brush}/raster`,
+        `layer/${brush}/mask-raster`,
       ]),
     );
     // Intersecting a gradient, it leaves the gradient whole until it paints.
@@ -275,13 +276,13 @@ test("a brush yet to paint takes no part in its group", async () => {
       createMask({ kind: "brush", strokes: [] }, "intersect"),
       { inside: shaped },
     );
-    expect(await passes()).toContain(`layer/${shaped}/mix`);
+    expect(await passes()).toContain(`layer/${shaped}/mask`);
     paintStroke(document, child, stroke);
     expect(await passes()).toEqual(
       expect.arrayContaining([
         `mask/${shaped}/gradient`,
         `mask/${child}/combine`,
-        `layer/${shaped}/raster`,
+        `layer/${shaped}/mask-raster`,
       ]),
     );
     const effect = addLayer(document, createLayer("exposure"));
