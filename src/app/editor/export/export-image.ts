@@ -78,18 +78,22 @@ export async function encodeImage(
   return blob;
 }
 
-/** Renders a snapshot of the current edits, named after the source file. */
-export async function exportImage(
-  gpu: Gpu,
-  document: EditorDocument,
-  options: ExportOptions = {},
-) {
-  await document.replaced();
+/** The scene with its source and the stored pixels and texels its renderer loads, taken together. */
+function snapshotRender(document: EditorDocument) {
   const scene = document.scene.getState();
-  const source = document.resources.get(scene.layers[0].source);
-  // Taken with the scene: another photo may close the document before the renderer loads them.
-  const pixels = settledPixels(document, scene);
-  const fields = fieldTexels(document, scene);
+  return {
+    scene,
+    source: document.resources.get(scene.layers[0].source),
+    pixels: settledPixels(document, scene),
+    fields: fieldTexels(document, scene),
+  };
+}
+
+async function renderSnapshot(
+  gpu: Gpu,
+  { scene, source, pixels, fields }: ReturnType<typeof snapshotRender>,
+  options: ExportOptions,
+) {
   const renderer = createEditorRenderer(gpu, source, {
     paintPixels: (id) => {
       const blob = pixels.get(id);
@@ -115,5 +119,24 @@ export async function exportImage(
     return new File([blob], `${name}.${extension}`, { type: blob.type });
   } finally {
     renderer.dispose();
+  }
+}
+
+/** Renders a snapshot of the current edits, named after the source file. */
+export async function exportImage(
+  gpu: Gpu,
+  document: EditorDocument,
+  options: ExportOptions = {},
+) {
+  // Taken now, since another photo may close the document meanwhile, and again once the Remove fields
+  // being read back are saved, unless it did.
+  const requested = snapshotRender(document);
+  const release = requested.source.retain();
+  try {
+    await document.replaced();
+    const snapshot = document.closed ? requested : snapshotRender(document);
+    return await renderSnapshot(gpu, snapshot, options);
+  } finally {
+    release();
   }
 }

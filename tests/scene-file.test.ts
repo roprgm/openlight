@@ -2,7 +2,7 @@ import { expect, test } from "bun:test";
 import { init, target } from "vgpu/mock";
 import { createControls } from "@/app/controls";
 import { createImageLayer, createLayer, createMask } from "@/app/editor/layers";
-import { openSceneFile } from "@/app/loaders/scene";
+import { openSceneFile, writeSceneFile } from "@/app/loaders/scene";
 import { createWorkspace } from "@/app/workspace";
 import {
   type BrushStroke,
@@ -228,5 +228,34 @@ test("scene files reopen the photo with every layer for further editing", async 
   ).toMatchObject({ vignette: { intensity: 70, softness: 50 } });
   older.dispose();
   workspace.dispose();
+  gpu.dispose();
+});
+
+test("a scene file waits for in-place replacements and still saves once another photo closes its document", async () => {
+  const gpu = await init();
+  const resources = createResources();
+  const png = new File([bytes], "photo.png", { type: "image/png" });
+  const source = resources.add(
+    png,
+    createImageSource(target(gpu, { size, format: "rgba16float" })),
+  );
+  const document = createDocument(
+    {
+      frame: imageFrame(size),
+      layers: [createImageLayer(source, "photo.png")],
+    },
+    resources,
+  );
+  let replaced = () => {};
+  document.replacing(
+    new Promise<void>((resolve) => {
+      replaced = resolve;
+    }),
+  );
+  const saving = writeSceneFile(document);
+  document.dispose();
+  replaced();
+  const entries = await readZip(await saving);
+  expect(await entries.get(`sources/${source}`)?.bytes()).toEqual(bytes);
   gpu.dispose();
 });
