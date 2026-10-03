@@ -18,7 +18,6 @@ import pyramidShader from "./pyramid.wgsl";
 import reconstructShader from "./reconstruct.wgsl";
 
 export type InpaintRegion = { origin: Point; extent: Point };
-/** An earlier field whose filled texels a new synthesis keeps. */
 /** Texels along a field's longer side at most; a larger region takes larger texels. */
 export const fieldLongSide = 512;
 const samplers = {

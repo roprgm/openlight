@@ -278,8 +278,8 @@ function* savedPatches(layers: unknown): Generator<Record<string, unknown>> {
 
 /**
  * A version 1 scene as version 2 writes it: each Remove patch named its field inline, with how many
- * strokes it covered, and now names it by ID beside the scene. A field for fewer strokes becomes the
- * base of a new one, and a patch without one reserves one.
+ * strokes it covered, and now names it by ID beside the scene. A patch whose field covered fewer of
+ * its strokes, or that had none, reserves one to synthesize its whole shape.
  */
 function migrateFields(saved: unknown) {
   if (!isRecord(saved) || saved.version !== 1 || !isRecord(saved.scene)) {
