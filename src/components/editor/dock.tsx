@@ -32,7 +32,7 @@ export function EditorDock({
       inert={inert}
       aria-hidden={inert}
       data-inert={inert}
-      className="flex max-h-1/2 shrink-0 flex-col border-edge border-t surface-panel *:not-last:shadow-[inset_0_-1px_0_var(--color-edge)] data-[inert=true]:*:opacity-50"
+      className="flex max-h-1/2 shrink-0 flex-col border-edge border-t material-panel *:not-last:shadow-[inset_0_-1px_0_var(--color-edge)] data-[inert=true]:*:opacity-50"
     >
       <Inert value={Boolean(inert)}>{children}</Inert>
     </div>

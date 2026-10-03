@@ -233,7 +233,7 @@ export function Dial({
     >
       <span
         className={cn(
-          "relative grid place-items-center rounded-full surface-field tabular-nums transition group-data-[scrubbing=true]:scale-108",
+          "relative grid place-items-center rounded-full material-field tabular-nums transition group-data-[scrubbing=true]:scale-108",
           color ? "size-9" : "size-11.5",
           edited ? "text-foreground" : "text-muted",
         )}

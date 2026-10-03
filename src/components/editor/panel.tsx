@@ -35,7 +35,7 @@ export function EditorPanel({
       aria-hidden={inert}
       data-inert={inert}
       className={cn(
-        "relative flex min-h-0 w-(--width) shrink-0 flex-col border-edge border-l surface-panel data-[inert=true]:*:opacity-50",
+        "relative flex min-h-0 w-(--width) shrink-0 flex-col border-edge border-l material-panel data-[inert=true]:*:opacity-50",
         className,
       )}
       style={{ "--width": `${width}px` } as CSSProperties}

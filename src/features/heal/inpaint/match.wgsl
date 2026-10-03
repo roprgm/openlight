@@ -36,7 +36,9 @@ fn distance(p: vec2i, q: vec2i, limit: f32) -> f32 {
       let a = clamp(p + vec2i(x, y), vec2i(0), end);
       let b = q + vec2i(x, y);
       let masked = textureLoad(source, a, 0).a;
-      let reconstructed = select(0.0, params.confidence, textureLoad(field, a, 0).w > 0.5);
+      let correspondence = textureLoad(field, a, 0);
+      let pinned = params.initialize == 0u && correspondence.z < 0.0;
+      let reconstructed = select(0.0, select(params.confidence, 1.0, pinned), correspondence.w > 0.5);
       let confidence = select(1.0, reconstructed, masked > 0.5);
       let destination = textureLoad(current, a, 0).rgb;
       let donor = textureLoad(source, b, 0).rgb;
@@ -60,6 +62,10 @@ fn consider(p: vec2i, offset: vec2i, best: vec4f) -> vec4f {
   let p = vec2i(position.xy);
   let size = vec2i(textureDimensions(source));
   if (textureLoad(features, p, 0).a > 0.5) { return vec4f(0.0, 0.0, 0.0, 1.0); }
+  if (params.initialize == 0u) {
+    let pinned = textureLoad(field, p, 0);
+    if (pinned.z < 0.0) { return pinned; }
+  }
   if (textureLoad(source, p, 0).a > 0.5 && sqrt(textureLoad(nearest, p, 0).z) > params.radius) { return vec4f(0.0, 0.0, 1e10, 0.0); }
   var best = vec4f(0.0, 0.0, 1e10, 0.0);
   if (params.initialize != 0u) {

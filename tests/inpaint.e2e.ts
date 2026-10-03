@@ -233,7 +233,7 @@ test("Remove moves on drop and cancels a pending move on undo, pointer cancellat
   }
 });
 
-test("Remove synthesizes a spot without donor selection and reuses only unchanged content", async ({
+test("Remove synthesizes a spot once, without donor selection, and follows the layers below", async ({
   page,
 }) => {
   await page.goto("/tests/gpu.html");
@@ -251,12 +251,32 @@ test("Remove synthesizes a spot without donor selection and reuses only unchange
   expect(result.alphaError).toBe(0);
   expect(result.restoredError).toBe(0);
   expect(result.visibilityError).toBe(0);
-  expect(result.hiddenCaches).toBeGreaterThan(0);
+  expect(result.exposedError).toBeLessThan(0.003);
+  expect(result.hiddenFields).toBe(1);
   expect(result.shownSolverPasses).toBe(0);
   expect(result.solverPasses).toBeGreaterThan(0);
   expect(result.cachedSolverPasses).toBe(0);
-  expect(result.changedSolverPasses).toBeGreaterThan(0);
-  expect(result.releasedCaches).toBe(0);
+  expect(result.exposedSolverPasses).toBe(0);
+  expect(result.releasedFields).toBe(0);
+});
+
+test("Remove keeps what it filled when a stroke adds to or erases part of the patch", async ({
+  page,
+}) => {
+  await page.goto("/tests/gpu.html");
+  const result = await page.evaluate(async () => {
+    const path = "/tests/inpaint-gpu.ts";
+    const { renderInpaintExtension } = (await import(
+      path
+    )) as typeof import("./inpaint-gpu");
+    return renderInpaintExtension();
+  });
+  expect(result.errors).toEqual([]);
+  expect(result.solved).toEqual([true, true, true]);
+  expect(result.keptByAdding).toBeLessThan(0.002);
+  expect(result.keptByErasing).toBeLessThan(0.002);
+  expect(result.secondFilled).toBeGreaterThan(0.25);
+  expect(result.erasedRestored).toBe(0);
 });
 
 for (const fixture of ["gradient", "texture", "edge"] as const) {

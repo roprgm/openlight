@@ -6,6 +6,7 @@ import type {
   Painting,
   ProcessingLayer,
   RangeMask,
+  RemovePatch,
   Scene,
 } from "./scene";
 
@@ -23,6 +24,18 @@ export function* walkLayers(
   for (const layer of layers) {
     yield { layer, siblings: layers, parent };
     yield* walkLayers(layer.children, layer);
+  }
+}
+
+/** Every Remove patch with the Healing layer that holds it. */
+export function* removePatches(
+  layers: readonly Layer[],
+): Generator<{ layer: Layer; patch: RemovePatch }> {
+  for (const { layer } of walkLayers(layers)) {
+    if (layer.kind !== "heal") continue;
+    for (const patch of layer.patches) {
+      if (patch.mode === "remove") yield { layer, patch };
+    }
   }
 }
 

@@ -6,11 +6,14 @@ test("a saved scene reopens the photo with its edits and keeps editing", async (
   page,
 }) => {
   await openPhoto(page);
-  // Inside the radial mask, and on the light strip outside it.
+  // Inside the radial mask, on the light strip outside it, and the removed corner of the blue square.
   const samples = [
     [600, 400],
     [1100, 400],
+    [445, 295],
   ] as const;
+  await page.getByRole("button", { name: "Export", exact: true }).click();
+  const pending = page.waitForEvent("download");
   await page.evaluate(() => {
     const api = window.openlight;
     api.setAdjustments({ exposure: -1 });
@@ -24,14 +27,34 @@ test("a saved scene reopens the photo with its edits and keeps editing", async (
     });
     api.setAdjustments({ exposure: 1.5 }, mask);
     api.setFill({ color: "#3060c0", blend: "soft-light" });
+    api.addRemovePatch(api.addLayer("heal"), {
+      mode: "paint",
+      size: 40,
+      feather: 0,
+      flow: 1,
+      points: [[445, 295, 1]],
+    });
+    // Saved in the same task as the stroke, before its field is read back, the scene still keeps the
+    // field, so the reopened patch fills the same way.
+    const save = [...document.querySelectorAll("button")].find(
+      (button) => button.textContent === "Save scene",
+    );
+    if (!save) throw Error("Save scene is missing.");
+    save.click();
   });
-  const edited = await readImage(page, undefined, samples);
-
-  await page.getByRole("button", { name: "Export", exact: true }).click();
-  const pending = page.waitForEvent("download");
-  await page.getByRole("button", { name: "Save scene" }).click();
   const download = await pending;
   expect(download.suggestedFilename()).toBe("photo.openlight");
+  const field = () =>
+    page.evaluate(() => {
+      const layer = window.openlight
+        .getState()
+        .scene?.layers.find((layer) => layer.kind === "heal");
+      const patch = layer?.kind === "heal" ? layer.patches[0] : undefined;
+      return patch?.mode === "remove" ? patch.field : undefined;
+    });
+  await expect.poll(field).toMatchObject({ strokes: 1 });
+  const saved = await field();
+  const edited = await readImage(page, undefined, samples);
 
   await page.reload();
   const picker = page.locator('input[type="file"]');
@@ -43,6 +66,7 @@ test("a saved scene reopens the photo with its edits and keeps editing", async (
   });
   const exposure = page.getByRole("textbox", { name: "Exposure", exact: true });
   await expect(exposure).toHaveValue("-1.00");
+  expect(await field()).toEqual(saved);
   expect(await readImage(page, undefined, samples)).toEqual(edited);
 
   await page.evaluate(() => window.openlight.setAdjustments({ exposure: 0 }));

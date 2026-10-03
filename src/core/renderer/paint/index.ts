@@ -14,7 +14,7 @@ import {
   type Strokes,
 } from "@/core/renderer/strokes";
 import type { DabWalk } from "@/core/renderer/strokes/dabs";
-import { readRaster, writeRaster } from "./transfer";
+import { readRaster, writeRaster } from "@/core/renderer/transfer";
 
 type Size = readonly [number, number];
 

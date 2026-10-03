@@ -49,7 +49,7 @@ export function DockTabList({
     <Tabs
       value={selected}
       onValueChange={onSelect}
-      className="@container surface-panel"
+      className="@container material-panel"
     >
       <TabList
         aria-label="Tools"

@@ -3,7 +3,7 @@ import { validateFrame } from "@/core/image/frame";
 import { createHistory } from "./history";
 import { createResources } from "./resources";
 import type { Mask, MaskModifier, Scene } from "./scene";
-import { findLayer, paintingOf, walkLayers } from "./tree";
+import { findLayer, paintingOf, removePatches, walkLayers } from "./tree";
 
 export type {
   Adjustments,
@@ -34,6 +34,8 @@ export type {
   ProcessingLayer,
   RadialGradient,
   RangeMask,
+  RemoveField,
+  RemovePatch,
   Scene,
   StrokePoint,
   ToneCurve,
@@ -48,6 +50,7 @@ export {
   locateLayer,
   maskModifiers,
   paintingOf,
+  removePatches,
   updateLayer,
   walkLayers,
 } from "./tree";
@@ -95,13 +98,21 @@ function equal(a: unknown, b: unknown): boolean {
   );
 }
 
-/** The resources a scene names: its image source and the pixels its paintings settled into. */
+/**
+ * The resources a scene names: its image source, the pixels its paintings settled into, and its
+ * Remove fields.
+ */
 function resourceIds(scene: Scene) {
   const ids = [scene.layers[0].source];
   for (const { layer } of walkLayers(scene.layers)) {
     const raster = paintingOf(layer)?.raster;
     if (raster) {
       ids.push(raster);
+    }
+  }
+  for (const { patch } of removePatches(scene.layers)) {
+    if (patch.field) {
+      ids.push(patch.field.texels);
     }
   }
   return ids;
@@ -122,6 +133,23 @@ export function settledPixels(
   return pixels;
 }
 
+/** The Remove fields `scene` names, taken now, like `settledPixels`. */
+export function fieldTexels(
+  document: EditorDocument,
+  scene = document.scene.getState(),
+) {
+  const texels = new Map<string, Blob>();
+  for (const { patch } of removePatches(scene.layers)) {
+    if (patch.field) {
+      texels.set(
+        patch.field.texels,
+        document.resources.field(patch.field.texels),
+      );
+    }
+  }
+  return texels;
+}
+
 /** One independent editing session. No React, decoders, or file workflows. */
 export function createDocument(initial: Scene, resources = createResources()) {
   const scene = createStore(() => initial);
@@ -140,6 +168,7 @@ export function createDocument(initial: Scene, resources = createResources()) {
       selection.setState({ layerId: state.layers[0].id });
     }
   });
+  const inFlight = new Set<Promise<unknown>>();
   let closed = false;
   return {
     id: crypto.randomUUID(),
@@ -183,6 +212,18 @@ export function createDocument(initial: Scene, resources = createResources()) {
         throw new Error("Document is closed.");
       }
       replace(next);
+    },
+    /** Keeps `work` that will replace the scene in place, such as a Remove field read back, for `replaced`. */
+    replacing(work: Promise<unknown>) {
+      inFlight.add(work);
+      const done = () => inFlight.delete(work);
+      void work.then(done, done);
+    },
+    /** Resolves once in-place replacements in flight finish, so a snapshot holds what the editor shows. */
+    async replaced() {
+      while (inFlight.size) {
+        await Promise.allSettled(inFlight);
+      }
     },
     /** Whether the document was disposed, so work that outlived it can drop its result. */
     get closed() {

@@ -54,7 +54,7 @@ export function ToolTabList({
     <Tabs
       value={selected}
       onValueChange={onSelect}
-      className="flex w-11 shrink-0 flex-col gap-1 overflow-auto border-edge border-r surface-panel p-1.5"
+      className="flex w-11 shrink-0 flex-col gap-1 overflow-auto border-edge border-r material-panel p-1.5"
     >
       <TabList aria-label="Tools" className="flex-col">
         {editing.map((entry) => (

@@ -10,7 +10,7 @@ import type { Gpu } from "vgpu";
 import { useGpu } from "vgpu-react";
 import { adjustmentTarget } from "@/core/document";
 import type { ImageSource } from "@/core/image";
-import type { createRenderer } from "@/core/renderer";
+import type { createRenderer, RendererOptions } from "@/core/renderer";
 import { useDisposable } from "@/hooks/use-disposable";
 import { useDocument, useScene } from "./session";
 
@@ -39,7 +39,7 @@ type RendererProviderProps = {
   createRenderer: (
     gpu: Gpu,
     source: ImageSource,
-    options: { paintPixels: (id: string) => Blob },
+    options: RendererOptions,
   ) => ReturnType<typeof createRenderer>;
 };
 
@@ -55,6 +55,7 @@ export function RendererProvider({
     () =>
       createRenderer(gpu, source, {
         paintPixels: (id) => document.resources.paint(id),
+        fieldTexels: (id) => document.resources.field(id),
       }),
     [gpu, document, source, createRenderer],
   );

@@ -57,6 +57,7 @@ function summarize(values: number[]) {
 const pixelBytes: Record<string, number> = {
   r8unorm: 1,
   r16float: 2,
+  rg16float: 4,
   rgba8unorm: 4,
   rgba16float: 8,
   rgba32float: 16,
@@ -445,14 +446,11 @@ export async function benchmarkRendering(
         .map((value) => value.toString(16).padStart(2, "0"))
         .join(""),
       // Source and driver memory are excluded.
-      intermediateBytes: [
-        ...storage.textures,
-        ...storage.cachedTextures,
-      ].reduce(
+      intermediateBytes: storage.textures.reduce(
         (sum, { size, format }) => sum + size[0] * size[1] * pixelBytes[format],
         0,
       ),
-      // Brush rasters, paint, and the stroke buffer, at source resolution, outside the graph.
+      // Brush rasters, paint, Remove fields, and the stroke buffer, outside the graph.
       rasterBytes: storage.rasters.reduce(
         (sum, { size, format }) => sum + size[0] * size[1] * pixelBytes[format],
         0,

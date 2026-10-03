@@ -176,6 +176,15 @@ test("draw masks, edit their child effects, reorder layers and undo", async ({
     await setField("Opacity", "0");
     expect(await samples()).toEqual(original);
     await undo();
+    // The row's opacity drags to zero and undoes as one edit.
+    const opacity = await box(
+      page.getByRole("textbox", { name: "Sky opacity", exact: true }),
+    );
+    const y = opacity.y + opacity.height / 2;
+    await drag(page, [opacity.x + opacity.width / 2, y], [opacity.x - 300, y]);
+    expect(await samples()).toEqual(original);
+    await undo();
+    expect(await samples()).toEqual(masked);
     const show = page.getByRole("button", { name: "Show Sky", exact: true });
     await show.click();
     expect(await samples()).toEqual(original);

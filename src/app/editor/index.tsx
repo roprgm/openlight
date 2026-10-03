@@ -21,6 +21,7 @@ import { EditorViewport, ViewportStage } from "@/components/editor/viewport";
 import type { Mask } from "@/core/document";
 import { locateLayer } from "@/core/document";
 import { HealingProvider, useHealBrush } from "@/features/heal/mode";
+import { RemoveFieldSaving } from "@/features/heal/save-fields";
 import { addLayer } from "@/features/layers/edits";
 import { MaskToolProvider, type Nesting } from "@/features/layers/mask-tool";
 import { CanvasToolbar } from "@/features/layers/toolbar";
@@ -220,6 +221,7 @@ function DocumentEditor({
               onDismiss={onDismissFailure}
             />
             <PaintSettling />
+            <RemoveFieldSaving />
             <BrushKeys />
             <ToolShortcuts />
           </HealingTools>

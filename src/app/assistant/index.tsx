@@ -159,7 +159,7 @@ export function Assistant({
     <div
       style={open ? { height } : undefined}
       className={cn(
-        "fixed bottom-3 left-14 z-50 overflow-clip surface-panel bg-level-4/95 backdrop-blur-sm transition-[width,height,border-radius] duration-300 ease-[cubic-bezier(0.2,0,0,1)] motion-reduce:transition-none max-md:hidden",
+        "fixed bottom-3 left-14 z-50 overflow-clip material-panel bg-level-4/95 backdrop-blur-sm transition-[width,height,border-radius] duration-300 ease-[cubic-bezier(0.2,0,0,1)] motion-reduce:transition-none max-md:hidden",
         open ? "w-80 rounded-xl" : "size-10 rounded-[1.25rem]",
       )}
     >

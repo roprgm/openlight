@@ -15,7 +15,8 @@
       let donor = clamp(p + vec2i(correspondence.xy), vec2i(0), end);
       let sample = textureLoad(source, donor, 0);
       if (sample.a > 0.5) { continue; }
-      let confidence = exp(-min(correspondence.z * 80.0, 20.0));
+      // A pinned texel's negative cost counts as a perfect match.
+      let confidence = exp(-clamp(correspondence.z * 80.0, 0.0, 20.0));
       color += sample.rgb * confidence;
       weight += confidence;
     }

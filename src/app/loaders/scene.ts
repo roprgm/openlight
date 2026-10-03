@@ -16,11 +16,12 @@ function isSceneFile(file: File) {
 }
 
 /**
- * The document as a ZIP archive: a deflated `scene.json`, each source's bytes at `sources/<id>`, and
- * the already deflated pixels paint settled into at `paint/<id>`.
+ * The document as a ZIP archive: a deflated `scene.json`, each source's bytes at `sources/<id>`, the
+ * already deflated pixels paint settled into at `paint/<id>`, and Remove fields at `fields/<id>`.
  */
 export async function writeSceneFile(document: EditorDocument) {
-  const { json, sources, paint } = snapshotScene(document);
+  await document.replaced();
+  const { json, sources, paint, fields } = snapshotScene(document);
   const { writeZip } = await import("@/lib/zip");
   const archive = await writeZip([
     {
@@ -30,6 +31,7 @@ export async function writeSceneFile(document: EditorDocument) {
     },
     ...[...sources].map(([id, data]) => ({ name: `sources/${id}`, data })),
     ...[...paint].map(([id, data]) => ({ name: `paint/${id}`, data })),
+    ...[...fields].map(([id, data]) => ({ name: `fields/${id}`, data })),
   ]);
   const [file] = sources.values();
   const name = file.name.replace(/\.[^.]*$/, "") || "scene";
@@ -49,7 +51,7 @@ export async function openSceneFile(
   const files = new Map(
     [...entries].flatMap(([name, data]) => {
       const [folder, id] = name.split("/");
-      return (folder === "sources" || folder === "paint") && id
+      return ["sources", "paint", "fields"].includes(folder) && id
         ? [[id, data] as const]
         : [];
     }),
