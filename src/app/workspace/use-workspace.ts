@@ -4,11 +4,13 @@ import { createControls } from "@/app/controls";
 import { createAutosave } from "@/app/draft/autosave";
 import { createDraftSession } from "@/app/draft/session";
 import { createDraftStore } from "@/app/draft/store";
+import { createPresetSession } from "@/app/presets/session";
+import { createPresetStore } from "@/app/presets/store";
 import { registerTools } from "@/app/webmcp";
 import { createWorkspace } from ".";
 
 /**
- * Connects an imperative workspace, its browser commands and agent tools, and draft autosave to the app lifetime.
+ * Connects an imperative workspace, its browser commands and agent tools, draft autosave, and presets to the app lifetime.
  * A startup URL opens while the session is created, so the first paint is already loading; otherwise a stored draft is offered.
  */
 export function useWorkspace(startup?: string) {
@@ -18,12 +20,13 @@ export function useWorkspace(startup?: string) {
     const store = createDraftStore();
     const controls = createControls(gpu, workspace, store);
     const drafts = createDraftSession(store, controls);
+    const presets = createPresetSession(createPresetStore());
     if (startup) {
       void controls.loadUrl(startup);
     } else {
       drafts.offer();
     }
-    return { workspace, store, controls, drafts };
+    return { workspace, store, controls, drafts, presets };
   }, [gpu, startup]);
   useEffect(() => {
     const { workspace, store, controls, drafts } = session;

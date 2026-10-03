@@ -3,7 +3,8 @@ import type { ReactNode } from "react";
 
 /**
  * Identity on the left, with the file and what opens another beside its name; document actions on
- * the right. Present in every editor state.
+ * the right. Present in every editor state. Below 23rem the spacing tightens, so every action keeps
+ * its touch target.
  */
 export function EditorHeader({
   file,
@@ -15,7 +16,7 @@ export function EditorHeader({
   children?: ReactNode;
 }) {
   return (
-    <header className="flex h-11 shrink-0 items-center gap-3 border-edge border-b material-panel px-3">
+    <header className="flex h-11 shrink-0 items-center gap-3 border-edge border-b material-panel px-3 max-[23rem]:gap-2 max-[23rem]:px-2">
       <span className="flex items-center gap-2">
         <img src="/logo.svg" alt="" className="size-5 shrink-0" />
         {/* On a phone the logo alone names the app, leaving room for the file and its actions. */}
@@ -36,7 +37,9 @@ export function EditorHeader({
         )}
         {open}
       </span>
-      <div className="ml-auto flex items-center gap-1">{children}</div>
+      <div className="ml-auto flex items-center gap-1 max-[23rem]:gap-0">
+        {children}
+      </div>
     </header>
   );
 }
