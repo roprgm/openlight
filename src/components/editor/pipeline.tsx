@@ -51,16 +51,17 @@ export function RendererProvider({
   const document = useDocument();
   const sourceId = useScene((scene) => scene.layers[0].source);
   const source = document.resources.get(sourceId);
+  const [error, setError] = useState<string>();
   const renderer = useDisposable(
     () =>
       createRenderer(gpu, source, {
         paintPixels: (id) => document.resources.paint(id),
         field: (id) => document.resources.field(id),
         saveField: (id, field) => document.resources.fillField(id, field),
+        onError: (error) => setError(String(error)),
       }),
     [gpu, document, source, createRenderer],
   );
-  const [error, setError] = useState<string>();
 
   // A snapshot reads back the Remove fields this renderer shows that the document still waits for.
   useEffect(

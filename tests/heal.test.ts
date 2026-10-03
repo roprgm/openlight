@@ -289,7 +289,7 @@ test("a nested Remove synthesizes once for its strokes, whatever changes below o
   }
 });
 
-test("renders follow the display's density, except that a Remove patch waiting for its field renders in full once", async () => {
+test("renders follow the display's density, except that a proxy lacking a Remove patch's field renders in full once", async () => {
   const gpu = await init();
   const source = createImageSource(
     target(gpu, { size: [128, 96], format: "rgba16float" }),

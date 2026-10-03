@@ -25,8 +25,9 @@ type Encoded = {
  * The current edits rendered in full while the export view is open, again when they change, and
  * encoded once settings settle; `encode` makes the file to save from the same render. Renders,
  * encodes, and the release of a replaced render run one at a time in order, so nothing reads an
- * image after it goes, and a change during one waits for it. The last result stays available while
- * the current settings are still pending.
+ * image after it goes, a change during one waits for it, and a replaced render goes before the next
+ * renders, so the view holds one. The last encoded result stays available while the current settings
+ * are still pending.
  */
 export function useExportPreview({ format, quality, longEdge }: ExportOptions) {
   const gpu = useGpu();
@@ -51,12 +52,13 @@ export function useExportPreview({ format, quality, longEdge }: ExportOptions) {
           return;
         }
         try {
+          render.current?.dispose();
+          render.current = undefined;
           const next = await renderExport(gpu, document);
           if (!active) {
             next.dispose();
             return;
           }
-          render.current?.dispose();
           render.current = next;
           setError(undefined);
           setRevision((count) => count + 1);

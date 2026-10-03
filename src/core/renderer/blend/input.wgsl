@@ -1,7 +1,7 @@
 import { combineCoverage, gradientCoverage } from "./coverage.wgsl";
 
-// The image a curve receives, with gradient coverage as alpha, drawn at the histogram's few texels,
-// one source texel each, as the histogram counted them at full size.
+// The image a curve receives, with gradient coverage as alpha, drawn at the histogram's few texels:
+// each reads one image texel, as the histogram counted them at full size, from the texel's own column.
 struct Params {
  kind: u32,
  first: vec2f,
@@ -9,19 +9,20 @@ struct Params {
  feather: f32,
  angle: f32,
  modifierCount: u32,
- // The photo's size in source pixels, where the gradients are drawn.
- sourceSize: vec2f,
+ // Image texels per input texel, and source pixels per image texel.
+ ratio: vec2f,
+ imageScale: vec2f,
 }
 @group(0) @binding(0) var image: texture_2d<f32>;
-@group(0) @binding(1) var imageSampler: sampler;
-@group(0) @binding(2) var<uniform> params: Params;
-@group(0) @binding(3) var<storage, read> modifiers: array<vec4f>;
+@group(0) @binding(1) var<uniform> params: Params;
+@group(0) @binding(2) var<storage, read> modifiers: array<vec4f>;
 
-@fragment fn fs_main(@location(0) uv: vec2f) -> @location(0) vec4f {
- let color = textureSampleLevel(image, imageSampler, uv, 0.0);
+@fragment fn fs_main(@builtin(position) position: vec4f) -> @location(0) vec4f {
+ let read = floor(floor(position.xy) * params.ratio);
+ let color = textureLoad(image, vec2i(read), 0);
  var coverage = 1.0;
  if (params.kind != 0u) {
-  let at = uv * params.sourceSize;
+  let at = (read + 0.5) * params.imageScale;
   coverage = gradientCoverage(at, params.first, params.second, params.kind, params.feather, params.angle);
   for (var i = 0u; i < params.modifierCount; i++) {
    let points = modifiers[i * 3u];

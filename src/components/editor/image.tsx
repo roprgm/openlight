@@ -56,10 +56,14 @@ export function Image({
   const display = useDisposable(() => createDisplay(gpu), [gpu]);
   const render = useFrame((frame) => {
     const target = typeof image === "string" ? renderer[image]() : image.image;
-    // A proxy output is smaller than the frame it stands for; zoom follows the frame.
-    const size =
-      geometry?.size ??
-      (typeof image === "string" ? sceneFrame.size : target.size);
+    // A proxy output is smaller than what it stands for: the source, or the frame cut from it.
+    const represented =
+      typeof image === "string"
+        ? image === "fullImage"
+          ? sourceSize
+          : sceneFrame.size
+        : target.size;
+    const size = geometry?.size ?? represented;
     const view = {
       ...camera.view,
       zoom: camera.scale / (fitScale(size, camera.viewport) || 1),
@@ -77,6 +81,7 @@ export function Image({
       view,
       viewport: camera.viewport,
       frame: geometry,
+      imageSize: represented,
       primaries: typeof image === "string" ? undefined : image.primaries,
       source: comparable
         ? {

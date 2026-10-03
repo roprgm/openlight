@@ -126,6 +126,8 @@ export type RendererOptions = {
   field?: (id: string) => RemoveField | undefined;
   /** Receives each Remove field the renderer synthesizes, read back; without it nothing is read back. */
   saveField?: (id: string, field: RemoveField) => void;
+  /** Receives the failure of a render the renderer starts itself, when the display's density changes. */
+  onError?: (error: unknown) => void;
 };
 
 /**
@@ -143,6 +145,9 @@ export function createRenderer(
     },
     field: savedField = () => undefined,
     saveField,
+    onError = (error) => {
+      throw error;
+    },
   }: RendererOptions = {},
 ) {
   const source = resource.image;
@@ -169,6 +174,10 @@ export function createRenderer(
   let version = 0;
   let displayScale = 1;
   let last: RenderRequest | undefined;
+  /** The latest request, rendered or still waiting, which a density change renders again. */
+  let requested: RenderRequest | undefined;
+  /** Whether the last render, a gesture's proxy, lacked a Remove patch's field. */
+  let lacked = false;
   let next: RenderRequest | undefined;
   let pending: Promise<void> | undefined;
   /** A raster being read back, a painting to settle or a Remove field to save; nothing renders meanwhile. */
@@ -177,15 +186,16 @@ export function createRenderer(
   const capturing = new Map<string, Promise<RemoveField | undefined>>();
   let disposed = false;
   let instances = new Set<string>();
-  function render(request: RenderRequest) {
+  function render(request: RenderRequest): void {
     const { scene, inputId, rangeSourceId, factor } = request;
-    if (
+    const unchanged =
       last &&
       last.scene === scene &&
       last.inputId === inputId &&
       last.rangeSourceId === rangeSourceId &&
-      last.factor === factor
-    ) {
+      last.factor === factor;
+    // A gesture's proxy shows a patch unfilled; the gesture's end renders it again to synthesize.
+    if (unchanged && !(lacked && !request.interactive)) {
       return;
     }
     const active = new Set<string>();
@@ -222,6 +232,7 @@ export function createRenderer(
       lattice: FieldLattice;
       texels: RenderImage;
     }[] = [];
+    let lacking = false;
     const images = compose(image, scene, {
       inputId,
       rangeSourceId,
@@ -234,12 +245,22 @@ export function createRenderer(
       paint: (layer) => paints.input(layer),
       patch: (id, strokes) => patches.patch(id, strokes, developed.size),
       // Patches that share a field, such as duplicates, show the one this render synthesizes.
-      field: (patch) =>
-        syntheses.find(({ id }) => id === patch.field) ??
-        fields.get(patch.field),
+      field: (patch) => {
+        const held =
+          syntheses.find(({ id }) => id === patch.field) ??
+          fields.get(patch.field);
+        lacking ||= !held;
+        return held;
+      },
       keepField: (patch, lattice, texels) =>
         syntheses.push({ id: patch.field, lattice, texels }),
     });
+    // Only a full render synthesizes a field, so a proxy that lacks one renders in full instead, outside a gesture.
+    if (lacking && factor > 1 && !request.interactive) {
+      render({ ...request, factor: 1 });
+      return;
+    }
+    lacked = lacking;
     for (const id of instances) {
       if (!active.has(id)) graph.release(`${id}/`);
     }
@@ -331,12 +352,6 @@ export function createRenderer(
       }
     });
   }
-  /** Whether a Remove patch waits for a field neither this renderer nor the document holds; only a full render synthesizes one. */
-  function waitingField(scene: Scene) {
-    return [...removePatches(scene.layers)].some(
-      ({ patch }) => !fields.get(patch.field) && !savedField(patch.field),
-    );
-  }
   /** Source pixels per texel that the display's density asks for. */
   function displayFactor() {
     return Math.max(1, Math.floor(1 / displayScale));
@@ -394,9 +409,9 @@ export function createRenderer(
     }
   }
   /**
-   * Renders reduce the source to the display's density, a proxy, except that a Remove patch waiting
-   * for its field renders in full outside a gesture, since only a full render synthesizes one. `inputId`
-   * keeps a layer's curve input, and `rangeSourceId` a mask's range source, for reading them.
+   * Renders reduce the source to the display's density, a proxy, except that one which lacks a Remove
+   * patch's field renders in full outside a gesture, since only a full render synthesizes one.
+   * `inputId` keeps a layer's curve input, and `rangeSourceId` a mask's range source, for reading them.
    */
   async function update(
     scene: Scene,
@@ -407,8 +422,9 @@ export function createRenderer(
     if (disposed) {
       throw Error("Renderer is closed.");
     }
-    const factor = !interactive && waitingField(scene) ? 1 : displayFactor();
+    const factor = displayFactor();
     const request = { scene, inputId, rangeSourceId, factor, interactive };
+    requested = request;
     // Renders wait, in order, for a settle, a RAW development, or settled paint and fields to load.
     if (
       !raw &&
@@ -480,27 +496,28 @@ export function createRenderer(
       return target ? { target, origin: [0, 0] } : patches.raster(id);
     },
     /**
-     * Device pixels shown per source pixel; renders reduce the source to about this density. The last
-     * scene renders again, after the frame that reports it, once the density asks for another reduction.
+     * Device pixels shown per source pixel; renders reduce the source to about this density. The latest
+     * request renders again, after the frame that reports it, once the density asks for another reduction.
      */
     setDisplayScale(scale: number) {
       if (!Number.isFinite(scale) || scale <= 0) {
         return;
       }
       displayScale = scale;
-      const shown = last;
-      if (!shown || shown.factor === displayFactor()) {
+      const wanted = requested;
+      if (!wanted || wanted.factor === displayFactor()) {
         return;
       }
       queueMicrotask(() => {
-        if (!disposed && last === shown) {
-          void update(
-            shown.scene,
-            shown.inputId,
-            shown.interactive,
-            shown.rangeSourceId,
-          );
+        if (disposed || requested !== wanted) {
+          return;
         }
+        update(
+          wanted.scene,
+          wanted.inputId,
+          wanted.interactive,
+          wanted.rangeSourceId,
+        ).catch(onError);
       });
     },
     inspect: () => ({

@@ -48,6 +48,8 @@ type DisplayOptions = {
   frame?: ImageFrame;
   /** The primaries the image's texels are in; the working space's unless said. */
   primaries?: Primaries;
+  /** The pixels `image` stands for when a proxy reduces it; its own size unless said. */
+  imageSize?: Point;
   /** Shown left of `split` in place of the image, and where the mask overlay is drawn; the image itself without one. */
   source?: DisplaySource;
   split?: number;
@@ -86,7 +88,8 @@ export function createDisplay(gpu: Gpu) {
     image: Target,
     options: DisplayOptions,
   ) {
-    const geometry = options.frame ?? imageFrame(image.size);
+    const represented = options.imageSize ?? image.size;
+    const geometry = options.frame ?? imageFrame(represented);
     const viewport =
       options.viewport ?? canvas.size.map((value) => value / canvas.dpr);
     const overlay = options.overlay;
@@ -101,7 +104,7 @@ export function createDisplay(gpu: Gpu) {
           image: primariesIndex[options.primaries ?? "rec2020"],
           original: primariesIndex[source?.primaries ?? "rec2020"],
         },
-        transform: frameTransform(geometry, image.size),
+        transform: frameTransform(geometry, represented),
         split: options.split ?? -1,
         view: {
           size: canvas.size,
@@ -114,7 +117,7 @@ export function createDisplay(gpu: Gpu) {
         },
         sourceTransform: frameTransform(
           source?.frame ?? geometry,
-          source?.image.size ?? image.size,
+          source?.image.size ?? represented,
         ),
         coverage: (overlay?.coverage ?? blank).color,
         overlay: {
@@ -123,7 +126,7 @@ export function createDisplay(gpu: Gpu) {
           modifierCount: overlay
             ? gradientModifiers(overlay.modifiers).length
             : 0,
-          sourceSize: source?.image.size ?? image.size,
+          sourceSize: source?.image.size ?? represented,
           opacity: overlay?.opacity ?? 1,
         },
       }),

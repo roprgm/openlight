@@ -26,11 +26,12 @@ struct Params {
 
 @fragment fn fs_main(@builtin(position) position: vec4f) -> @location(0) vec4f {
  let before = textureLoad(below, vec2i(position.xy), 0);
- var after = adjustLayer(before.rgb, adjustments, params.exposureOnly != 0u);
+ // Rounded to half floats where the separate passes' textures round, so inspecting the mask changes nothing.
+ var after = quantizeToF16(adjustLayer(before.rgb, adjustments, params.exposureOnly != 0u));
  if (params.curved != 0u) {
   let size = arrayLength(&curve);
   let at = toneSamples(after, size);
-  after = tone(after, vec4f(curve[at.x], curve[at.y], curve[at.z], curve[at.w]), size);
+  after = quantizeToF16(tone(after, vec4f(curve[at.x], curve[at.y], curve[at.z], curve[at.w]), size));
  }
  let at = position.xy * params.scale;
  var coverage = gradientCoverage(at, params.first, params.second, params.kind, params.feather, params.angle);

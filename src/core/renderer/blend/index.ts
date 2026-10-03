@@ -131,29 +131,25 @@ export function mixAdjustment(
 /** The longest side a curve's input needs: the histogram samples 512 columns of it. */
 const inputEdge = 512;
 
-/** A reduced image of `image`'s kind that stands for the same source pixels. */
+/** A reduced image of `image`'s kind that stands for the same source pixels, and the image texels each of its texels covers. */
 function inputOutput(image: RenderImage) {
   const [width, height] = sourceSize(image);
-  const ratio = Math.min(1, inputEdge / Math.max(width, height));
+  const reduction = Math.min(1, inputEdge / Math.max(width, height));
   const size = [
-    Math.max(1, Math.round(width * ratio)),
-    Math.max(1, Math.round(height * ratio)),
+    Math.max(1, Math.round(width * reduction)),
+    Math.max(1, Math.round(height * reduction)),
   ] as const;
   return {
     size,
     format: image.format,
     scale: [width / size[0], height / size[1]] as const,
+    ratio: [image.size[0] / size[0], image.size[1] / size[1]] as const,
   };
 }
 
 const linear: GPUSamplerDescriptor = {
   minFilter: "linear",
   magFilter: "linear",
-};
-/** One source texel per input texel, as the histogram counted them at full size. */
-const nearest: GPUSamplerDescriptor = {
-  minFilter: "nearest",
-  magFilter: "nearest",
 };
 
 /**
@@ -168,13 +164,14 @@ export function curveInput(
   modifiers: readonly MaskModifier[] = [],
   coverage?: RenderImage,
 ) {
-  const output = inputOutput(image);
+  const { ratio, ...output } = inputOutput(image);
   if (coverage) {
     return merge(
       { image, coverage },
       node(`${name}/raster-input`, rasterInputShader, {
         ...output,
-        samplers: { imageSampler: nearest, coverageSampler: linear },
+        samplers: { coverageSampler: linear },
+        set: { params: { ratio } },
       }),
     );
   }
@@ -184,13 +181,13 @@ export function curveInput(
     { image },
     node(`${name}/input`, inputShader, {
       ...output,
-      samplers: { imageSampler: nearest },
       storage: { modifiers: modifierData(gradients) },
       set: {
         params: {
           ...gradientParams(gradient),
           modifierCount: gradients.length,
-          sourceSize: sourceSize(image),
+          ratio,
+          imageScale: image.scale,
         },
       },
     }),
