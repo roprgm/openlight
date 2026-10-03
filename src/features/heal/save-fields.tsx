@@ -79,8 +79,8 @@ async function saveRemoveField(
 /**
  * Saves each Remove field once the renderer synthesizes it and no gesture is open, checking after
  * every render and when a gesture ends. A render during a save checks again after it; a patch the
- * renderer holds no field for, such as one on a hidden layer, waits for the next render. Returns the
- * stop.
+ * renderer holds no field for, such as one on a hidden layer, waits for the next render. The document
+ * keeps each save, so a snapshot waits for it. Returns the stop.
  */
 export function watchRemoveFields(
   document: EditorDocument,
@@ -119,11 +119,13 @@ export function watchRemoveFields(
     if ([...removePatches(scene.layers)].every(({ patch }) => saved(patch))) {
       return;
     }
-    void save()
-      .catch((error) =>
-        console.error("A Remove field couldn't be saved.", error),
-      )
-      .then(() => rendered && check());
+    document.replacing(
+      save()
+        .catch((error) =>
+          console.error("A Remove field couldn't be saved.", error),
+        )
+        .then(() => rendered && check()),
+    );
   }
   const unsubscribe = renderer.subscribe(check);
   const detach = document.history.status.subscribe(check);

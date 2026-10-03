@@ -263,7 +263,7 @@ test("a nested Remove synthesizes once for its strokes, whatever changes below o
   }
 });
 
-test("Remove fields save once no gesture is open, and a stroke added during a readback takes its field as a base", async () => {
+test("Remove fields save once no gesture is open, a stroke added during a readback takes its field as a base, and snapshots wait for a readback", async () => {
   const { document, layer } = healFixture();
   // A renderer whose renders the test runs, and whose readbacks finish, oldest first, when it says.
   let render = () => {};
@@ -314,6 +314,12 @@ test("Remove fields save once no gesture is open, and a stroke added during a re
     await finish();
     expect(patches()[0].strokes).toHaveLength(3);
     expect(patches()[0].field?.strokes).toBe(2);
+    // The field for every stroke is being read back, and a snapshot waits for it.
+    const snapshot = document
+      .replaced()
+      .then(() => patches()[0].field?.strokes);
+    await finish();
+    expect(await snapshot).toBe(3);
   } finally {
     stop();
     document.dispose();

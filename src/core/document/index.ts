@@ -168,6 +168,7 @@ export function createDocument(initial: Scene, resources = createResources()) {
       selection.setState({ layerId: state.layers[0].id });
     }
   });
+  const inFlight = new Set<Promise<unknown>>();
   let closed = false;
   return {
     id: crypto.randomUUID(),
@@ -211,6 +212,18 @@ export function createDocument(initial: Scene, resources = createResources()) {
         throw new Error("Document is closed.");
       }
       replace(next);
+    },
+    /** Keeps `work` that will replace the scene in place, such as a Remove field read back, for `replaced`. */
+    replacing(work: Promise<unknown>) {
+      inFlight.add(work);
+      const done = () => inFlight.delete(work);
+      void work.then(done, done);
+    },
+    /** Resolves once in-place replacements in flight finish, so a snapshot holds what the editor shows. */
+    async replaced() {
+      while (inFlight.size) {
+        await Promise.allSettled(inFlight);
+      }
     },
     /** Whether the document was disposed, so work that outlived it can drop its result. */
     get closed() {

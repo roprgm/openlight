@@ -84,6 +84,7 @@ export async function exportImage(
   document: EditorDocument,
   options: ExportOptions = {},
 ) {
+  await document.replaced();
   const scene = document.scene.getState();
   const source = document.resources.get(scene.layers[0].source);
   // Taken with the scene: another photo may close the document before the renderer loads them.

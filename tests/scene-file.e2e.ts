@@ -12,6 +12,8 @@ test("a saved scene reopens the photo with its edits and keeps editing", async (
     [1100, 400],
     [445, 295],
   ] as const;
+  await page.getByRole("button", { name: "Export", exact: true }).click();
+  const pending = page.waitForEvent("download");
   await page.evaluate(() => {
     const api = window.openlight;
     api.setAdjustments({ exposure: -1 });
@@ -32,8 +34,16 @@ test("a saved scene reopens the photo with its edits and keeps editing", async (
       flow: 1,
       points: [[445, 295, 1]],
     });
+    // Saved in the same task as the stroke, before its field is read back, the scene still keeps the
+    // field, so the reopened patch fills the same way.
+    const save = [...document.querySelectorAll("button")].find(
+      (button) => button.textContent === "Save scene",
+    );
+    if (!save) throw Error("Save scene is missing.");
+    save.click();
   });
-  // The scene keeps the field Remove synthesized, so the reopened patch fills the same way.
+  const download = await pending;
+  expect(download.suggestedFilename()).toBe("photo.openlight");
   const field = () =>
     page.evaluate(() => {
       const layer = window.openlight
@@ -45,12 +55,6 @@ test("a saved scene reopens the photo with its edits and keeps editing", async (
   await expect.poll(field).toMatchObject({ strokes: 1 });
   const saved = await field();
   const edited = await readImage(page, undefined, samples);
-
-  await page.getByRole("button", { name: "Export", exact: true }).click();
-  const pending = page.waitForEvent("download");
-  await page.getByRole("button", { name: "Save scene" }).click();
-  const download = await pending;
-  expect(download.suggestedFilename()).toBe("photo.openlight");
 
   await page.reload();
   const picker = page.locator('input[type="file"]');
