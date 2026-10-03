@@ -1,7 +1,7 @@
 import { Button } from "@roprgm/ui/button";
+import { IconButton } from "@roprgm/ui/icon-button";
 import { Select } from "@roprgm/ui/select";
 import { Slider } from "@roprgm/ui/slider";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@roprgm/ui/tooltip";
 import { type KeyboardEvent, useState } from "react";
 import { DockChips, DockControls } from "@/components/editor/dock";
 import { Image } from "@/components/editor/image";
@@ -34,6 +34,7 @@ const actions = [
   { label: "Flip vertical", flip: 1, transform: "rotate(90deg)" },
 ] as const;
 
+/** A turn or flip as a circle captioned below, the shape of the rotation dial beside it. */
 function ActionButton({
   action,
   onClick,
@@ -41,24 +42,21 @@ function ActionButton({
   action: (typeof actions)[number];
   onClick: () => void;
 }) {
-  const Icon = "turn" in action ? RotateIcon : FlipIcon;
+  const turn = "turn" in action;
+  const Icon = turn ? RotateIcon : FlipIcon;
   return (
-    <Tooltip>
-      <TooltipTrigger
-        render={
-          <Button
-            variant="ghost"
-            aria-label={action.label}
-            className="flex h-9 items-center justify-center gap-1 rounded-md px-1"
-            onClick={onClick}
-          >
-            <Icon style={{ transform: action.transform }} />
-            {"turn" in action && <span>90°</span>}
-          </Button>
-        }
-      />
-      <TooltipContent>{action.label}</TooltipContent>
-    </Tooltip>
+    <div className="flex flex-col items-center gap-1.5">
+      <IconButton
+        label={action.label}
+        className="size-11.5 rounded-full material-field"
+        onClick={onClick}
+      >
+        <Icon style={{ transform: action.transform }} />
+      </IconButton>
+      <span aria-hidden="true" className="whitespace-nowrap text-secondary">
+        {turn ? "90°" : "Flip"}
+      </span>
+    </div>
   );
 }
 
@@ -245,7 +243,7 @@ export function CropEditor({ onClose }: { onClose: () => void }) {
         {/* As tall as the dial row that takes its place, so switching keeps the canvas still. */}
         <section
           aria-label="Rotate and flip image"
-          className="flex h-21 shrink-0 items-center justify-center gap-2"
+          className="flex h-21 shrink-0 items-center justify-center gap-3"
         >
           {actions.slice(0, 2).map((action) => (
             <ActionButton
@@ -326,7 +324,7 @@ export function CropEditor({ onClose }: { onClose: () => void }) {
               </div>
               <section
                 aria-label="Rotate and flip image"
-                className="grid grid-cols-4 items-center gap-2"
+                className="grid grid-cols-4 items-start gap-2"
               >
                 <h3 className="col-span-4 text-secondary">Rotate & flip</h3>
                 {actions.map((action) => (
