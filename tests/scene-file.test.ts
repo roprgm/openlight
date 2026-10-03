@@ -231,7 +231,7 @@ test("scene files reopen the photo with every layer for further editing", async 
   gpu.dispose();
 });
 
-test("a scene file waits for in-place replacements and still saves once another photo closes its document", async () => {
+test("a scene file waits for its preparations and still saves once another photo closes its document", async () => {
   const gpu = await init();
   const resources = createResources();
   const png = new File([bytes], "photo.png", { type: "image/png" });
@@ -246,15 +246,16 @@ test("a scene file waits for in-place replacements and still saves once another 
     },
     resources,
   );
-  let replaced = () => {};
-  document.replacing(
-    new Promise<void>((resolve) => {
-      replaced = resolve;
-    }),
+  let prepared = () => {};
+  document.onSnapshot(
+    () =>
+      new Promise<void>((resolve) => {
+        prepared = resolve;
+      }),
   );
   const saving = writeSceneFile(document);
   document.dispose();
-  replaced();
+  prepared();
   const entries = await readZip(await saving);
   expect(await entries.get(`sources/${source}`)?.bytes()).toEqual(bytes);
   gpu.dispose();

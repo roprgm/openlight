@@ -129,11 +129,11 @@ export async function exportImage(
   options: ExportOptions = {},
 ) {
   // Taken now, since another photo may close the document meanwhile, and again once the Remove fields
-  // being read back are saved, unless it did.
+  // the scene lacks are read back, unless it did.
   const requested = snapshotRender(document);
   const release = requested.source.retain();
   try {
-    await document.replaced();
+    await document.prepareSnapshot();
     const snapshot = document.closed ? requested : snapshotRender(document);
     return await renderSnapshot(gpu, snapshot, options);
   } finally {

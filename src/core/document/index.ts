@@ -168,7 +168,7 @@ export function createDocument(initial: Scene, resources = createResources()) {
       selection.setState({ layerId: state.layers[0].id });
     }
   });
-  const inFlight = new Set<Promise<unknown>>();
+  const preparations = new Set<() => Promise<void>>();
   let closed = false;
   return {
     id: crypto.randomUUID(),
@@ -213,20 +213,19 @@ export function createDocument(initial: Scene, resources = createResources()) {
       }
       replace(next);
     },
-    /** Keeps `work` that will replace the scene in place, such as a Remove field read back, for `replaced`. */
-    replacing(work: Promise<unknown>) {
-      inFlight.add(work);
-      const done = () => inFlight.delete(work);
-      void work.then(done, done);
-    },
     /**
-     * Resolves once in-place replacements in flight finish, so a snapshot holds what the editor shows,
-     * and rejects when one fails, since the snapshot would lack it.
+     * Adds `prepare`, which a snapshot runs first to replace the scene in place with what the editor
+     * shows but the scene lacks, such as Remove fields read back. Returns its removal.
      */
-    async replaced() {
-      while (inFlight.size) {
-        await Promise.all(inFlight);
-      }
+    onSnapshot(prepare: () => Promise<void>) {
+      preparations.add(prepare);
+      return () => {
+        preparations.delete(prepare);
+      };
+    },
+    /** Runs every preparation, so a snapshot holds what the editor shows; rejects when one fails. */
+    async prepareSnapshot() {
+      await Promise.all([...preparations].map((prepare) => prepare()));
     },
     /** Whether the document was disposed, so work that outlived it can drop its result. */
     get closed() {

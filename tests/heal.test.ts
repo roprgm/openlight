@@ -263,7 +263,7 @@ test("a nested Remove synthesizes once for its strokes, whatever changes below o
   }
 });
 
-test("Remove fields save once no gesture is open, a stroke added during a readback takes its field as a base, and snapshots wait for a readback and fail with it", async () => {
+test("Remove fields save once no gesture is open, a stroke added during a readback takes its field as a base, and a snapshot saves what the scene lacks or fails with its readback", async () => {
   const { document, layer } = healFixture();
   // A renderer whose renders the test runs, and whose readbacks finish or fail, oldest first, when it
   // says.
@@ -319,23 +319,28 @@ test("Remove fields save once no gesture is open, a stroke added during a readba
     expect(patches()[0].field?.strokes).toBe(2);
     // The field for every stroke is being read back, and a snapshot waits for it.
     const snapshot = document
-      .replaced()
+      .prepareSnapshot()
       .then(() => patches()[0].field?.strokes);
     await finish();
     expect(await snapshot).toBe(3);
 
-    // A failed readback fails the snapshot waiting on it, and a render during it checks again.
+    // A snapshot after a failed readback reads the field again, and fails when that fails too.
     const errors = spyOn(console, "error").mockImplementation(() => {});
     addHealStroke(document, layer, first, dab);
-    const failed = document.replaced().then(
+    await finish(Error("Device lost"));
+    expect(errors).toHaveBeenCalledTimes(1);
+    const failed = document.prepareSnapshot().then(
       () => undefined,
       (error: Error) => error.message,
     );
-    render();
+    expect(reads).toHaveLength(1);
     await finish(Error("Device lost"));
     expect(await failed).toBe("Device lost");
-    expect(errors).toHaveBeenCalledTimes(1);
-    expect(reads).toHaveLength(1);
+    const retried = document
+      .prepareSnapshot()
+      .then(() => patches()[0].field?.strokes);
+    await finish();
+    expect(await retried).toBe(4);
     errors.mockRestore();
   } finally {
     stop();

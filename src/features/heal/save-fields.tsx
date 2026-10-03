@@ -79,39 +79,43 @@ async function saveRemoveField(
 /**
  * Saves each Remove field once the renderer synthesizes it and no gesture is open, checking after
  * every render and when a gesture ends. A render during a save checks again after it; a patch the
- * renderer holds no field for, such as one on a hidden layer, waits for the next render. The document
- * keeps each save, so a snapshot waits for it. Returns the stop.
+ * renderer holds no field for, such as one on a hidden layer, waits for the next render. A snapshot
+ * first saves what the scene lacks, so a field whose save failed tries again. Returns the stop.
  */
 export function watchRemoveFields(
   document: EditorDocument,
   renderer: Pick<Renderer, "readField" | "subscribe">,
 ) {
   let active = true;
-  let running = false;
+  let pass: Promise<void> | undefined;
   let rendered = false;
   async function save() {
-    running = true;
-    rendered = false;
-    try {
-      const patches = [...removePatches(document.scene.getState().layers)];
-      for (const { layer, patch } of patches) {
-        // A gesture stops the pass, since a readback holds renders; its end checks again.
-        if (!active || document.history.status.getState().editing) {
-          return;
-        }
-        if (!saved(patch)) {
-          await saveRemoveField(document, renderer, layer.id, patch);
-        }
+    const patches = [...removePatches(document.scene.getState().layers)];
+    for (const { layer, patch } of patches) {
+      // A gesture stops the pass, since a readback holds renders; its end checks again.
+      if (!active || document.history.status.getState().editing) {
+        return;
       }
-    } finally {
-      running = false;
+      if (!saved(patch)) {
+        await saveRemoveField(document, renderer, layer.id, patch);
+      }
     }
+  }
+  function start() {
+    rendered = false;
+    pass = save().finally(() => {
+      pass = undefined;
+      if (rendered) {
+        check();
+      }
+    });
+    return pass;
   }
   function check() {
     if (!active || document.history.status.getState().editing) {
       return;
     }
-    if (running) {
+    if (pass) {
       rendered = true;
       return;
     }
@@ -119,20 +123,25 @@ export function watchRemoveFields(
     if ([...removePatches(scene.layers)].every(({ patch }) => saved(patch))) {
       return;
     }
-    // The check after it keeps its own pass before this one settles, so a snapshot waits for both,
-    // and a failure reaches the snapshot as well as the console.
-    const pass = save().finally(() => rendered && check());
-    void pass.catch((error) =>
+    void start().catch((error) =>
       console.error("A Remove field couldn't be saved.", error),
     );
-    document.replacing(pass);
+  }
+  /** Saves what the scene lacks after the passes in flight, and fails with its readback. */
+  async function prepare() {
+    while (pass) {
+      await pass.catch(() => {});
+    }
+    await start();
   }
   const unsubscribe = renderer.subscribe(check);
   const detach = document.history.status.subscribe(check);
+  const removePreparation = document.onSnapshot(prepare);
   return () => {
     active = false;
     unsubscribe();
     detach();
+    removePreparation();
   };
 }
 
