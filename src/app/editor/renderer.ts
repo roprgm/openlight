@@ -26,6 +26,7 @@ import { lut } from "@/features/lut/pass";
 import { paint } from "@/features/paint/pass";
 import { toneCurves } from "@/features/tone-curves/pass";
 import { vignette } from "@/features/vignette/pass";
+import { maskPass } from "./mask-pass";
 
 type Branch = {
   image: RenderImage;
@@ -65,6 +66,18 @@ function composeLayer(
       }
     }
     return { image: below, rangeSource };
+  }
+  // Child masks of a mask shape its coverage; every other child processes the image.
+  const effects =
+    layer.kind === "mask"
+      ? layer.children.filter((child) => child.kind !== "mask")
+      : layer.children;
+  // An inspected mask's curve reads the adjusted image, which only the separate passes produce.
+  if (layer.kind === "mask" && !inspected && !effects.length) {
+    return {
+      image: maskPass(name, below, layer, masks, coverage),
+      rangeSource,
+    };
   }
   let input: RenderImage | undefined;
   let edited = below;
@@ -124,11 +137,6 @@ function composeLayer(
       break;
     }
   }
-  // Child masks of a mask shape its coverage; every other child processes the image.
-  const effects =
-    layer.kind === "mask"
-      ? layer.children.filter((child) => child.kind !== "mask")
-      : layer.children;
   const children = composeLayers(edited, effects, composition);
   const image = mixAdjustment(
     name,
