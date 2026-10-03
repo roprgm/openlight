@@ -223,6 +223,17 @@ export function HealOverlay({
           className="absolute inset-0 size-full overflow-visible"
           style={{ pointerEvents: "none" }}
         >
+          {/* Selectors go first, so the selected patch's handles take a press where they overlap. */}
+          {patches.map(
+            (patch) =>
+              patch.id !== selectedPatch && (
+                <HealPatchSelector
+                  key={`selector-${patch.id}`}
+                  patch={patch}
+                  onSelect={selectPatch}
+                />
+              ),
+          )}
           {patches.map(
             (patch) =>
               visiblePatch === patch.id &&
@@ -239,16 +250,6 @@ export function HealOverlay({
                     }
                   />
                 </g>
-              ),
-          )}
-          {patches.map(
-            (patch) =>
-              patch.id !== selectedPatch && (
-                <HealPatchSelector
-                  key={`selector-${patch.id}`}
-                  patch={patch}
-                  onSelect={selectPatch}
-                />
               ),
           )}
         </svg>
