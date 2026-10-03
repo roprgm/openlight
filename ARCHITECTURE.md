@@ -12,6 +12,7 @@ Where the code lives and the rules that keep it in place. Keep this file true: w
 | `app/workspace` | The open document, its replacement, and loading state. A replacement loads beside the open document and takes its place only once it opens; a failure leaves the open document in place. |
 | `app/loaders` | Image, scene file, Camera Raw XMP, and `.cube` LUT loaders. A loader reads one file format and opens a document or edits the open one through the same edits the UI uses. |
 | `app/draft` | The draft autosaved in the browser. |
+| `app/presets` | Copied settings and named presets. `settings.ts` composes the features' schemas and edits into the photo's global settings by category, which it copies and applies as one edit; `file.ts` is the portable preset file; `store.ts` keeps presets in their own IndexedDB database; `session.ts` holds the copy and the presets above every document. |
 | `app/controls.ts` | `window.openlight`, documented in [API.md](API.md). |
 | `app/commands.ts` | The commands: serializable, validated edits that `run`, WebMCP, and other callers share; see [API.md](API.md#commands). |
 | `app/webmcp.ts` | WebMCP tools for browser agents, one per command; see [API.md](API.md#webmcp). |
@@ -64,6 +65,7 @@ Dependencies point downward. Features do not import each other; `app/` connects 
 - Document edits and rendering run without React, a mounted UI, or an implicit active document: pass workspace, document, and GPU explicitly. Feature processing imports without its panel.
 - Each document owns a vanilla Zustand scene store, history, and image resources. Scenes hold immutable, serializable content and image-source IDs; files and GPU resources stay outside history.
 - UI controls, `window.openlight`, and commands call the same edits. A slider or curve gesture is one edit; cancelling restores the previous scene. Preview settings and navigation stay outside history.
+- Copied settings and presets outlive documents, so the app holds them beside the workspace; they carry only parameter values, never layer IDs, sources, or resources. Applying them checks what the photo can take, such as RAW white balance, before it commits an open gesture and edits through the features in one group. Effects change the first root layer of their kind in place, so local work and the stack's order stay as they were.
 - The engine owns GPU resources, rendering, and derived data such as histogram bins; frame data stays out of React state. Every resource owner disposes what it creates.
 
 ## Assistant

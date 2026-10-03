@@ -14,6 +14,7 @@ import { useDocument, useScene } from "@/components/editor/session";
 import { EditorViewport, ViewportStage } from "@/components/editor/viewport";
 import type { Point } from "@/core/image/frame";
 import { useShortcuts } from "@/hooks/use-shortcuts";
+import { download } from "@/lib/dom";
 import { type ExportFormat, exportImage, exportSize } from "./export-image";
 import { useEncodedPreview } from "./preview";
 
@@ -151,15 +152,6 @@ function SizeFields({
       {children}
     </div>
   );
-}
-
-function download(file: File) {
-  const url = URL.createObjectURL(file);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = file.name;
-  link.click();
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
 function SaveScene() {

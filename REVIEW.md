@@ -24,6 +24,15 @@ Run the whole browser suite only when a change cuts across the editor. A failure
 
 New features and substantial UI or design changes show the affected interface in the PR description: before and after for changed UI, the new states for new UI, with the same fixture and viewport on both sides. For a smaller visible change, ask whether screenshots are wanted. Upload images to GitHub as PR attachments; never commit them.
 
+Use [GitHub CLI attachments](https://docs.github.com/en/github-cli/github-cli/attaching-files-with-github-cli) with `gh` 2.99.0 or newer. It uses the existing CLI authentication and requires repository push access; no browser session is needed. Run `gh` outside the sandbox for network access. Reference the local files in the Markdown body, then attach the same paths:
+
+```sh
+gh pr edit 123 --body-file /tmp/pr-body.md \
+  --attach /tmp/before.png --attach /tmp/after.png
+```
+
+The CLI replaces matching local Markdown paths with uploaded GitHub URLs. `--attach` also works with `gh pr create` and `gh pr comment`; without a matching reference it appends the image. Check the published body after uploading. A partial upload can update the PR and still return a nonzero exit code, so inspect what succeeded before retrying. Keep each image under 10 MB.
+
 ## Read the diff
 
 Before judging the lines, work out how the request could be solved with what the code already has, then compare that with the change.

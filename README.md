@@ -47,6 +47,7 @@ Image processing runs on your own GPU with WebGPU. Photos never leave your devic
 
 - Open JPEG, PNG, WebP, AVIF, GIF, BMP, SVG, HEIC, TIFF at 8-bit, 16-bit, and floating-point precision, and camera RAW/DNG with absolute white balance and As Shot reset.
 - Import Camera Raw XMP settings, and `.cube` LUTs as layers.
+- Copy chosen settings from one photo and paste them on another, or save them as named presets kept in the browser and shared as files.
 - Export PNG, JPEG, or WebP with resizing, a live preview, and the resulting file size.
 - Save the photo with every edit as an OpenLight scene, then open it to continue editing.
 - Recover the latest edited photo after closing the tab, from a draft kept in the browser.

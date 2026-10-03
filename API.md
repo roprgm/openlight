@@ -185,6 +185,22 @@ The image renders at the document dimensions and downsamples to `longEdge` with 
 
 Opening validates every value as the matching command does, and a file that fails leaves the workspace in its error state with a message naming the first invalid field. Fields OpenLight does not know are dropped. A parameter missing from `adjustments`, `details`, `vignette`, `grain`, `fill`, or `colorMixer` takes its default, so older files still open when a group gains a parameter; a RAW image without a white balance uses its As Shot value. `version` increases only when older files can no longer open as written; a newer version is rejected.
 
+## Settings
+
+Settings are a photo's global settings by category, which the header's menu copies from one photo and pastes on another, and which a preset keeps under a name. Each category present holds every one of its values; a category left out stays as it is.
+
+| Category | Values |
+| --- | --- |
+| `light` | `exposure`, `contrast`, `highlights`, `shadows`, `whites`, `blacks` |
+| `whiteBalance` | A RAW photo's `temperature` and `tint`, as `setWhiteBalance` takes them, or another photo's `incrementalTemperature` and `incrementalTint` |
+| `color` | `vibrance`, `saturation` |
+| `toneCurve` | The image's curve points, as `setToneCurve` takes them |
+| `colorMixer`, `details`, `vignette`, `grain` | The first root layer of that kind, as `getState()` reports it |
+
+`run({ type: "apply-settings", ...settings })` applies them to the open photo as one edit, after committing an open group. It rejects unknown categories and fields, a category missing a value, values out of range, and a white balance of the other kind: kelvin on a photo that isn't RAW, incremental temperature and tint on a RAW photo, or kelvin outside the photo's range. A rejected change leaves the scene, an open group, and history as they were. An effect category changes the values of the first root layer of its kind, keeping its place, visibility, opacity, and children; without one, a layer comes on top unless the values are the defaults. Masks, healing, paint, other layers, and the frame stay as they are.
+
+A preset file, `.openlight-preset`, is JSON: `{ "format": "openlight-preset", "version": 1, "name": "Moody", "settings": { … } }`, with a name of 1 to 64 characters. Presets are kept in IndexedDB apart from the draft; one stored by a newer version stays stored without showing.
+
 ## Drafts
 
 Once a document has an edit, OpenLight keeps it as the draft in the browser's IndexedDB, so closing the tab loses nothing. A save follows 1.5 s after the last scene change and flushes when the tab is hidden or the page unloads; saves run one at a time and never render. Opening an image or scene without editing it keeps the previous draft. Only the latest document is kept.
@@ -220,6 +236,7 @@ editor.run({
 | `set-details` | `clarity?`, `sharpening?`, `sharpenRadius?`, `layerId?` | Like `setDetails`. |
 | `set-vignette` | `intensity?`, `softness?`, `layerId?` | Like `setVignette`. |
 | `set-grain` | `amount?`, `size?`, `roughness?`, `layerId?` | Like `setGrain`. |
+| `apply-settings` | [settings](#settings) | Replaces each settings category given, as one edit. |
 | `add-mask` | `mask`, `adjustments?` | Adds a mask layer with those adjustments on top of the stack as one edit. |
 | `delete-layer` | `layerId` | Like `deleteLayer`. |
 | `set-crop` | `aspectRatio?`, `straighten?` | Replaces the frame with the largest centered crop of the source at `aspectRatio`, width over height, straightened by −45 to 45 degrees. Without either, it removes the crop. |

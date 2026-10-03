@@ -2,6 +2,8 @@ import { Button } from "@roprgm/ui/button";
 import { Separator } from "@roprgm/ui/separator";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@roprgm/ui/tooltip";
 import type { ReactNode } from "react";
+import { PresetMenu, PresetNotice } from "@/app/presets/menu";
+import type { PresetSession } from "@/app/presets/session";
 import type { Workspace } from "@/app/workspace";
 import { BrushInputProvider } from "@/components/editor/brush-input";
 import { BrushProvider, useBrushTool } from "@/components/editor/brush-tool";
@@ -117,7 +119,7 @@ function ExportButton() {
           <Button
             size="sm"
             aria-pressed={exporting}
-            className="ml-1 aria-pressed:bg-control-hover pointer-coarse:h-8"
+            className="ml-1 aria-pressed:bg-control-hover pointer-coarse:h-8 max-[23rem]:ml-0"
             onClick={() => setTool(exporting ? tools[0] : exportTool)}
           >
             Export
@@ -188,10 +190,12 @@ function DocumentEditor({
   state,
   onOpen,
   onDismissFailure,
+  presets,
 }: {
   state: ReadyState;
   onOpen: (files: File[]) => void;
   onDismissFailure: () => void;
+  presets: PresetSession;
 }) {
   return (
     <BrushProvider>
@@ -203,7 +207,11 @@ function DocumentEditor({
               open={<OpenButton onOpen={onOpen} />}
             >
               <HistoryControls />
-              <Separator orientation="vertical" className="mx-1 my-auto h-4" />
+              <Separator
+                orientation="vertical"
+                className="mx-1 my-auto h-4 max-[23rem]:hidden"
+              />
+              <PresetMenu presets={presets} />
               <ComparisonControl />
               <ExportButton />
             </EditorHeader>
@@ -219,6 +227,7 @@ function DocumentEditor({
               failure={state.failure}
               onDismiss={onDismissFailure}
             />
+            <PresetNotice presets={presets} />
             <PaintSettling />
             <BrushKeys />
             <ToolShortcuts />
@@ -234,12 +243,15 @@ type EditorProps = {
   onOpen: (files: File[]) => void;
   onDismissFailure: () => void;
   draft?: Recovery;
+  /** Copied settings and presets, which outlive each document. */
+  presets: PresetSession;
 };
 function EditorContent({
   state,
   onOpen,
   onDismissFailure,
   draft,
+  presets,
 }: EditorProps) {
   if (state.status !== "ready") {
     return <EmptyEditor state={state} onOpen={onOpen} draft={draft} />;
@@ -251,6 +263,7 @@ function EditorContent({
           state={state}
           onOpen={onOpen}
           onDismissFailure={onDismissFailure}
+          presets={presets}
         />
       </RendererProvider>
     </DocumentProvider>

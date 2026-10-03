@@ -12,7 +12,7 @@ const startup = location.pathname === "/demo" ? "/images/demo.jpg" : undefined;
 const assistant = new URLSearchParams(location.search).has("assistant");
 
 export function App() {
-  const { workspace, controls, drafts } = useWorkspace(startup);
+  const { workspace, controls, drafts, presets } = useWorkspace(startup);
   useFileDrop(controls.openFiles);
   const state = useStore(workspace.state);
   const { available, error } = useStore(drafts.state);
@@ -26,6 +26,7 @@ export function App() {
         onOpen={controls.openFiles}
         onDismissFailure={workspace.dismissFailure}
         draft={recovery}
+        presets={presets}
       />
       {error && <DraftNotice error={error} onDismiss={drafts.dismiss} />}
       {assistant && state.document && (

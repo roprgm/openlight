@@ -23,6 +23,7 @@ import { vignetteSchema } from "@/features/vignette/model";
 import { setWhiteBalance } from "@/features/white-balance/edits";
 import { change, parse, range } from "@/lib/parse";
 import { createMask, editEffect } from "./editor/layers";
+import { applySettings, settingsSchema } from "./presets/settings";
 import type { Workspace } from "./workspace";
 
 /** The layer a command edited or created, so a caller can select it. */
@@ -139,6 +140,13 @@ export const commands = {
         setGrain(document, grain, id),
       ),
     }),
+  ),
+  "apply-settings": command(
+    "Replaces whole groups of global settings as one edit, keeping the groups omitted: light (exposure, contrast, highlights, shadows, whites, blacks), color (vibrance, saturation), whiteBalance (a RAW photo's temperature in Kelvin and tint, or any other photo's incrementalTemperature and incrementalTint), toneCurve points, and the first Color Mixer, Details, Vignette, and Grain layers, each with every value. An effect without a layer gets one on top unless its values are the defaults. Masks, healing, paint, and crop stay as they are.",
+    settingsSchema,
+    (document, settings) => {
+      applySettings(document, settings);
+    },
   ),
   "add-mask": command(
     "Adds a mask layer on top of the stack with optional adjustments, as one edit, and returns its layerId. Coordinates are source pixels, unaffected by crop. A linear mask covers fully at start and fades out at end; a radial mask covers an ellipse around center with radius [x, y], angle in degrees, and feather from 0 to 1. A luminance-range mask selects pixels of the photo whose lightness lies from low to high, 0 black to 100 white, fading over smoothness; a color-range mask selects pixels near a #rrggbb color in hue and saturation, however light, within tolerance from 0 to 100. A null color has no coverage until a color is chosen.",
