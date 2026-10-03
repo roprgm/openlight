@@ -213,10 +213,17 @@ function setMixer(document: EditorDocument, mixer: ColorMixer, id: string) {
  * gesture. Settings the photo can't take are rejected before anything changes.
  */
 export function applySettings(document: EditorDocument, settings: Settings) {
-  const { light, color, toneCurve, colorMixer, details, vignette, grain } =
-    settings;
-  const balance =
-    settings.whiteBalance && whiteBalanceEdit(document, settings.whiteBalance);
+  const {
+    light,
+    whiteBalance,
+    color,
+    toneCurve,
+    colorMixer,
+    details,
+    vignette,
+    grain,
+  } = parse(settingsSchema, settings, "Invalid settings");
+  const balance = whiteBalance && whiteBalanceEdit(document, whiteBalance);
   document.history.commit();
   document.history.begin();
   try {

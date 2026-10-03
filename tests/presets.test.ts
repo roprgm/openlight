@@ -157,7 +157,7 @@ test("pasted settings replace the chosen categories as one edit after an open ge
   expect(b.scene.getState()).toEqual(pasted);
 });
 
-test("white balance applies only to a photo of its kind, checked before a held gesture or the scene changes", async () => {
+test("settings the photo can't take, such as the other kind of white balance, change nothing, even a held gesture", async () => {
   const jpeg = await openPhoto();
   setAdjustments(jpeg, { incrementalTemperature: 20, incrementalTint: -5 });
   const raw = await openPhoto({ temperature: 5000, tint: 10 });
@@ -175,8 +175,27 @@ test("white balance applies only to a photo of its kind, checked before a held g
   setAdjustments(jpeg, { exposure: 1 });
   const held = jpeg.scene.getState();
   expect(() => applySettings(jpeg, kelvin)).toThrow("only a RAW photo has");
+  // Valid light doesn't apply before out-of-range effects are rejected.
+  expect(() =>
+    applySettings(jpeg, {
+      light: {
+        exposure: -1,
+        contrast: 0,
+        highlights: 0,
+        shadows: 0,
+        whites: 0,
+        blacks: 0,
+      },
+      details: { clarity: 0, sharpening: 200, sharpenRadius: 1 },
+      grain: { amount: 101, size: 25, roughness: 50 },
+    }),
+  ).toThrow("Invalid settings details.sharpening");
   expect(jpeg.scene.getState()).toBe(held);
-  expect(jpeg.history.status.getState().editing).toBe(true);
+  expect(jpeg.history.status.getState()).toEqual({
+    undoCount: 1,
+    redoCount: 0,
+    editing: true,
+  });
   jpeg.history.commit();
 
   const opened = other.scene.getState();
