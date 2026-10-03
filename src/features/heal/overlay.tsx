@@ -73,6 +73,11 @@ export function HealOverlay({
     ? hoveredPatch
     : undefined;
   const visiblePatch = drawingPatch ?? hovered ?? selectedPatch;
+  /** The patch whose handles show: the selected one, while its outline shows and no stroke draws on it. */
+  const handled =
+    selected && visiblePatch === selected.id && drawingPatch !== selected.id
+      ? selected
+      : undefined;
   const pending = useRef<
     | { layer: string; stroke: BrushStroke; patch?: string }
     | {
@@ -125,7 +130,7 @@ export function HealOverlay({
   }
   /**
    * A press on the first point of a patch that isn't selected selects the topmost one instead of
-   * painting, unless the selected patch's anchors are there to take it; elsewhere it paints, so a new
+   * painting, unless the selected patch's handles show there to take it; elsewhere it paints, so a new
    * patch can start over another. A second finger belongs to the canvas, which turns a stroke into a
    * pinch.
    */
@@ -147,10 +152,11 @@ export function HealOverlay({
       anchor !== undefined &&
       Math.hypot(anchor[0] - at[0], anchor[1] - at[1]) <= anchorReach;
     if (
-      selected &&
-      (reaches(firstShown(selected)) ||
-        (selected.mode !== "remove" &&
-          reaches(firstShown(selected, selected.offset))))
+      handled &&
+      (reaches(firstShown(handled)) ||
+        (handled.mode !== "remove" &&
+          handled.id !== resolvingSource &&
+          reaches(firstShown(handled, handled.offset))))
     ) {
       return;
     }
@@ -303,9 +309,7 @@ export function HealOverlay({
                         patch.id !== drawingPatch &&
                         patch.id !== resolvingSource
                       }
-                      interactive={
-                        patch.id === selectedPatch && patch.id !== drawingPatch
-                      }
+                      interactive={patch.id === handled?.id}
                     />
                   </g>
                 ),
