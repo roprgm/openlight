@@ -1,4 +1,8 @@
+import { toWorking } from "../../core/image/color.wgsl";
+
 export struct Adjustments {
+  // The primaries the input is in, as toWorking numbers them: the image layer's pass develops an 8-bit source.
+  primaries: u32,
   exposure: f32,
   incrementalTemperature: f32,
   incrementalTint: f32,
@@ -27,6 +31,7 @@ fn adjustWhiteBalance(color: vec3f, temperature: f32, tint: f32) -> vec3f {
 }
 
 export fn prepareColor(color: vec3f, adjustments: Adjustments) -> vec3f {
-  return adjustWhiteBalance(adjustExposure(color, adjustments.exposure),
+  let working = toWorking(color, adjustments.primaries);
+  return adjustWhiteBalance(adjustExposure(working, adjustments.exposure),
     adjustments.incrementalTemperature / 100.0, adjustments.incrementalTint / 100.0);
 }

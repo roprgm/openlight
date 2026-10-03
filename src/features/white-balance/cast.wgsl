@@ -1,4 +1,4 @@
-import { luminance } from "../../core/image/color.wgsl";
+import { luminance, toWorking } from "../../core/image/color.wgsl";
 
 // Gray edge (van de Weijer, Gevers, and Gijsenij, 2007): differences between neighboring surfaces
 // average to the light's color, so a large colored area counts only at its edges. One workgroup walks
@@ -16,7 +16,9 @@ struct Light {
 }
 
 @group(0) @binding(0) var source: texture_2d<f32>;
-@group(0) @binding(1) var<storage, read_write> light: Light;
+// The primaries the source's texels are in, as toWorking numbers them.
+@group(0) @binding(1) var<uniform> primaries: u32;
+@group(0) @binding(2) var<storage, read_write> light: Light;
 
 var<workgroup> edges: array<vec3f, threads>;
 var<workgroup> levels: array<vec3f, threads>;
@@ -24,7 +26,8 @@ var<workgroup> levels: array<vec3f, threads>;
 var<workgroup> colors: array<vec4f, threads>;
 
 fn sample(point: vec2u) -> vec4f {
-  return textureLoad(source, point * textureDimensions(source) / samples, 0);
+  let texel = textureLoad(source, point * textureDimensions(source) / samples, 0);
+  return vec4f(toWorking(texel.rgb, primaries), texel.a);
 }
 
 // Opaque, bright enough that noise doesn't decide its color, and short of highlights, which clip or

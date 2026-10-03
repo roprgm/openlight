@@ -26,7 +26,7 @@ import {
 import { createProxy } from "./proxy";
 import { createStrokes } from "./strokes";
 
-export { maskInput, mixAdjustment } from "./blend";
+export { curveInput, mixAdjustment } from "./blend";
 export {
   type Clipping,
   type CoverageRegion,
@@ -53,7 +53,7 @@ export {
   split,
 } from "./node";
 export type { PaintInput } from "./paint";
-export { transformImages } from "./transform";
+export { transformImage } from "./transform";
 export { createRenderGraph };
 
 export type Composition = {
@@ -90,7 +90,6 @@ export type SceneProcessing = (
   scene: Scene,
   composition: Composition,
 ) => {
-  original: RenderImage;
   full: RenderImage;
   output: RenderImage;
   input?: RenderImage;
@@ -148,7 +147,6 @@ export function createRenderer(
   const proxy = createProxy(gpu);
   const release = resource.retain();
   const raw = resource.raw?.createPass();
-  let original = source;
   let full = source;
   const listeners = new Set<() => void>();
   let rendered = false;
@@ -242,24 +240,24 @@ export function createRenderer(
     patches.sweep();
     paints.sweep();
     strokes.sweep();
-    // Every render shows three images; the inspected input, the range source, and coverage follow.
+    // The inspected input goes first, so the image it reads is let go once the composition is done
+    // with it; the two images every render shows, the range source, and coverage follow.
     const inputs = images.input ? [images.input] : [];
     const sources = images.rangeSource ? [images.rangeSource] : [];
     const targets = graph.render([
-      images.original,
+      ...inputs,
       images.full,
       images.output,
-      ...inputs,
       ...sources,
       ...covered.values(),
       ...syntheses.map(({ texels }) => texels),
     ]);
-    [original, full, output] = targets;
-    const [inputTarget] = targets.slice(3, 3 + inputs.length);
-    const [sourceTarget] = targets.slice(3 + inputs.length);
+    const [inputTarget] = targets;
+    [full, output] = targets.slice(inputs.length);
+    const [sourceTarget] = targets.slice(inputs.length + 2);
     const coverages = targets.slice(
-      3 + inputs.length + sources.length,
-      3 + inputs.length + sources.length + covered.size,
+      inputs.length + 2 + sources.length,
+      inputs.length + 2 + sources.length + covered.size,
     );
     const synthesized = targets.slice(targets.length - syntheses.length);
     for (const [i, { id, lattice }] of syntheses.entries()) {
@@ -447,7 +445,6 @@ export function createRenderer(
   }
 
   return {
-    originalImage: () => original,
     fullImage: () => full,
     outputImage: () => output,
     inputImage: (id: string) =>

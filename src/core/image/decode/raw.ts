@@ -1,6 +1,6 @@
 import { createRawDecoder } from "raw-webgpu";
 import { type Gpu, type Target, target } from "vgpu";
-import { createImageSource } from "@/core/image";
+import { createImageSource, type RawDevelopment } from "@/core/image";
 import { weakMemo } from "@/lib/weak-memo";
 
 /** One decoder per GPU, released with its device. */
@@ -21,7 +21,7 @@ export async function decodeRaw(gpu: Gpu, file: File) {
     } finally {
       initial.dispose();
     }
-    return createImageSource(original, {
+    const raw: RawDevelopment = {
       asShot: source.asShot,
       createPass() {
         const output = target(gpu, {
@@ -50,7 +50,8 @@ export async function decodeRaw(gpu: Gpu, file: File) {
         };
       },
       dispose: source.dispose,
-    });
+    };
+    return createImageSource(original, { raw });
   } catch (error) {
     original?.color.dispose();
     source.dispose();

@@ -2,6 +2,7 @@ import { expect, spyOn, test } from "bun:test";
 import { getMockGPUDeviceInstrumentation, init, target } from "vgpu/mock";
 import {
   createRenderGraph,
+  curveInput,
   input,
   merge,
   node,
@@ -128,4 +129,19 @@ test("a shared branch renders once and reuses effects, buffers, and temporary st
   expect(() => graph.render([shared])).toThrow("closed");
   image.color.dispose();
   gpu.dispose();
+});
+
+test("a curve's input is drawn at the histogram's few texels, standing for the whole photo", async () => {
+  const gpu = await init();
+  const image = input(
+    target(gpu, { size: [2048, 1536], format: "rgba16float" }),
+  );
+  const whole = curveInput("layer", image);
+  expect(whole.size).toEqual([512, 384]);
+  expect(whole.scale).toEqual([4, 4]);
+  const coverage = input(target(gpu, { size: [1024, 768], format: "r8unorm" }));
+  const painted = curveInput("mask", image, undefined, [], coverage);
+  expect(painted.size).toEqual([512, 384]);
+  const small = input(target(gpu, { size: [300, 200], format: "rgba16float" }));
+  expect(curveInput("small", small).size).toEqual([300, 200]);
 });

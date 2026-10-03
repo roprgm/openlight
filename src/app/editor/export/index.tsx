@@ -245,9 +245,7 @@ export function ExportMode({ onClose }: { onClose: () => void }) {
     <EditorLayout
       canvas={
         <EditorViewport size={encoded?.image.size ?? output}>
-          <ViewportStage>
-            {encoded && <Image image={encoded.image} />}
-          </ViewportStage>
+          <ViewportStage>{encoded && <Image image={encoded} />}</ViewportStage>
           {pending && <LoadingOverlay />}
         </EditorViewport>
       }

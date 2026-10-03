@@ -37,18 +37,20 @@ test("RAW edits coalesce, recover from failure, and retain an exporting source a
     return requests[requests.length - 1].promise;
   });
   const source = createImageSource(image, {
-    asShot,
-    createPass() {
-      const output = target(gpu, { size: image.size, format: image.format });
-      outputs.push(output);
-      return {
-        prepare: ({ temperature }) =>
-          temperature === asShot.temperature ? Promise.resolve() : develop(),
-        render: () => output,
-        dispose: () => output.color.dispose(),
-      };
+    raw: {
+      asShot,
+      createPass() {
+        const output = target(gpu, { size: image.size, format: image.format });
+        outputs.push(output);
+        return {
+          prepare: ({ temperature }) =>
+            temperature === asShot.temperature ? Promise.resolve() : develop(),
+          render: () => output,
+          dispose: () => output.color.dispose(),
+        };
+      },
+      dispose: close,
     },
-    dispose: close,
   });
   const resources = createResources();
   const id = resources.add(new File([], "photo.nef"), source);
@@ -206,7 +208,13 @@ test("rendering follows grouped edits and undo, reuses pipelines, and releases o
   await renderer.update(document.scene.getState(), "base");
   expect(renderer.inputImage("base")).toBeDefined();
   expect(renderer.inputImage("base")).not.toBe(renderer.outputImage());
-  expect(passes()).toEqual([...curves, "layer/exposure/exposure"]);
+  // The curve's input is planned first, so the image it reads is let go once the curve has read it.
+  expect(passes()).toEqual([
+    "layer/base/exposure",
+    "layer/base/input",
+    "layer/base/curves",
+    "layer/exposure/exposure",
+  ]);
   document.edit(beforeInput);
   expect(renderer.inputImage("base")).toBeUndefined();
   const scene = document.scene.getState();

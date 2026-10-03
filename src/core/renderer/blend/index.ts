@@ -1,7 +1,14 @@
 import type { Gradient, Mask, MaskLayer, MaskModifier } from "@/core/document";
-import { merge, node, type RenderImage } from "@/core/renderer/node";
+import {
+  merge,
+  node,
+  type RenderImage,
+  sourceSize,
+} from "@/core/renderer/node";
+import inputShader from "./input.wgsl";
 import shader from "./mix.wgsl";
 import rasterShader from "./raster.wgsl";
+import rasterInputShader from "./raster-input.wgsl";
 
 const emptyModifiers = new Float32Array(12);
 
@@ -97,7 +104,7 @@ export function mixAdjustment(
         samplers: {
           coverageSampler: { minFilter: "linear", magFilter: "linear" },
         },
-        set: { params: { opacity, mode: 0 } },
+        set: { params: { opacity } },
       }),
     );
   }
@@ -115,50 +122,70 @@ export function mixAdjustment(
           ...gradientParams(mask),
           modifierCount: gradients.length,
           scale: original.scale,
-          mode: 0,
         },
       },
     }),
   );
 }
 
+/** The longest side a curve's input needs: the histogram samples 512 columns of it. */
+const inputEdge = 512;
+
+/** A reduced image of `image`'s kind that stands for the same source pixels. */
+function inputOutput(image: RenderImage) {
+  const [width, height] = sourceSize(image);
+  const ratio = Math.min(1, inputEdge / Math.max(width, height));
+  const size = [
+    Math.max(1, Math.round(width * ratio)),
+    Math.max(1, Math.round(height * ratio)),
+  ] as const;
+  return {
+    size,
+    format: image.format,
+    scale: [width / size[0], height / size[1]] as const,
+  };
+}
+
+const linear: GPUSamplerDescriptor = {
+  minFilter: "linear",
+  magFilter: "linear",
+};
+
 /**
- * The image a mask's curve receives, with the mask's coverage as alpha, so a histogram of it
- * weighs the pixels the curve affects. Layer opacity is left out: it scales the effect, not the region.
+ * The image a layer's curve receives, with the mask's coverage as alpha, so a histogram of it weighs
+ * the pixels the curve affects. It is drawn at the few texels the histogram samples, so inspecting a
+ * layer costs no full-size texture. Layer opacity is left out: it scales the effect, not the region.
  */
-export function maskInput(
+export function curveInput(
   name: string,
   image: RenderImage,
-  mask: Mask,
+  mask?: Mask,
   modifiers: readonly MaskModifier[] = [],
   coverage?: RenderImage,
 ) {
+  const output = inputOutput(image);
   if (coverage) {
     return merge(
-      { original: image, edited: image, coverage },
-      node(`${name}/raster-input`, rasterShader, {
-        samplers: {
-          coverageSampler: { minFilter: "linear", magFilter: "linear" },
-        },
-        set: { params: { opacity: 1, mode: 1 } },
+      { image, coverage },
+      node(`${name}/raster-input`, rasterInputShader, {
+        ...output,
+        samplers: { imageSampler: linear },
       }),
     );
   }
-  if (!isGradient(mask)) {
-    return image;
-  }
-  const gradients = gradientModifiers(modifiers);
+  const gradient = mask && isGradient(mask) ? mask : undefined;
+  const gradients = gradient ? gradientModifiers(modifiers) : [];
   return merge(
-    { original: image, edited: image },
-    node(`${name}/input`, shader, {
+    { image },
+    node(`${name}/input`, inputShader, {
+      ...output,
+      samplers: { imageSampler: linear },
       storage: { modifiers: modifierData(gradients) },
       set: {
         params: {
-          opacity: 1,
-          ...gradientParams(mask),
+          ...gradientParams(gradient),
           modifierCount: gradients.length,
-          scale: image.scale,
-          mode: 1,
+          sourceSize: sourceSize(image),
         },
       },
     }),

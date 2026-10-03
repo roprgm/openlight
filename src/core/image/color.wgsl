@@ -17,6 +17,15 @@ export const p3ToRec2020 = mat3x3f(
   0.0476, 0.0125, 0.9836,
 );
 
+/** A color in the primaries `primaries` numbers, 0 the working space's, 1 sRGB, 2 Display P3, in the working space. */
+export fn toWorking(rgb: vec3f, primaries: u32) -> vec3f {
+  switch (primaries) {
+    case 1u: { return srgbToRec2020 * rgb; }
+    case 2u: { return p3ToRec2020 * rgb; }
+    default: { return rgb; }
+  }
+}
+
 export const rec2020ToSrgb = mat3x3f(
   1.6605, -0.1246, -0.0182,
   -0.5876, 1.1329, -0.1006,

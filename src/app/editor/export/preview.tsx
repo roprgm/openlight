@@ -2,13 +2,19 @@ import { useEffect, useRef, useState } from "react";
 import type { Target } from "vgpu";
 import { useGpu } from "vgpu-react";
 import { useRenderer } from "@/components/editor/pipeline";
-import { linearize } from "@/core/image/decode/linearize";
+import type { Primaries } from "@/core/image";
+import { uploadDecoded } from "@/core/image/decode/upload";
 import { type ExportOptions, encodeImage } from "./export-image";
 
 /** Quiet time after a change before encoding; typical encodes take tens of milliseconds. */
 const settleDelay = 150;
 
-type Encoded = { key: string; bytes: number; image: Target };
+type Encoded = {
+  key: string;
+  bytes: number;
+  image: Target;
+  primaries: Primaries;
+};
 
 /**
  * Encodes the preview output once settings settle and decodes the file back into a target.
@@ -48,7 +54,7 @@ export function useEncodedPreview({
             bitmap.close();
             return;
           }
-          setEncoded({ key, bytes: blob.size, image: linearize(gpu, bitmap) });
+          setEncoded({ key, bytes: blob.size, ...uploadDecoded(gpu, bitmap) });
         } catch {
           if (active) {
             setEncoded(undefined);

@@ -1,7 +1,8 @@
 import { effect, frame, type Gpu, type Target, target } from "vgpu";
+import type { Primaries } from "@/core/image";
 import { weakMemo } from "@/lib/weak-memo";
-import shader from "./linearize.wgsl";
 import type { Decoded } from "./types";
+import shader from "./upload.wgsl";
 
 type Size = [number, number];
 
@@ -9,8 +10,8 @@ type Size = [number, number];
 const isP3 = (frame?: VideoFrame) =>
   `${frame?.colorSpace.primaries}` === "smpte432";
 
-/** A texture whose format decodes sRGB-encoded bytes to linear when read. */
-function staging(gpu: Gpu, size: Size) {
+/** A texture of sRGB-encoded bytes, which the GPU decodes to linear when it reads them. */
+function encoded(gpu: Gpu, size: Size) {
   return gpu.device.createTexture({
     size,
     format: "rgba8unorm-srgb",
@@ -23,7 +24,7 @@ function stage(gpu: Gpu, decoded: Decoded) {
   const queue = gpu.gpu.queue;
   const size: Size = [decoded.width, decoded.height];
   if (decoded instanceof ImageBitmap) {
-    const texture = staging(gpu, size);
+    const texture = encoded(gpu, size);
     queue.copyExternalImageToTexture(
       { source: decoded },
       { texture: texture.gpu },
@@ -39,7 +40,7 @@ function stage(gpu: Gpu, decoded: Decoded) {
       tiles[0]?.displayHeight ?? 0,
     ];
     const rows = Math.ceil(tiles.length / columns);
-    const texture = staging(gpu, [columns * tile[0], rows * tile[1]]);
+    const texture = encoded(gpu, [columns * tile[0], rows * tile[1]]);
     tiles.forEach((frame, i) => {
       const origin = [
         (i % columns) * tile[0],
@@ -55,7 +56,7 @@ function stage(gpu: Gpu, decoded: Decoded) {
     });
     return texture;
   }
-  const texture = staging(gpu, size);
+  const texture = encoded(gpu, size);
   queue.writeTexture(
     { texture: texture.gpu },
     decoded.data,
@@ -65,26 +66,32 @@ function stage(gpu: Gpu, decoded: Decoded) {
   return texture;
 }
 
-/** One conversion pass per GPU, released with its device. */
-const conversion = weakMemo((gpu: Gpu) => effect(gpu, shader));
+/** One layout pass per GPU, released with its device. */
+const layout = weakMemo((gpu: Gpu) => effect(gpu, shader));
 
-/** GPU leg for sRGB-encoded decoders: renders the decoded image into a linear Rec.2020 rgba16float target. */
-export function linearize(gpu: Gpu, decoded: Decoded) {
+/**
+ * GPU leg for sRGB-encoded decoders: the decoded image as an 8-bit sRGB-encoded target, half the
+ * memory of the working format, in the primaries it came in. The renderer converts what it reads.
+ */
+export function uploadDecoded(
+  gpu: Gpu,
+  decoded: Decoded,
+): { image: Target; primaries: Primaries } {
   const frames = "tiles" in decoded ? decoded : undefined;
   const rotation = frames?.rotation ?? 0;
-  const p3 = Number(isP3(frames?.tiles[0]));
+  const primaries = isP3(frames?.tiles[0]) ? "display-p3" : "srgb";
   const size: Size = [decoded.width, decoded.height];
   const source = stage(gpu, decoded);
   let image: Target | undefined;
   try {
     const output = target(gpu, {
       size: rotation % 2 ? [size[1], size[0]] : size,
-      format: "rgba16float",
+      format: "rgba8unorm-srgb",
     });
     image = output;
-    const params = { size, rotation, p3 };
-    frame(gpu, (f) => f.pass(output, conversion(gpu).set({ source, params })));
-    return output;
+    const params = { size, rotation };
+    frame(gpu, (f) => f.pass(output, layout(gpu).set({ source, params })));
+    return { image: output, primaries };
   } catch (error) {
     image?.color.dispose();
     throw error;

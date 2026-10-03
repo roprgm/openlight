@@ -1,6 +1,7 @@
 import { View, imagePoint, previewColor, background, maskTint } from "./display.wgsl";
 import { Transform, sourcePoint } from "../transform/transform.wgsl";
 import { combineCoverage, gradientCoverage } from "../blend/coverage.wgsl";
+import { toWorking } from "../../image/color.wgsl";
 
 struct MaskOverlay {
   kind: u32,
@@ -13,6 +14,11 @@ struct MaskOverlay {
   // The layer's opacity scales coverage in the mix pass, so the tint follows it.
   opacity: f32,
 }
+// The primaries the image's and the original's texels are in, as toWorking numbers them.
+struct Primaries {
+  image: u32,
+  original: u32,
+}
 
 @group(0) @binding(0) var<uniform> view: View;
 @group(0) @binding(1) var source: texture_2d<f32>;
@@ -20,14 +26,15 @@ struct MaskOverlay {
 @group(0) @binding(3) var<uniform> transform: Transform;
 @group(0) @binding(4) var original: texture_2d<f32>;
 @group(0) @binding(5) var<uniform> split: f32;
-@group(0) @binding(6) var<uniform> maskTransform: Transform;
+// Where a point of the image sits in the source, which the original and the mask overlay are drawn from.
+@group(0) @binding(6) var<uniform> sourceTransform: Transform;
 @group(0) @binding(7) var<uniform> overlay: MaskOverlay;
 @group(0) @binding(8) var<storage, read> modifiers: array<vec4f>;
 @group(0) @binding(9) var coverage: texture_2d<f32>;
+@group(0) @binding(10) var<uniform> primaries: Primaries;
 
 // The same coverage the mix pass applies: kind 3 reads a rasterized mask, the rest evaluate gradients in source pixels.
-fn overlayCoverage(uv: vec2f) -> f32 {
-  let point = sourcePoint(maskTransform, uv);
+fn overlayCoverage(point: vec2f) -> f32 {
   if (overlay.kind == 3u) {
     return textureSampleLevel(coverage, sourceSampler, point, 0.0).r * overlay.opacity;
   }
@@ -44,11 +51,16 @@ fn overlayCoverage(uv: vec2f) -> f32 {
 
 @fragment fn fs_main(@location(0) uv: vec2f) -> @location(0) vec4f {
   let p = sourcePoint(transform, imagePoint(view, uv));
-  let edited = textureSampleLevel(source, sourceSampler, p, 0.0);
-  let before = textureSampleLevel(original, sourceSampler, p, 0.0);
-  var color = previewColor(select(edited, before, uv.x < split), view);
+  let point = sourcePoint(sourceTransform, p);
+  var sample = textureSampleLevel(source, sourceSampler, p, 0.0);
+  sample = vec4f(toWorking(sample.rgb, primaries.image), sample.a);
+  if (uv.x < split) {
+    sample = textureSampleLevel(original, sourceSampler, point, 0.0);
+    sample = vec4f(toWorking(sample.rgb, primaries.original), sample.a);
+  }
+  var color = previewColor(sample, view);
   if (overlay.kind != 0u) {
-    color = maskTint(color, overlayCoverage(p));
+    color = maskTint(color, overlayCoverage(point));
   }
   let inside = all(p >= vec2f(0.0)) && all(p <= vec2f(1.0));
   return vec4f(select(background, color, inside), 1.0);

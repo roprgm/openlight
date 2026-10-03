@@ -17,9 +17,14 @@ test("?stats counts the GPU's textures and buffers, and Reset starts a workflow 
   await expect(value("GPU")).toHaveText(/^\d+\.\d MB · peak/);
   await stats.getByRole("button", { name: "Reset" }).click();
   await expect(value("Textures")).toHaveText(/ · 0 made · 0 freed/);
-  // A new adjustment pass renders into a texture of its own.
-  await exposure.fill("1");
-  await exposure.press("Enter");
+  // A tone curve adds a pass, which renders into a texture of its own.
+  await page.evaluate(() =>
+    window.openlight.setToneCurve([
+      { x: 0, y: 0 },
+      { x: 0.5, y: 0.6 },
+      { x: 1, y: 1 },
+    ]),
+  );
   await expect(value("Textures")).toHaveText(/ · [1-9]\d* made/);
   // Changing values only rewrites uniforms: every render, histograms included, reuses what it has.
   await stats.getByRole("button", { name: "Reset" }).click();

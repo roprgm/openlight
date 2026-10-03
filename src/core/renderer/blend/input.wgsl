@@ -1,27 +1,26 @@
 import { combineCoverage, gradientCoverage } from "./coverage.wgsl";
 
+// The image a curve receives, with gradient coverage as alpha, drawn at the histogram's few texels.
 struct Params {
- opacity: f32,
  kind: u32,
  first: vec2f,
  second: vec2f,
  feather: f32,
  angle: f32,
  modifierCount: u32,
- // Source pixels per texel, so a reduced proxy evaluates gradients at the same document positions.
- scale: vec2f,
+ // The photo's size in source pixels, where the gradients are drawn.
+ sourceSize: vec2f,
 }
-@group(0) @binding(0) var original: texture_2d<f32>;
-@group(0) @binding(1) var edited: texture_2d<f32>;
+@group(0) @binding(0) var image: texture_2d<f32>;
+@group(0) @binding(1) var imageSampler: sampler;
 @group(0) @binding(2) var<uniform> params: Params;
 @group(0) @binding(3) var<storage, read> modifiers: array<vec4f>;
 
-@fragment fn fs_main(@builtin(position) position: vec4f) -> @location(0) vec4f {
- let before = textureLoad(original, vec2i(position.xy), 0);
- let after = textureLoad(edited, vec2i(position.xy), 0);
+@fragment fn fs_main(@location(0) uv: vec2f) -> @location(0) vec4f {
+ let color = textureSampleLevel(image, imageSampler, uv, 0.0);
  var coverage = 1.0;
  if (params.kind != 0u) {
-  let at = position.xy * params.scale;
+  let at = uv * params.sourceSize;
   coverage = gradientCoverage(at, params.first, params.second, params.kind, params.feather, params.angle);
   for (var i = 0u; i < params.modifierCount; i++) {
    let points = modifiers[i * 3u];
@@ -30,6 +29,5 @@ struct Params {
    coverage = combineCoverage(coverage, child, u32(modifiers[i * 3u + 2u].x), settings.x);
   }
  }
- coverage *= params.opacity;
- return vec4f(mix(before.rgb, after.rgb, coverage), before.a);
+ return vec4f(color.rgb, color.a * coverage);
 }

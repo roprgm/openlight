@@ -1,7 +1,7 @@
 import type { Gpu, Target } from "vgpu";
 import { createImageSource, type ImageSource } from "@/core/image";
-import { linearize } from "./linearize";
 import type { Decoder } from "./types";
+import { uploadDecoded } from "./upload";
 
 export type { Target };
 
@@ -11,12 +11,13 @@ type Format = {
   decode: (gpu: Gpu, file: File) => Promise<ImageSource>;
 };
 
-/** A format whose decoder yields pixels needing the GPU leg into the working space. */
+/** A format whose decoder yields 8-bit sRGB-encoded pixels, kept as such on the GPU. */
 function pixelFormat(load: () => Promise<Decoder>) {
   return async (gpu: Gpu, file: File) => {
     const decoder = await load();
     const decoded = await decoder(file);
-    return createImageSource(linearize(gpu, decoded));
+    const { image, primaries } = uploadDecoded(gpu, decoded);
+    return createImageSource(image, { primaries });
   };
 }
 
@@ -96,7 +97,7 @@ export const accept = formats
 
 export const canDecode = (file: File) => formatOf(file) !== undefined;
 
-/** Decodes the file into a linear rgba16float target: the format's decoder, then its GPU leg. */
+/** Decodes the file into a GPU target: 8-bit sRGB-encoded in its own primaries, or the working format for RAW and TIFF. */
 export async function decode(gpu: Gpu, file: File): Promise<ImageSource> {
   const format = formatOf(file);
   if (!format) {

@@ -89,7 +89,7 @@ function ToolView() {
         canvas={
           <EditorViewport size={size}>
             <ViewportStage>
-              <Image original="originalImage" />
+              <Image comparable />
               {"Canvas" in tool && <tool.Canvas key={tool.id} />}
             </ViewportStage>
             <ComparisonDivider />

@@ -10,6 +10,7 @@ import {
   target,
 } from "vgpu";
 import type { Mask, MaskModifier } from "@/core/document";
+import { type Primaries, primariesIndex } from "@/core/image";
 import {
   frameTransform,
   type ImageFrame,
@@ -31,17 +32,24 @@ export type Clipping = { shadows: boolean; highlights: boolean };
 export type MaskOverlay = {
   mask: Mask;
   modifiers: readonly MaskModifier[];
-  frame: ImageFrame;
-  sourceSize: readonly number[];
   coverage?: Target;
   /** The layer's opacity, which scales its coverage. */
   opacity?: number;
+};
+/** The photo's source as decoded, in its own primaries, and the frame that places the image over it. */
+export type DisplaySource = {
+  image: Target;
+  frame: ImageFrame;
+  primaries: Primaries;
 };
 type DisplayOptions = {
   view: View;
   viewport?: readonly number[];
   frame?: ImageFrame;
-  original?: Target;
+  /** The primaries the image's texels are in; the working space's unless said. */
+  primaries?: Primaries;
+  /** Shown left of `split` in place of the image, and where the mask overlay is drawn; the image itself without one. */
+  source?: DisplaySource;
   split?: number;
   clipping?: Clipping;
   overlay?: MaskOverlay;
@@ -82,12 +90,17 @@ export function createDisplay(gpu: Gpu) {
     const viewport =
       options.viewport ?? canvas.size.map((value) => value / canvas.dpr);
     const overlay = options.overlay;
+    const source = options.source;
     writeModifiers(overlay);
     frame.pass(
       canvas,
       draw.set({
         source: image.color,
-        original: (options.original ?? image).color,
+        original: (source?.image ?? image).color,
+        primaries: {
+          image: primariesIndex[options.primaries ?? "rec2020"],
+          original: primariesIndex[source?.primaries ?? "rec2020"],
+        },
         transform: frameTransform(geometry, image.size),
         split: options.split ?? -1,
         view: {
@@ -99,9 +112,9 @@ export function createDisplay(gpu: Gpu) {
           shadows: Number(options.clipping?.shadows ?? false),
           highlights: Number(options.clipping?.highlights ?? false),
         },
-        maskTransform: frameTransform(
-          overlay?.frame ?? geometry,
-          overlay?.sourceSize ?? image.size,
+        sourceTransform: frameTransform(
+          source?.frame ?? geometry,
+          source?.image.size ?? image.size,
         ),
         coverage: (overlay?.coverage ?? blank).color,
         overlay: {
@@ -110,7 +123,7 @@ export function createDisplay(gpu: Gpu) {
           modifierCount: overlay
             ? gradientModifiers(overlay.modifiers).length
             : 0,
-          sourceSize: overlay?.sourceSize ?? image.size,
+          sourceSize: source?.image.size ?? image.size,
           opacity: overlay?.opacity ?? 1,
         },
       }),

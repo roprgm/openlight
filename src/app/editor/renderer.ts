@@ -8,13 +8,12 @@ import type { ImageSource } from "@/core/image";
 import {
   type Composition,
   createRenderer,
-  input,
-  maskInput,
+  curveInput,
   mixAdjustment,
   pipeline,
   type RendererOptions,
   type RenderImage,
-  transformImages,
+  transformImage,
 } from "@/core/renderer";
 import { exposure } from "@/features/adjustments/exposure";
 import { adjustments } from "@/features/adjustments/pass";
@@ -83,7 +82,7 @@ function composeLayer(
     case "mask": {
       const adjusted = pipeline(below, [adjustments(layer.adjustments, name)]);
       if (layer.id === composition.inputId) {
-        input = maskInput(name, adjusted, layer.mask, masks, coverage);
+        input = curveInput(name, adjusted, layer.mask, masks, coverage);
       }
       edited = pipeline(adjusted, [
         toneCurves(layer.toneCurve, `${name}/curves`),
@@ -181,8 +180,9 @@ export function createEditorRenderer(
       const [sourceLayer, ...layers] = scene.layers;
       const name = `layer/${sourceLayer.id}`;
       composition.retain(name);
+      // The photo's first pass develops an 8-bit source into the working space.
       const adjusted = pipeline(image, [
-        adjustments(sourceLayer.adjustments, name),
+        adjustments(sourceLayer.adjustments, name, source.primaries),
       ]);
       const developed = pipeline(adjusted, [
         toneCurves(sourceLayer.toneCurve, `${name}/curves`),
@@ -194,17 +194,12 @@ export function createEditorRenderer(
       );
       const composite = composeLayers(children.image, layers, composition);
       const full = composite.image;
-      const [original, output] = transformImages(
-        [input(source.image), full],
-        scene.frame,
-      );
       return {
-        original,
         full,
-        output,
+        output: transformImage(full, scene.frame),
         input:
           composition.inputId === sourceLayer.id
-            ? adjusted
+            ? curveInput(name, adjusted)
             : (children.input ?? composite.input),
         rangeSource: children.rangeSource ?? composite.rangeSource,
       };
