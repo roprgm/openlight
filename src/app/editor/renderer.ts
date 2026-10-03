@@ -119,7 +119,7 @@ function composeLayer(
       );
       break;
     case "heal": {
-      const result = heal(below, layer.id, layer.patches, name, composition);
+      const result = heal(below, layer.patches, name, composition);
       edited = result.image;
       input = result.input;
       break;

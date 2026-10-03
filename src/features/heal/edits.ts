@@ -52,12 +52,26 @@ export function addRemovePatch(
     feather: painted.feather,
     strokes: [{ ...painted, feather: 0, flow: 1 }],
     opacity: 1,
+    field: document.resources.reserveField(),
   };
   editLayer(document, id, (layer) => ({
     ...layer,
     patches: [...healPatches(layer), patch],
   }));
   return patch.id;
+}
+
+/** A patch with new strokes; a Remove patch takes a new field, which extends its earlier one. */
+function withStrokes(
+  document: EditorDocument,
+  patch: HealPatch,
+  strokes: readonly BrushStroke[],
+): HealPatch {
+  if (patch.mode !== "remove") {
+    return { ...patch, strokes };
+  }
+  const field = document.resources.reserveField(patch.field);
+  return { ...patch, strokes, field };
 }
 
 /** Rewrites the patch list around one patch, found by id. */
@@ -76,8 +90,8 @@ function editPatches(
 }
 
 /**
- * Adds or subtracts a separate stroke without changing the patch's donor or blend. A Remove patch keeps
- * its field, which the next synthesis extends.
+ * Adds or subtracts a separate stroke without changing the patch's donor or blend. A Remove patch takes
+ * a new field, which extends its earlier one.
  */
 export function addHealStroke(
   document: EditorDocument,
@@ -87,10 +101,13 @@ export function addHealStroke(
 ) {
   const painted = parse(strokeSchema, stroke, "Invalid heal stroke");
   editPatches(document, id, patchId, (patches, index) =>
-    patches.with(index, {
-      ...patches[index],
-      strokes: [...patches[index].strokes, { ...painted, feather: 0, flow: 1 }],
-    }),
+    patches.with(
+      index,
+      withStrokes(document, patches[index], [
+        ...patches[index].strokes,
+        { ...painted, feather: 0, flow: 1 },
+      ]),
+    ),
   );
 }
 
@@ -152,15 +169,10 @@ export function extendHealPatch(
       ...last,
       points: [...last.points, ...added],
     });
-    // A Remove field counts whole strokes, so a stroke that grows takes a new one.
-    if (patch.mode === "remove") {
-      const { field, ...unfilled } = patch;
-      return {
-        ...layer,
-        patches: layer.patches.with(-1, { ...unfilled, strokes }),
-      };
-    }
-    return { ...layer, patches: layer.patches.with(-1, { ...patch, strokes }) };
+    return {
+      ...layer,
+      patches: layer.patches.with(-1, withStrokes(document, patch, strokes)),
+    };
   });
 }
 
@@ -197,8 +209,9 @@ export function setHealDestination(
       ),
     }));
     if (patch.mode === "remove") {
-      const { field, ...unfilled } = patch;
-      return patches.with(index, { ...unfilled, strokes });
+      // A patch in a new place keeps nothing it filled.
+      const field = document.resources.reserveField();
+      return patches.with(index, { ...patch, strokes, field });
     }
     return patches.with(index, {
       ...patch,

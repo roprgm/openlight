@@ -115,22 +115,6 @@ export type Painting<S extends BrushStroke = BrushStroke> = {
 /** Coverage painted with strokes; the renderer rasterizes them into a cached texture. */
 export type BrushMask = { readonly kind: "brush" } & Painting;
 export type HealMode = "heal" | "clone" | "remove";
-/**
- * Where each pixel of a Remove patch copies from, synthesized once and kept, so the layers below and
- * the renderer can't change what the patch shows; the copied colors still follow the layers below.
- */
-export type RemoveField = {
-  /** The document resource of each texel's offset to its donor, in texels; zero keeps the pixel. */
-  readonly texels: string;
-  /** How many of the patch's strokes, from the first, it was synthesized for; later strokes extend it. */
-  readonly strokes: number;
-  /** Where its first texel's corner sits, in source pixels. */
-  readonly origin: Point;
-  /** Source pixels per texel. */
-  readonly scale: number;
-  /** Texels across and down. */
-  readonly size: Point;
-};
 /** A painted repair: Heal/Clone use a donor offset; Remove synthesizes surrounding texture. */
 export type HealPatch = {
   readonly id: string;
@@ -141,7 +125,14 @@ export type HealPatch = {
   readonly opacity: number;
 } & (
   | { readonly mode: "heal" | "clone"; readonly offset: Point }
-  | { readonly mode: "remove"; readonly field?: RemoveField }
+  | {
+      readonly mode: "remove";
+      /**
+       * The document resource of where each pixel copies from, reserved for exactly these strokes
+       * when they change and filled once synthesized, so every scene with them shows one fill.
+       */
+      readonly field: string;
+    }
 );
 export type RemovePatch = Extract<HealPatch, { mode: "remove" }>;
 /**

@@ -1,4 +1,5 @@
 import { readFile } from "node:fs/promises";
+import { readZip } from "@/lib/zip";
 import { expect, openPhoto, test } from "./fixtures";
 import { readImage } from "./images";
 
@@ -34,8 +35,8 @@ test("a saved scene reopens the photo with its edits and keeps editing", async (
       flow: 1,
       points: [[445, 295, 1]],
     });
-    // Saved in the same task as the stroke, before its field is read back, the scene still keeps the
-    // field, so the reopened patch fills the same way.
+    // Saved in the same task as the stroke, before Remove synthesizes its field, the scene file still
+    // holds the field, so the reopened patch fills the same way.
     const save = [...document.querySelectorAll("button")].find(
       (button) => button.textContent === "Save scene",
     );
@@ -44,6 +45,7 @@ test("a saved scene reopens the photo with its edits and keeps editing", async (
   });
   const download = await pending;
   expect(download.suggestedFilename()).toBe("photo.openlight");
+  const bytes = await readFile(await download.path());
   const field = () =>
     page.evaluate(() => {
       const layer = window.openlight
@@ -52,8 +54,11 @@ test("a saved scene reopens the photo with its edits and keeps editing", async (
       const patch = layer?.kind === "heal" ? layer.patches[0] : undefined;
       return patch?.mode === "remove" ? patch.field : undefined;
     });
-  await expect.poll(field).toMatchObject({ strokes: 1 });
   const saved = await field();
+  const entries = await readZip(new Blob([bytes]));
+  const json = JSON.parse((await entries.get("scene.json")?.text()) ?? "");
+  expect(json.fields[saved ?? ""]).toHaveProperty("origin");
+  expect(entries.has(`fields/${saved}`)).toBe(true);
   const edited = await readImage(page, undefined, samples);
 
   await page.reload();
@@ -62,7 +67,7 @@ test("a saved scene reopens the photo with its edits and keeps editing", async (
   await picker.setInputFiles({
     name: "photo.openlight",
     mimeType: "",
-    buffer: await readFile(await download.path()),
+    buffer: bytes,
   });
   const exposure = page.getByRole("textbox", { name: "Exposure", exact: true });
   await expect(exposure).toHaveValue("-1.00");

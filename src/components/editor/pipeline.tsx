@@ -55,11 +55,18 @@ export function RendererProvider({
     () =>
       createRenderer(gpu, source, {
         paintPixels: (id) => document.resources.paint(id),
-        fieldTexels: (id) => document.resources.field(id),
+        field: (id) => document.resources.field(id),
+        saveField: (id, field) => document.resources.fillField(id, field),
       }),
     [gpu, document, source, createRenderer],
   );
   const [error, setError] = useState<string>();
+
+  // A snapshot reads back the Remove fields this renderer shows that the document still waits for.
+  useEffect(
+    () => document.onCaptureFields((ids) => renderer.captureFields(ids)),
+    [renderer, document],
+  );
 
   useEffect(() => {
     let active = true;

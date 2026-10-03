@@ -64,18 +64,6 @@ for (const mode of ["Remove", "Heal"]) {
           .scene?.layers.find((layer) => layer.kind === "heal");
         return layer?.kind === "heal" ? layer.patches : [];
       });
-    // Remove saves the field it synthesized into its patch once the render reads it back.
-    const saved = () =>
-      expect
-        .poll(async () =>
-          (await patches()).every(
-            (patch) =>
-              patch.mode !== "remove" ||
-              patch.field?.strokes === patch.strokes.length,
-          ),
-        )
-        .toBe(true);
-    await saved();
     const original = (await patches())[0];
     const removed = await readImage(page, undefined, samples);
     const layerId = await page.evaluate(
@@ -103,7 +91,6 @@ for (const mode of ["Remove", "Heal"]) {
     await page.mouse.up();
     await page.keyboard.up("Shift");
     await expect(preview).toHaveCount(0);
-    await saved();
     const added = (await patches())[0];
     expect(await patches()).toHaveLength(1);
     expect(added).toMatchObject({

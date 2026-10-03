@@ -2,7 +2,7 @@ import { effect, frame, init, target } from "vgpu";
 import { encodeImage } from "@/app/editor/export/export-image";
 import { createImageLayer, createLayer } from "@/app/editor/layers";
 import { createEditorRenderer } from "@/app/editor/renderer";
-import type { HealPatch, Scene } from "@/core/document";
+import type { FieldRecord, HealPatch, Scene } from "@/core/document";
 import { createImageSource } from "@/core/image";
 import { imageFrame } from "@/core/image/frame";
 
@@ -53,6 +53,7 @@ export async function renderInpaintReference(
   const patch: HealPatch = {
     id: "object",
     mode: "remove",
+    field: "object",
     feather: 0,
     opacity: 1,
     strokes: [
@@ -257,7 +258,16 @@ export async function renderInpaintExtension() {
   const size: [number, number] = [192, 144];
   const image = target(gpu, { size, format: "rgba16float" });
   const source = createImageSource(image);
-  const renderer = createEditorRenderer(gpu, source);
+  // Each stroke count is a version with its own field, extending the one before, as edits reserve them.
+  const fields = ["spots/1", "spots/2", "spots/3"];
+  const records = new Map<string, FieldRecord>([
+    [fields[0], {}],
+    [fields[1], { base: fields[0] }],
+    [fields[2], { base: fields[1] }],
+  ]);
+  const renderer = createEditorRenderer(gpu, source, {
+    field: (id) => records.get(id),
+  });
   const first = [56, 72] as const;
   const second = [140, 72] as const;
   const erased = [48, 72] as const;
@@ -289,6 +299,7 @@ export async function renderInpaintExtension() {
           {
             id: "spots",
             mode: "remove",
+            field: fields[count - 1],
             feather: 0,
             opacity: 1,
             strokes: strokes.slice(0, count),

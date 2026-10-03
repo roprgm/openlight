@@ -133,9 +133,8 @@ const patchShape = {
 
 const fieldSide = z.int().check(z.minimum(1), z.maximum(fieldLongSide));
 
-const removeFieldSchema = z.object({
-  texels: z.string().check(z.minLength(1)),
-  strokes: z.int().check(z.minimum(1)),
+/** Where a Remove field's texels sit in the photo, as a scene file stores it beside the texels. */
+export const fieldLatticeSchema = z.object({
   origin: point,
   scale: z.number().check(z.minimum(1)),
   size: z.tuple([fieldSide, fieldSide]),
@@ -147,16 +146,9 @@ export const healPatchSchema = z.union([
     mode: z._default(donorModeSchema, "heal"),
     offset: point,
   }),
-  z
-    .object({
-      ...patchShape,
-      mode: z.literal("remove"),
-      field: z.optional(removeFieldSchema),
-    })
-    .check(
-      z.refine(
-        (patch) => (patch.field?.strokes ?? 0) <= patch.strokes.length,
-        "A Remove field covers at most its patch's strokes",
-      ),
-    ),
+  z.object({
+    ...patchShape,
+    mode: z.literal("remove"),
+    field: z.string().check(z.minLength(1)),
+  }),
 ]) satisfies z.ZodMiniType<HealPatch>;

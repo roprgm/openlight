@@ -142,10 +142,16 @@ test("scene files reopen the photo with every layer for further editing", async 
   expect(file.name).toBe("photo.openlight");
   const entries = await readZip(file);
   const json = JSON.parse((await entries.get("scene.json")?.text()) ?? "");
+  // The Remove patch was never rendered, so its field waits, with nothing it extends.
+  const removal = edited.layers
+    .flatMap((layer) => (layer.kind === "heal" ? layer.patches : []))
+    .find((patch) => patch.mode === "remove");
+  if (removal?.mode !== "remove") throw Error("Missing Remove patch.");
   expect(json).toMatchObject({
     format: "openlight",
-    version: 1,
+    version: 2,
     sources: { [source]: { name: "photo.nef", type: "image/x-nikon-nef" } },
+    fields: { [removal.field]: {} },
     scene: edited,
   });
   const opened = await openSceneFile(file, decode);
@@ -173,7 +179,27 @@ test("scene files reopen the photo with every layer for further editing", async 
   const invalid: [Blob, string][] = [
     [new Blob(["not a zip"]), "Not a ZIP archive."],
     [await archive({ ...json, format: "other" }), "an OpenLight scene"],
-    [await archive({ ...json, version: 2 }), "needs a newer version"],
+    [await archive({ ...json, version: 3 }), "needs a newer version"],
+    [await archive({ ...json, fields: {} }), "Remove fields are missing"],
+    [
+      await archive({
+        ...json,
+        fields: {
+          [removal.field]: { base: "loop" },
+          loop: { base: removal.field },
+        },
+      }),
+      "Remove fields are missing",
+    ],
+    [
+      await archive({
+        ...json,
+        fields: {
+          [removal.field]: { origin: [40, 12], scale: 1, size: [16, 16] },
+        },
+      }),
+      "Remove fields are missing",
+    ],
     [await archive(json, new Map()), "The scene's image is missing."],
     [await adding(saved[1]), "IDs must be unique"],
     [await adding({ id: "new", kind: "text" }), "Unknown layer kind: text."],
@@ -212,15 +238,28 @@ test("scene files reopen the photo with every layer for further editing", async 
     patch.stroke = patch.strokes[0];
     delete patch.strokes;
   }
-  const older = await openSceneFile(await archive(json), decode);
+  // Version 1 wrote a Remove field inside its patch, with how many strokes it covered.
+  const lattice = { origin: [40, 12], scale: 1, size: [16, 16] } as const;
+  healing.patches[2].field = { texels: "inline", strokes: 1, ...lattice };
+  const texels = new Blob(["texels"]);
+  const older = await openSceneFile(
+    await archive(
+      { ...json, version: 1, fields: undefined },
+      new Map([...entries, ["fields/inline", texels]]),
+    ),
+    decode,
+  );
   const loaded = older.scene.getState();
   expect(loaded.layers[0].whiteBalance).toEqual(asShot);
   expect(loaded.layers.find((layer) => layer.kind === "heal")).toMatchObject({
     patches: [
       { mode: "heal", strokes: [{ mode: "paint" }] },
       { mode: "clone", strokes: [{ mode: "paint" }] },
-      { mode: "remove", strokes: [{ mode: "paint" }] },
+      { mode: "remove", strokes: [{ mode: "paint" }], field: "inline" },
     ],
+  });
+  expect(older.resources.field("inline")).toEqual({
+    field: { texels: expect.any(Blob), ...lattice },
   });
 
   expect(
@@ -231,7 +270,7 @@ test("scene files reopen the photo with every layer for further editing", async 
   gpu.dispose();
 });
 
-test("a scene file waits for its preparations and still saves once another photo closes its document", async () => {
+test("a scene file waits for the fields the editor reads back and still saves once another photo closes its document", async () => {
   const gpu = await init();
   const resources = createResources();
   const png = new File([bytes], "photo.png", { type: "image/png" });
@@ -246,16 +285,16 @@ test("a scene file waits for its preparations and still saves once another photo
     },
     resources,
   );
-  let prepared = () => {};
-  document.onSnapshot(
+  let captured = () => {};
+  document.onCaptureFields(
     () =>
-      new Promise<void>((resolve) => {
-        prepared = resolve;
+      new Promise((resolve) => {
+        captured = () => resolve(new Map());
       }),
   );
   const saving = writeSceneFile(document);
   document.dispose();
-  prepared();
+  captured();
   const entries = await readZip(await saving);
   expect(await entries.get(`sources/${source}`)?.bytes()).toEqual(bytes);
   gpu.dispose();

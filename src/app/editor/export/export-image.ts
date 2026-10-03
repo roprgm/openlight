@@ -1,8 +1,9 @@
 import type { Gpu, Target } from "vgpu";
 import { createEditorRenderer } from "@/app/editor/renderer";
 import {
+  completeFields,
   type EditorDocument,
-  fieldTexels,
+  fieldRecords,
   settledPixels,
 } from "@/core/document";
 import type { Point } from "@/core/image/frame";
@@ -78,14 +79,14 @@ export async function encodeImage(
   return blob;
 }
 
-/** The scene with its source and the stored pixels and texels its renderer loads, taken together. */
+/** The scene with its source and the stored pixels and Remove fields its renderer loads, taken together. */
 function snapshotRender(document: EditorDocument) {
   const scene = document.scene.getState();
   return {
     scene,
     source: document.resources.get(scene.layers[0].source),
     pixels: settledPixels(document, scene),
-    fields: fieldTexels(document, scene),
+    fields: fieldRecords(document, scene),
   };
 }
 
@@ -102,13 +103,7 @@ async function renderSnapshot(
       }
       return blob;
     },
-    fieldTexels: (id) => {
-      const blob = fields.get(id);
-      if (!blob) {
-        throw Error("Remove field is unavailable.");
-      }
-      return blob;
-    },
+    field: (id) => fields.get(id),
   });
   try {
     await renderer.update(scene);
@@ -128,14 +123,12 @@ export async function exportImage(
   document: EditorDocument,
   options: ExportOptions = {},
 ) {
-  // Taken now, since another photo may close the document meanwhile, and again once the Remove fields
-  // the scene lacks are read back, unless it did.
-  const requested = snapshotRender(document);
-  const release = requested.source.retain();
+  // Taken now, since another photo may close the document meanwhile; its Remove fields complete after.
+  const snapshot = snapshotRender(document);
+  const release = snapshot.source.retain();
   try {
-    await document.prepareSnapshot();
-    const snapshot = document.closed ? requested : snapshotRender(document);
-    return await renderSnapshot(gpu, snapshot, options);
+    const fields = await completeFields(document, snapshot.fields);
+    return await renderSnapshot(gpu, { ...snapshot, fields }, options);
   } finally {
     release();
   }

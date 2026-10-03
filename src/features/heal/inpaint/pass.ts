@@ -20,21 +20,20 @@ import shader from "./blend.wgsl";
 type FieldComposition = Pick<Composition, "field" | "keepField">;
 
 /**
- * The field a patch shows: the one held for its strokes, or else one synthesized from the image below
- * at full resolution, which keeps what the field held for its first strokes filled. A proxy shows the
- * held field meanwhile, since its reduced image would synthesize another.
+ * The field a patch shows: its own, or else one synthesized from the image below at full resolution,
+ * which keeps what the field it extends filled. A proxy shows that field meanwhile, since its reduced
+ * image would synthesize another.
  */
 function patchField(
   source: RenderImage,
   coverage: PatchInput,
   region: InpaintRegion,
-  layerId: string,
   patch: RemovePatch,
   name: string,
   composition: FieldComposition,
 ): { texels: RenderImage; lattice: FieldLattice } | undefined {
-  const held = composition.field(layerId, patch);
-  if (held?.strokes.length === patch.strokes.length) return held;
+  const held = composition.field(patch);
+  if (held?.complete) return held;
   if (source.scale.some((scale) => scale > 1)) return held;
   const lattice = fieldLattice(region, held?.lattice);
   const texels = inpaintField(
@@ -44,14 +43,13 @@ function patchField(
     `${name}/inpaint`,
     held,
   );
-  composition.keepField(layerId, patch, lattice, texels);
+  composition.keepField(patch, lattice, texels);
   return { texels, lattice };
 }
 
 export function removePatch(
   source: RenderImage,
   coverage: PatchInput,
-  layerId: string,
   patch: RemovePatch,
   name: string,
   composition: FieldComposition,
@@ -62,15 +60,7 @@ export function removePatch(
     return Math.max(margin, stroke.size);
   }, 32);
   const region = patchBounds(patch.strokes, dimensions, margin);
-  const field = patchField(
-    source,
-    coverage,
-    region,
-    layerId,
-    patch,
-    name,
-    composition,
-  );
+  const field = patchField(source, coverage, region, patch, name, composition);
   if (!field) return source;
   const filled = sampleInpaint(
     source,
