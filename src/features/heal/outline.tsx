@@ -274,11 +274,11 @@ export const HealPatchSelector = memo(function HealPatchSelector({
   onSelect: (id: string) => void;
 }) {
   const mapping = useDocumentMapping();
-  const { center } = geometry(patch.strokes[0], [0, 0], mapping);
+  const [x, y] = patch.strokes[0].points[0];
   return (
     <HealAnchor
       kind="destination"
-      center={center}
+      center={mapping.toScreen([x, y])}
       onSelect={() => onSelect(patch.id)}
     />
   );
