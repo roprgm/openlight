@@ -1,4 +1,4 @@
-import { memo, type PointerEvent, useId, useState } from "react";
+import { memo, useId, useState } from "react";
 import { useDocumentMapping } from "@/components/editor/mapping";
 import { useDocument } from "@/components/editor/session";
 import { useViewport } from "@/components/editor/viewport";
@@ -6,7 +6,7 @@ import type { BrushStroke, HealPatch } from "@/core/document";
 import type { Point } from "@/core/image/frame";
 import { type AnchorDrag, HealAnchor } from "./anchor";
 import { setHealDestination, setHealSource } from "./edits";
-import { findHealPatch, patchContains } from "./model";
+import { findHealPatch } from "./model";
 
 type Geometry = {
   mode: BrushStroke["mode"];
@@ -265,8 +265,8 @@ export function HealPatchOutline({
   );
 }
 
-/** Keeps canvas selection on the painted geometry without adding a visible marker over the result. */
-export const HealPatchHitTarget = memo(function HealPatchHitTarget({
+/** A patch's first-point anchor, which selects it, so painting over its body starts a new patch. */
+export const HealPatchSelector = memo(function HealPatchSelector({
   patch,
   onSelect,
 }: {
@@ -274,41 +274,12 @@ export const HealPatchHitTarget = memo(function HealPatchHitTarget({
   onSelect: (id: string) => void;
 }) {
   const mapping = useDocumentMapping();
-  const select = (event: PointerEvent<SVGElement>) => {
-    if (event.shiftKey || event.altKey) return;
-    const box = event.currentTarget.ownerSVGElement?.getBoundingClientRect();
-    if (
-      !box ||
-      !patchContains(
-        patch.strokes,
-        mapping.toDocument(event.clientX, event.clientY, box),
-        8 * mapping.pixelsPerViewportPixel,
-      )
-    )
-      return;
-    event.preventDefault();
-    event.stopPropagation();
-    onSelect(patch.id);
-  };
+  const { center } = geometry(patch.strokes[0], [0, 0], mapping);
   return (
-    <g
-      data-heal-hit-target={patch.id}
-      onPointerDown={select}
-      pointerEvents="all"
-    >
-      {patch.strokes
-        .filter((stroke) => stroke.mode === "paint")
-        .map((stroke, index) => {
-          const shape = geometry(stroke, [0, 0], mapping);
-          return (
-            <StrokeShape
-              key={index}
-              shape={shape}
-              width={Math.max(16, shape.width)}
-              color="transparent"
-            />
-          );
-        })}
-    </g>
+    <HealAnchor
+      kind="destination"
+      center={center}
+      onSelect={() => onSelect(patch.id)}
+    />
   );
 });

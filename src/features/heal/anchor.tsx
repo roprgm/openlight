@@ -25,24 +25,51 @@ export type AnchorDrag = {
 
 const marker = { r: 7, fill: "#3b82f6", stroke: "white", strokeWidth: 2 };
 
-/** The first-point anchor of a destination or source contour, draggable while its patch is selected. */
+/**
+ * The first-point anchor of a destination or source contour: draggable while its patch is selected,
+ * and otherwise, given `onSelect`, what selects it.
+ */
 export function HealAnchor({
   kind,
   center,
   drag,
+  onSelect,
 }: {
   kind: "destination" | "source";
   center: Point;
   drag?: AnchorDrag;
+  onSelect?: () => void;
 }) {
   if (drag) return <DraggedAnchor kind={kind} center={center} drag={drag} />;
-  return (
+  const anchor = (
     <circle
       {...{ [`data-heal-${kind}-anchor`]: "true" }}
       cx={center[0]}
       cy={center[1]}
       {...marker}
     />
+  );
+  if (!onSelect) return anchor;
+  return (
+    <g>
+      {anchor}
+      <circle
+        data-hide-brush-cursor="true"
+        cx={center[0]}
+        cy={center[1]}
+        r={14}
+        fill="transparent"
+        pointerEvents="all"
+        className="cursor-pointer"
+        onPointerDown={(event) => {
+          // Shift and Alt paint onto the selected patch, over an anchor too.
+          if (event.shiftKey || event.altKey) return;
+          event.preventDefault();
+          event.stopPropagation();
+          onSelect();
+        }}
+      />
+    </g>
   );
 }
 

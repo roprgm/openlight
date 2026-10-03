@@ -18,8 +18,8 @@ import {
 import { useHealing } from "./mode";
 import { dabTouchesImage, findHealPatch } from "./model";
 import {
-  HealPatchHitTarget,
   HealPatchOutline,
+  HealPatchSelector,
   HealStrokePreview,
 } from "./outline";
 import { createHealSearch } from "./source";
@@ -244,8 +244,8 @@ export function HealOverlay({
           {patches.map(
             (patch) =>
               patch.id !== selectedPatch && (
-                <HealPatchHitTarget
-                  key={`hit-${patch.id}`}
+                <HealPatchSelector
+                  key={`selector-${patch.id}`}
                   patch={patch}
                   onSelect={selectPatch}
                 />

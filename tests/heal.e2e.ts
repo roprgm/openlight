@@ -257,19 +257,26 @@ test("Healing paints patches, edits them, and undoes", async ({ page }) => {
   await expect(canvas.locator(`[data-heal-patch="${manual.id}"]`)).toHaveCount(
     1,
   );
-  await page.mouse.click(
-    bounds.x + bounds.width / 2 - 250 * scale,
-    bounds.y + bounds.height / 2 - 200 * scale,
-  );
-  await expect(firstPatch).toHaveAttribute("aria-pressed", "true");
-  expect(
-    await page.evaluate(() => {
+  const patchCount = () =>
+    page.evaluate(() => {
       const healing = window.openlight
         .getState()
         .scene?.layers.find((item) => item.kind === "heal");
       return healing?.kind === "heal" ? healing.patches.length : 0;
-    }),
-  ).toBe(2);
+    });
+  // Painting over a patch that isn't selected starts a new one; only its first point selects it.
+  const firstPoint = [
+    bounds.x + bounds.width / 2 - 250 * scale,
+    bounds.y + bounds.height / 2 - 200 * scale,
+  ] as const;
+  await page.mouse.click(firstPoint[0] + 60, firstPoint[1]);
+  await expect.poll(patchCount).toBe(3);
+  await expect(firstPatch).toHaveAttribute("aria-pressed", "false");
+  await page.keyboard.press("ControlOrMeta+z");
+  await expect.poll(patchCount).toBe(2);
+  await page.mouse.click(...firstPoint);
+  await expect(firstPatch).toHaveAttribute("aria-pressed", "true");
+  expect(await patchCount()).toBe(2);
   const sourceX = () =>
     page.evaluate((patchId) => {
       const healing = window.openlight
