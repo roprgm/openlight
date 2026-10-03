@@ -171,6 +171,8 @@ export function createRenderer(
   let pending: Promise<void> | undefined;
   /** A raster being read back, a painting to settle or a Remove field to save; nothing renders meanwhile. */
   let settling: Promise<unknown> | undefined;
+  /** Readbacks of synthesized fields in flight, by ID, which finish even once the renderer closes. */
+  const capturing = new Map<string, Promise<RemoveField | undefined>>();
   let disposed = false;
   let instances = new Set<string>();
   function render(request: RenderRequest) {
@@ -338,17 +340,23 @@ export function createRenderer(
    * again for a snapshot, which reports the failure.
    */
   function capture(ids: readonly string[]) {
-    const reading = (async () => {
-      for (const id of ids) {
-        const read = await fields.read(id);
-        if (read && !disposed) {
-          saveField?.(id, read);
-        }
-      }
-    })().catch(() => {});
-    settling = reading;
-    void reading.then(() => {
-      if (settling === reading) {
+    let reading: Promise<unknown> = Promise.resolve();
+    for (const id of ids) {
+      const read = reading.then(() => fields.read(id));
+      capturing.set(id, read);
+      reading = read
+        .then((field) => field && saveField?.(id, field))
+        .catch(() => {})
+        .finally(() => {
+          if (capturing.get(id) === read) {
+            capturing.delete(id);
+          }
+        });
+    }
+    const done = reading;
+    settling = done;
+    void done.then(() => {
+      if (settling === done) {
         settling = undefined;
       }
     });
@@ -531,9 +539,18 @@ export function createRenderer(
     },
     /**
      * The fields among `ids` that the document saved or this renderer holds, once renders and readbacks
-     * in flight finish, saving those the document still waits for; rejects when a readback fails.
+     * in flight finish, saving those the document still waits for; rejects when a readback fails. Once
+     * the renderer closes, it gives what its readbacks in flight read, and rejects for a field it held
+     * that none was reading.
      */
     async captureFields(ids: readonly string[]) {
+      const inFlight = ids.flatMap((id) => {
+        const read = capturing.get(id);
+        return read ? [[id, read] as const] : [];
+      });
+      const unread = ids.some(
+        (id) => !capturing.has(id) && fields.get(id) && !fieldRecord(id)?.field,
+      );
       const found = await hold(async () => {
         const found = new Map<string, RemoveField>();
         for (const id of ids) {
@@ -550,7 +567,22 @@ export function createRenderer(
         }
         return found;
       });
-      return found ?? new Map<string, RemoveField>();
+      if (found) {
+        return found;
+      }
+      if (unread) {
+        throw Error(
+          "The photo closed before its Remove fields were read back.",
+        );
+      }
+      const read = new Map<string, RemoveField>();
+      for (const [id, reading] of inFlight) {
+        const field = await reading;
+        if (field) {
+          read.set(id, field);
+        }
+      }
+      return read;
     },
     dispose() {
       if (disposed) {

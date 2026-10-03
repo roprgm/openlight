@@ -269,14 +269,14 @@ test("a nested Remove synthesizes once for its strokes, whatever changes below o
       await render();
       expect(solves()).toBe(false);
     }
-    // Undo reaches every stroke version's saved field, and shows it without solving again.
-    for (let step = 0; step < 4; step++) {
-      document.history.undo();
-      await render();
-      expect(solves()).toBe(false);
-    }
-    for (let step = 0; step < 4; step++) {
-      document.history.redo();
+    // Undo and redo reach every stroke version's saved field, and show it without solving again, even
+    // when the field it extends is the one held.
+    for (const travel of ["undo", "redo"] as const) {
+      for (let step = 0; step < 4; step++) {
+        document.history[travel]();
+        await render();
+        expect(solves()).toBe(false);
+      }
     }
     setHealDestination(document, layer, patch, [40, 40]);
     await render();
@@ -287,6 +287,32 @@ test("a nested Remove synthesizes once for its strokes, whatever changes below o
   } finally {
     renderer.dispose();
     document.dispose();
+    source.dispose();
+    gpu.dispose();
+  }
+});
+
+test("a snapshot taken while a Remove field is read back keeps it once its photo closes", async () => {
+  const gpu = await init();
+  const source = createImageSource(
+    target(gpu, { size: [128, 96], format: "rgba16float" }),
+  );
+  const { document, layer } = healFixture([128, 96]);
+  const renderer = createEditorRenderer(gpu, source, {
+    field: (id) => document.resources.field(id),
+    saveField: (id, field) => document.resources.fillField(id, field),
+  });
+  document.onCaptureFields((ids) => renderer.captureFields(ids));
+  try {
+    addRemovePatch(document, layer, { ...dab, points: [[64, 48, 1]] });
+    const [{ patch }] = removePatches(document.scene.getState().layers);
+    // The render synthesizes the field and starts reading it back; another photo then closes this one.
+    void renderer.update(document.scene.getState());
+    const snapshot = completeFields(document, fieldRecords(document));
+    renderer.dispose();
+    document.dispose();
+    expect((await snapshot).get(patch.field)?.field).toBeDefined();
+  } finally {
     source.dispose();
     gpu.dispose();
   }
