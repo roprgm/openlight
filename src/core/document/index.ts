@@ -1,10 +1,15 @@
 import { createStore } from "zustand/vanilla";
 import { validateFrame } from "@/core/image/frame";
 import { createHistory } from "./history";
-import { createResources } from "./resources";
+import {
+  createResources,
+  type FieldRecord,
+  type RemoveField,
+} from "./resources";
 import type { Mask, MaskModifier, Scene } from "./scene";
 import { findLayer, paintingOf, removePatches, walkLayers } from "./tree";
 
+export type { FieldRecord, RemoveField } from "./resources";
 export type {
   Adjustments,
   Blend,
@@ -34,7 +39,6 @@ export type {
   ProcessingLayer,
   RadialGradient,
   RangeMask,
-  RemoveField,
   RemovePatch,
   Scene,
   StrokePoint,
@@ -98,11 +102,24 @@ function equal(a: unknown, b: unknown): boolean {
   );
 }
 
+type Resources = ReturnType<typeof createResources>;
+
+/** A Remove field and, while it waits to be synthesized, the fields it extends, up to a synthesized one. */
+function fieldChain(resources: Resources, id: string) {
+  const ids = [id];
+  let record = resources.field(id);
+  while (record && !record.field && record.base) {
+    ids.push(record.base);
+    record = resources.field(record.base);
+  }
+  return ids;
+}
+
 /**
  * The resources a scene names: its image source, the pixels its paintings settled into, and its
- * Remove fields.
+ * Remove fields with the fields they extend.
  */
-function resourceIds(scene: Scene) {
+function resourceIds(scene: Scene, resources: Resources) {
   const ids = [scene.layers[0].source];
   for (const { layer } of walkLayers(scene.layers)) {
     const raster = paintingOf(layer)?.raster;
@@ -111,9 +128,7 @@ function resourceIds(scene: Scene) {
     }
   }
   for (const { patch } of removePatches(scene.layers)) {
-    if (patch.field) {
-      ids.push(patch.field.texels);
-    }
+    ids.push(...fieldChain(resources, patch.field));
   }
   return ids;
 }
@@ -133,22 +148,44 @@ export function settledPixels(
   return pixels;
 }
 
-/** The Remove fields `scene` names, taken now, like `settledPixels`. */
-export function fieldTexels(
+/** The Remove fields `scene` names, with the fields those still waiting extend, taken now like `settledPixels`. */
+export function fieldRecords(
   document: EditorDocument,
   scene = document.scene.getState(),
 ) {
-  const texels = new Map<string, Blob>();
+  const records = new Map<string, FieldRecord>();
   for (const { patch } of removePatches(scene.layers)) {
-    if (patch.field) {
-      texels.set(
-        patch.field.texels,
-        document.resources.field(patch.field.texels),
-      );
+    for (const id of fieldChain(document.resources, patch.field)) {
+      records.set(id, document.resources.field(id) ?? {});
     }
   }
-  return texels;
+  return records;
 }
+
+/**
+ * `records` taken for a snapshot, with the fields the editor shows but they still waited for read back
+ * since; rejects when a readback fails.
+ */
+export async function completeFields(
+  document: EditorDocument,
+  records: ReadonlyMap<string, FieldRecord>,
+) {
+  const waiting = [...records]
+    .filter(([, record]) => !record.field)
+    .map(([id]) => id);
+  const captured = await document.captureFields(waiting);
+  return new Map(
+    [...records].map(([id, record]): [string, FieldRecord] => {
+      const field = record.field ?? captured.get(id);
+      return [id, field ? { field } : record];
+    }),
+  );
+}
+
+/** Reads back the Remove fields among `ids` the editor holds but resources wait for. */
+type FieldCapture = (
+  ids: readonly string[],
+) => Promise<ReadonlyMap<string, RemoveField>>;
 
 /** One independent editing session. No React, decoders, or file workflows. */
 export function createDocument(initial: Scene, resources = createResources()) {
@@ -159,7 +196,9 @@ export function createDocument(initial: Scene, resources = createResources()) {
     equal,
     100,
     (retained) => {
-      resources.retain(new Set(retained.flatMap(resourceIds)));
+      resources.retain(
+        new Set(retained.flatMap((scene) => resourceIds(scene, resources))),
+      );
     },
   );
   const unsubscribe = scene.subscribe((state) => {
@@ -168,7 +207,7 @@ export function createDocument(initial: Scene, resources = createResources()) {
       selection.setState({ layerId: state.layers[0].id });
     }
   });
-  const preparations = new Set<() => Promise<void>>();
+  let capture: FieldCapture | undefined;
   let closed = false;
   return {
     id: crypto.randomUUID(),
@@ -213,19 +252,23 @@ export function createDocument(initial: Scene, resources = createResources()) {
       }
       replace(next);
     },
-    /**
-     * Adds `prepare`, which a snapshot runs first to replace the scene in place with what the editor
-     * shows but the scene lacks, such as Remove fields read back. Returns its removal.
-     */
-    onSnapshot(prepare: () => Promise<void>) {
-      preparations.add(prepare);
+    /** Sets how the editor reads back the Remove fields it shows, for `captureFields`. Returns its removal. */
+    onCaptureFields(next: FieldCapture) {
+      capture = next;
       return () => {
-        preparations.delete(prepare);
+        if (capture === next) {
+          capture = undefined;
+        }
       };
     },
-    /** Runs every preparation, so a snapshot holds what the editor shows; rejects when one fails. */
-    async prepareSnapshot() {
-      await Promise.all([...preparations].map((prepare) => prepare()));
+    /**
+     * The fields among `ids` that the editor shows but resources still wait for, read back once the
+     * syntheses in flight finish, so a snapshot holds what the editor shows; rejects when a readback fails.
+     */
+    async captureFields(
+      ids: readonly string[],
+    ): Promise<ReadonlyMap<string, RemoveField>> {
+      return (await capture?.(ids)) ?? new Map();
     },
     /** Whether the document was disposed, so work that outlived it can drop its result. */
     get closed() {

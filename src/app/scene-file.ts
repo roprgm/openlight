@@ -1,9 +1,11 @@
 import { z } from "zod/mini";
 import {
+  completeFields,
   createDocument,
   createResources,
   type EditorDocument,
-  fieldTexels,
+  type FieldRecord,
+  fieldRecords,
   type ProcessingLayer,
   paintingOf,
   removePatches,
@@ -22,7 +24,7 @@ import { defaultMixer, mixerSchema } from "@/features/color-mixer/model";
 import { defaultDetails, detailsSchema } from "@/features/details/model";
 import { defaultFill, fillSchema } from "@/features/fill/model";
 import { defaultGrain, grainSchema } from "@/features/grain/model";
-import { healPatchSchema } from "@/features/heal/model";
+import { fieldLatticeSchema, healPatchSchema } from "@/features/heal/model";
 import { validateBrushLayers } from "@/features/layers/edits";
 import {
   layerSettings,
@@ -37,7 +39,7 @@ import { whiteBalanceSchema } from "@/features/white-balance/edits";
 import { parse, withDefaults } from "@/lib/parse";
 
 /** Raised only when older files can no longer load as written; a parameter added later takes its default. */
-const version = 1;
+const version = 2;
 
 const savedHealPatch = z.pipe(
   z.transform((input) => {
@@ -55,33 +57,78 @@ const savedHealPatch = z.pipe(
   healPatchSchema,
 );
 
-/** A saved scene: the scene as edited and the name and type of each source file, stored beside it by ID. */
+/** Where a saved Remove field's texels sit, or, while it waits to be synthesized, the field it extends. */
+type SavedField =
+  | {
+      readonly origin: readonly [number, number];
+      readonly scale: number;
+      readonly size: readonly [number, number];
+    }
+  | { readonly base?: string };
+
+/**
+ * A saved scene: the scene as edited, the name and type of each source file, and each Remove field it
+ * names, whose texels and files are stored beside it by ID.
+ */
 export type SceneJson = {
   format: "openlight";
   version: number;
   sources: Record<string, { name: string; type: string }>;
+  fields: Record<string, SavedField>;
   scene: Scene;
 };
 
 /**
- * The document's scene, the source file it references, the pixels its paint settled into, and its
- * Remove fields, read without rendering.
+ * The document's scene and what it names, taken now without rendering: the source file, the pixels its
+ * paint settled into, and its Remove fields, some of which may still be waiting to be synthesized.
  */
 export function snapshotScene(document: EditorDocument) {
   const scene = document.scene.getState();
   const { source } = scene.layers[0];
-  const { file } = document.resources.get(source);
+  return {
+    scene,
+    source: { id: source, file: document.resources.get(source).file },
+    paint: settledPixels(document, scene),
+    fields: fieldRecords(document, scene),
+  };
+}
+
+export type SceneSnapshot = ReturnType<typeof snapshotScene>;
+
+/**
+ * A snapshot as a saved scene's JSON and the files it names, once the editor reads back the Remove
+ * fields it shows that the snapshot still waits for; rejects when a readback fails.
+ */
+export async function completeScene(
+  document: EditorDocument,
+  { scene, source, paint, fields: records }: SceneSnapshot,
+) {
+  const completed = await completeFields(document, records);
+  const fields: Record<string, SavedField> = {};
+  const texels = new Map<string, Blob>();
+  for (const [id, record] of completed) {
+    if (record.field) {
+      const { texels: data, ...lattice } = record.field;
+      fields[id] = lattice;
+      texels.set(id, data);
+    } else {
+      fields[id] = record.base ? { base: record.base } : {};
+    }
+  }
   const json: SceneJson = {
     format: "openlight",
     version,
-    sources: { [source]: { name: file.name, type: file.type } },
+    sources: {
+      [source.id]: { name: source.file.name, type: source.file.type },
+    },
+    fields,
     scene,
   };
   return {
     json,
-    sources: new Map([[source, file]]),
-    paint: settledPixels(document, scene),
-    fields: fieldTexels(document, scene),
+    sources: new Map([[source.id, source.file]]),
+    paint,
+    fields: texels,
   };
 }
 
@@ -198,13 +245,88 @@ const header = z.object(
   },
   notScene,
 );
+const savedField = z.union([
+  fieldLatticeSchema,
+  z.strictObject({ base: z.optional(id) }),
+]) satisfies z.ZodMiniType<SavedField>;
 const savedSchema = z.extend(header, {
   sources: z.record(
     z.string(),
     z.object({ name: z.string(), type: z.string() }),
   ),
+  fields: z.record(id, savedField),
   scene: sceneSchema,
 });
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+/** Every patch object among saved layers and their children, as written. */
+function* savedPatches(layers: unknown): Generator<Record<string, unknown>> {
+  if (!Array.isArray(layers)) return;
+  for (const layer of layers) {
+    if (!isRecord(layer)) continue;
+    if (Array.isArray(layer.patches)) {
+      yield* layer.patches.filter(isRecord);
+    }
+    yield* savedPatches(layer.children);
+  }
+}
+
+/**
+ * A version 1 scene as version 2 writes it: each Remove patch named its field inline, with how many
+ * strokes it covered, and now names it by ID beside the scene. A field for fewer strokes becomes the
+ * base of a new one, and a patch without one reserves one.
+ */
+function migrateFields(saved: unknown) {
+  if (!isRecord(saved) || saved.version !== 1 || !isRecord(saved.scene)) {
+    return saved;
+  }
+  const migrated = structuredClone(saved);
+  const fields: Record<string, unknown> = {};
+  for (const patch of savedPatches(
+    Reflect.get(Object(migrated.scene), "layers"),
+  )) {
+    if (patch.mode !== "remove") continue;
+    const strokes = Array.isArray(patch.strokes) ? patch.strokes.length : 0;
+    const {
+      texels,
+      strokes: covered,
+      ...lattice
+    } = isRecord(patch.field) ? patch.field : {};
+    if (typeof texels !== "string") {
+      const reserved = crypto.randomUUID();
+      patch.field = reserved;
+      fields[reserved] = {};
+      continue;
+    }
+    fields[texels] = lattice;
+    if (typeof covered === "number" && covered < strokes) {
+      const extending = crypto.randomUUID();
+      patch.field = extending;
+      fields[extending] = { base: texels };
+    } else {
+      patch.field = texels;
+    }
+  }
+  return { ...migrated, fields };
+}
+
+/** Whether every field a patch names, and every field one extends, is saved, with no loop of bases. */
+function fieldsComplete(scene: Scene, fields: SceneJson["fields"]) {
+  for (const { patch } of removePatches(scene.layers)) {
+    const seen = new Set<string>();
+    let id: string | undefined = patch.field;
+    while (id) {
+      const field: SavedField | undefined = fields[id];
+      if (!field || seen.has(id)) return false;
+      seen.add(id);
+      id = "base" in field ? field.base : undefined;
+    }
+  }
+  return true;
+}
 
 /**
  * Opens a saved scene as a new document, validating every value as the edit that made it.
@@ -219,8 +341,27 @@ export async function openScene(
   if (parse(header, saved, "Invalid scene").version > version) {
     throw Error("This scene needs a newer version of OpenLight.");
   }
-  const { sources, scene } = parse(savedSchema, saved, "Invalid scene");
+  const { sources, fields, scene } = parse(
+    savedSchema,
+    migrateFields(saved),
+    "Invalid scene",
+  );
   validateBrushLayers(scene.layers);
+  if (!fieldsComplete(scene, fields)) {
+    throw Error("The scene's Remove fields are missing.");
+  }
+  const records = new Map<string, FieldRecord>();
+  for (const [id, field] of Object.entries(fields)) {
+    if (!("origin" in field)) {
+      records.set(id, field);
+      continue;
+    }
+    const texels = files.get(id);
+    if (!texels) {
+      throw Error("The scene's Remove fields are missing.");
+    }
+    records.set(id, { field: { texels, ...field } });
+  }
   const [image, ...layers] = scene.layers;
   const source = sources[image.source];
   const data = files.get(image.source);
@@ -252,14 +393,8 @@ export async function openScene(
         resources.addPaint(pixels, raster);
       }
     }
-    for (const { patch } of removePatches(layers)) {
-      if (patch.field) {
-        const texels = files.get(patch.field.texels);
-        if (!texels) {
-          throw Error("The scene's Remove fields are missing.");
-        }
-        resources.addField(texels, patch.field.texels);
-      }
+    for (const [id, record] of records) {
+      resources.addField(id, record);
     }
     return createDocument(
       {

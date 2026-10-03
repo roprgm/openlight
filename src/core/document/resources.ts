@@ -1,13 +1,35 @@
 import type { ImageSource } from "@/core/image";
+import type { Point } from "@/core/image/frame";
+
+/**
+ * Where each pixel of a Remove patch copies from, synthesized once and kept, so the layers below and
+ * the renderer can't change what the patch shows; the copied colors still follow the layers below.
+ */
+export type RemoveField = {
+  /** Each texel's offset to its donor, in texels, deflated; zero keeps the pixel. */
+  readonly texels: Blob;
+  /** Where its first texel's corner sits, in source pixels. */
+  readonly origin: Point;
+  /** Source pixels per texel. */
+  readonly scale: number;
+  /** Texels across and down. */
+  readonly size: Point;
+};
+
+/** A Remove field resource: its field once synthesized, or until then the field its synthesis extends. */
+export type FieldRecord = {
+  readonly field?: RemoveField;
+  readonly base?: string;
+};
 
 /**
  * Owns the document's image files and GPU targets, the deflated pixels paint layers settled into, and
- * the deflated texels of Remove fields, outside scene history.
+ * Remove fields, outside scene history.
  */
 export function createResources() {
   const images = new Map<string, { file: File } & ImageSource>();
   const paints = new Map<string, Blob>();
-  const fields = new Map<string, Blob>();
+  const fields = new Map<string, FieldRecord>();
   let disposed = false;
   function open() {
     if (disposed) {
@@ -44,18 +66,26 @@ export function createResources() {
       }
       return pixels;
     },
-    /** A saved document restores Remove fields under their original IDs too. */
-    addField(texels: Blob, id: string = crypto.randomUUID()) {
+    /** Reserves a Remove field for a new set of strokes, which extends `base` once synthesized. */
+    reserveField(base?: string) {
       open();
-      fields.set(id, texels);
+      const id = crypto.randomUUID();
+      fields.set(id, base ? { base } : {});
       return id;
     },
-    field(id: string) {
-      const texels = fields.get(id);
-      if (!texels) {
-        throw new Error("Remove field is unavailable.");
+    /** A saved document restores Remove fields under their original IDs. */
+    addField(id: string, record: FieldRecord) {
+      open();
+      fields.set(id, record);
+    },
+    /** Keeps the field synthesized for a reserved ID; the first one stays, and a closed document drops it. */
+    fillField(id: string, field: RemoveField) {
+      if (!disposed && fields.has(id) && !fields.get(id)?.field) {
+        fields.set(id, { field });
       }
-      return texels;
+    },
+    field(id: string) {
+      return fields.get(id);
     },
     /** Frees what no retained scene names. */
     retain(ids: ReadonlySet<string>) {

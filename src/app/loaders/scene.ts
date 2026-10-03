@@ -1,5 +1,5 @@
 import type { Gpu } from "vgpu";
-import { openScene, snapshotScene } from "@/app/scene-file";
+import { completeScene, openScene, snapshotScene } from "@/app/scene-file";
 import type { Workspace } from "@/app/workspace";
 import type { EditorDocument } from "@/core/document";
 import type { ImageSource } from "@/core/image";
@@ -20,13 +20,11 @@ function isSceneFile(file: File) {
  * already deflated pixels paint settled into at `paint/<id>`, and Remove fields at `fields/<id>`.
  */
 export async function writeSceneFile(document: EditorDocument) {
-  // Taken now, since another photo may close the document meanwhile, and again once the Remove fields
-  // the scene lacks are read back, unless it did.
-  const requested = snapshotScene(document);
-  await document.prepareSnapshot();
-  const { json, sources, paint, fields } = document.closed
-    ? requested
-    : snapshotScene(document);
+  // Taken now, since another photo may close the document meanwhile; its Remove fields complete after.
+  const { json, sources, paint, fields } = await completeScene(
+    document,
+    snapshotScene(document),
+  );
   const { writeZip } = await import("@/lib/zip");
   const archive = await writeZip([
     {

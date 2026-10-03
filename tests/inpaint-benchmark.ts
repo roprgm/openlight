@@ -68,6 +68,8 @@ export async function benchmarkInpaint(
                   {
                     id: "spot",
                     mode: "remove",
+                    // Each render's stroke is a new version, which synthesizes its own field.
+                    field: `spot/${index}`,
                     feather: 0.4,
                     opacity: 1,
                     strokes: [strokeAt(index)],

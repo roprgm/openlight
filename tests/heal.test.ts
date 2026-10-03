@@ -4,14 +4,16 @@ import { createImageLayer, createLayer, createMask } from "@/app/editor/layers";
 import { createEditorRenderer } from "@/app/editor/renderer";
 import {
   type BrushStroke,
+  completeFields,
   createDocument,
   createResources,
+  fieldRecords,
   findLayer,
   removePatches,
 } from "@/core/document";
 import { createImageSource } from "@/core/image";
 import { imageFrame } from "@/core/image/frame";
-import { createRenderGraph, type FieldLattice, input } from "@/core/renderer";
+import { createRenderGraph, input } from "@/core/renderer";
 import { setAdjustments } from "@/features/adjustments/edits";
 import {
   addHealPatch,
@@ -25,7 +27,6 @@ import {
   setHealSource,
 } from "@/features/heal/edits";
 import { inpaintField } from "@/features/heal/inpaint";
-import { watchRemoveFields } from "@/features/heal/save-fields";
 import { addLayer, deleteLayer, setLayer } from "@/features/layers/edits";
 
 function healFixture(size: readonly [number, number] = [64, 64]) {
@@ -185,13 +186,16 @@ function patchesOf(document: ReturnType<typeof createDocument>, layer: string) {
   return healing.patches;
 }
 
-test("a nested Remove synthesizes once for its strokes, whatever changes below or hides it, and extends on new strokes", async () => {
+test("a nested Remove synthesizes once for its strokes, whatever changes below or hides it, extends on new strokes, and undoes without solving again", async () => {
   const gpu = await init();
   const source = createImageSource(
     target(gpu, { size: [128, 96], format: "rgba16float" }),
   );
   const { document } = healFixture([128, 96]);
-  const renderer = createEditorRenderer(gpu, source);
+  const renderer = createEditorRenderer(gpu, source, {
+    field: (id) => document.resources.field(id),
+    saveField: (id, field) => document.resources.fillField(id, field),
+  });
   const mask = addLayer(
     document,
     createMask({ kind: "linear", start: [0, 0], end: [0, 96] }),
@@ -207,10 +211,22 @@ test("a nested Remove synthesizes once for its strokes, whatever changes below o
     renderer.inspect().passes.some((name) => name.includes("/inpaint/"));
   const fields = () =>
     renderer.inspect().rasters.filter(({ id }) => id.endsWith("/field"));
+  const own = () => {
+    const healing = findLayer(document.scene.getState().layers, layer);
+    const found = healing?.kind === "heal" ? healing.patches[0] : undefined;
+    if (found?.mode !== "remove") throw Error("The Remove patch is gone.");
+    return found.field;
+  };
+  /** Whether the document saved the field the renderer synthesized, once its readback finishes. */
+  const saved = async () => {
+    await renderer.captureFields([]);
+    return document.resources.field(own())?.field !== undefined;
+  };
   try {
     await render();
     expect(solves()).toBe(true);
-    expect(fields()).toMatchObject([{ id: `${layer}/${patch}/field` }]);
+    expect(fields()).toMatchObject([{ id: `${own()}/field` }]);
+    expect(await saved()).toBe(true);
     setHealPatch(document, layer, patch, { opacity: 0.5, feather: 0.4 });
     await render();
     expect(solves()).toBe(false);
@@ -232,22 +248,35 @@ test("a nested Remove synthesizes once for its strokes, whatever changes below o
     await render(true);
     expect(solves()).toBe(false);
     for (const mode of ["paint", "erase"] as const) {
+      const before = own();
       addHealStroke(document, layer, patch, {
         ...dab,
         mode,
         size: 2,
         points: [[64, 48, 1]],
       });
+      // A new stroke takes a new field, which extends the earlier one.
+      expect(document.resources.field(own())).toEqual({ base: before });
       // A proxy keeps the field it holds; only full resolution synthesizes the new stroke.
       await render(true);
       expect(solves()).toBe(false);
       await render();
       expect(solves()).toBe(true);
+      expect(await saved()).toBe(true);
       setHealPatch(document, layer, patch, {
         opacity: mode === "paint" ? 0.6 : 0.5,
       });
       await render();
       expect(solves()).toBe(false);
+    }
+    // Undo and redo reach every stroke version's saved field, and show it without solving again, even
+    // when the field it extends is the one held.
+    for (const travel of ["undo", "redo"] as const) {
+      for (let step = 0; step < 4; step++) {
+        document.history[travel]();
+        await render();
+        expect(solves()).toBe(false);
+      }
     }
     setHealDestination(document, layer, patch, [40, 40]);
     await render();
@@ -263,88 +292,68 @@ test("a nested Remove synthesizes once for its strokes, whatever changes below o
   }
 });
 
-test("Remove fields save once no gesture is open, a stroke added during a readback takes its field as a base, and a snapshot saves what the scene lacks or fails with its readback", async () => {
-  const { document, layer } = healFixture();
-  // A renderer whose renders the test runs, and whose readbacks finish or fail, oldest first, when it
-  // says.
-  let render = () => {};
-  const reads: ((error?: Error) => void)[] = [];
-  const renderer = {
-    subscribe(listener: () => void) {
-      render = listener;
-      return () => {};
-    },
-    readField: () =>
-      new Promise<{ texels: Blob; lattice: FieldLattice }>((resolve, reject) =>
-        reads.push((error) =>
-          error
-            ? reject(error)
-            : resolve({
-                texels: new Blob(["field"]),
-                lattice: { origin: [0, 0], scale: 1, size: [8, 8] },
-              }),
-        ),
-      ),
-  };
-  async function finish(error?: Error) {
-    reads.shift()?.(error);
-    await new Promise((resolve) => setTimeout(resolve, 0));
-  }
-  const patches = () =>
-    [...removePatches(document.scene.getState().layers)].map(
-      ({ patch }) => patch,
-    );
-  const first = addRemovePatch(document, layer, dab);
-  addRemovePatch(document, layer, dab);
-  const { undoCount } = document.history.status.getState();
-  const stop = watchRemoveFields(document, renderer);
+test("a snapshot taken while a Remove field is read back keeps it once its photo closes", async () => {
+  const gpu = await init();
+  const source = createImageSource(
+    target(gpu, { size: [128, 96], format: "rgba16float" }),
+  );
+  const { document, layer } = healFixture([128, 96]);
+  const renderer = createEditorRenderer(gpu, source, {
+    field: (id) => document.resources.field(id),
+    saveField: (id, field) => document.resources.fillField(id, field),
+  });
+  document.onCaptureFields((ids) => renderer.captureFields(ids));
   try {
-    // A gesture drops the readback that finishes inside it and reads nothing more until it ends.
-    render();
-    document.history.begin();
-    await finish();
-    expect(reads).toHaveLength(0);
-    expect(patches().map(({ field }) => field)).toEqual([undefined, undefined]);
-    // Its end saves both fields, with no undo step.
-    document.history.commit();
-    await finish();
-    await finish();
-    expect(patches().map(({ field }) => field?.strokes)).toEqual([1, 1]);
-    expect(document.history.status.getState().undoCount).toBe(undoCount);
+    addRemovePatch(document, layer, { ...dab, points: [[64, 48, 1]] });
+    const [{ patch }] = removePatches(document.scene.getState().layers);
+    // The render synthesizes the field and starts reading it back; another photo then closes this one.
+    void renderer.update(document.scene.getState());
+    const snapshot = completeFields(document, fieldRecords(document));
+    renderer.dispose();
+    document.dispose();
+    expect((await snapshot).get(patch.field)?.field).toBeDefined();
+  } finally {
+    source.dispose();
+    gpu.dispose();
+  }
+});
 
-    addHealStroke(document, layer, first, dab);
-    addHealStroke(document, layer, first, dab);
-    await finish();
-    expect(patches()[0].strokes).toHaveLength(3);
-    expect(patches()[0].field?.strokes).toBe(2);
-    // The field for every stroke is being read back, and a snapshot waits for it.
-    const snapshot = document
-      .prepareSnapshot()
-      .then(() => patches()[0].field?.strokes);
-    await finish();
-    expect(await snapshot).toBe(3);
-
-    // A snapshot after a failed readback reads the field again, and fails when that fails too.
-    const errors = spyOn(console, "error").mockImplementation(() => {});
-    addHealStroke(document, layer, first, dab);
-    await finish(Error("Device lost"));
-    expect(errors).toHaveBeenCalledTimes(1);
-    const failed = document.prepareSnapshot().then(
-      () => undefined,
-      (error: Error) => error.message,
+test("a snapshot reads back a Remove field whose save failed, and fails when that fails too", async () => {
+  const gpu = await init();
+  const source = createImageSource(
+    target(gpu, { size: [128, 96], format: "rgba16float" }),
+  );
+  const { document, layer } = healFixture([128, 96]);
+  // A save that fails while `failing` holds, as a readback the device refuses would.
+  let failing = true;
+  const renderer = createEditorRenderer(gpu, source, {
+    field: (id) => document.resources.field(id),
+    saveField: (id, field) => {
+      if (failing) throw Error("Device lost");
+      document.resources.fillField(id, field);
+    },
+  });
+  const stop = document.onCaptureFields((ids) => renderer.captureFields(ids));
+  try {
+    addRemovePatch(document, layer, { ...dab, points: [[64, 48, 1]] });
+    const [{ patch }] = removePatches(document.scene.getState().layers);
+    await renderer.update(document.scene.getState());
+    await renderer.captureFields([]);
+    expect(document.resources.field(patch.field)).toEqual({});
+    const records = fieldRecords(document);
+    await expect(completeFields(document, records)).rejects.toThrow(
+      "Device lost",
     );
-    expect(reads).toHaveLength(1);
-    await finish(Error("Device lost"));
-    expect(await failed).toBe("Device lost");
-    const retried = document
-      .prepareSnapshot()
-      .then(() => patches()[0].field?.strokes);
-    await finish();
-    expect(await retried).toBe(4);
-    errors.mockRestore();
+    failing = false;
+    const completed = await completeFields(document, records);
+    expect(completed.get(patch.field)?.field).toBeDefined();
+    expect(document.resources.field(patch.field)?.field).toBeDefined();
   } finally {
     stop();
+    renderer.dispose();
     document.dispose();
+    source.dispose();
+    gpu.dispose();
   }
 });
 

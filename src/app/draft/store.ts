@@ -1,6 +1,6 @@
 import { type DBSchema, type IDBPDatabase, openDB } from "idb";
 import { z } from "zod/mini";
-import { openScene, snapshotScene } from "@/app/scene-file";
+import { completeScene, openScene, snapshotScene } from "@/app/scene-file";
 import type { EditorDocument } from "@/core/document";
 import type { ImageSource } from "@/core/image";
 import { parse } from "@/lib/parse";
@@ -20,9 +20,18 @@ const recordSchema = z.object(
 export type DraftRecord = z.output<typeof recordSchema>;
 export type Draft = { record: DraftRecord; files: ReadonlyMap<string, Blob> };
 
-/** A draft of the document shown as `name`, captured synchronously so the document may change or close meanwhile. */
-export function snapshotDraft(document: EditorDocument, name: string) {
-  const { json, sources, paint, fields } = snapshotScene(document);
+/**
+ * A draft of the document shown as `name`, taken synchronously so the document may change or close
+ * meanwhile, once the Remove fields it shows are read back.
+ */
+export async function snapshotDraft(
+  document: EditorDocument,
+  name: string,
+): Promise<Draft> {
+  const { json, sources, paint, fields } = await completeScene(
+    document,
+    snapshotScene(document),
+  );
   return {
     record: { version, name, scene: json },
     files: new Map<string, Blob>([...sources, ...paint, ...fields]),
@@ -86,9 +95,16 @@ export function createDraftStore(name = "openlight") {
   }
 
   return {
-    /** Keeps files already stored under their ID and deletes the ones the draft no longer uses. */
-    save({ record, files }: Draft) {
+    /**
+     * Keeps files already stored under their ID and deletes the ones the draft no longer uses. A draft
+     * still completing saves in call order, so an older one never replaces a newer one.
+     */
+    save(draft: Draft | Promise<Draft>) {
+      const ready = Promise.resolve(draft);
+      // A draft that fails before its turn rejects this save, not the page.
+      ready.catch(() => {});
       return run(async (database) => {
+        const { record, files } = await ready;
         const transaction = database.transaction(
           ["draft", "sources"],
           "readwrite",

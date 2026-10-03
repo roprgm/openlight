@@ -33,9 +33,11 @@ test("a draft survives storage's structured clone, reopens under its source ID, 
   setVignette(document, { intensity: 30, softness: 70 }, vignette);
   const edited = document.scene.getState();
 
-  // IndexedDB stores values with the structured clone algorithm, which keeps File objects.
-  const stored = structuredClone(snapshotDraft(document, "photo.png"));
+  // Taken before the document closes, a draft still completes; IndexedDB stores it with the structured
+  // clone algorithm, which keeps File objects.
+  const draft = snapshotDraft(document, "photo.png");
   document.dispose();
+  const stored = structuredClone(await draft);
   expect(stored.record).toMatchObject({ version: 1, name: "photo.png" });
   expect(await stored.files.get(source)?.bytes()).toEqual(bytes);
   const recovered = await openDraft(stored, decode);

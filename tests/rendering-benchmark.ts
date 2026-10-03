@@ -302,7 +302,7 @@ export async function benchmarkRendering(
     const donorMode = workload === "clone" ? "clone" : "heal";
     const patch: HealPatch =
       workload === "remove"
-        ? { ...shape, mode: "remove" }
+        ? { ...shape, mode: "remove", field: "benchmark-heal" }
         : { ...shape, mode: donorMode, offset: [320, 0] };
     effects.push({
       ...common,

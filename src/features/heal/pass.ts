@@ -106,7 +106,6 @@ export function retainHealPatches(
 
 export function heal(
   source: RenderImage,
-  layerId: string,
   patches: readonly HealPatch[],
   name: string,
   composition: HealComposition,
@@ -120,7 +119,7 @@ export function heal(
     if (!repairsPixels(patch)) continue;
     const coverage = composition.patch(id, patch.strokes);
     if (patch.mode === "remove") {
-      image = removePatch(image, coverage, layerId, patch, id, composition);
+      image = removePatch(image, coverage, patch, id, composition);
     } else {
       image = healPatch(image, coverage, patch, id);
     }
