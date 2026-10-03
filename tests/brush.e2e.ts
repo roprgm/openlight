@@ -197,4 +197,69 @@ test.describe("on a touch phone", () => {
       history: { editing: false },
     });
   });
+
+  test("a second finger landing on another patch during a healing stroke pinches instead of selecting it", async ({
+    page,
+    context,
+  }) => {
+    await page.goto("/");
+    await page
+      .locator('input[type="file"]')
+      .setInputFiles("tests/fixtures/photo.svg");
+    await expect(
+      page.getByRole("slider", { name: "Exposure", exact: true }),
+    ).toHaveAttribute("aria-valuetext", "0.00");
+    // A patch right of the photo's center, where the second finger lands.
+    await page.evaluate(() => {
+      const api = window.openlight;
+      api.addHealPatch(
+        api.addLayer("heal"),
+        {
+          mode: "paint",
+          size: 160,
+          feather: 0,
+          flow: 1,
+          points: [[900, 400, 1]],
+        },
+        [-300, 0],
+      );
+    });
+    const before = await page.evaluate(() => window.openlight.getState());
+    await page.getByRole("tab", { name: "Healing", exact: true }).click();
+    const canvas = page.getByLabel("Healing canvas", { exact: true });
+    const bounds = await box(canvas);
+    // The fitted photo's pixels per source pixel, inside the viewport's padding.
+    const scale = Math.min(
+      (bounds.width - 48) / 1200,
+      (bounds.height - 48) / 800,
+    );
+    const zoom = page.getByRole("button", { name: /^\d+%$/ });
+    const fitted = await zoom.innerText();
+    const [x, y] = [bounds.x + bounds.width / 2, bounds.y + bounds.height / 2];
+    const patch = 300 * scale;
+    const touch = await context.newCDPSession(page);
+    const send = (
+      type: "touchStart" | "touchMove" | "touchEnd",
+      at: number[],
+    ) =>
+      touch.send("Input.dispatchTouchEvent", {
+        type,
+        touchPoints: at.map((dx) => ({ x: x + dx, y })),
+      });
+    // The first finger paints left of the patch; the second lands on it, then both spread.
+    await send("touchStart", [-patch]);
+    await send("touchMove", [-patch + 10]);
+    await send("touchStart", [-patch + 10, patch]);
+    for (let step = 1; step <= 6; step++) {
+      await send("touchMove", [-patch + 10 - step * 8, patch + step * 8]);
+    }
+    await send("touchEnd", []);
+    await expect(zoom).not.toHaveText(fitted);
+    const after = await page.evaluate(() => window.openlight.getState());
+    expect(after.scene).toEqual(before.scene);
+    expect(after.history).toEqual(before.history);
+    await expect(
+      canvas.locator('[data-heal-destination-handle="true"]'),
+    ).toHaveCount(0);
+  });
 });

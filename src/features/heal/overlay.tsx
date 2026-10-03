@@ -112,11 +112,15 @@ export function HealOverlay({
     }
   }
   const marker = source && mapping.toScreen(source);
-  /** A press within 8 viewport pixels of another patch selects the topmost one instead of painting. */
+  /**
+   * A press within 8 viewport pixels of another patch selects the topmost one instead of painting; a
+   * second finger belongs to the canvas, which turns a stroke into a pinch.
+   */
   function selectPatchAt(event: PointerEvent<HTMLDivElement>) {
     if (
       !containsTarget(event) ||
       event.button !== 0 ||
+      !event.isPrimary ||
       event.shiftKey ||
       event.altKey ||
       camera.panMode
