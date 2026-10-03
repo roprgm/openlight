@@ -20,8 +20,13 @@ function isSceneFile(file: File) {
  * already deflated pixels paint settled into at `paint/<id>`, and Remove fields at `fields/<id>`.
  */
 export async function writeSceneFile(document: EditorDocument) {
-  await document.replaced();
-  const { json, sources, paint, fields } = snapshotScene(document);
+  // Taken now, since another photo may close the document meanwhile, and again once the Remove fields
+  // the scene lacks are read back, unless it did.
+  const requested = snapshotScene(document);
+  await document.prepareSnapshot();
+  const { json, sources, paint, fields } = document.closed
+    ? requested
+    : snapshotScene(document);
   const { writeZip } = await import("@/lib/zip");
   const archive = await writeZip([
     {
