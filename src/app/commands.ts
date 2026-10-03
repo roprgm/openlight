@@ -164,19 +164,24 @@ export const commands = {
     },
   ),
   "set-crop": command(
-    "Replaces the crop, rotation, and flips with the largest centered crop of the photo. aspectRatio is width / height and defaults to the photo's; straighten rotates by -45 to 45 degrees. Omit both to remove the crop.",
+    "Replaces the crop, rotation, and flips with the largest centered crop of the photo, keeping its perspective correction. aspectRatio is width / height and defaults to the photo's; straighten rotates by -45 to 45 degrees. Omit both to remove the crop.",
     z.strictObject({
       aspectRatio: z.optional(z.number().check(z.positive())),
       straighten: z.optional(range(-45, 45)),
     }),
     (document, { aspectRatio, straighten = 0 }) => {
       const size = sourceSize(document);
-      const frame = rotate(imageFrame(size), straighten, size);
+      const { perspective } = document.scene.getState().frame;
+      const frame = rotate(
+        { ...imageFrame(size), perspective },
+        straighten,
+        size,
+      );
       applyCrop(document, aspectRatio ? fitRatio(frame, aspectRatio) : frame);
     },
   ),
   reset: command(
-    "Removes every layer and returns the photo's adjustments, tone curve, white balance, and crop to how it opened, as one edit.",
+    "Removes every layer and returns the photo's adjustments, tone curve, white balance, crop, and perspective to how it opened, as one edit.",
     none,
     reset,
   ),

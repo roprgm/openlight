@@ -48,7 +48,12 @@ test("scene files reopen the photo with every layer for further editing", async 
     { x: 0.5, y: 0.6 },
     { x: 1, y: 1 },
   ]);
-  api.setFrame({ ...imageFrame(size), angle: 5, scale: [-0.8, 0.8] });
+  api.setFrame({
+    ...imageFrame(size),
+    angle: 5,
+    scale: [-0.4, 0.4],
+    perspective: [-30, 45],
+  });
   const mask = api.addLayer("mask");
   const stroke: BrushStroke = {
     mode: "paint",
@@ -147,9 +152,10 @@ test("scene files reopen the photo with every layer for further editing", async 
     .flatMap((layer) => (layer.kind === "heal" ? layer.patches : []))
     .find((patch) => patch.mode === "remove");
   if (removal?.mode !== "remove") throw Error("Missing Remove patch.");
+  // Perspective makes the file version 3, so an OpenLight from before it refuses rather than drops it.
   expect(json).toMatchObject({
     format: "openlight",
-    version: 2,
+    version: 3,
     sources: { [source]: { name: "photo.nef", type: "image/x-nikon-nef" } },
     fields: { [removal.field]: {} },
     scene: edited,
@@ -179,7 +185,7 @@ test("scene files reopen the photo with every layer for further editing", async 
   const invalid: [Blob, string][] = [
     [new Blob(["not a zip"]), "Not a ZIP archive."],
     [await archive({ ...json, format: "other" }), "an OpenLight scene"],
-    [await archive({ ...json, version: 3 }), "needs a newer version"],
+    [await archive({ ...json, version: 4 }), "needs a newer version"],
     [await archive({ ...json, fields: {} }), "Remove fields are missing"],
     [
       await archive({
@@ -199,6 +205,16 @@ test("scene files reopen the photo with every layer for further editing", async 
         },
       }),
       "Remove fields are missing",
+    ],
+    [
+      await archive({
+        ...json,
+        scene: {
+          ...json.scene,
+          frame: { ...json.scene.frame, perspective: [0, 101] },
+        },
+      }),
+      "frame.perspective.1",
     ],
     [await archive(json, new Map()), "The scene's image is missing."],
     [await adding(saved[1]), "IDs must be unique"],
@@ -229,6 +245,7 @@ test("scene files reopen the photo with every layer for further editing", async 
   );
   delete vignette.vignette.softness;
   delete saved[0].whiteBalance;
+  delete json.scene.frame.perspective;
   const healing = json.scene.layers.find(
     (layer: { kind: string }) => layer.kind === "heal",
   );
@@ -238,7 +255,7 @@ test("scene files reopen the photo with every layer for further editing", async 
     patch.stroke = patch.strokes[0];
     delete patch.strokes;
   }
-  // Version 1 wrote a Remove field inside its patch, with how many strokes it covered.
+  // Version 1 wrote a Remove field inside its patch, with how many strokes it covered, and no perspective.
   const lattice = { origin: [40, 12], scale: 1, size: [16, 16] } as const;
   healing.patches[2].field = { texels: "inline", strokes: 1, ...lattice };
   const texels = new Blob(["texels"]);
@@ -250,6 +267,7 @@ test("scene files reopen the photo with every layer for further editing", async 
     decode,
   );
   const loaded = older.scene.getState();
+  expect(loaded.frame).toEqual({ ...edited.frame, perspective: [0, 0] });
   expect(loaded.layers[0].whiteBalance).toEqual(asShot);
   expect(loaded.layers.find((layer) => layer.kind === "heal")).toMatchObject({
     patches: [

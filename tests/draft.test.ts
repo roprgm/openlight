@@ -38,7 +38,12 @@ test("a draft survives storage's structured clone, reopens under its source ID, 
   const draft = snapshotDraft(document, "photo.png");
   document.dispose();
   const stored = structuredClone(await draft);
-  expect(stored.record).toMatchObject({ version: 1, name: "photo.png" });
+  // Without perspective the scene stays version 2, which an OpenLight from before it still opens.
+  expect(stored.record).toMatchObject({
+    version: 1,
+    name: "photo.png",
+    scene: { version: 2 },
+  });
   expect(await stored.files.get(source)?.bytes()).toEqual(bytes);
   const recovered = await openDraft(stored, decode);
   expect(recovered.scene.getState()).toEqual(edited);

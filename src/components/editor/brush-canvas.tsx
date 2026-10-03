@@ -28,6 +28,8 @@ type Stroke = {
   client: Point;
   /** The viewport bounds measured once; pointer capture keeps them valid for the drag. */
   box: DOMRect;
+  /** The last sample in viewport pixels, where the path to the next one starts. */
+  last: Point;
   pending: StrokePoint[];
   editOnRelease: boolean;
   frame?: number;
@@ -76,14 +78,18 @@ export function BrushCanvas({
   const stroke = useRef<Stroke | null>(null);
   const completing = useRef<AbortController | null>(null);
   const [pointer, setPointer] = useState<Point | null>(null);
+  /** The source diameter of the stroke being drawn, which the cursor shows wherever it goes. */
+  const [drawn, setDrawn] = useState<number>();
   /** Where a right click opened the brush menu. */
   const [menu, setMenu] = useState<Point | null>(null);
   const [pointerVisible, setPointerVisible] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
-  function point(event: PointerLike, box: DOMRect): StrokePoint {
-    const [x, y] = mapping.toDocument(event.clientX, event.clientY, box);
-    return [x, y, event.pointerType === "pen" ? event.pressure : 1];
+  function pressure(event: PointerLike) {
+    return event.pointerType === "pen" ? event.pressure : 1;
+  }
+  function viewportPoint(event: PointerLike, box: DOMRect): Point {
+    return [event.clientX - box.left, event.clientY - box.top];
   }
   function flush(current: Stroke) {
     current.frame = undefined;
@@ -97,6 +103,7 @@ export function BrushCanvas({
       return true;
     } catch (error) {
       stroke.current = null;
+      setDrawn(undefined);
       onFinish?.(false);
       if (!current.editOnRelease) document.history.cancel();
       setError(String(error));
@@ -116,6 +123,7 @@ export function BrushCanvas({
       return;
     }
     stroke.current = null;
+    setDrawn(undefined);
     if (current.frame !== undefined) {
       cancelAnimationFrame(current.frame);
     }
@@ -226,12 +234,13 @@ export function BrushCanvas({
       return;
     }
     const box = camera.ref.current?.getBoundingClientRect();
-    if (busy || !box) {
+    const last = box && viewportPoint(event, box);
+    const at = last && mapping.toDocument(last);
+    if (busy || !box || !last || !at) {
       return;
     }
-    const first = point(event, box);
     if (event.altKey && onPickSource) {
-      onPickSource([first[0], first[1]]);
+      onPickSource(at);
       event.preventDefault();
       event.stopPropagation();
       return;
@@ -243,13 +252,15 @@ export function BrushCanvas({
         ? editOnRelease(modifiers)
         : editOnRelease;
     const opened = !deferred && document.history.begin();
+    // The viewport diameter becomes source pixels where the stroke starts, covering the same area there.
+    const size = brush.settings.size / mapping.scale(at);
     const started = onStart(
       {
         mode: erase ? "erase" : "paint",
-        size: brush.settings.size * mapping.pixelsPerViewportPixel,
+        size,
         feather: brush.settings.feather,
         flow: brush.settings.flow,
-        points: [first],
+        points: [[...at, pressure(event)]],
       },
       modifiers,
     );
@@ -257,11 +268,13 @@ export function BrushCanvas({
       if (opened) document.history.cancel();
       return;
     }
+    setDrawn(size);
     stroke.current = {
       pointer: event.pointerId,
       touch: event.pointerType === "touch",
       client: [event.clientX, event.clientY],
       box,
+      last,
       pending: [],
       editOnRelease: deferred,
     };
@@ -291,7 +304,11 @@ export function BrushCanvas({
     const native = event.nativeEvent;
     const events = native.getCoalescedEvents?.() ?? [];
     for (const item of events.length ? events : [native]) {
-      current.pending.push(point(item, current.box));
+      const next = viewportPoint(item, current.box);
+      for (const [x, y] of mapping.trail(current.last, next)) {
+        current.pending.push([x, y, pressure(item)]);
+      }
+      current.last = next;
     }
     current.frame ??= requestAnimationFrame(() => flush(current));
   }
@@ -303,9 +320,15 @@ export function BrushCanvas({
     finish(true);
     event.currentTarget.releasePointerCapture(event.pointerId);
   }
-  const radius = brush.settings.size / 2;
   const status = error ?? (busy ? "Finishing stroke…" : undefined);
   const cursor = pointerVisible || brush.preview ? pointer : null;
+  /** The dab a stroke lays at a document point: the one being drawn, or one starting there. */
+  function dabAt(at: Point) {
+    const radius = (drawn ?? brush.settings.size / mapping.scale(at)) / 2;
+    return mapping.ellipse({ center: at, radii: [radius, radius], angle: 0 });
+  }
+  const under = cursor ? mapping.toDocument(cursor) : undefined;
+  const dab = under ? dabAt(under) : undefined;
   return (
     <div
       ref={wheelRef}
@@ -334,10 +357,10 @@ export function BrushCanvas({
       }}
     >
       {children}
-      {cursor && !camera.panMode && (
+      {cursor && dab && !camera.panMode && (
         <BrushCursor
           at={cursor}
-          radius={radius}
+          dab={dab}
           feather={brush.settings.feather}
           erase={erase}
           preview={brush.preview}

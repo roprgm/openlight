@@ -81,11 +81,14 @@ export function RangePicker() {
   }
   /** Picks the color under the pointer and waits for the previous pick to land. */
   function pick(current: Drag, event: PointerEvent) {
-    const [x, y] = mapping.toDocument(
-      event.clientX,
-      event.clientY,
-      current.box,
-    );
+    const at = mapping.toDocument([
+      event.clientX - current.box.left,
+      event.clientY - current.box.top,
+    ]);
+    if (!at) {
+      return;
+    }
+    const [x, y] = at;
     const image = () => renderer.rangeSource(group);
     const color = sampler.sample(image, [x / size[0], y / size[1]]);
     current.landed = Promise.all([current.landed, color])

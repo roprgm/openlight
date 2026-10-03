@@ -28,6 +28,7 @@ for (const workload of [
   "heal-empty",
   "heal-proxy",
   "pipeline-proxy",
+  "perspective",
 ] as const) {
   test(`rendering ${workload}`, async ({ page, browser }, info) => {
     await page.goto("/tests/gpu.html");
