@@ -38,8 +38,16 @@ import { defaultVignette, vignetteSchema } from "@/features/vignette/model";
 import { whiteBalanceSchema } from "@/features/white-balance/edits";
 import { parse, withDefaults } from "@/lib/parse";
 
-/** Raised only when older files can no longer load as written; a parameter added later takes its default. */
-const version = 2;
+/**
+ * The newest version this opens. It rises only when older files can no longer load as written, or
+ * an older OpenLight would drop what a file holds; a parameter added later takes its default.
+ */
+const version = 3;
+
+/** A perspective correction makes a scene version 3, which an older OpenLight rejects rather than drop. */
+function sceneVersion(scene: Scene) {
+  return scene.frame.perspective.some((value) => value !== 0) ? 3 : 2;
+}
 
 const savedHealPatch = z.pipe(
   z.transform((input) => {
@@ -119,7 +127,7 @@ export async function completeScene(
   }
   const json: SceneJson = {
     format: "openlight",
-    version,
+    version: sceneVersion(scene),
     sources: {
       [source.id]: { name: source.file.name, type: source.file.type },
     },

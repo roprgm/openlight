@@ -125,6 +125,25 @@ test("tone adjustments preserve ramps, colors and alpha, compose, and reset", as
   expect(result.resetMatches).toBe(true);
 });
 
+test("a perspective-corrected proxy shows the full render it stands for", async ({
+  page,
+}) => {
+  await page.goto("/tests/gpu.html");
+  const result = await page.evaluate(async () => {
+    const path = "/tests/perspective-gpu.ts";
+    const { perspectiveProxy } = (await import(
+      path
+    )) as typeof import("./perspective-gpu");
+    return perspectiveProxy();
+  });
+  expect(result.errors).toEqual([]);
+  expect(result.proxySize).toEqual([240, 160]);
+  // The correction moved the output's corner into the chart, and the proxy follows it texel by texel.
+  expect(Math.max(...result.corner)).toBeGreaterThan(0.02);
+  // Less than the 2e-3 a half-texel shift of the proxy would make, beyond half-float rounding.
+  expect(result.stray).toBeLessThan(1.5e-3);
+});
+
 test("a gradient recovers +3 EV photo exposure without clipping between layers", async ({
   page,
 }) => {

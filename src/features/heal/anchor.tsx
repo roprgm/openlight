@@ -25,51 +25,27 @@ export type AnchorDrag = {
 
 const marker = { r: 7, fill: "#3b82f6", stroke: "white", strokeWidth: 2 };
 
-/**
- * The first-point anchor of a destination or source contour: draggable while its patch is selected,
- * and otherwise, given `onSelect`, what selects it.
- */
+/** Viewport pixels from an anchor's center that grab or select it. */
+export const anchorReach = 14;
+
+/** The first-point anchor of a destination or source contour, draggable while its patch is selected. */
 export function HealAnchor({
   kind,
   center,
   drag,
-  onSelect,
 }: {
   kind: "destination" | "source";
   center: Point;
   drag?: AnchorDrag;
-  onSelect?: () => void;
 }) {
   if (drag) return <DraggedAnchor kind={kind} center={center} drag={drag} />;
-  const anchor = (
+  return (
     <circle
       {...{ [`data-heal-${kind}-anchor`]: "true" }}
       cx={center[0]}
       cy={center[1]}
       {...marker}
     />
-  );
-  if (!onSelect) return anchor;
-  return (
-    <g>
-      {anchor}
-      <circle
-        data-hide-brush-cursor="true"
-        cx={center[0]}
-        cy={center[1]}
-        r={14}
-        fill="transparent"
-        pointerEvents="all"
-        className="cursor-pointer"
-        onPointerDown={(event) => {
-          // Shift and Alt paint onto the selected patch, over an anchor too.
-          if (event.shiftKey || event.altKey) return;
-          event.preventDefault();
-          event.stopPropagation();
-          onSelect();
-        }}
-      />
-    </g>
   );
 }
 
@@ -95,7 +71,10 @@ function DraggedAnchor({
     else document.history.cancel();
   }
   function point(event: PointerEvent<SVGCircleElement>, box: DOMRect) {
-    return mapping.toDocument(event.clientX, event.clientY, box);
+    return mapping.toDocument([
+      event.clientX - box.left,
+      event.clientY - box.top,
+    ]);
   }
   function cancel() {
     const active = current.current;
@@ -108,6 +87,7 @@ function DraggedAnchor({
   useEffect(() => () => cancel(), []);
   function start(event: PointerEvent<SVGCircleElement>) {
     const box = camera.ref.current?.getBoundingClientRect();
+    const at = box && point(event, box);
     if (
       current.current ||
       event.button !== 0 ||
@@ -115,7 +95,8 @@ function DraggedAnchor({
       camera.panMode ||
       event.shiftKey ||
       event.altKey ||
-      !box
+      !box ||
+      !at
     ) {
       return;
     }
@@ -123,7 +104,7 @@ function DraggedAnchor({
     current.current = {
       pointer: event.pointerId,
       box,
-      start: point(event, box),
+      start: at,
       from: drag.from,
       next: drag.from,
       unsubscribe: document.history.status.subscribe((state, previous) => {
@@ -144,6 +125,8 @@ function DraggedAnchor({
     const active = current.current;
     if (!active || active.pointer !== event.pointerId) return;
     const at = point(event, active.box);
+    // Past where input stops the anchor waits for the pointer to return.
+    if (!at) return;
     active.next = [
       active.from[0] + at[0] - active.start[0],
       active.from[1] + at[1] - active.start[1],
@@ -183,7 +166,7 @@ function DraggedAnchor({
         data-hide-brush-cursor="true"
         cx={center[0]}
         cy={center[1]}
-        r={14}
+        r={anchorReach}
         fill="transparent"
         className="pointer-events-auto cursor-grab active:cursor-grabbing"
         onPointerDown={start}

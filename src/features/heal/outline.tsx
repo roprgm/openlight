@@ -1,5 +1,10 @@
-import { memo, useId, useState } from "react";
-import { useDocumentMapping } from "@/components/editor/mapping";
+import { useId, useState } from "react";
+import { MappedShape } from "@/components/editor/mapped-shape";
+import {
+  type DocumentMapping,
+  type Shape,
+  useDocumentMapping,
+} from "@/components/editor/mapping";
 import { useDocument } from "@/components/editor/session";
 import { useViewport } from "@/components/editor/viewport";
 import type { BrushStroke, HealPatch } from "@/core/document";
@@ -8,78 +13,59 @@ import { type AnchorDrag, HealAnchor } from "./anchor";
 import { setHealDestination, setHealSource } from "./edits";
 import { findHealPatch } from "./model";
 
+/**
+ * A hard stroke as the viewport shows it: the dabs it lays at its points and the rectangles they sweep
+ * between them, exactly as perspective maps their union.
+ */
 type Geometry = {
   mode: BrushStroke["mode"];
-  center: Point;
-  d: string;
-  first: Point;
-  last: Point;
-  width: number;
-  bounds: { left: number; top: number; right: number; bottom: number };
+  /** Where the stroke starts, unless it is behind the horizon. */
+  first?: Point;
+  sweeps: string;
+  dabs: Shape[];
 };
-type Mapping = ReturnType<typeof useDocumentMapping>;
 
 function geometry(
   stroke: BrushStroke,
   offset: Point,
-  mapping: Mapping,
+  mapping: DocumentMapping,
 ): Geometry {
-  const points = stroke.points.map(([x, y]) =>
-    mapping.toScreen([x + offset[0], y + offset[1]]),
+  const points = stroke.points.map(
+    ([x, y]): Point => [x + offset[0], y + offset[1]],
   );
-  const width = stroke.size / mapping.pixelsPerViewportPixel;
-  let left = Infinity;
-  let top = Infinity;
-  let right = -Infinity;
-  let bottom = -Infinity;
-  for (const [x, y] of points) {
-    left = Math.min(left, x - width / 2);
-    top = Math.min(top, y - width / 2);
-    right = Math.max(right, x + width / 2);
-    bottom = Math.max(bottom, y + width / 2);
-  }
+  const radius = stroke.size / 2;
+  // Each rectangle runs the same way round, so one path's fill unites them.
+  const sweeps = points.slice(1).map((end, i) => {
+    const start = points[i];
+    const length = Math.hypot(end[0] - start[0], end[1] - start[1]);
+    if (!length) return "";
+    const nx = ((start[1] - end[1]) / length) * radius;
+    const ny = ((end[0] - start[0]) / length) * radius;
+    return mapping.polygon([
+      [start[0] - nx, start[1] - ny],
+      [end[0] - nx, end[1] - ny],
+      [end[0] + nx, end[1] + ny],
+      [start[0] + nx, start[1] + ny],
+    ]);
+  });
   return {
     mode: stroke.mode,
-    center: points[0],
-    d: points.map(([x, y], index) => `${index ? "L" : "M"}${x} ${y}`).join(""),
-    first: points[0],
-    last: points.at(-1) ?? points[0],
-    width,
-    bounds: { left, top, right, bottom },
+    first: mapping.toScreen(points[0]),
+    sweeps: sweeps.join(""),
+    dabs: points.flatMap(
+      (center) =>
+        mapping.ellipse({ center, radii: [radius, radius], angle: 0 }) ?? [],
+    ),
   };
 }
 
-function StrokeShape({
-  shape,
-  width,
-  color,
-}: {
-  shape: Geometry;
-  width: number;
-  color: string;
-}) {
+function StrokeShape({ shape, color }: { shape: Geometry; color: string }) {
   return (
     <>
-      <path
-        d={shape.d}
-        fill="none"
-        stroke={color}
-        strokeWidth={width}
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-      <circle
-        cx={shape.first[0]}
-        cy={shape.first[1]}
-        r={width / 2}
-        fill={color}
-      />
-      <circle
-        cx={shape.last[0]}
-        cy={shape.last[1]}
-        r={width / 2}
-        fill={color}
-      />
+      <path d={shape.sweeps} fill={color} />
+      {shape.dabs.map((dab, index) => (
+        <MappedShape key={index} shape={dab} fill={color} />
+      ))}
     </>
   );
 }
@@ -100,12 +86,31 @@ function CoverageMask({
         <StrokeShape
           key={index}
           shape={shape}
-          width={shape.width}
           color={shape.mode === "paint" ? "white" : "black"}
         />
       ))}
     </mask>
   );
+}
+
+/**
+ * Viewport bounds of the dabs, which hold the rectangles between them too; a path, the part of a dab
+ * that reaches the horizon, may run anywhere.
+ */
+function bounds(shapes: readonly Geometry[], viewport: Point) {
+  let [left, top, right, bottom] = [Infinity, Infinity, -Infinity, -Infinity];
+  for (const dab of shapes.flatMap((shape) => shape.dabs)) {
+    if ("path" in dab) {
+      return { left: 0, top: 0, right: viewport[0], bottom: viewport[1] };
+    }
+    const [x, y] = dab.ellipse.center;
+    const reach = Math.max(...dab.ellipse.radii);
+    left = Math.min(left, x - reach);
+    top = Math.min(top, y - reach);
+    right = Math.max(right, x + reach);
+    bottom = Math.max(bottom, y + reach);
+  }
+  return { left, top, right, bottom };
 }
 
 function Outline({
@@ -118,23 +123,12 @@ function Outline({
   const mask = useId();
   const edge = `${mask}-edge`;
   const { viewport } = useViewport();
+  const box = bounds(shapes, viewport);
   // Keep the artificial raster edge outside the viewport, including the filter's support.
-  const left = Math.max(
-    -4,
-    Math.min(...shapes.map((shape) => shape.bounds.left)) - 4,
-  );
-  const top = Math.max(
-    -4,
-    Math.min(...shapes.map((shape) => shape.bounds.top)) - 4,
-  );
-  const right = Math.min(
-    viewport[0] + 4,
-    Math.max(...shapes.map((shape) => shape.bounds.right)) + 4,
-  );
-  const bottom = Math.min(
-    viewport[1] + 4,
-    Math.max(...shapes.map((shape) => shape.bounds.bottom)) + 4,
-  );
+  const left = Math.max(-4, box.left - 4);
+  const top = Math.max(-4, box.top - 4);
+  const right = Math.min(viewport[0] + 4, box.right + 4);
+  const bottom = Math.min(viewport[1] + 4, box.bottom + 4);
   if (right <= left || bottom <= top) return null;
   const region = { x: left, y: top, width: right - left, height: bottom - top };
   return (
@@ -243,43 +237,26 @@ export function HealPatchOutline({
           onDrop: moveSource,
         }
       : undefined;
+  const destinationAnchor = destination[0].first;
+  const sourceAnchor = source ? source[0].first : undefined;
   return (
     <>
       <Outline shapes={destination} kind="destination" />
-      <HealAnchor
-        kind="destination"
-        center={destination[0].center}
-        drag={destinationDrag}
-      />
+      {destinationAnchor && (
+        <HealAnchor
+          kind="destination"
+          center={destinationAnchor}
+          drag={destinationDrag}
+        />
+      )}
       {source && (
         <>
           <Outline shapes={source} kind="source" />
-          <HealAnchor
-            kind="source"
-            center={source[0].center}
-            drag={sourceDrag}
-          />
+          {sourceAnchor && (
+            <HealAnchor kind="source" center={sourceAnchor} drag={sourceDrag} />
+          )}
         </>
       )}
     </>
   );
 }
-
-/** A patch's first-point anchor, which selects it, so painting over its body starts a new patch. */
-export const HealPatchSelector = memo(function HealPatchSelector({
-  patch,
-  onSelect,
-}: {
-  patch: HealPatch;
-  onSelect: (id: string) => void;
-}) {
-  const mapping = useDocumentMapping();
-  const [x, y] = patch.strokes[0].points[0];
-  return (
-    <HealAnchor
-      kind="destination"
-      center={mapping.toScreen([x, y])}
-      onSelect={() => onSelect(patch.id)}
-    />
-  );
-});

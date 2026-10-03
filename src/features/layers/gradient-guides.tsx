@@ -1,5 +1,7 @@
+import { MappedShape } from "@/components/editor/mapped-shape";
+import type { DocumentMapping } from "@/components/editor/mapping";
 import { rotateCursor } from "@/components/icons/rotate-cursor";
-import type { Gradient, RadialGradient } from "@/core/document";
+import type { Gradient, LinearGradient, RadialGradient } from "@/core/document";
 import type { Point } from "@/core/image/frame";
 import { type GradientHandle, radialPoint } from "./gradient";
 
@@ -80,137 +82,201 @@ function Guide({
   );
 }
 
+/**
+ * Lines of equal coverage through the start, end, and middle, across the gradient in the photo; they
+ * stay straight as perspective maps them, though no longer parallel.
+ */
 function LinearGuides({
-  startPoint,
-  endPoint,
+  mask,
+  mapping,
   extent,
 }: {
-  startPoint: Point;
-  endPoint: Point;
+  mask: LinearGradient;
+  mapping: DocumentMapping;
   extent: number;
 }) {
-  const dx = endPoint[0] - startPoint[0],
-    dy = endPoint[1] - startPoint[1];
-  const length = Math.max(1, Math.hypot(dx, dy));
-  const direction: Point = [(-dy / length) * extent, (dx / length) * extent];
-  const center: Point = [
-    (startPoint[0] + endPoint[0]) / 2,
-    (startPoint[1] + endPoint[1]) / 2,
+  const along: Point = [
+    mask.end[0] - mask.start[0],
+    mask.end[1] - mask.start[1],
   ];
+  const across: Point = [-along[1], along[0]];
+  /** A guide where its point shows, with the gradient's direction there for its cursor. */
+  function guide(point: Point) {
+    const at = mapping.toScreen(point);
+    if (!at) return undefined;
+    const [dx, dy] = mapping.direction(point, across);
+    const length = Math.max(1, Math.hypot(dx, dy));
+    const direction: Point = [(dx / length) * extent, (dy / length) * extent];
+    const cursor = resizeCursor([0, 0], mapping.direction(point, along));
+    return { at, direction, cursor };
+  }
+  const start = guide(mask.start);
+  const end = guide(mask.end);
+  const middle = guide([
+    (mask.start[0] + mask.end[0]) / 2,
+    (mask.start[1] + mask.end[1]) / 2,
+  ]);
   return (
     <g>
       <title>Linear gradient guides</title>
-      <Guide
-        point={startPoint}
-        direction={direction}
-        handle="start"
-        cursor={resizeCursor(startPoint, endPoint)}
-      />
-      <Guide
-        point={endPoint}
-        direction={direction}
-        handle="end"
-        cursor={resizeCursor(startPoint, endPoint)}
-      />
-      <Guide
-        point={center}
-        direction={direction}
-        handle="rotate"
-        cursor={rotationCursor}
-      />
-      <Handle point={center} handle="move" label="Move gradient" />
+      {start && (
+        <Guide
+          point={start.at}
+          direction={start.direction}
+          handle="start"
+          cursor={start.cursor}
+        />
+      )}
+      {end && (
+        <Guide
+          point={end.at}
+          direction={end.direction}
+          handle="end"
+          cursor={end.cursor}
+        />
+      )}
+      {middle && (
+        <>
+          <Guide
+            point={middle.at}
+            direction={middle.direction}
+            handle="rotate"
+            cursor={rotationCursor}
+          />
+          <Handle point={middle.at} handle="move" label="Move gradient" />
+        </>
+      )}
     </g>
   );
 }
 
 function RadialGuides({
   mask,
-  screen,
+  mapping,
 }: {
   mask: RadialGradient;
-  screen: (point: Point) => Point;
+  mapping: DocumentMapping;
 }) {
-  const center = screen(mask.center);
-  const right = screen(radialPoint(mask, 1, 0));
-  const bottom = screen(radialPoint(mask, 0, 1));
-  const feather = screen(radialPoint(mask, 1 - mask.feather, 0));
-  const showFeather =
-    Math.min(
-      Math.hypot(feather[0] - center[0], feather[1] - center[1]),
-      Math.hypot(feather[0] - right[0], feather[1] - right[1]),
-    ) >= 24;
-  const rotationRadius =
-    1 +
-    24 / Math.max(1, Math.hypot(bottom[0] - center[0], bottom[1] - center[1]));
-  const transform = `matrix(${right[0] - center[0]},${right[1] - center[1]},${bottom[0] - center[0]},${bottom[1] - center[1]},${center[0]},${center[1]})`;
+  const at = (x: number, y: number) => radialPoint(mask, x, y);
+  const screen = (x: number, y: number) => mapping.toScreen(at(x, y));
+  /** The viewport direction, where a point of the ellipse shows, of its radius through that point. */
+  function radius(x: number, y: number) {
+    const [px, py] = at(x, y);
+    return mapping.direction(at(x, y), [
+      px - mask.center[0],
+      py - mask.center[1],
+    ]);
+  }
+  /** A radius handle's cursor, along its radius as shown there. */
+  const resize = (x: number, y: number) => resizeCursor([0, 0], radius(x, y));
+  const center = mapping.toScreen(mask.center);
+  const right = screen(1, 0);
+  const left = screen(-1, 0);
+  const bottom = screen(0, 1);
+  const top = screen(0, -1);
+  const feather = screen(1 - mask.feather, 0);
+  // About 24 viewport pixels past the top.
+  const rotation = screen(
+    0,
+    -1 - 24 / Math.max(1, Math.hypot(...radius(0, -1))),
+  );
+  const apart = (point: Point, other?: Point) =>
+    !other || Math.hypot(point[0] - other[0], point[1] - other[1]) >= 24;
+  const edge = mapping.ellipse({
+    center: mask.center,
+    radii: mask.radius,
+    angle: mask.angle,
+  });
+  const inner = mapping.ellipse({
+    center: mask.center,
+    radii: [
+      mask.radius[0] * (1 - mask.feather),
+      mask.radius[1] * (1 - mask.feather),
+    ],
+    angle: mask.angle,
+  });
+  // Each part shows where it maps, so a mask reaching past the perspective's horizon keeps the rest.
   return (
     <g>
       <title>Radial gradient guides</title>
-      <g transform={transform} fill="none" stroke="white">
-        <circle
-          r="1"
-          fill="transparent"
-          stroke="none"
-          data-gradient-handle="move"
-          aria-label="Move radial gradient"
-          className="pointer-events-auto cursor-grab hover:fill-hover"
-        />
-        <circle
-          r="1"
-          stroke="black"
-          strokeOpacity="0.6"
-          strokeWidth="3"
-          vectorEffect="non-scaling-stroke"
-        />
-        <circle r="1" strokeOpacity="0.9" vectorEffect="non-scaling-stroke" />
-        <circle
-          r={1 - mask.feather}
-          strokeDasharray="4 3"
-          strokeOpacity="0.8"
-          vectorEffect="non-scaling-stroke"
-        />
-        <path
-          d={`M0 -1V${-rotationRadius}`}
-          vectorEffect="non-scaling-stroke"
-        />
+      <g fill="none" stroke="white">
+        {edge && (
+          <>
+            <MappedShape
+              shape={edge}
+              fill="transparent"
+              stroke="none"
+              data-gradient-handle="move"
+              aria-label="Move radial gradient"
+              className="pointer-events-auto cursor-grab hover:fill-hover"
+            />
+            <MappedShape
+              shape={edge}
+              stroke="black"
+              strokeOpacity="0.6"
+              strokeWidth="3"
+            />
+            <MappedShape shape={edge} strokeOpacity="0.9" />
+          </>
+        )}
+        {inner && (
+          <MappedShape
+            shape={inner}
+            strokeDasharray="4 3"
+            strokeOpacity="0.8"
+          />
+        )}
+        {top && rotation && (
+          <line x1={top[0]} y1={top[1]} x2={rotation[0]} y2={rotation[1]} />
+        )}
       </g>
-      <Handle point={center} handle="move" label="Move gradient" />
-      <Handle
-        point={right}
-        handle="radius-x"
-        label="Radial right radius"
-        cursor={resizeCursor(center, right)}
-      />
-      <Handle
-        point={screen(radialPoint(mask, -1, 0))}
-        handle="radius-x"
-        label="Radial left radius"
-        cursor={resizeCursor(center, right)}
-      />
-      <Handle
-        point={bottom}
-        handle="radius-y"
-        label="Radial bottom radius"
-        cursor={resizeCursor(center, bottom)}
-      />
-      <Handle
-        point={screen(radialPoint(mask, 0, -1))}
-        handle="radius-y"
-        label="Radial top radius"
-        cursor={resizeCursor(center, bottom)}
-      />
-      <Handle
-        point={screen(radialPoint(mask, 0, -rotationRadius))}
-        handle="rotate"
-        label="Rotate radial gradient"
-        cursor={rotationCursor}
-      />
-      {showFeather && (
+      {center && <Handle point={center} handle="move" label="Move gradient" />}
+      {right && (
+        <Handle
+          point={right}
+          handle="radius-x"
+          label="Radial right radius"
+          cursor={resize(1, 0)}
+        />
+      )}
+      {left && (
+        <Handle
+          point={left}
+          handle="radius-x"
+          label="Radial left radius"
+          cursor={resize(-1, 0)}
+        />
+      )}
+      {bottom && (
+        <Handle
+          point={bottom}
+          handle="radius-y"
+          label="Radial bottom radius"
+          cursor={resize(0, 1)}
+        />
+      )}
+      {top && (
+        <Handle
+          point={top}
+          handle="radius-y"
+          label="Radial top radius"
+          cursor={resize(0, -1)}
+        />
+      )}
+      {rotation && (
+        <Handle
+          point={rotation}
+          handle="rotate"
+          label="Rotate radial gradient"
+          cursor={rotationCursor}
+        />
+      )}
+      {feather && apart(feather, center) && apart(feather, right) && (
         <Handle
           point={feather}
           handle="feather"
           label="Radial feather"
-          cursor={resizeCursor(center, right)}
+          cursor={resize(1, 0)}
         />
       )}
     </g>
@@ -219,24 +285,20 @@ function RadialGuides({
 
 export function GradientGuides({
   mask,
-  screen,
+  mapping,
   extent,
 }: {
   mask: Gradient;
-  screen: (point: Point) => Point;
+  mapping: DocumentMapping;
   extent: number;
 }) {
   return (
     <svg className="pointer-events-none absolute inset-0 size-full overflow-visible">
       <title>Gradient guides</title>
       {mask.kind === "linear" && (
-        <LinearGuides
-          startPoint={screen(mask.start)}
-          endPoint={screen(mask.end)}
-          extent={extent}
-        />
+        <LinearGuides mask={mask} mapping={mapping} extent={extent} />
       )}
-      {mask.kind === "radial" && <RadialGuides mask={mask} screen={screen} />}
+      {mask.kind === "radial" && <RadialGuides mask={mask} mapping={mapping} />}
     </svg>
   );
 }
