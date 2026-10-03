@@ -83,7 +83,7 @@ export function RendererProvider({
       );
       const input = target && "toneCurve" in target ? target.id : undefined;
       const source = document.preview.getState().rangeSource;
-      // An open gesture renders a proxy; its end renders the same scene in full.
+      // An open gesture keeps the display's density even where a Remove patch waits for its field.
       const interactive = document.history.status.getState().editing;
       // A dropped input or source can stay live; only a new one needs a render.
       if (

@@ -9,7 +9,7 @@ type Cached = {
   output: Target;
 };
 
-/** A reduced copy of the source for interactive rendering, kept until the source, factor, or version changes. */
+/** A reduced copy of the source, which renders at the display's density read, kept until the source, factor, or version changes. */
 export function createProxy(gpu: Gpu) {
   const reduce = effect(gpu, shader);
   let cached: Cached | undefined;

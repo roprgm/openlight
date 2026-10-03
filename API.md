@@ -120,7 +120,7 @@ Creative LUTs expect and return display-referred, sRGB-encoded color. The layer 
 
 ## History
 
-Each content change creates an undo step unless a group is open. No-op edits add no history. Preview changes stay outside history. Groups do not nest. The preview renders a reduced proxy of the image at the display's scale, in a group or not, and the full image only where the display shows every source pixel; exports always render in full.
+Each content change creates an undo step unless a group is open. No-op edits add no history. Preview changes stay outside history. Groups do not nest. The preview renders a reduced proxy of the image at the display's scale, in a group or not, and the full image where the display shows every source pixel or, outside a group, where a Remove patch still waits for its field; exports always render in full.
 
 | Method | Behavior |
 | --- | --- |
