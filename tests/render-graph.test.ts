@@ -65,7 +65,8 @@ test("a shared branch renders once and reuses effects, buffers, and temporary st
   const gpu = await init();
   const image = target(gpu, { size: [8, 8], format: "rgba16float" });
   const source = input(image);
-  const graph = createRenderGraph(gpu);
+  // Sets of up to 16 texels stay for a zoom to return to; larger ones go once a smaller renders.
+  const graph = createRenderGraph(gpu, undefined, 16);
   const shared = mixed(source, "shared");
   const branch = mixed(mixed(shared, "middle"), "branch");
   const joined = merge(
@@ -99,18 +100,19 @@ test("a shared branch renders once and reuses effects, buffers, and temporary st
   expect(graph.render([shared])[0]).toBe(saved);
   expect(graph.inspect().textures).toHaveLength(1);
   expect(() => output.color.view).toThrow("destroyed");
-  // A larger idle set goes once a smaller size renders; a smaller one stays while a larger renders.
+  // The full-size set goes once a reduced size renders; reduced sets stay whichever way the zoom goes.
   const sized = (size: number) =>
     mixed(source, "shared", { size: [size, size] });
   const [proxy] = graph.render([sized(4)]);
   expect(proxy.size).toEqual([4, 4]);
   expect(() => saved.color.view).toThrow("destroyed");
-  const [full] = graph.render([shared]);
-  expect(graph.inspect().textures).toHaveLength(2);
+  const [small] = graph.render([sized(2)]);
   expect(graph.render([sized(4)])[0]).toBe(proxy);
+  const [full] = graph.render([shared]);
+  expect(graph.inspect().textures).toHaveLength(3);
+  expect(graph.render([sized(2)])[0]).toBe(small);
   expect(() => full.color.view).toThrow("destroyed");
-  graph.render([sized(2)]);
-  expect(graph.inspect().textures).toHaveLength(1);
+  expect(graph.inspect().textures).toHaveLength(2);
   // Removing a composition retires its cached effect so its name can be reused.
   graph.release("shared");
   const replacement = merge(

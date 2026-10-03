@@ -57,13 +57,17 @@ const largest = (counts: ReadonlyMap<string, number>) =>
     }),
   );
 
-/** Owns effects, storage buffers, and transient targets for one renderer. */
-export function createRenderGraph(gpu: Gpu, timer?: Timer) {
+/**
+ * Owns effects, storage buffers, and transient targets for one renderer. Idle targets of a set whose
+ * largest has up to `held` texels stay for the next render at that size; larger sets, the photo's
+ * own size, go once a smaller set renders.
+ */
+export function createRenderGraph(gpu: Gpu, timer?: Timer, held = 0) {
   const pool: Target[] = [];
   /**
-   * How many targets of each size the last two distinct sets of sizes used, most recent first, the
-   * older one kept only while its targets are no larger than the newer one's: a render that zooms
-   * in keeps the small set it returns to, and one that zooms out lets the large set go.
+   * How many targets of each size recent renders used, most recent first, one set per size of its
+   * largest target. A reduced set stays, so a zoom that returns to its size allocates nothing, which
+   * Safari penalizes; a larger set stays only while the latest render is larger still.
    */
   let recent: Map<string, number>[] = [];
   const effects = new Map<string, Pass>();
@@ -185,18 +189,18 @@ export function createRenderGraph(gpu: Gpu, timer?: Timer) {
       for (const image of written) {
         used.set(sizeKey(image), (used.get(sizeKey(image)) ?? 0) + 1);
       }
-      // Sizes that one set contains of the other are the same mode with more or fewer effects: the new
-      // counts replace the old, so the peak of an effect since turned off is let go.
-      const contains = (a: Map<string, number>, b: Map<string, number>) =>
-        [...b.keys()].every((key) => a.has(key));
-      const sameMode = (counts: Map<string, number>) =>
-        contains(counts, used) || contains(used, counts);
+      // A set of the same largest size is the same reduction with more or fewer effects: the new counts
+      // replace the old, so the peak of an effect since turned off is let go.
       recent = [
         used,
-        ...recent.filter(
-          (counts) => !sameMode(counts) && largest(counts) <= largest(used),
-        ),
-      ].slice(0, 2);
+        ...recent.filter((counts) => {
+          const texels = largest(counts);
+          return (
+            texels !== largest(used) &&
+            (texels <= held || texels < largest(used))
+          );
+        }),
+      ];
       // Past these counts, an idle target is an old crop size or an old peak.
       const kept = new Map<string, number>();
       for (const image of pool) {

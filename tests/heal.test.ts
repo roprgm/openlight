@@ -322,6 +322,12 @@ test("renders follow the display's density, except that a proxy lacking a Remove
     renderer.setDisplayScale(1);
     await Promise.resolve();
     expect(size()).toEqual([128, 96]);
+    // Returning to a reduction already rendered allocates nothing: its proxy and intermediates stayed.
+    const made = spyOn(gpu.gpu, "createTexture");
+    renderer.setDisplayScale(0.5);
+    await Promise.resolve();
+    expect(size()).toEqual([64, 48]);
+    expect(made).not.toHaveBeenCalled();
   } finally {
     renderer.dispose();
     document.dispose();

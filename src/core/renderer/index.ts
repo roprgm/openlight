@@ -151,7 +151,12 @@ export function createRenderer(
   }: RendererOptions = {},
 ) {
   const source = resource.image;
-  const graph = createRenderGraph(gpu, timer);
+  // Sets reduced to a quarter of the photo or less stay for the zoom to come back to them.
+  const graph = createRenderGraph(
+    gpu,
+    timer,
+    (source.size[0] * source.size[1]) / 4,
+  );
   const strokes = createStrokes(gpu);
   const brushes = createPaintRaster(gpu, strokes, "r8unorm");
   const masks = createMaskCoverage(brushes);

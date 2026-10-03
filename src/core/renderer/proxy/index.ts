@@ -4,49 +4,47 @@ import shader from "./proxy.wgsl";
 
 type Cached = {
   source: Target;
-  factor: number;
   version: number;
-  output: Target;
+  /** The reduced copy at each factor rendered, so a zoom that returns to a factor allocates nothing. */
+  outputs: Map<number, Target>;
 };
 
-/** A reduced copy of the source, which renders at the display's density read, kept until the source, factor, or version changes. */
+/** Reduced copies of the source, which renders at the display's density read, kept until the source or version changes. */
 export function createProxy(gpu: Gpu) {
   const reduce = effect(gpu, shader);
   let cached: Cached | undefined;
+  function clear() {
+    for (const output of cached?.outputs.values() ?? []) {
+      output.color.dispose();
+    }
+    cached = undefined;
+  }
   return {
+    /** A reduced copy of the source at `factor`, rendered now. */
+    reduce(source: Target, factor: number) {
+      const output = target(gpu, {
+        size: [
+          Math.max(1, Math.ceil(source.size[0] / factor)),
+          Math.max(1, Math.ceil(source.size[1] / factor)),
+        ],
+        format: source.format,
+      });
+      reduce.set({ source: source.color, factor });
+      frame(gpu, (frame) => frame.pass(output, reduce));
+      return output;
+    },
     render(source: Target, factor: number, version = 0): RenderInput {
-      const size: [number, number] = [
-        Math.max(1, Math.ceil(source.size[0] / factor)),
-        Math.max(1, Math.ceil(source.size[1] / factor)),
-      ];
-      if (
-        !cached ||
-        cached.source !== source ||
-        cached.factor !== factor ||
-        cached.version !== version
-      ) {
-        let output = cached?.output;
-        if (
-          !output ||
-          output.size[0] !== size[0] ||
-          output.size[1] !== size[1] ||
-          output.format !== source.format
-        ) {
-          output?.color.dispose();
-          output = target(gpu, { size, format: source.format });
-        }
-        reduce.set({ source: source.color, factor });
-        frame(gpu, (frame) => frame.pass(output, reduce));
-        cached = { source, factor, version, output };
+      if (cached?.source !== source || cached.version !== version) {
+        clear();
+        cached = { source, version, outputs: new Map() };
       }
-      return input(cached.output, [
-        source.size[0] / size[0],
-        source.size[1] / size[1],
+      const output = cached.outputs.get(factor) ?? this.reduce(source, factor);
+      cached.outputs.set(factor, output);
+      return input(output, [
+        source.size[0] / output.size[0],
+        source.size[1] / output.size[1],
       ]);
     },
-    dispose() {
-      cached?.output.color.dispose();
-      cached = undefined;
-    },
+    dispose: clear,
   };
 }
