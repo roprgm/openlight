@@ -16,12 +16,6 @@ export type RemoveField = {
   readonly size: Point;
 };
 
-/** A Remove field resource: its field once synthesized, or until then the field its synthesis extends. */
-export type FieldRecord = {
-  readonly field?: RemoveField;
-  readonly base?: string;
-};
-
 /**
  * Owns the document's image files and GPU targets, the deflated pixels paint layers settled into, and
  * Remove fields, outside scene history.
@@ -29,7 +23,8 @@ export type FieldRecord = {
 export function createResources() {
   const images = new Map<string, { file: File } & ImageSource>();
   const paints = new Map<string, Blob>();
-  const fields = new Map<string, FieldRecord>();
+  /** Each Remove field by ID, undefined while it waits to be synthesized. */
+  const fields = new Map<string, RemoveField | undefined>();
   let disposed = false;
   function open() {
     if (disposed) {
@@ -66,22 +61,22 @@ export function createResources() {
       }
       return pixels;
     },
-    /** Reserves a Remove field for a new set of strokes, which extends `base` once synthesized. */
-    reserveField(base?: string) {
+    /** Reserves a Remove field for a new set of strokes, to be synthesized. */
+    reserveField() {
       open();
       const id = crypto.randomUUID();
-      fields.set(id, base ? { base } : {});
+      fields.set(id, undefined);
       return id;
     },
-    /** A saved document restores Remove fields under their original IDs. */
-    addField(id: string, record: FieldRecord) {
+    /** A saved document restores Remove fields under their original IDs, synthesized or not. */
+    addField(id: string, field?: RemoveField) {
       open();
-      fields.set(id, record);
+      fields.set(id, field);
     },
     /** Keeps the field synthesized for a reserved ID; the first one stays, and a closed document drops it. */
     fillField(id: string, field: RemoveField) {
-      if (!disposed && fields.has(id) && !fields.get(id)?.field) {
-        fields.set(id, { field });
+      if (!disposed && fields.has(id) && !fields.get(id)) {
+        fields.set(id, field);
       }
     },
     field(id: string) {

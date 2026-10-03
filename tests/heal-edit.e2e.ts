@@ -65,7 +65,6 @@ for (const mode of ["Remove", "Heal"]) {
         return layer?.kind === "heal" ? layer.patches : [];
       });
     const original = (await patches())[0];
-    const removed = await readImage(page, undefined, samples);
     const layerId = await page.evaluate(
       () => window.openlight.getState().selectedLayerId,
     );
@@ -110,9 +109,6 @@ for (const mode of ["Remove", "Heal"]) {
     }
     // Separate strokes never draw a connecting segment through the uncovered gap.
     expect(repaired.samples?.[2]).toEqual(before.samples?.[2]);
-    // Remove keeps what it filled and synthesizes only the new stroke.
-    if (original.mode === "remove")
-      expect(repaired.samples?.[0]).toEqual(removed.samples?.[0]);
     await size.fill("20");
     await size.press("Enter");
     await page.keyboard.down("Alt");

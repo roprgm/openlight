@@ -30,36 +30,6 @@ export function dabTouchesImage(
   );
 }
 
-/** Tests ordered coverage, so an erased hole is available for a new patch. */
-export function patchContains(
-  strokes: readonly BrushStroke[],
-  at: Point,
-  minimumRadius = 0,
-) {
-  let covered = false;
-  for (const stroke of strokes) {
-    const radius =
-      stroke.mode === "paint"
-        ? Math.max(minimumRadius, stroke.size / 2)
-        : stroke.size / 2;
-    const touches = stroke.points.some(([x, y], index) => {
-      const [ax, ay] = stroke.points[Math.max(0, index - 1)];
-      const dx = x - ax;
-      const dy = y - ay;
-      const length = dx * dx + dy * dy;
-      const t = length
-        ? Math.max(
-            0,
-            Math.min(1, ((at[0] - ax) * dx + (at[1] - ay) * dy) / length),
-          )
-        : 0;
-      return Math.hypot(at[0] - ax - t * dx, at[1] - ay - t * dy) <= radius;
-    });
-    if (touches) covered = stroke.mode === "paint";
-  }
-  return covered;
-}
-
 /** Bounds include the whole soft brush edge, with room for a known boundary. */
 export function patchBounds(
   strokes: readonly BrushStroke[],

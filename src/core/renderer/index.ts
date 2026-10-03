@@ -1,7 +1,6 @@
 import type { Gpu, Target, Timer } from "vgpu";
 import {
   type BrushStroke,
-  type FieldRecord,
   hasPaint,
   type MaskLayer,
   type PaintLayer,
@@ -72,7 +71,7 @@ export type Composition = {
   paint: (layer: PaintLayer) => PaintInput | undefined;
   /** Rasterized coverage of an effect's own stroke, such as a Healing patch. */
   patch: (id: string, strokes: readonly BrushStroke[]) => PatchInput;
-  /** The Remove field a patch shows, or else the nearest one the renderer holds that its synthesis extends. */
+  /** The Remove field a patch shows, when the renderer holds it. */
   field: (patch: RemovePatch) => PatchField | undefined;
   /** Keeps a Remove field this render synthesizes for a patch, for the renders after it. */
   keepField: (
@@ -82,12 +81,8 @@ export type Composition = {
   ) => void;
 };
 
-/** A Remove field a render shows, `complete` when it is the patch's own rather than one it extends. */
-export type PatchField = {
-  texels: RenderImage;
-  lattice: FieldLattice;
-  complete: boolean;
-};
+/** A Remove field a render shows. */
+export type PatchField = { texels: RenderImage; lattice: FieldLattice };
 
 /** App composition describes requested outputs; the engine owns their storage. */
 export type SceneProcessing = (
@@ -119,8 +114,8 @@ export type RendererOptions = {
   timer?: Timer;
   /** The settled pixels a paint layer's or brush mask's `raster` names. */
   paintPixels?: (id: string) => Blob;
-  /** A Remove field resource: its field once synthesized, or else the field its synthesis extends. */
-  field?: (id: string) => FieldRecord | undefined;
+  /** The Remove field the document saved under an ID, once synthesized. */
+  field?: (id: string) => RemoveField | undefined;
   /** Receives each Remove field the renderer synthesizes, read back; without it nothing is read back. */
   saveField?: (id: string, field: RemoveField) => void;
 };
@@ -138,7 +133,7 @@ export function createRenderer(
     paintPixels = () => {
       throw Error("This renderer has no settled paint.");
     },
-    field: fieldRecord = () => undefined,
+    field: savedField = () => undefined,
     saveField,
   }: RendererOptions = {},
 ) {
@@ -197,12 +192,9 @@ export function createRenderer(
         paints.draw(layer.id, layer, developed.size);
       }
     }
-    // Remove fields stay while their patches do, shown or not, and so do the fields they extend.
+    // Remove fields stay while their patches do, shown or not.
     for (const { patch } of removePatches(scene.layers)) {
-      const held = heldField(patch.field);
-      if (held) {
-        fields.retain(held);
-      }
+      fields.retain(patch.field);
     }
     const image =
       factor > 1 ? proxy.render(developed, factor, version) : input(developed);
@@ -234,17 +226,10 @@ export function createRenderer(
         }),
       paint: (layer) => paints.input(layer),
       patch: (id, strokes) => patches.patch(id, strokes, developed.size),
-      field: (patch) => {
-        // Patches that share a field, such as duplicates, show the one this render synthesizes.
-        const synthesized = syntheses.find(({ id }) => id === patch.field);
-        if (synthesized) {
-          const { texels, lattice } = synthesized;
-          return { texels, lattice, complete: true };
-        }
-        const id = heldField(patch.field);
-        const held = id && fields.get(id);
-        return held ? { ...held, complete: id === patch.field } : undefined;
-      },
+      // Patches that share a field, such as duplicates, show the one this render synthesizes.
+      field: (patch) =>
+        syntheses.find(({ id }) => id === patch.field) ??
+        fields.get(patch.field),
       keepField: (patch, lattice, texels) =>
         syntheses.push({ id: patch.field, lattice, texels }),
     });
@@ -301,35 +286,13 @@ export function createRenderer(
   function paintRaster(id: string) {
     return paints.get(id) ? paints : brushes;
   }
-  /** A Remove field's ID, then, while each waits to be synthesized, the IDs of the fields it extends. */
-  function* lineage(id: string) {
-    let next: string | undefined = id;
-    while (next) {
-      yield next;
-      const record = fieldRecord(next);
-      next = record?.field ? undefined : record?.base;
-    }
-  }
-  /** The ID of the field held for a patch's own field: that field, or the nearest one it extends. */
-  function heldField(id: string) {
-    for (const ancestor of lineage(id)) {
-      if (fields.get(ancestor)) {
-        return ancestor;
-      }
-    }
-    return undefined;
-  }
-  /** Remove fields to load before rendering: for a patch with none held, the saved one nearest its own. */
+  /** Remove fields to load before rendering: saved ones the renderer holds nothing for. */
   function staleFields(scene: Scene) {
     const stale = new Map<string, RemoveField>();
     for (const { patch } of removePatches(scene.layers)) {
-      if (heldField(patch.field)) {
-        continue;
-      }
-      const nearest = [...lineage(patch.field)].at(-1) ?? patch.field;
-      const saved = fieldRecord(nearest)?.field;
-      if (saved) {
-        stale.set(nearest, saved);
+      const saved = savedField(patch.field);
+      if (saved && !fields.get(patch.field)) {
+        stale.set(patch.field, saved);
       }
     }
     return [...stale];
@@ -549,12 +512,12 @@ export function createRenderer(
         return read ? [[id, read] as const] : [];
       });
       const unread = ids.some(
-        (id) => !capturing.has(id) && fields.get(id) && !fieldRecord(id)?.field,
+        (id) => !capturing.has(id) && fields.get(id) && !savedField(id),
       );
       const found = await hold(async () => {
         const found = new Map<string, RemoveField>();
         for (const id of ids) {
-          const saved = fieldRecord(id)?.field;
+          const saved = savedField(id);
           if (saved) {
             found.set(id, saved);
             continue;

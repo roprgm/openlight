@@ -7,9 +7,9 @@ import {
   completeFields,
   createDocument,
   createResources,
-  fieldRecords,
   findLayer,
   removePatches,
+  sceneFields,
 } from "@/core/document";
 import { createImageSource } from "@/core/image";
 import { imageFrame } from "@/core/image/frame";
@@ -54,7 +54,6 @@ test("Remove passes never overwrite distinct uniforms before their frame submits
   const gpu = await init();
   const source = target(gpu, { size: [64, 64], format: "rgba16float" });
   const coverage = target(gpu, { size: [64, 64], format: "r8unorm" });
-  const base = target(gpu, { size: [64, 64], format: "rg16float" });
   const graph = createRenderGraph(gpu);
   const uploads = spyOn(gpu.gpu.queue, "writeBuffer");
   const lattice = { origin: [0, 0], scale: 1, size: source.size } as const;
@@ -65,7 +64,6 @@ test("Remove passes never overwrite distinct uniforms before their frame submits
         { coverage: input(coverage), origin: [0, 0] },
         lattice,
         "remove",
-        { texels: input(base), lattice },
       ),
     ]);
     const uniforms = new Map<GPUBuffer, Uint8Array>();
@@ -81,7 +79,6 @@ test("Remove passes never overwrite distinct uniforms before their frame submits
   } finally {
     uploads.mockRestore();
     graph.dispose();
-    base.color.dispose();
     coverage.color.dispose();
     source.color.dispose();
     gpu.dispose();
@@ -186,7 +183,7 @@ function patchesOf(document: ReturnType<typeof createDocument>, layer: string) {
   return healing.patches;
 }
 
-test("a nested Remove synthesizes once for its strokes, whatever changes below or hides it, extends on new strokes, and undoes without solving again", async () => {
+test("a nested Remove synthesizes once for its strokes, whatever changes below or hides it, synthesizes its whole shape again on new strokes, and undoes without solving again", async () => {
   const gpu = await init();
   const source = createImageSource(
     target(gpu, { size: [128, 96], format: "rgba16float" }),
@@ -220,7 +217,7 @@ test("a nested Remove synthesizes once for its strokes, whatever changes below o
   /** Whether the document saved the field the renderer synthesized, once its readback finishes. */
   const saved = async () => {
     await renderer.captureFields([]);
-    return document.resources.field(own())?.field !== undefined;
+    return document.resources.field(own()) !== undefined;
   };
   try {
     await render();
@@ -255,8 +252,9 @@ test("a nested Remove synthesizes once for its strokes, whatever changes below o
         size: 2,
         points: [[64, 48, 1]],
       });
-      // A new stroke takes a new field, which extends the earlier one.
-      expect(document.resources.field(own())).toEqual({ base: before });
+      // A new stroke takes a new field, to synthesize for the whole new shape.
+      expect(own()).not.toBe(before);
+      expect(document.resources.field(own())).toBeUndefined();
       // A proxy keeps the field it holds; only full resolution synthesizes the new stroke.
       await render(true);
       expect(solves()).toBe(false);
@@ -269,8 +267,7 @@ test("a nested Remove synthesizes once for its strokes, whatever changes below o
       await render();
       expect(solves()).toBe(false);
     }
-    // Undo and redo reach every stroke version's saved field, and show it without solving again, even
-    // when the field it extends is the one held.
+    // Undo and redo reach every stroke version's saved field, and show it without solving again.
     for (const travel of ["undo", "redo"] as const) {
       for (let step = 0; step < 4; step++) {
         document.history[travel]();
@@ -308,10 +305,10 @@ test("a snapshot taken while a Remove field is read back keeps it once its photo
     const [{ patch }] = removePatches(document.scene.getState().layers);
     // The render synthesizes the field and starts reading it back; another photo then closes this one.
     void renderer.update(document.scene.getState());
-    const snapshot = completeFields(document, fieldRecords(document));
+    const snapshot = completeFields(document, sceneFields(document));
     renderer.dispose();
     document.dispose();
-    expect((await snapshot).get(patch.field)?.field).toBeDefined();
+    expect((await snapshot).get(patch.field)).toBeDefined();
   } finally {
     source.dispose();
     gpu.dispose();
@@ -339,15 +336,15 @@ test("a snapshot reads back a Remove field whose save failed, and fails when tha
     const [{ patch }] = removePatches(document.scene.getState().layers);
     await renderer.update(document.scene.getState());
     await renderer.captureFields([]);
-    expect(document.resources.field(patch.field)).toEqual({});
-    const records = fieldRecords(document);
+    expect(document.resources.field(patch.field)).toBeUndefined();
+    const records = sceneFields(document);
     await expect(completeFields(document, records)).rejects.toThrow(
       "Device lost",
     );
     failing = false;
     const completed = await completeFields(document, records);
-    expect(completed.get(patch.field)?.field).toBeDefined();
-    expect(document.resources.field(patch.field)?.field).toBeDefined();
+    expect(completed.get(patch.field)).toBeDefined();
+    expect(document.resources.field(patch.field)).toBeDefined();
   } finally {
     stop();
     renderer.dispose();

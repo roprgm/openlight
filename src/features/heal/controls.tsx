@@ -2,10 +2,11 @@ import { IconButton } from "@roprgm/ui/icon-button";
 import { ListItem, ListItemAction } from "@roprgm/ui/list-item";
 import { Menu, MenuContent, MenuItem, MenuTrigger } from "@roprgm/ui/menu";
 import { CoverageThumbnail } from "@/components/editor/coverage-thumbnail";
+import { OpacityInput } from "@/components/editor/opacity-input";
 import { useDocument } from "@/components/editor/session";
 import { Icon } from "@/components/icons/icon";
 import type { HealPatch } from "@/core/document";
-import { deleteHealPatch, duplicateHealPatch } from "./edits";
+import { deleteHealPatch, duplicateHealPatch, setHealPatch } from "./edits";
 import { useHealing } from "./mode";
 import { PatchModeIcon } from "./mode-buttons";
 import { patchThumbnailRegion } from "./model";
@@ -74,14 +75,6 @@ function PatchActions({
   );
 }
 
-/** The brush size, and the opacity once lowered; the donor is edited on the canvas. */
-function patchSummary(patch: HealPatch) {
-  const size = `${Math.round(patch.strokes[0].size)} px`;
-  return patch.opacity < 1
-    ? `${size} · ${Math.round(patch.opacity * 100)}%`
-    : size;
-}
-
 /** Shows the ordered repair stack; selection is shared with the canvas and floating bar. */
 export function HealControls({
   id,
@@ -134,11 +127,15 @@ export function HealControls({
                 mode={patch.mode}
                 className="size-3.5 shrink-0 text-secondary"
               />
-              <span className="shrink-0 text-secondary tabular-nums">
-                {patchSummary(patch)}
-              </span>
             </button>
             <ListItemAction>
+              <OpacityInput
+                label={`Patch ${index + 1} opacity`}
+                value={patch.opacity}
+                onChange={(opacity) =>
+                  setHealPatch(document, id, patch.id, { opacity })
+                }
+              />
               <PatchActions
                 layer={id}
                 patch={patch}

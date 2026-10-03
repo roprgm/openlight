@@ -6,10 +6,16 @@ import { useRenderer } from "@/components/editor/pipeline";
 import { useDocument, useSelectedLayer } from "@/components/editor/session";
 import { useToolLayer } from "@/components/editor/tool-layer";
 import { useViewport } from "@/components/editor/viewport";
-import { type BrushStroke, findLayer, type Layer } from "@/core/document";
+import {
+  type BrushStroke,
+  findLayer,
+  type HealPatch,
+  type Layer,
+} from "@/core/document";
 import type { Point } from "@/core/image/frame";
 import { useDisposable } from "@/hooks/use-disposable";
 import { containsTarget } from "@/lib/dom";
+import { anchorReach, HealAnchor } from "./anchor";
 import {
   addHealPatch,
   addHealStroke,
@@ -18,7 +24,7 @@ import {
   setHealSource,
 } from "./edits";
 import { useHealing } from "./mode";
-import { dabTouchesImage, findHealPatch, patchContains } from "./model";
+import { dabTouchesImage, findHealPatch } from "./model";
 import { HealPatchOutline, HealStrokePreview } from "./outline";
 import { createHealSearch } from "./source";
 
@@ -67,6 +73,11 @@ export function HealOverlay({
     ? hoveredPatch
     : undefined;
   const visiblePatch = drawingPatch ?? hovered ?? selectedPatch;
+  /** The patch whose handles show: the selected one, while its outline shows and no stroke draws on it. */
+  const handled =
+    selected && visiblePatch === selected.id && drawingPatch !== selected.id
+      ? selected
+      : undefined;
   const pending = useRef<
     | { layer: string; stroke: BrushStroke; patch?: string }
     | {
@@ -112,9 +123,16 @@ export function HealOverlay({
     }
   }
   const marker = source && mapping.toScreen(source);
+  /** Where a patch's first point shows, moved by `offset` for its source; none behind the horizon. */
+  function firstShown(patch: HealPatch, offset: Point = [0, 0]) {
+    const [x, y] = patch.strokes[0].points[0];
+    return mapping.toScreen([x + offset[0], y + offset[1]]);
+  }
   /**
-   * A press within 8 viewport pixels of another patch selects the topmost one instead of painting; a
-   * second finger belongs to the canvas, which turns a stroke into a pinch.
+   * A press on the first point of a patch that isn't selected selects the topmost one instead of
+   * painting, unless the selected patch's handles show there to take it; elsewhere it paints, so a new
+   * patch can start over another. A second finger belongs to the canvas, which turns a stroke into a
+   * pinch.
    */
   function selectPatchAt(event: PointerEvent<HTMLDivElement>) {
     if (
@@ -128,16 +146,23 @@ export function HealOverlay({
       return;
     }
     const box = camera.ref.current?.getBoundingClientRect();
-    const at =
-      box &&
-      mapping.toDocument([event.clientX - box.left, event.clientY - box.top]);
-    const hit =
-      at &&
-      patches.findLast(
-        (patch) =>
-          patch.id !== selectedPatch &&
-          patchContains(patch.strokes, at, 8 / mapping.scale(at)),
-      );
+    if (!box) return;
+    const at: Point = [event.clientX - box.left, event.clientY - box.top];
+    const reaches = (anchor?: Point) =>
+      anchor !== undefined &&
+      Math.hypot(anchor[0] - at[0], anchor[1] - at[1]) <= anchorReach;
+    if (
+      handled &&
+      (reaches(firstShown(handled)) ||
+        (handled.mode !== "remove" &&
+          handled.id !== resolvingSource &&
+          reaches(firstShown(handled, handled.offset))))
+    ) {
+      return;
+    }
+    const hit = patches.findLast(
+      (patch) => patch.id !== selectedPatch && reaches(firstShown(patch)),
+    );
     if (!hit) return;
     event.preventDefault();
     event.stopPropagation();
@@ -258,6 +283,20 @@ export function HealOverlay({
             className="absolute inset-0 size-full overflow-visible"
             style={{ pointerEvents: "none" }}
           >
+            {/* Every other patch shows its first point, which selects it, under the outline shown. */}
+            {patches.map((patch) => {
+              if (patch.id === visiblePatch) return null;
+              const center = firstShown(patch);
+              return (
+                center && (
+                  <HealAnchor
+                    key={`anchor-${patch.id}`}
+                    kind="destination"
+                    center={center}
+                  />
+                )
+              );
+            })}
             {patches.map(
               (patch) =>
                 visiblePatch === patch.id &&
@@ -270,9 +309,7 @@ export function HealOverlay({
                         patch.id !== drawingPatch &&
                         patch.id !== resolvingSource
                       }
-                      interactive={
-                        patch.id === selectedPatch && patch.id !== drawingPatch
-                      }
+                      interactive={patch.id === handled?.id}
                     />
                   </g>
                 ),

@@ -25,6 +25,9 @@ export type AnchorDrag = {
 
 const marker = { r: 7, fill: "#3b82f6", stroke: "white", strokeWidth: 2 };
 
+/** Viewport pixels from an anchor's center that grab or select it. */
+export const anchorReach = 14;
+
 /** The first-point anchor of a destination or source contour, draggable while its patch is selected. */
 export function HealAnchor({
   kind,
@@ -163,7 +166,7 @@ function DraggedAnchor({
         data-hide-brush-cursor="true"
         cx={center[0]}
         cy={center[1]}
-        r={14}
+        r={anchorReach}
         fill="transparent"
         className="pointer-events-auto cursor-grab active:cursor-grabbing"
         onPointerDown={start}

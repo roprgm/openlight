@@ -1,6 +1,6 @@
 import { expect, test } from "./fixtures";
 import { readImage } from "./images";
-import { box } from "./pointer";
+import { box, drag } from "./pointer";
 
 test("healing preserves an edge, alpha, and HDR texture at full and proxy resolution", async ({
   page,
@@ -257,19 +257,26 @@ test("Healing paints patches, edits them, and undoes", async ({ page }) => {
   await expect(canvas.locator(`[data-heal-patch="${manual.id}"]`)).toHaveCount(
     1,
   );
-  await page.mouse.click(
-    bounds.x + bounds.width / 2 - 250 * scale,
-    bounds.y + bounds.height / 2 - 200 * scale,
-  );
-  await expect(firstPatch).toHaveAttribute("aria-pressed", "true");
-  expect(
-    await page.evaluate(() => {
+  const patchCount = () =>
+    page.evaluate(() => {
       const healing = window.openlight
         .getState()
         .scene?.layers.find((item) => item.kind === "heal");
       return healing?.kind === "heal" ? healing.patches.length : 0;
-    }),
-  ).toBe(2);
+    });
+  // Painting over a patch that isn't selected starts a new one; only its first point selects it.
+  const firstPoint = [
+    bounds.x + bounds.width / 2 - 250 * scale,
+    bounds.y + bounds.height / 2 - 200 * scale,
+  ] as const;
+  await page.mouse.click(firstPoint[0] + 60, firstPoint[1]);
+  await expect.poll(patchCount).toBe(3);
+  await expect(firstPatch).toHaveAttribute("aria-pressed", "false");
+  await page.keyboard.press("ControlOrMeta+z");
+  await expect.poll(patchCount).toBe(2);
+  await page.mouse.click(...firstPoint);
+  await expect(firstPatch).toHaveAttribute("aria-pressed", "true");
+  expect(await patchCount()).toBe(2);
   const sourceX = () =>
     page.evaluate((patchId) => {
       const healing = window.openlight
@@ -360,6 +367,28 @@ test("Healing paints patches, edits them, and undoes", async ({ page }) => {
   });
   await opacity.fill("50");
   await opacity.press("Enter");
+  // The patch's row drags its opacity to zero as one edit, as a layer's row does.
+  const opacityOf = () =>
+    page.evaluate((patchId) => {
+      const healing = window.openlight
+        .getState()
+        .scene?.layers.find((item) => item.kind === "heal");
+      return healing?.kind === "heal"
+        ? healing.patches.find((item) => item.id === patchId)?.opacity
+        : undefined;
+    }, manual.id);
+  const rowOpacity = await box(
+    patchList.getByRole("textbox", { name: "Patch 1 opacity", exact: true }),
+  );
+  const rowY = rowOpacity.y + rowOpacity.height / 2;
+  await drag(
+    page,
+    [rowOpacity.x + rowOpacity.width / 2, rowY],
+    [rowOpacity.x - 300, rowY],
+  );
+  expect(await opacityOf()).toBe(0);
+  await page.keyboard.press("ControlOrMeta+z");
+  expect(await opacityOf()).toBe(0.5);
   const thumbnail = patchList.getByLabel("Patch shape").first();
   const thumbnailBytes = await thumbnail.screenshot();
   const thumbnailMask = await page.evaluate(

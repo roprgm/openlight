@@ -2,9 +2,16 @@ import { effect, frame, init, target } from "vgpu";
 import { encodeImage } from "@/app/editor/export/export-image";
 import { createImageLayer, createLayer } from "@/app/editor/layers";
 import { createEditorRenderer } from "@/app/editor/renderer";
-import type { FieldRecord, HealPatch, Scene } from "@/core/document";
+import {
+  createDocument,
+  createResources,
+  type HealPatch,
+  type Scene,
+} from "@/core/document";
 import { createImageSource } from "@/core/image";
 import { imageFrame } from "@/core/image/frame";
+import { addHealStroke, addRemovePatch } from "@/features/heal/edits";
+import { addLayer } from "@/features/layers/edits";
 
 export type InpaintFixture =
   | "flat"
@@ -248,32 +255,37 @@ export async function renderInpaintReference(
 }
 
 /**
- * A Remove patch over two spots on noise, where any other donor shows: a stroke added to it, or one
- * erasing part of it, leaves what it filled as it was and synthesizes only the rest.
+ * A Remove patch over a dark bar on noise whose first stroke stops short of the bar's tip: a stroke
+ * added over the tip, and one erasing part of the patch, each synthesize the whole new shape, as
+ * painting it at once does, so nothing of the bar stays.
  */
-export async function renderInpaintExtension() {
+export async function renderInpaintReshape() {
   const gpu = await init();
   const errors: string[] = [];
   gpu.onError((error) => errors.push(error.message));
   const size: [number, number] = [192, 144];
   const image = target(gpu, { size, format: "rgba16float" });
   const source = createImageSource(image);
-  // Each stroke count is a version with its own field, extending the one before, as edits reserve them.
-  const fields = ["spots/1", "spots/2", "spots/3"];
-  const records = new Map<string, FieldRecord>([
-    [fields[0], {}],
-    [fields[1], { base: fields[0] }],
-    [fields[2], { base: fields[1] }],
-  ]);
+  const resources = createResources();
+  const document = createDocument(
+    {
+      frame: imageFrame(size),
+      layers: [
+        createImageLayer(resources.add(new File([], "bar.png"), source), "Bar"),
+      ],
+    },
+    resources,
+  );
+  // The editor's renderer keeps each version's field in the document; another paints shapes at once.
   const renderer = createEditorRenderer(gpu, source, {
-    field: (id) => records.get(id),
+    field: (id) => document.resources.field(id),
+    saveField: (id, field) => document.resources.fillField(id, field),
   });
-  const first = [56, 72] as const;
-  const second = [140, 72] as const;
-  const erased = [48, 72] as const;
+  const fresh = createEditorRenderer(gpu, source);
   const stroke = (
     mode: "paint" | "erase",
-    [x, y]: readonly [number, number],
+    from: readonly [number, number],
+    to: readonly [number, number],
     diameter: number,
   ) =>
     ({
@@ -281,33 +293,17 @@ export async function renderInpaintExtension() {
       size: diameter,
       feather: 0,
       flow: 1,
-      points: [[x, y, 1]],
+      points: [
+        [from[0], from[1], 1],
+        [to[0], to[1], 1],
+      ],
     }) as const;
+  const erased = [70, 60] as const;
   const strokes = [
-    stroke("paint", first, 32),
-    stroke("paint", second, 32),
-    stroke("erase", erased, 12),
+    stroke("paint", [40, 72], [118, 72], 28),
+    stroke("paint", [118, 72], [156, 72], 28),
+    stroke("erase", erased, erased, 8),
   ];
-  const healing = createLayer("heal");
-  const scene = (count: number): Scene => ({
-    frame: imageFrame(size),
-    layers: [
-      createImageLayer("source", "Spots"),
-      {
-        ...healing,
-        patches: [
-          {
-            id: "spots",
-            mode: "remove",
-            field: fields[count - 1],
-            feather: 0,
-            opacity: 1,
-            strokes: strokes.slice(0, count),
-          },
-        ],
-      },
-    ],
-  });
   try {
     frame(gpu, (f) =>
       f.pass(
@@ -317,70 +313,86 @@ export async function renderInpaintExtension() {
           `
       @fragment fn fs_main(@builtin(position) p: vec4f) -> @location(0) vec4f {
         let noise = fract(sin(dot(floor(p.xy), vec2f(12.9898, 78.233))) * 43758.5453);
-        let spot = distance(p.xy, vec2f(${first.join(", ")})) < 12.0 || distance(p.xy, vec2f(${second.join(", ")})) < 12.0;
-        return vec4f(select(vec3f(0.3 + 0.2 * noise, 0.4, 0.5), vec3f(0.015), spot), 1.0);
+        let bar = p.x >= 40.0 && p.x <= 150.0 && abs(p.y - 72.0) < 6.0;
+        return vec4f(select(vec3f(0.3 + 0.2 * noise, 0.4, 0.5), vec3f(0.015), bar), 1.0);
       }
     `,
         ),
       ),
     );
-    const renders = [];
-    for (const count of [1, 2, 3]) {
-      await renderer.update(scene(count));
-      renders.push({
-        pixels: await renderer.fullImage().readFloats(),
-        solved: renderer
-          .inspect()
-          .passes.some((name) => name.includes("/inpaint/")),
-      });
-    }
     const original = await image.readFloats();
-    // The largest change in red between two renders over the pixels `within` selects.
-    function change(
-      a: Float32Array,
-      b: Float32Array,
+    // Each stroke edits the patch as the editor does, and every version renders as it is reached.
+    const layer = addLayer(document, createLayer("heal"));
+    const patch = addRemovePatch(document, layer, strokes[0]);
+    const reshaped = [];
+    for (const next of [undefined, strokes[1], strokes[2]]) {
+      if (next) addHealStroke(document, layer, patch, next);
+      await renderer.update(document.scene.getState());
+      reshaped.push(await renderer.fullImage().readFloats());
+    }
+    // The same shapes painted at once: the scene of each version, rendered with no field held.
+    const atOnce = [];
+    for (const count of [2, 3]) {
+      const scene = document.scene.getState();
+      const [, healing] = scene.layers;
+      if (healing.kind !== "heal") throw Error("The Healing layer is gone.");
+      const [painted] = healing.patches;
+      if (painted?.mode !== "remove") throw Error("The Remove patch is gone.");
+      await fresh.update({
+        ...scene,
+        layers: [
+          scene.layers[0],
+          {
+            ...healing,
+            patches: [
+              {
+                ...painted,
+                field: `at-once/${count}`,
+                strokes: painted.strokes.slice(0, count),
+              },
+            ],
+          },
+        ],
+      });
+      atOnce.push(await fresh.fullImage().readFloats());
+    }
+    /** The red of each pixel `within` selects. */
+    function reds(
+      pixels: Float32Array,
       within: (x: number, y: number) => boolean,
     ) {
-      let largest = 0;
-      for (let index = 0; index < a.length; index += 4) {
+      const selected = [];
+      for (let index = 0; index < pixels.length; index += 4) {
         const x = ((index / 4) % size[0]) + 0.5;
         const y = Math.floor(index / 4 / size[0]) + 0.5;
-        if (within(x, y))
-          largest = Math.max(largest, Math.abs(a[index] - b[index]));
+        if (within(x, y)) selected.push(pixels[index]);
       }
-      return largest;
+      return selected;
     }
-    const near =
-      ([cx, cy]: readonly [number, number], radius: number) =>
-      (x: number, y: number) =>
-        Math.hypot(x - cx, y - cy) < radius;
-    const [filled, extended, subtracted] = renders.map(({ pixels }) => pixels);
+    function change(a: Float32Array, b: Float32Array) {
+      return Math.max(...a.map((value, index) => Math.abs(value - b[index])));
+    }
+    const bar = (x: number, y: number) =>
+      x >= 40 && x <= 150 && Math.abs(y - 72) < 6;
+    const tip = (x: number, y: number) => bar(x, y) && x > 136;
+    const near = (x: number, y: number) =>
+      Math.hypot(x - erased[0], y - erased[1]) < 3;
+    const [first, added, subtracted] = reshaped;
     return {
       errors,
-      solved: renders.map(({ solved }) => solved),
-      // The first spot, as the first stroke filled it.
-      keptByAdding: change(filled, extended, near(first, 14)),
-      keptByErasing: change(
-        filled,
-        subtracted,
-        (x, y) => near(first, 14)(x, y) && !near(erased, 8)(x, y),
+      missedTip: Math.min(...reds(first, tip)),
+      barLeft: Math.min(...reds(added, bar)),
+      added: change(added, atOnce[0]),
+      erased: change(subtracted, atOnce[1]),
+      erasedRestored: change(
+        new Float32Array(reds(original, near)),
+        new Float32Array(reds(subtracted, near)),
       ),
-      // The second spot was dark before the stroke over it, and the erased part is again.
-      secondFilled: Math.min(
-        ...[...extended].filter(
-          (_, index) =>
-            index % 4 === 0 &&
-            near(second, 10)(
-              ((index / 4) % size[0]) + 0.5,
-              Math.floor(index / 4 / size[0]) + 0.5,
-            ),
-        ),
-      ),
-      erasedRestored: change(original, subtracted, near(erased, 4)),
     };
   } finally {
     renderer.dispose();
-    source.dispose();
+    fresh.dispose();
+    document.dispose();
     gpu.dispose();
   }
 }

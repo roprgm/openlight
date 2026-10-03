@@ -3,7 +3,7 @@ import { createEditorRenderer } from "@/app/editor/renderer";
 import {
   completeFields,
   type EditorDocument,
-  fieldRecords,
+  sceneFields,
   settledPixels,
 } from "@/core/document";
 import type { Point } from "@/core/image/frame";
@@ -86,7 +86,7 @@ function snapshotRender(document: EditorDocument) {
     scene,
     source: document.resources.get(scene.layers[0].source),
     pixels: settledPixels(document, scene),
-    fields: fieldRecords(document, scene),
+    fields: sceneFields(document, scene),
   };
 }
 
