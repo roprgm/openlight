@@ -11,6 +11,7 @@ struct Params {
 @group(0) @binding(2) var<uniform> params: Params;
 @group(0) @binding(3) var<storage, read_write> heights: array<f32>;
 
+// The grid histogram.ts dispatches, and the size of a curve's input, so the input's texels are the votes.
 const samples = vec2u(512, 320);
 // Soft-binning weight spread across a bin pair; kept as a fixed-point scale so atomics stay integer.
 const weight = 1024u;

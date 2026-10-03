@@ -22,6 +22,7 @@ import { unsharpMask } from "@/features/details/unsharp-mask";
 import { fill } from "@/features/fill/pass";
 import { grain } from "@/features/grain/pass";
 import { heal, retainHealPatches } from "@/features/heal/pass";
+import { histogramGrid } from "@/features/histogram/histogram";
 import { lut } from "@/features/lut/pass";
 import { paint } from "@/features/paint/pass";
 import { toneCurves } from "@/features/tone-curves/pass";
@@ -95,7 +96,14 @@ function composeLayer(
     case "mask": {
       const adjusted = pipeline(below, [adjustments(layer.adjustments, name)]);
       if (layer.id === composition.inputId) {
-        input = curveInput(name, adjusted, layer.mask, masks, coverage);
+        input = curveInput(
+          name,
+          adjusted,
+          histogramGrid,
+          layer.mask,
+          masks,
+          coverage,
+        );
       }
       edited = pipeline(adjusted, [
         toneCurves(layer.toneCurve, `${name}/curves`),
@@ -207,7 +215,7 @@ export function createEditorRenderer(
         output: transformImage(full, scene.frame),
         input:
           composition.inputId === sourceLayer.id
-            ? curveInput(name, adjusted)
+            ? curveInput(name, adjusted, histogramGrid)
             : (children.input ?? composite.input),
         rangeSource: children.rangeSource ?? composite.rangeSource,
       };

@@ -128,22 +128,13 @@ export function mixAdjustment(
   );
 }
 
-/** The longest side a curve's input needs: the histogram samples 512 columns of it. */
-const inputEdge = 512;
-
-/** A reduced image of `image`'s kind that stands for the same source pixels, and the image texels each of its texels covers. */
-function inputOutput(image: RenderImage) {
+/** An image of `image`'s kind at the histogram's grid, standing for the same source pixels. */
+function inputOutput(image: RenderImage, grid: readonly [number, number]) {
   const [width, height] = sourceSize(image);
-  const reduction = Math.min(1, inputEdge / Math.max(width, height));
-  const size = [
-    Math.max(1, Math.round(width * reduction)),
-    Math.max(1, Math.round(height * reduction)),
-  ] as const;
   return {
-    size,
+    size: grid,
     format: image.format,
-    scale: [width / size[0], height / size[1]] as const,
-    ratio: [image.size[0] / size[0], image.size[1] / size[1]] as const,
+    scale: [width / grid[0], height / grid[1]] as const,
   };
 }
 
@@ -154,24 +145,26 @@ const linear: GPUSamplerDescriptor = {
 
 /**
  * The image a layer's curve receives, with the mask's coverage as alpha, so a histogram of it weighs
- * the pixels the curve affects. It is drawn at the few texels the histogram samples, so inspecting a
- * layer costs no full-size texture. Layer opacity is left out: it scales the effect, not the region.
+ * the pixels the curve affects. It is drawn on `grid`, the texels the histogram counts, each the very
+ * image texel the histogram would read at full size, so inspecting a layer costs no full-size
+ * texture. Layer opacity is left out: it scales the effect, not the region.
  */
 export function curveInput(
   name: string,
   image: RenderImage,
+  grid: readonly [number, number],
   mask?: Mask,
   modifiers: readonly MaskModifier[] = [],
   coverage?: RenderImage,
 ) {
-  const { ratio, ...output } = inputOutput(image);
+  const output = inputOutput(image, grid);
   if (coverage) {
     return merge(
       { image, coverage },
       node(`${name}/raster-input`, rasterInputShader, {
         ...output,
         samplers: { coverageSampler: linear },
-        set: { params: { ratio } },
+        set: { params: { grid } },
       }),
     );
   }
@@ -186,7 +179,7 @@ export function curveInput(
         params: {
           ...gradientParams(gradient),
           modifierCount: gradients.length,
-          ratio,
+          grid,
           imageScale: image.scale,
         },
       },

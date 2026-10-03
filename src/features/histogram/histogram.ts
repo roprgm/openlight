@@ -9,6 +9,9 @@ type Passes = {
 /** `GPUMapMode.READ`, which the page's WebGPU types leave out. */
 const mapRead = 1;
 
+/** The grid of texels the histogram counts, whatever the image's size: one vote per grid point, 16 × 16 per workgroup. */
+export const histogramGrid: readonly [number, number] = [512, 320];
+
 /** The counting passes, compiled once per GPU and shared, since a histogram mounts with each curve shown. */
 const shared = new WeakMap<Gpu, Passes>();
 
@@ -57,7 +60,9 @@ export function createHistogram(gpu: Gpu) {
     const params = { working: Number(working), channels };
     const bytes = channels * 1024;
     bins.write(empty);
-    count.set({ source: source.color, bins, params }).dispatch(32, 20);
+    count
+      .set({ source: source.color, bins, params })
+      .dispatch(histogramGrid[0] / 16, histogramGrid[1] / 16);
     finish.set({ bins, heights, params }).dispatch(1);
     const encoder = gpu.gpu.createCommandEncoder();
     encoder.copyBufferToBuffer(heights.gpu, 0, staging.gpu, 0, bytes);

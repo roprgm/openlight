@@ -133,17 +133,19 @@ test("a shared branch renders once and reuses effects, buffers, and temporary st
   gpu.dispose();
 });
 
-test("a curve's input is drawn at the histogram's few texels, standing for the whole photo", async () => {
+test("a curve's input is drawn on the histogram's grid, standing for the whole photo", async () => {
   const gpu = await init();
+  const grid = [512, 320] as const;
   const image = input(
     target(gpu, { size: [2048, 1536], format: "rgba16float" }),
   );
-  const whole = curveInput("layer", image);
-  expect(whole.size).toEqual([512, 384]);
-  expect(whole.scale).toEqual([4, 4]);
+  const whole = curveInput("layer", image, grid);
+  expect(whole.size).toEqual([512, 320]);
+  expect(whole.scale).toEqual([4, 4.8]);
   const coverage = input(target(gpu, { size: [1024, 768], format: "r8unorm" }));
-  const painted = curveInput("mask", image, undefined, [], coverage);
-  expect(painted.size).toEqual([512, 384]);
+  const painted = curveInput("mask", image, grid, undefined, [], coverage);
+  expect(painted.size).toEqual([512, 320]);
+  // A smaller photo fills the grid too, its texels repeated as the histogram repeats them.
   const small = input(target(gpu, { size: [300, 200], format: "rgba16float" }));
-  expect(curveInput("small", small).size).toEqual([300, 200]);
+  expect(curveInput("small", small, grid).size).toEqual([512, 320]);
 });
