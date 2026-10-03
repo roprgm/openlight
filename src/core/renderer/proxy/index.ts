@@ -9,7 +9,7 @@ type Cached = {
   outputs: Map<number, Target>;
 };
 
-/** Reduced copies of the source, which renders at the display's density read, kept until the source or version changes. */
+/** Reduced copies of the source, which renders at the display's density read, kept until swept or until the source or version changes. */
 export function createProxy(gpu: Gpu) {
   const reduce = effect(gpu, shader);
   let cached: Cached | undefined;
@@ -44,6 +44,15 @@ export function createProxy(gpu: Gpu) {
         source.size[0] / output.size[0],
         source.size[1] / output.size[1],
       ]);
+    },
+    /** Lets go of the copies at every factor but `kept`. */
+    sweep(kept: readonly number[]) {
+      for (const [factor, output] of cached?.outputs ?? []) {
+        if (!kept.includes(factor)) {
+          output.color.dispose();
+          cached?.outputs.delete(factor);
+        }
+      }
     },
     dispose: clear,
   };

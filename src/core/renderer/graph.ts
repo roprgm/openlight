@@ -47,29 +47,24 @@ function plan(outputs: readonly RenderImage[]) {
 
 const sizeKey = (image: { size: readonly number[]; format: string }) =>
   `${image.size[0]}x${image.size[1]} ${image.format}`;
-/** Texels of the largest target in a set of counts by size key. */
-const largest = (counts: ReadonlyMap<string, number>) =>
-  Math.max(
-    0,
-    ...[...counts.keys()].map((key) => {
-      const [width, height] = key.split(" ")[0].split("x").map(Number);
-      return width * height;
-    }),
-  );
 
 /**
- * Owns effects, storage buffers, and transient targets for one renderer. Idle targets of a set whose
- * largest has up to `held` texels stay for the next render at that size; larger sets, the photo's
- * own size, go once a smaller set renders.
+ * Which reduction a render is, so its sizes replace the ones that reduction used before, and the
+ * reductions whose idle targets stay for the next render at them.
  */
-export function createRenderGraph(gpu: Gpu, timer?: Timer, held = 0) {
+export type Retention = {
+  reduction: number;
+  kept: readonly number[];
+};
+
+/** Owns effects, storage buffers, and transient targets for one renderer. */
+export function createRenderGraph(gpu: Gpu, timer?: Timer) {
   const pool: Target[] = [];
   /**
-   * How many targets of each size recent renders used, most recent first, one set per size of its
-   * largest target. A reduced set stays, so a zoom that returns to its size allocates nothing, which
-   * Safari penalizes; a larger set stays only while the latest render is larger still.
+   * How many targets of each size the latest render at each reduction used: the current one's and the
+   * kept ones', so a zoom that returns to a kept reduction allocates nothing, which Safari penalizes.
    */
-  let recent: Map<string, number>[] = [];
+  const recent = new Map<number, Map<string, number>>();
   const effects = new Map<string, Pass>();
   let passes: string[] = [];
   let disposed = false;
@@ -142,7 +137,10 @@ export function createRenderGraph(gpu: Gpu, timer?: Timer, held = 0) {
         }
       }
     },
-    render(outputs: readonly RenderImage[]) {
+    render(
+      outputs: readonly RenderImage[],
+      { reduction, kept }: Retention = { reduction: 1, kept: [] },
+    ) {
       if (disposed) {
         throw Error("Render graph is closed.");
       }
@@ -189,23 +187,19 @@ export function createRenderGraph(gpu: Gpu, timer?: Timer, held = 0) {
       for (const image of written) {
         used.set(sizeKey(image), (used.get(sizeKey(image)) ?? 0) + 1);
       }
-      // A set of the same largest size is the same reduction with more or fewer effects: the new counts
-      // replace the old, so the peak of an effect since turned off is let go.
-      recent = [
-        used,
-        ...recent.filter((counts) => {
-          const texels = largest(counts);
-          return (
-            texels !== largest(used) &&
-            (texels <= held || texels < largest(used))
-          );
-        }),
-      ];
-      // Past these counts, an idle target is an old crop size or an old peak.
-      const kept = new Map<string, number>();
+      // The new counts replace the reduction's old ones, so an old crop size or the peak of an effect
+      // since turned off is let go, and so is every reduction no longer kept.
+      recent.set(reduction, used);
+      for (const other of recent.keys()) {
+        if (other !== reduction && !kept.includes(other)) {
+          recent.delete(other);
+        }
+      }
+      // Past these counts, an idle target is an old size or an old peak.
+      const counted = new Map<string, number>();
       for (const image of pool) {
         if (written.has(image) || live.has(image)) {
-          kept.set(sizeKey(image), (kept.get(sizeKey(image)) ?? 0) + 1);
+          counted.set(sizeKey(image), (counted.get(sizeKey(image)) ?? 0) + 1);
         }
       }
       for (let i = pool.length - 1; i >= 0; i--) {
@@ -215,11 +209,11 @@ export function createRenderGraph(gpu: Gpu, timer?: Timer, held = 0) {
         }
         const key = sizeKey(image);
         const allowed = Math.max(
-          ...recent.map((counts) => counts.get(key) ?? 0),
+          ...[...recent.values()].map((counts) => counts.get(key) ?? 0),
         );
-        const count = kept.get(key) ?? 0;
+        const count = counted.get(key) ?? 0;
         if (count < allowed) {
-          kept.set(key, count + 1);
+          counted.set(key, count + 1);
           continue;
         }
         image.color.dispose();
@@ -250,7 +244,7 @@ export function createRenderGraph(gpu: Gpu, timer?: Timer, held = 0) {
         image.color.dispose();
       }
       pool.length = 0;
-      recent = [];
+      recent.clear();
     },
   };
 }

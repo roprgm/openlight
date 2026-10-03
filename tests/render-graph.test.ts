@@ -65,8 +65,7 @@ test("a shared branch renders once and reuses effects, buffers, and temporary st
   const gpu = await init();
   const image = target(gpu, { size: [8, 8], format: "rgba16float" });
   const source = input(image);
-  // Sets of up to 16 texels stay for a zoom to return to; larger ones go once a smaller renders.
-  const graph = createRenderGraph(gpu, undefined, 16);
+  const graph = createRenderGraph(gpu);
   const shared = mixed(source, "shared");
   const branch = mixed(mixed(shared, "middle"), "branch");
   const joined = merge(
@@ -100,19 +99,28 @@ test("a shared branch renders once and reuses effects, buffers, and temporary st
   expect(graph.render([shared])[0]).toBe(saved);
   expect(graph.inspect().textures).toHaveLength(1);
   expect(() => output.color.view).toThrow("destroyed");
-  // The full-size set goes once a reduced size renders; reduced sets stay whichever way the zoom goes.
+  // Kept reductions keep their targets whichever way the zoom goes; a reduction not kept, the
+  // photo's own size, goes once another renders, and a reduction's new sizes replace its old ones.
   const sized = (size: number) =>
     mixed(source, "shared", { size: [size, size] });
-  const [proxy] = graph.render([sized(4)]);
+  const [proxy] = graph.render([sized(4)], { reduction: 2, kept: [2] });
   expect(proxy.size).toEqual([4, 4]);
   expect(() => saved.color.view).toThrow("destroyed");
-  const [small] = graph.render([sized(2)]);
-  expect(graph.render([sized(4)])[0]).toBe(proxy);
-  const [full] = graph.render([shared]);
+  const [small] = graph.render([sized(2)], { reduction: 4, kept: [4, 2] });
+  expect(graph.render([sized(4)], { reduction: 2, kept: [2, 4] })[0]).toBe(
+    proxy,
+  );
+  const [full] = graph.render([shared], { reduction: 1, kept: [2, 4] });
   expect(graph.inspect().textures).toHaveLength(3);
-  expect(graph.render([sized(2)])[0]).toBe(small);
+  expect(graph.render([sized(2)], { reduction: 4, kept: [4, 2] })[0]).toBe(
+    small,
+  );
   expect(() => full.color.view).toThrow("destroyed");
-  expect(graph.inspect().textures).toHaveLength(2);
+  const [cropped] = graph.render([sized(3)], { reduction: 2, kept: [2, 4] });
+  expect(() => proxy.color.view).toThrow("destroyed");
+  expect(graph.render([sized(2)], { reduction: 4, kept: [4] })[0]).toBe(small);
+  expect(() => cropped.color.view).toThrow("destroyed");
+  expect(graph.inspect().textures).toHaveLength(1);
   // Removing a composition retires its cached effect so its name can be reused.
   graph.release("shared");
   const replacement = merge(

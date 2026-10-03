@@ -113,6 +113,9 @@ type RenderRequest = {
   interactive: boolean;
 };
 
+/** How many reductions keep their proxy and intermediates, each a quarter of the photo at most. */
+const keptReductions = 4;
+
 function sameBalance(a: WhiteBalance | undefined, b: WhiteBalance | undefined) {
   return a?.temperature === b?.temperature && a?.tint === b?.tint;
 }
@@ -151,12 +154,7 @@ export function createRenderer(
   }: RendererOptions = {},
 ) {
   const source = resource.image;
-  // Sets reduced to a quarter of the photo or less stay for the zoom to come back to them.
-  const graph = createRenderGraph(
-    gpu,
-    timer,
-    (source.size[0] * source.size[1]) / 4,
-  );
+  const graph = createRenderGraph(gpu, timer);
   const strokes = createStrokes(gpu);
   const brushes = createPaintRaster(gpu, strokes, "r8unorm");
   const masks = createMaskCoverage(brushes);
@@ -183,6 +181,11 @@ export function createRenderer(
   let requested: RenderRequest | undefined;
   /** Whether the last render, a gesture's proxy, lacked a Remove patch's field. */
   let lacked = false;
+  /**
+   * The reductions rendered at last, latest first, whose proxies and intermediates stay: a zoom
+   * returns to them, and Safari penalizes textures made and freed. The photo's own size never stays.
+   */
+  let reductions: number[] = [];
   let next: RenderRequest | undefined;
   let pending: Promise<void> | undefined;
   /** A raster being read back, a painting to settle or a Remove field to save; nothing renders meanwhile. */
@@ -279,14 +282,22 @@ export function createRenderer(
     // with it; the two images every render shows, the range source, and coverage follow.
     const inputs = images.input ? [images.input] : [];
     const sources = images.rangeSource ? [images.rangeSource] : [];
-    const targets = graph.render([
-      ...inputs,
-      images.full,
-      images.output,
-      ...sources,
-      ...covered.values(),
-      ...syntheses.map(({ texels }) => texels),
-    ]);
+    if (factor > 1) {
+      reductions = [factor, ...reductions.filter((kept) => kept !== factor)];
+      reductions.length = Math.min(reductions.length, keptReductions);
+    }
+    const targets = graph.render(
+      [
+        ...inputs,
+        images.full,
+        images.output,
+        ...sources,
+        ...covered.values(),
+        ...syntheses.map(({ texels }) => texels),
+      ],
+      { reduction: factor, kept: reductions },
+    );
+    proxy.sweep(reductions);
     const [inputTarget] = targets;
     [full, output] = targets.slice(inputs.length);
     const [sourceTarget] = targets.slice(inputs.length + 2);
