@@ -7,10 +7,11 @@ import {
   createDocument,
   createResources,
   findLayer,
+  removePatches,
 } from "@/core/document";
 import { createImageSource } from "@/core/image";
 import { imageFrame } from "@/core/image/frame";
-import { createRenderGraph, input } from "@/core/renderer";
+import { createRenderGraph, type FieldLattice, input } from "@/core/renderer";
 import { setAdjustments } from "@/features/adjustments/edits";
 import {
   addHealPatch,
@@ -24,6 +25,7 @@ import {
   setHealSource,
 } from "@/features/heal/edits";
 import { inpaintField } from "@/features/heal/inpaint";
+import { watchRemoveFields } from "@/features/heal/save-fields";
 import { addLayer, deleteLayer, setLayer } from "@/features/layers/edits";
 
 function healFixture(size: readonly [number, number] = [64, 64]) {
@@ -258,6 +260,63 @@ test("a nested Remove synthesizes once for its strokes, whatever changes below o
     document.dispose();
     source.dispose();
     gpu.dispose();
+  }
+});
+
+test("Remove fields save once no gesture is open, and a stroke added during a readback takes its field as a base", async () => {
+  const { document, layer } = healFixture();
+  // A renderer whose renders the test runs, and whose readbacks finish, oldest first, when it says.
+  let render = () => {};
+  const reads: (() => void)[] = [];
+  const renderer = {
+    subscribe(listener: () => void) {
+      render = listener;
+      return () => {};
+    },
+    readField: () =>
+      new Promise<{ texels: Blob; lattice: FieldLattice }>((resolve) =>
+        reads.push(() =>
+          resolve({
+            texels: new Blob(["field"]),
+            lattice: { origin: [0, 0], scale: 1, size: [8, 8] },
+          }),
+        ),
+      ),
+  };
+  async function finish() {
+    reads.shift()?.();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  }
+  const patches = () =>
+    [...removePatches(document.scene.getState().layers)].map(
+      ({ patch }) => patch,
+    );
+  const first = addRemovePatch(document, layer, dab);
+  addRemovePatch(document, layer, dab);
+  const { undoCount } = document.history.status.getState();
+  const stop = watchRemoveFields(document, renderer);
+  try {
+    // A gesture drops the readback that finishes inside it and reads nothing more until it ends.
+    render();
+    document.history.begin();
+    await finish();
+    expect(reads).toHaveLength(0);
+    expect(patches().map(({ field }) => field)).toEqual([undefined, undefined]);
+    // Its end saves both fields, with no undo step.
+    document.history.commit();
+    await finish();
+    await finish();
+    expect(patches().map(({ field }) => field?.strokes)).toEqual([1, 1]);
+    expect(document.history.status.getState().undoCount).toBe(undoCount);
+
+    addHealStroke(document, layer, first, dab);
+    addHealStroke(document, layer, first, dab);
+    await finish();
+    expect(patches()[0].strokes).toHaveLength(3);
+    expect(patches()[0].field?.strokes).toBe(2);
+  } finally {
+    stop();
+    document.dispose();
   }
 });
 
