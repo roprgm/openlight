@@ -1,13 +1,15 @@
-import { useEffect, useRef, useState } from "react";
+import { type PointerEvent, useEffect, useRef, useState } from "react";
 import { useGpu } from "vgpu-react";
 import { BrushCanvas } from "@/components/editor/brush-canvas";
 import { useDocumentMapping } from "@/components/editor/mapping";
 import { useRenderer } from "@/components/editor/pipeline";
 import { useDocument, useSelectedLayer } from "@/components/editor/session";
 import { useToolLayer } from "@/components/editor/tool-layer";
+import { useViewport } from "@/components/editor/viewport";
 import { type BrushStroke, findLayer, type Layer } from "@/core/document";
 import type { Point } from "@/core/image/frame";
 import { useDisposable } from "@/hooks/use-disposable";
+import { containsTarget } from "@/lib/dom";
 import {
   addHealPatch,
   addHealStroke,
@@ -16,12 +18,8 @@ import {
   setHealSource,
 } from "./edits";
 import { useHealing } from "./mode";
-import { dabTouchesImage, findHealPatch } from "./model";
-import {
-  HealPatchHitTarget,
-  HealPatchOutline,
-  HealStrokePreview,
-} from "./outline";
+import { dabTouchesImage, findHealPatch, patchContains } from "./model";
+import { HealPatchOutline, HealStrokePreview } from "./outline";
 import { createHealSearch } from "./source";
 
 function isHealLayer(layer: Layer): layer is Extract<Layer, { kind: "heal" }> {
@@ -38,6 +36,7 @@ export function HealOverlay({
 }) {
   const document = useDocument();
   const renderer = useRenderer();
+  const camera = useViewport();
   const mapping = useDocumentMapping();
   const gpu = useGpu();
   const search = useDisposable(() => createHealSearch(gpu), [gpu]);
@@ -113,164 +112,188 @@ export function HealOverlay({
     }
   }
   const marker = source && mapping.toScreen(source);
+  /** A press within 8 viewport pixels of another patch selects the topmost one instead of painting. */
+  function selectPatchAt(event: PointerEvent<HTMLDivElement>) {
+    if (
+      !containsTarget(event) ||
+      event.button !== 0 ||
+      event.shiftKey ||
+      event.altKey ||
+      camera.panMode
+    ) {
+      return;
+    }
+    const box = camera.ref.current?.getBoundingClientRect();
+    const at =
+      box &&
+      mapping.toDocument([event.clientX - box.left, event.clientY - box.top]);
+    const hit =
+      at &&
+      patches.findLast(
+        (patch) =>
+          patch.id !== selectedPatch &&
+          patchContains(patch.strokes, at, 8 / mapping.scale(at)),
+      );
+    if (!hit) return;
+    event.preventDefault();
+    event.stopPropagation();
+    selectPatch(hit.id);
+  }
   return (
-    <BrushCanvas
-      label="Healing canvas"
-      erase={false}
-      editOnRelease={({ shift, alt }) =>
-        mode === "remove" || Boolean(selected && (shift || alt))
-      }
-      onStart={(stroke, { shift, alt }) => {
-        const layer = selectedHealLayer();
-        if (!layer) return false;
-        const [x, y] = stroke.points[0];
-        const size = document.resources.get(
-          document.scene.getState().layers[0].source,
-        ).image.size;
-        if (!dabTouchesImage([x, y], stroke.size / 2, size)) return false;
-        // Keep the displayed feather when starting a stroke changes the patch selection.
-        brush.update({ feather: stroke.feather });
-        const painted = { ...stroke, flow: 1 };
-        if (selected && (shift || alt)) {
-          const stroke: BrushStroke = {
-            ...painted,
-            mode: alt ? "erase" : "paint",
+    <div className="absolute inset-0" onPointerDownCapture={selectPatchAt}>
+      <BrushCanvas
+        label="Healing canvas"
+        erase={false}
+        editOnRelease={({ shift, alt }) =>
+          mode === "remove" || Boolean(selected && (shift || alt))
+        }
+        onStart={(stroke, { shift, alt }) => {
+          const layer = selectedHealLayer();
+          if (!layer) return false;
+          const [x, y] = stroke.points[0];
+          const size = document.resources.get(
+            document.scene.getState().layers[0].source,
+          ).image.size;
+          if (!dabTouchesImage([x, y], stroke.size / 2, size)) return false;
+          // Keep the displayed feather when starting a stroke changes the patch selection.
+          brush.update({ feather: stroke.feather });
+          const painted = { ...stroke, flow: 1 };
+          if (selected && (shift || alt)) {
+            const stroke: BrushStroke = {
+              ...painted,
+              mode: alt ? "erase" : "paint",
+            };
+            pending.current = { layer: layer.id, patch: selected.id, stroke };
+            setDraft(stroke);
+            setDrawingPatch(selected.id);
+            return true;
+          }
+          if (mode === "remove") {
+            pending.current = { layer: layer.id, stroke: painted };
+            setDraft(painted);
+            selectPatch(undefined);
+            return true;
+          }
+          const offset: Point = source
+            ? [source[0] - x, source[1] - y]
+            : [0, 0];
+          const patch = addHealPatch(document, layer.id, painted, offset, mode);
+          setDrawingPatch(patch);
+          setResolvingSource(source ? undefined : patch);
+          selectPatch(patch);
+          pending.current = {
+            layer: layer.id,
+            mode,
+            patch,
+            automatic: !source,
           };
-          pending.current = { layer: layer.id, patch: selected.id, stroke };
-          setDraft(stroke);
-          setDrawingPatch(selected.id);
           return true;
-        }
-        if (mode === "remove") {
-          pending.current = { layer: layer.id, stroke: painted };
-          setDraft(painted);
-          selectPatch(undefined);
-          return true;
-        }
-        const offset: Point = source ? [source[0] - x, source[1] - y] : [0, 0];
-        const patch = addHealPatch(document, layer.id, painted, offset, mode);
-        setDrawingPatch(patch);
-        setResolvingSource(source ? undefined : patch);
-        selectPatch(patch);
-        pending.current = {
-          layer: layer.id,
-          mode,
-          patch,
-          automatic: !source,
-        };
-        return true;
-      }}
-      onExtend={(points) => {
-        const current = pending.current;
-        if (!current) return;
-        if ("stroke" in current) {
-          const stroke = {
-            ...current.stroke,
-            points: [...current.stroke.points, ...points],
-          };
-          pending.current = { ...current, stroke };
-          setDraft(stroke);
-          return;
-        }
-        extendHealPatch(document, current.layer, points);
-      }}
-      onComplete={complete}
-      onFinish={(committed) => {
-        const current = pending.current;
-        if (current && "stroke" in current) {
-          pending.current = undefined;
-          setDraft(undefined);
-          const scene = document.scene.getState();
-          const available = current.patch
-            ? findHealPatch(scene, current.layer, current.patch)
-            : findLayer(scene.layers, current.layer)?.kind === "heal";
-          if (committed && available) {
-            if (current.patch) {
-              addHealStroke(
-                document,
-                current.layer,
-                current.patch,
-                current.stroke,
-              );
-            } else {
-              selectPatch(
-                addRemovePatch(document, current.layer, current.stroke),
-              );
+        }}
+        onExtend={(points) => {
+          const current = pending.current;
+          if (!current) return;
+          if ("stroke" in current) {
+            const stroke = {
+              ...current.stroke,
+              points: [...current.stroke.points, ...points],
+            };
+            pending.current = { ...current, stroke };
+            setDraft(stroke);
+            return;
+          }
+          extendHealPatch(document, current.layer, points);
+        }}
+        onComplete={complete}
+        onFinish={(committed) => {
+          const current = pending.current;
+          if (current && "stroke" in current) {
+            pending.current = undefined;
+            setDraft(undefined);
+            const scene = document.scene.getState();
+            const available = current.patch
+              ? findHealPatch(scene, current.layer, current.patch)
+              : findLayer(scene.layers, current.layer)?.kind === "heal";
+            if (committed && available) {
+              if (current.patch) {
+                addHealStroke(
+                  document,
+                  current.layer,
+                  current.patch,
+                  current.stroke,
+                );
+              } else {
+                selectPatch(
+                  addRemovePatch(document, current.layer, current.stroke),
+                );
+              }
             }
           }
-        }
-        setDrawingPatch(undefined);
-        if (!committed) setResolvingSource(undefined);
-      }}
-      onPickSource={mode === "remove" || selected ? undefined : setSource}
-      onDone={onDone}
-    >
-      {draft && (
-        <svg
-          aria-hidden="true"
-          className="pointer-events-none absolute inset-0 size-full overflow-visible"
-        >
-          <HealStrokePreview
-            strokes={
-              drawingPatch && selected ? [...selected.strokes, draft] : [draft]
-            }
-          />
-        </svg>
-      )}
-      {healLayer && patches.length > 0 && (
-        <svg
-          aria-hidden="true"
-          className="absolute inset-0 size-full overflow-visible"
-          style={{ pointerEvents: "none" }}
-        >
-          {patches.map(
-            (patch) =>
-              visiblePatch === patch.id &&
-              !(draft && drawingPatch === patch.id) && (
-                <g key={`outline-${patch.id}`} data-heal-patch={patch.id}>
-                  <HealPatchOutline
-                    layer={healLayer.id}
-                    patch={patch}
-                    showSource={
-                      patch.id !== drawingPatch && patch.id !== resolvingSource
-                    }
-                    interactive={
-                      patch.id === selectedPatch && patch.id !== drawingPatch
-                    }
-                  />
-                </g>
-              ),
-          )}
-          {patches.map(
-            (patch) =>
-              patch.id !== selectedPatch && (
-                <HealPatchHitTarget
-                  key={`hit-${patch.id}`}
-                  patch={patch}
-                  onSelect={selectPatch}
-                />
-              ),
-          )}
-        </svg>
-      )}
-      {marker && mode !== "remove" && (
-        <svg
-          aria-hidden="true"
-          className="pointer-events-none absolute inset-0 size-full overflow-visible"
-        >
-          <circle
-            cx={marker[0]}
-            cy={marker[1]}
-            r="8"
-            fill="none"
-            stroke="white"
-          />
-          <path
-            d={`M${marker[0] - 12} ${marker[1]}h24M${marker[0]} ${marker[1] - 12}v24`}
-            stroke="white"
-          />
-        </svg>
-      )}
-    </BrushCanvas>
+          setDrawingPatch(undefined);
+          if (!committed) setResolvingSource(undefined);
+        }}
+        onPickSource={mode === "remove" || selected ? undefined : setSource}
+        onDone={onDone}
+      >
+        {draft && (
+          <svg
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-0 size-full overflow-visible"
+          >
+            <HealStrokePreview
+              strokes={
+                drawingPatch && selected
+                  ? [...selected.strokes, draft]
+                  : [draft]
+              }
+            />
+          </svg>
+        )}
+        {healLayer && patches.length > 0 && (
+          <svg
+            aria-hidden="true"
+            className="absolute inset-0 size-full overflow-visible"
+            style={{ pointerEvents: "none" }}
+          >
+            {patches.map(
+              (patch) =>
+                visiblePatch === patch.id &&
+                !(draft && drawingPatch === patch.id) && (
+                  <g key={`outline-${patch.id}`} data-heal-patch={patch.id}>
+                    <HealPatchOutline
+                      layer={healLayer.id}
+                      patch={patch}
+                      showSource={
+                        patch.id !== drawingPatch &&
+                        patch.id !== resolvingSource
+                      }
+                      interactive={
+                        patch.id === selectedPatch && patch.id !== drawingPatch
+                      }
+                    />
+                  </g>
+                ),
+            )}
+          </svg>
+        )}
+        {marker && mode !== "remove" && (
+          <svg
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-0 size-full overflow-visible"
+          >
+            <circle
+              cx={marker[0]}
+              cy={marker[1]}
+              r="8"
+              fill="none"
+              stroke="white"
+            />
+            <path
+              d={`M${marker[0] - 12} ${marker[1]}h24M${marker[0]} ${marker[1] - 12}v24`}
+              stroke="white"
+            />
+          </svg>
+        )}
+      </BrushCanvas>
+    </div>
   );
 }

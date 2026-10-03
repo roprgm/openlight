@@ -77,12 +77,22 @@ export function GradientOverlay({ shape }: { shape: Gradient["kind"] }) {
       }
     },
   });
-  function documentPoint(event: PointerEvent, box: DOMRect): Point {
-    return mapping.toDocument(event.clientX, event.clientY, box);
+  function documentPoint(event: PointerEvent, box: DOMRect) {
+    return mapping.toDocument([
+      event.clientX - box.left,
+      event.clientY - box.top,
+    ]);
   }
   function start(event: PointerEvent<HTMLDivElement>) {
     const box = camera.ref.current?.getBoundingClientRect();
-    if (event.button !== 0 || !event.isPrimary || camera.panMode || !box) {
+    const from = box && documentPoint(event, box);
+    if (
+      event.button !== 0 ||
+      !event.isPrimary ||
+      camera.panMode ||
+      !box ||
+      !from
+    ) {
       return;
     }
     const target =
@@ -94,7 +104,6 @@ export function GradientOverlay({ shape }: { shape: Gradient["kind"] }) {
     const handle = gradientHandles.find((handle) => handle === target);
     // Guides win over drawing, unless a chosen nesting is waiting for this shape.
     const drawing = !handle || !mask || tool.pending?.shape === shape;
-    const from = documentPoint(event, box);
     if (drawing) {
       const location = locateLayer(document.scene.getState().layers, selected);
       const group =
@@ -144,6 +153,10 @@ export function GradientOverlay({ shape }: { shape: Gradient["kind"] }) {
       return;
     }
     const point = documentPoint(event, drag.box);
+    // Past where input stops the drag keeps its last shape until the pointer returns.
+    if (!point) {
+      return;
+    }
     drag.to = point;
     if (drag.handle === "new") {
       const next = drawGradient(
@@ -170,11 +183,9 @@ export function GradientOverlay({ shape }: { shape: Gradient["kind"] }) {
     }
     // Commit the last preview; pointerup must not reinterpret geometry or Shift.
     if (drag.handle === "new") {
-      const point = drag.to;
-      const distance =
-        Math.hypot(point[0] - drag.from[0], point[1] - drag.from[1]) *
-        camera.scale;
-      if (distance >= 3) {
+      const from = mapping.toScreen(drag.from);
+      const to = mapping.toScreen(drag.to);
+      if (from && to && Math.hypot(to[0] - from[0], to[1] - from[1]) >= 3) {
         tool.create(drag.mask, drag.nesting);
       }
     } else {
@@ -208,7 +219,7 @@ export function GradientOverlay({ shape }: { shape: Gradient["kind"] }) {
       {visible && !camera.panMode && (
         <GradientGuides
           mask={visible}
-          screen={mapping.toScreen}
+          mapping={mapping}
           extent={Math.hypot(...camera.viewport)}
         />
       )}

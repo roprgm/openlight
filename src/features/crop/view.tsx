@@ -7,6 +7,7 @@ import { DockChips, DockControls } from "@/components/editor/dock";
 import { Image } from "@/components/editor/image";
 import { EditorLayout } from "@/components/editor/layout";
 import { PanelBody, PanelHeader } from "@/components/editor/panel";
+import type { Parameter } from "@/components/editor/parameter";
 import { useDocument, useEditorSession } from "@/components/editor/session";
 import { EditorViewport, ViewportStage } from "@/components/editor/viewport";
 import { FlipIcon } from "@/components/icons/flip";
@@ -14,8 +15,16 @@ import { RotateIcon } from "@/components/icons/rotate";
 import { Dial } from "@/components/ui/dial";
 import { imageFrame, type Point } from "@/core/image/frame";
 import { useShortcuts } from "@/hooks/use-shortcuts";
+import { isTyping, typingFields } from "@/lib/dom";
 import { applyCrop } from "./edits";
-import { fitRatio, flip, rotate, turn } from "./geometry";
+import {
+  correctShown,
+  fitRatio,
+  flip,
+  rotate,
+  shownPerspective,
+  turn,
+} from "./geometry";
 import { CropOverlay } from "./overlay";
 
 const actions = [
@@ -77,12 +86,18 @@ function preset(choice: Choice) {
   return presets.find(([name]) => name === choice);
 }
 
-/** Enter on a panel button is its click; elsewhere it applies the crop. */
+/** What the dock's middle row adjusts on a phone. */
+type DockMode = "rotate" | "perspective";
+const dockModes = [
+  ["rotate", "Rotate"],
+  ["perspective", "Perspective"],
+] as const;
+
+/** Enter on a panel button is its click and in a field commits the value; elsewhere it applies the crop. */
 function keepEnter(event: KeyboardEvent) {
   if (
     event.key === "Enter" &&
-    event.target instanceof Element &&
-    event.target.closest("button")
+    isTyping(event.target, `${typingFields}, button`)
   ) {
     event.stopPropagation();
   }
@@ -93,6 +108,7 @@ export function CropEditor({ onClose }: { onClose: () => void }) {
   const { camera } = useEditorSession();
   const [frame, setFrame] = useState(() => document.scene.getState().frame);
   const [reference, setReference] = useState(frame.size);
+  const [mode, setMode] = useState<DockMode>("rotate");
   const sourceId = document.scene.getState().layers[0].source;
   const [width, height] = document.resources.get(sourceId).image.size;
   const source: Point = [width, height];
@@ -169,8 +185,34 @@ export function CropEditor({ onClose }: { onClose: () => void }) {
     defaultValue: 0,
     onChange: (angle: number) => setFrame(rotate(frame, angle, source)),
   };
+  const shown = shownPerspective(frame);
+  /** Perspective along the displayed axes, so Vertical stays vertical through quarter turns and flips. */
+  function keystone(id: string, label: string, axis: 0 | 1): Parameter {
+    return {
+      id,
+      label,
+      min: -100,
+      max: 100,
+      step: 1,
+      value: shown[axis],
+      defaultValue: 0,
+      onChange: (value) =>
+        setFrame(
+          correctShown(
+            frame,
+            axis ? [shown[0], value] : [value, shown[1]],
+            source,
+          ),
+        ),
+    };
+  }
+  const perspective = [
+    keystone("vertical", "Vertical", 1),
+    keystone("horizontal", "Horizontal", 0),
+  ];
   const size = `${frame.size.map(Math.round).join(" × ")} px`;
-  // On a phone the ratios are chips, rotation a dial between the turns and flips, and the actions a footer.
+  // On a phone the ratios are chips beside a choice of what the row between them and the actions
+  // footer adjusts: rotation between the turns and flips, or perspective's dials.
   const dock = (
     <fieldset
       aria-label="Crop"
@@ -178,20 +220,32 @@ export function CropEditor({ onClose }: { onClose: () => void }) {
       onKeyDown={keepEnter}
     >
       <DockControls
+        parameters={mode === "perspective" ? perspective : undefined}
         header={
-          <DockChips
-            label="Aspect ratio"
-            items={ratioOptions.map(
-              ({ value, label }) => [value, label] as const,
-            )}
-            value={choice}
-            onChange={changeRatio}
-          />
+          <div className="flex min-w-0 items-center gap-2">
+            <div className="shrink-0">
+              <DockChips
+                label="Controls"
+                items={dockModes}
+                value={mode}
+                onChange={setMode}
+              />
+            </div>
+            <DockChips
+              label="Aspect ratio"
+              items={ratioOptions.map(
+                ({ value, label }) => [value, label] as const,
+              )}
+              value={choice}
+              onChange={changeRatio}
+            />
+          </div>
         }
       >
+        {/* As tall as the dial row that takes its place, so switching keeps the canvas still. */}
         <section
           aria-label="Rotate and flip image"
-          className="flex min-h-0 flex-1 items-center justify-center gap-2 pb-3"
+          className="flex h-21 shrink-0 items-center justify-center gap-2"
         >
           {actions.slice(0, 2).map((action) => (
             <ActionButton
@@ -209,21 +263,21 @@ export function CropEditor({ onClose }: { onClose: () => void }) {
             />
           ))}
         </section>
-        <div className="flex items-center gap-1.5 px-2.5">
-          <Button variant="ghost" size="sm" onClick={reset}>
-            Reset
-          </Button>
-          <span className="flex-1 truncate text-center text-secondary tabular-nums">
-            {size}
-          </span>
-          <Button variant="ghost" size="sm" onClick={onClose}>
-            Cancel
-          </Button>
-          <Button size="sm" onClick={apply}>
-            Apply
-          </Button>
-        </div>
       </DockControls>
+      <div className="flex items-center gap-1.5 px-2.5 pb-3">
+        <Button variant="ghost" size="sm" onClick={reset}>
+          Reset
+        </Button>
+        <span className="flex-1 truncate text-center text-secondary tabular-nums">
+          {size}
+        </span>
+        <Button variant="ghost" size="sm" onClick={onClose}>
+          Cancel
+        </Button>
+        <Button size="sm" onClick={apply}>
+          Apply
+        </Button>
+      </div>
     </fieldset>
   );
   return (
@@ -247,7 +301,15 @@ export function CropEditor({ onClose }: { onClose: () => void }) {
           className="flex min-h-0 min-w-0 flex-1 flex-col *:not-last:shadow-[inset_0_-1px_0_var(--color-edge)]"
           onKeyDown={keepEnter}
         >
-          <PanelBody header={<PanelHeader title="Crop" onClose={onClose} />}>
+          <PanelBody
+            header={
+              <PanelHeader title="Crop" onClose={onClose}>
+                <Button variant="ghost" size="sm" onClick={reset}>
+                  Reset
+                </Button>
+              </PanelHeader>
+            }
+          >
             <section aria-label="Crop tool" className="space-y-5 p-3.5">
               <div className="flex items-center justify-between text-secondary">
                 Aspect ratio
@@ -266,15 +328,7 @@ export function CropEditor({ onClose }: { onClose: () => void }) {
                 aria-label="Rotate and flip image"
                 className="grid grid-cols-4 items-center gap-2"
               >
-                <h3 className="col-span-3 text-secondary">Rotate & flip</h3>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="justify-self-end"
-                  onClick={reset}
-                >
-                  Reset
-                </Button>
+                <h3 className="col-span-4 text-secondary">Rotate & flip</h3>
                 {actions.map((action) => (
                   <ActionButton
                     key={action.label}
@@ -284,6 +338,12 @@ export function CropEditor({ onClose }: { onClose: () => void }) {
                 ))}
               </section>
               <Slider {...rotation} />
+              <section aria-label="Perspective" className="space-y-3">
+                <h3 className="text-secondary">Perspective</h3>
+                {perspective.map(({ id, ...parameter }) => (
+                  <Slider key={id} {...parameter} />
+                ))}
+              </section>
               <p className="text-secondary">
                 Drag edges or corners to crop, inside to move, outside to
                 rotate. Space + drag to pan; Ctrl/⌘ + scroll to zoom.

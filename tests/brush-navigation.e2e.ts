@@ -94,7 +94,15 @@ for (const { name, shortcut, presses, label } of [
     await size.fill("100");
     await size.press("Enter");
     const bounds = await box(canvas);
-    const cursor = canvas.locator('[data-brush-cursor="true"] circle').first();
+    const cursor = canvas.locator('[data-brush-cursor="true"] ellipse').first();
+    /** The cursor's radii in viewport pixels, a circle without perspective. */
+    const radii = () =>
+      Promise.all(
+        ["rx", "ry"].map(async (name) =>
+          Number(await cursor.getAttribute(name)),
+        ),
+      );
+    const fifty = [expect.closeTo(50, 6), expect.closeTo(50, 6)];
     const strokes = () =>
       page.evaluate(() => {
         const { scene, selectedLayerId } = window.openlight.getState();
@@ -111,14 +119,14 @@ for (const { name, shortcut, presses, label } of [
     const x = bounds.x + bounds.width / 2 + 180;
     const y = bounds.y + bounds.height / 2 + 120;
     await page.mouse.move(x, y);
-    await expect(cursor).toHaveAttribute("r", "50");
+    await expect.poll(radii).toEqual(fifty);
     await page.mouse.click(x, y);
     await expect.poll(async () => (await strokes()).length).toBe(1);
     const first = (await strokes())[0];
     await page.getByRole("button", { name: "Zoom in", exact: true }).click();
     await page.getByRole("button", { name: "Zoom in", exact: true }).click();
     await page.mouse.move(x + 180, y);
-    await expect(cursor).toHaveAttribute("r", "50");
+    await expect.poll(radii).toEqual(fifty);
     await expect(size).toHaveValue("100");
     await page.mouse.click(x + 180, y);
     await expect.poll(async () => (await strokes()).length).toBe(2);
@@ -132,7 +140,7 @@ for (const { name, shortcut, presses, label } of [
     expect(await strokes()).toEqual(recorded);
     await page.getByRole("button", { name: /^\d+%$/ }).click();
     await page.mouse.move(x, y);
-    await expect(cursor).toHaveAttribute("r", "50");
+    await expect.poll(radii).toEqual(fifty);
     await expect(size).toHaveValue("100");
   });
 }

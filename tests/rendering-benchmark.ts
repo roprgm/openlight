@@ -14,6 +14,7 @@ import type {
 import { createImageSource } from "@/core/image";
 import { imageFrame } from "@/core/image/frame";
 import { defaultAdjustments } from "@/features/adjustments/model";
+import { correct } from "@/features/crop/geometry";
 import { createHistogram } from "@/features/histogram/histogram";
 import { defaultCurve } from "@/features/tone-curves/curve";
 
@@ -40,7 +41,8 @@ export type Workload =
   | "remove"
   | "heal-empty"
   | "heal-proxy"
-  | "pipeline-proxy";
+  | "pipeline-proxy"
+  | "perspective";
 
 function summarize(values: number[]) {
   const sorted = values.toSorted((a, b) => a - b);
@@ -314,7 +316,11 @@ export async function benchmarkRendering(
   }
 
   const scene: Scene = {
-    frame: imageFrame(size),
+    // The neutral photo through a perspective correction, which the final transform resamples once.
+    frame:
+      workload === "perspective"
+        ? correct(imageFrame(size), [40, -60], size)
+        : imageFrame(size),
     layers: [
       {
         ...createImageLayer("benchmark", "Benchmark"),

@@ -78,6 +78,8 @@ Edits update the scene and history synchronously. Rendering may finish later, pa
 
 `setFrame(frame)` replaces the complete [ImageFrame](src/core/image/frame.ts) as an undoable edit. Geometry uses finite two-element coordinate pairs, positive dimensions, and nonzero scale. The frame is validated and copied; later changes to the supplied object do not affect the document.
 
+The frame's `perspective`, `[x, y]` from −100 to 100 and `[0, 0]` when omitted, corrects keystone along the photo's own axes before the crop, rotation, and flips. Positive `x` enlarges the right edge against the left, positive `y` the bottom against the top: at 100 they take 1/0.55 and 1/1.45 of their scale. At value `v`, lines that meet 1/(0.0045·|v|) half-sizes from the photo's center, beyond the edge `v` enlarges, become parallel; a building shot looking up straightens at a negative `y`. The center keeps its scale, and lines stay straight. Without perspective, `center` is in source pixels; with it, in the corrected photo's pixels, which share the source's center. The Crop tool shows the correction as Vertical and Horizontal along the displayed axes, so they follow quarter turns and flips, and magnifies around the crop's center only as much as covering the crop requires, keeping the output size. Layers keep their source-pixel geometry, so correcting perspective leaves paint, masks, and patches on the photo.
+
 ## Layers
 
 `scene.layers` is ordered bottom to top, beginning with the locked image at index 0. Processing layers have `children`, also ordered bottom to top; the image cannot contain layers. Editing supports two levels. Adding, duplicating, moving, and deleting commit an open gesture and record one history entry each. Selecting a layer changes the inspector without adding history; changing selection commits an active gesture. Removing the selected layer or an ancestor returns selection to the image.
@@ -98,7 +100,7 @@ Direct mask children of another mask modify coverage instead of processing image
 | `moveLayer(id, index, parentId?)` | Moves to a final sibling index, bottom to top. Omit the parent for the root stack, where index 0 is reserved for the image. Image parents, cycles, and third-level nesting are rejected. |
 | `deleteLayer(id)` | Removes a processing layer and its children; undo restores them. |
 
-A linear gradient has full coverage at `start`, zero at `end`; its points must be finite and distinct. A radial gradient covers the ellipse inside `radius`, with positive radii and a feathered falloff toward its edge. Crop, rotation, and viewport navigation do not move it within the document.
+A linear gradient has full coverage at `start`, zero at `end`; its points must be finite and distinct. A radial gradient covers the ellipse inside `radius`, with positive radii and a feathered falloff toward its edge. Crop, rotation, perspective, and viewport navigation do not move it within the document.
 
 A brush mask is a list of strokes, over the pixels earlier strokes settled into, as a Paint layer's are: in the editor they settle every 100 strokes, and `getState()` shows the mask's `raster` ID. `setLayerMask` keeps a `raster` only if it names the document's own settled pixels. Each stroke has `mode` (`"paint"` or `"erase"`), `size` (diameter in source pixels), `feather` and `flow` (0–1), and `points`, each `[x, y, pressure]` in source pixels with pressure 0–1. A paint stroke adds `flow × pressure` of the remaining coverage every quarter diameter along the points, and an erase stroke removes that share of the existing coverage; dabs land sixteen times per diameter, each laying a fraction of that, so soft edges show no ripples. The renderer rasterizes strokes into a cached coverage texture at half the photo's resolution each way and only stamps new points, so appending to the last stroke is cheap and undo replays at most 99. A brush inside another mask keeps its own coverage, paint and erase strokes alike, which the mask adds or subtracts scaled by the brush layer's opacity. A mask with no painted coverage and nothing added to it is bypassed.
 
@@ -183,7 +185,7 @@ The image renders at the document dimensions and downsamples to `longEdge` with 
 
 `scene` is the `getState()` scene; each image layer's `source` names an entry in `sources`, and each Remove patch's `field` an entry in `fields`: where its texels sit, or, for a field not yet synthesized, `{ "base": "<id>" }` naming the field it extends. Version 1 files, which kept each Remove field inside its patch, open as version 2. Opening the file with `loadScene`, `openFile`, a drop, or the file picker decodes the stored source again and restores the frame and every layer as a new document with empty history. Preview settings and history are not saved.
 
-Opening validates every value as the matching command does, and a file that fails leaves the workspace in its error state with a message naming the first invalid field. Fields OpenLight does not know are dropped. A parameter missing from `adjustments`, `details`, `vignette`, `grain`, `fill`, or `colorMixer` takes its default, so older files still open when a group gains a parameter; a RAW image without a white balance uses its As Shot value. `version` increases only when older files can no longer open as written; a newer version is rejected.
+Opening validates every value as the matching command does, and a file that fails leaves the workspace in its error state with a message naming the first invalid field. Fields OpenLight does not know are dropped. A parameter missing from `adjustments`, `details`, `vignette`, `grain`, `fill`, or `colorMixer` takes its default, so older files still open when a group gains a parameter; a RAW image without a white balance uses its As Shot value, and a frame without `perspective` has none. `version` increases only when older files can no longer open as written, or an older OpenLight would drop what a file holds: a scene that corrects perspective is version 3, which OpenLight before perspective correction rejects, and every other scene stays version 2. A newer version is rejected.
 
 ## Drafts
 
@@ -222,8 +224,8 @@ editor.run({
 | `set-grain` | `amount?`, `size?`, `roughness?`, `layerId?` | Like `setGrain`. |
 | `add-mask` | `mask`, `adjustments?` | Adds a mask layer with those adjustments on top of the stack as one edit. |
 | `delete-layer` | `layerId` | Like `deleteLayer`. |
-| `set-crop` | `aspectRatio?`, `straighten?` | Replaces the frame with the largest centered crop of the source at `aspectRatio`, width over height, straightened by −45 to 45 degrees. Without either, it removes the crop. |
-| `reset` | none | Removes every layer and returns adjustments, the tone curve, white balance, and the frame to how the photo opened, as one edit. |
+| `set-crop` | `aspectRatio?`, `straighten?` | Replaces the frame with the largest centered crop of the source at `aspectRatio`, width over height, straightened by −45 to 45 degrees, keeping the frame's perspective. Without either, it removes the crop. |
+| `reset` | none | Removes every layer and returns adjustments, the tone curve, white balance, and the frame, perspective included, to how the photo opened, as one edit. |
 | `undo`, `redo` | none | Like `undo` and `redo`. |
 | `set-preview` | `comparison` | Shows `"edited"`, `"original"`, or `"split"`. |
 

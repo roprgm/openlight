@@ -68,7 +68,10 @@ function DraggedAnchor({
     else document.history.cancel();
   }
   function point(event: PointerEvent<SVGCircleElement>, box: DOMRect) {
-    return mapping.toDocument(event.clientX, event.clientY, box);
+    return mapping.toDocument([
+      event.clientX - box.left,
+      event.clientY - box.top,
+    ]);
   }
   function cancel() {
     const active = current.current;
@@ -81,6 +84,7 @@ function DraggedAnchor({
   useEffect(() => () => cancel(), []);
   function start(event: PointerEvent<SVGCircleElement>) {
     const box = camera.ref.current?.getBoundingClientRect();
+    const at = box && point(event, box);
     if (
       current.current ||
       event.button !== 0 ||
@@ -88,7 +92,8 @@ function DraggedAnchor({
       camera.panMode ||
       event.shiftKey ||
       event.altKey ||
-      !box
+      !box ||
+      !at
     ) {
       return;
     }
@@ -96,7 +101,7 @@ function DraggedAnchor({
     current.current = {
       pointer: event.pointerId,
       box,
-      start: point(event, box),
+      start: at,
       from: drag.from,
       next: drag.from,
       unsubscribe: document.history.status.subscribe((state, previous) => {
@@ -117,6 +122,8 @@ function DraggedAnchor({
     const active = current.current;
     if (!active || active.pointer !== event.pointerId) return;
     const at = point(event, active.box);
+    // Past where input stops the anchor waits for the pointer to return.
+    if (!at) return;
     active.next = [
       active.from[0] + at[0] - active.start[0],
       active.from[1] + at[1] - active.start[1],
