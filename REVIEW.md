@@ -13,7 +13,7 @@ Read what changed: the diff against the base and what it was meant to do. Then f
 | Change | Check |
 | --- | --- |
 | Documentation | Links and the references it describes. |
-| Layout, styling, copy | Look at the affected screens at the widths they change. |
+| Layout, styling, copy | Look at the affected screens at the widths they change. New UI keeps the spacing of the components around it: even padding to its container's edges and corners, and the same gaps. |
 | Document, edits, history, loaders | The Bun tests covering them. |
 | Processing, shaders, rendering | The browser tests of that feature, e.g. `bun run test:browser tests/vignette.e2e.ts`; before/after measurements when GPU work changes ([PERFORMANCE.md](PERFORMANCE.md)). |
 | Shared primitives in `core/` or `components/` | The browser tests of the workflows that use them. |
