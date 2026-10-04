@@ -116,7 +116,7 @@ export function createDisplay(gpu: Gpu) {
           highlights: Number(options.clipping?.highlights ?? false),
         },
         sourceTransform: frameTransform(
-          source?.frame ?? geometry,
+          source?.frame ?? imageFrame(represented),
           source?.image.size ?? represented,
         ),
         coverage: (overlay?.coverage ?? blank).color,

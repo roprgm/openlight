@@ -3,7 +3,11 @@ import { useCanvas, useFrame, useGpu } from "vgpu-react";
 import { useStore } from "zustand";
 import type { Preview } from "@/core/document";
 import type { EncodedImage } from "@/core/image";
-import { correctionStretch, type ImageFrame } from "@/core/image/frame";
+import {
+  correctionStretch,
+  type ImageFrame,
+  imageFrame,
+} from "@/core/image/frame";
 import { createDisplay } from "@/core/renderer";
 import { useDisposable } from "@/hooks/use-disposable";
 import { fitScale } from "@/hooks/use-pan-zoom";
@@ -47,22 +51,26 @@ export function Image({
   );
   const sourceSize = source.image.size;
   const renderer = useRenderer();
+  // The frame that places the shown image over the source: a crop's draft, or the scene's.
+  const placing = geometry ?? sceneFrame;
   const stretch = useMemo(
-    () => correctionStretch(sceneFrame, sourceSize),
-    [sceneFrame, sourceSize],
+    () => correctionStretch(placing, sourceSize),
+    [placing, sourceSize],
   );
   const display = useDisposable(() => createDisplay(gpu), [gpu]);
   // A renderer output tells the preview how many device pixels a source pixel gets where perspective
   // enlarges the photo most, which renders reduce the source to about.
   const density =
-    (camera.scale * devicePixelRatio * stretch) / Math.abs(sceneFrame.scale[0]);
+    (camera.scale * devicePixelRatio * stretch) / Math.abs(placing.scale[0]);
   useEffect(() => {
     if (typeof image === "string") {
       document.preview.setState({ density });
     }
   }, [document, image, density]);
-  // A proxy output is smaller than what it stands for: the source, or the frame cut from it.
+  // A proxy output is smaller than what it stands for: the source, or the frame cut from it; the
+  // source's own frame places the former over the source, and the scene's the latter.
   const represented = { fullImage: sourceSize, outputImage: sceneFrame.size };
+  const placed = { fullImage: imageFrame(sourceSize), outputImage: sceneFrame };
   const render = useFrame((frame) => {
     const target = typeof image === "string" ? renderer[image]() : image.image;
     const imageSize =
@@ -79,13 +87,14 @@ export function Image({
       frame: geometry,
       imageSize,
       primaries: typeof image === "string" ? undefined : image.primaries,
-      source: comparable
-        ? {
-            image: source.image,
-            frame: sceneFrame,
-            primaries: source.primaries,
-          }
-        : undefined,
+      source:
+        comparable && typeof image === "string"
+          ? {
+              image: source.image,
+              frame: placed[image],
+              primaries: source.primaries,
+            }
+          : undefined,
       split: comparable ? comparedShare(preview) : -1,
       clipping: preview,
       overlay: overlay && {

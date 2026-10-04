@@ -24,14 +24,17 @@ function stage(gpu: Gpu, decoded: Decoded) {
   const queue = gpu.gpu.queue;
   const size: Size = [decoded.width, decoded.height];
   if (decoded instanceof ImageBitmap) {
-    const texture = encoded(gpu, size);
-    queue.copyExternalImageToTexture(
-      { source: decoded },
-      { texture: texture.gpu },
-      size,
-    );
-    decoded.close();
-    return texture;
+    try {
+      const texture = encoded(gpu, size);
+      queue.copyExternalImageToTexture(
+        { source: decoded },
+        { texture: texture.gpu },
+        size,
+      );
+      return texture;
+    } finally {
+      decoded.close();
+    }
   }
   if ("tiles" in decoded) {
     const { tiles, columns } = decoded;
@@ -40,21 +43,26 @@ function stage(gpu: Gpu, decoded: Decoded) {
       tiles[0]?.displayHeight ?? 0,
     ];
     const rows = Math.ceil(tiles.length / columns);
-    const texture = encoded(gpu, [columns * tile[0], rows * tile[1]]);
-    tiles.forEach((frame, i) => {
-      const origin = [
-        (i % columns) * tile[0],
-        Math.floor(i / columns) * tile[1],
-      ];
-      const colorSpace = isP3(frame) ? "display-p3" : "srgb";
-      queue.copyExternalImageToTexture(
-        { source: frame },
-        { texture: texture.gpu, origin, colorSpace },
-        tile,
-      );
-      frame.close();
-    });
-    return texture;
+    try {
+      const texture = encoded(gpu, [columns * tile[0], rows * tile[1]]);
+      tiles.forEach((frame, i) => {
+        const origin = [
+          (i % columns) * tile[0],
+          Math.floor(i / columns) * tile[1],
+        ];
+        const colorSpace = isP3(frame) ? "display-p3" : "srgb";
+        queue.copyExternalImageToTexture(
+          { source: frame },
+          { texture: texture.gpu, origin, colorSpace },
+          tile,
+        );
+      });
+      return texture;
+    } finally {
+      for (const frame of tiles) {
+        frame.close();
+      }
+    }
   }
   const texture = encoded(gpu, size);
   queue.writeTexture(
