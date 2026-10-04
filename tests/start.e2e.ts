@@ -10,9 +10,7 @@ test("start from a blank canvas or the sample photo", async ({ page }) => {
   await page.goto("/");
   await page.getByRole("button", { name: /Blank canvas/ }).click();
   await page.getByRole("menuitem", { name: /Square/ }).click();
-  await expect
-    .poll(opened)
-    .toEqual({ file: "Untitled.png", size: [2048, 2048] });
+  await expect.poll(opened).toEqual({ file: "Untitled", size: [2048, 2048] });
   expect(await readImage(page)).toMatchObject({
     size: [2048, 2048],
     center: [255, 255, 255, 255],

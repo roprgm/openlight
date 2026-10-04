@@ -71,17 +71,10 @@ const blankSizes = [
   { name: "Widescreen", width: 3840, height: 2160 },
 ];
 
-/** A white PNG, so a blank canvas opens, saves, and recovers as any image file does. */
-async function blankImage(width: number, height: number) {
-  const canvas = new OffscreenCanvas(width, height);
-  const context = canvas.getContext("2d");
-  if (!context) {
-    throw new Error("A 2D canvas is unavailable.");
-  }
-  context.fillStyle = "white";
-  context.fillRect(0, 0, width, height);
-  const blob = await canvas.convertToBlob({ type: "image/png" });
-  return new File([blob], "Untitled.png", { type: blob.type });
+/** A white SVG of that size, so a blank canvas opens, saves, and recovers as any image file does. */
+function blankImage(width: number, height: number) {
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}"><rect width="100%" height="100%" fill="white"/></svg>`;
+  return new File([svg], "Untitled", { type: "image/svg+xml" });
 }
 
 /** A flat tile over the backdrop; its icon takes the color of the backdrop's motes on hover. */
@@ -126,7 +119,7 @@ function BlankCanvas({ onOpen }: Pick<StartProps, "onOpen">) {
         {blankSizes.map(({ name, width, height }) => (
           <MenuItem
             key={name}
-            onClick={async () => onOpen([await blankImage(width, height)])}
+            onClick={() => onOpen([blankImage(width, height)])}
           >
             {name}
             <span className="ml-auto pl-4 text-muted">
