@@ -11,6 +11,11 @@ import {
 } from "vgpu";
 import type { Mask, MaskModifier } from "@/core/document";
 import {
+  type EncodedImage,
+  type Primaries,
+  primariesIndex,
+} from "@/core/image";
+import {
   frameTransform,
   type ImageFrame,
   imageFrame,
@@ -31,17 +36,22 @@ export type Clipping = { shadows: boolean; highlights: boolean };
 export type MaskOverlay = {
   mask: Mask;
   modifiers: readonly MaskModifier[];
-  frame: ImageFrame;
-  sourceSize: readonly number[];
   coverage?: Target;
   /** The layer's opacity, which scales its coverage. */
   opacity?: number;
 };
+/** The photo's source as decoded, in its own primaries, and the frame that places the image over it. */
+export type DisplaySource = EncodedImage & { frame: ImageFrame };
 type DisplayOptions = {
   view: View;
   viewport?: readonly number[];
   frame?: ImageFrame;
-  original?: Target;
+  /** The primaries the image's texels are in; the working space's unless said. */
+  primaries?: Primaries;
+  /** The pixels `image` stands for when a proxy reduces it; its own size unless said. */
+  imageSize?: Point;
+  /** Shown left of `split` in place of the image, and where the mask overlay is drawn; the image itself without one. */
+  source?: DisplaySource;
   split?: number;
   clipping?: Clipping;
   overlay?: MaskOverlay;
@@ -78,17 +88,23 @@ export function createDisplay(gpu: Gpu) {
     image: Target,
     options: DisplayOptions,
   ) {
-    const geometry = options.frame ?? imageFrame(image.size);
+    const represented = options.imageSize ?? image.size;
+    const geometry = options.frame ?? imageFrame(represented);
     const viewport =
       options.viewport ?? canvas.size.map((value) => value / canvas.dpr);
     const overlay = options.overlay;
+    const source = options.source;
     writeModifiers(overlay);
     frame.pass(
       canvas,
       draw.set({
         source: image.color,
-        original: (options.original ?? image).color,
-        transform: frameTransform(geometry, image.size),
+        original: (source?.image ?? image).color,
+        primaries: {
+          image: primariesIndex[options.primaries ?? "rec2020"],
+          original: primariesIndex[source?.primaries ?? "rec2020"],
+        },
+        transform: frameTransform(geometry, represented),
         split: options.split ?? -1,
         view: {
           size: canvas.size,
@@ -99,9 +115,9 @@ export function createDisplay(gpu: Gpu) {
           shadows: Number(options.clipping?.shadows ?? false),
           highlights: Number(options.clipping?.highlights ?? false),
         },
-        maskTransform: frameTransform(
-          overlay?.frame ?? geometry,
-          overlay?.sourceSize ?? image.size,
+        sourceTransform: frameTransform(
+          source?.frame ?? imageFrame(represented),
+          source?.image.size ?? represented,
         ),
         coverage: (overlay?.coverage ?? blank).color,
         overlay: {
@@ -110,7 +126,7 @@ export function createDisplay(gpu: Gpu) {
           modifierCount: overlay
             ? gradientModifiers(overlay.modifiers).length
             : 0,
-          sourceSize: overlay?.sourceSize ?? image.size,
+          sourceSize: source?.image.size ?? represented,
           opacity: overlay?.opacity ?? 1,
         },
       }),
@@ -158,14 +174,25 @@ export async function renderCoverage(
   }
 }
 
-/** Draws an image into an off-screen canvas of `size` and takes its pixels; one display serves each GPU. */
-export async function renderBitmap(gpu: Gpu, image: Target, size: Point) {
+/**
+ * Draws an image, in the working space's primaries unless said, into an off-screen canvas of `size`
+ * and takes its pixels; one display serves each GPU.
+ */
+export async function renderBitmap(
+  gpu: Gpu,
+  image: Target,
+  size: Point,
+  primaries?: Primaries,
+) {
   const display = bitmapDisplay(gpu);
   const canvas = new OffscreenCanvas(size[0], size[1]);
   const output = surface(gpu, canvas, { size, dpr: 1 });
   try {
     frame(gpu, (frame) =>
-      display(frame, output, image, { view: { zoom: 1, pan: [0, 0] } }),
+      display(frame, output, image, {
+        view: { zoom: 1, pan: [0, 0] },
+        primaries,
+      }),
     );
     // Finish the draw before the 2D canvas reads it; otherwise Chrome waits a full second for the sync.
     await gpu.gpu.queue.onSubmittedWorkDone();

@@ -6,7 +6,7 @@ import {
   init,
   target,
 } from "vgpu/mock";
-import { createImageLayer, createLayer } from "@/app/editor/layers";
+import { createImageLayer, createLayer, createMask } from "@/app/editor/layers";
 import { createEditorRenderer as createRenderer } from "@/app/editor/renderer";
 import { createDocument, createResources } from "@/core/document";
 import { createImageSource } from "@/core/image";
@@ -20,6 +20,8 @@ import {
 import { setAdjustments } from "@/features/adjustments/edits";
 import { defaultAdjustments } from "@/features/adjustments/model";
 import { unsharpMask } from "@/features/details/unsharp-mask";
+import { addLayer } from "@/features/layers/edits";
+import { defaultGradient } from "@/features/layers/gradient";
 import { setToneCurve } from "@/features/tone-curves/edits";
 import { setWhiteBalance } from "@/features/white-balance/edits";
 
@@ -37,18 +39,20 @@ test("RAW edits coalesce, recover from failure, and retain an exporting source a
     return requests[requests.length - 1].promise;
   });
   const source = createImageSource(image, {
-    asShot,
-    createPass() {
-      const output = target(gpu, { size: image.size, format: image.format });
-      outputs.push(output);
-      return {
-        prepare: ({ temperature }) =>
-          temperature === asShot.temperature ? Promise.resolve() : develop(),
-        render: () => output,
-        dispose: () => output.color.dispose(),
-      };
+    raw: {
+      asShot,
+      createPass() {
+        const output = target(gpu, { size: image.size, format: image.format });
+        outputs.push(output);
+        return {
+          prepare: ({ temperature }) =>
+            temperature === asShot.temperature ? Promise.resolve() : develop(),
+          render: () => output,
+          dispose: () => output.color.dispose(),
+        };
+      },
+      dispose: close,
     },
-    dispose: close,
   });
   const resources = createResources();
   const id = resources.add(new File([], "photo.nef"), source);
@@ -116,11 +120,14 @@ test.each([1, 16])(
     const calls = getMockGPUDeviceInstrumentation(gpu.gpu).calls;
     const radius = reduction === 1 ? 1 : 64;
     const render = (amount: number) =>
-      graph.render([
-        pipeline(input(source), [
-          unsharpMask("detail", amount / 200, radius, reduction),
-        ]),
-      ])[0];
+      graph.render(
+        [
+          pipeline(input(source), [
+            unsharpMask("detail", amount / 200, radius, reduction),
+          ]),
+        ],
+        { set: 1, kept: [] },
+      )[0];
     expect(render(0)).toBe(source);
     expect(calls.createRenderPipeline ?? 0).toBe(0);
     const filtered = render(100);
@@ -206,7 +213,13 @@ test("rendering follows grouped edits and undo, reuses pipelines, and releases o
   await renderer.update(document.scene.getState(), "base");
   expect(renderer.inputImage("base")).toBeDefined();
   expect(renderer.inputImage("base")).not.toBe(renderer.outputImage());
-  expect(passes()).toEqual([...curves, "layer/exposure/exposure"]);
+  // The curve's input is planned first, so the image it reads is let go once the curve has read it.
+  expect(passes()).toEqual([
+    "layer/base/exposure",
+    "layer/base/input",
+    "layer/base/curves",
+    "layer/exposure/exposure",
+  ]);
   document.edit(beforeInput);
   expect(renderer.inputImage("base")).toBeUndefined();
   const scene = document.scene.getState();
@@ -233,5 +246,50 @@ test("rendering follows grouped edits and undo, reuses pipelines, and releases o
   resource.dispose();
   canvas.color.dispose();
   display.dispose();
+  gpu.dispose();
+});
+
+test("a mask without effects of its own adjusts, curves, and mixes in one pass unless inspected", async () => {
+  const gpu = await init();
+  const source = createImageSource(
+    target(gpu, { size: [32, 16], format: "rgba16float" }),
+  );
+  const layers = [createImageLayer("photo", "Photo")] as const;
+  const document = createDocument({ frame: imageFrame([32, 16]), layers });
+  const renderer = createRenderer(gpu, source);
+  const passes = async (inputId?: string) => {
+    await renderer.update(document.scene.getState(), inputId);
+    return renderer.inspect().passes;
+  };
+  const mask = addLayer(document, createMask(defaultGradient([32, 16])));
+  expect(await passes()).toEqual([]);
+  setAdjustments(document, { exposure: 1 }, mask);
+  expect(await passes()).toEqual([`layer/${mask}/mask`]);
+  const curve = [
+    { x: 0, y: 0 },
+    { x: 0.5, y: 0.7 },
+    { x: 1, y: 1 },
+  ];
+  setToneCurve(document, curve, mask);
+  expect(await passes()).toEqual([`layer/${mask}/mask`]);
+  // Its curve's input reads the adjusted image, which only the separate passes render.
+  expect(await passes(mask)).toEqual([
+    `layer/${mask}/exposure`,
+    `layer/${mask}/input`,
+    `layer/${mask}/curves`,
+    `layer/${mask}/mix`,
+  ]);
+  const vignette = addLayer(document, createLayer("vignette"), {
+    inside: mask,
+  });
+  expect(await passes()).toEqual([
+    `layer/${mask}/exposure`,
+    `layer/${mask}/curves`,
+    `layer/${vignette}/vignette`,
+    `layer/${mask}/mix`,
+  ]);
+  renderer.dispose();
+  document.dispose();
+  source.dispose();
   gpu.dispose();
 });

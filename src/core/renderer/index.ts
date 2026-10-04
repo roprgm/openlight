@@ -26,7 +26,14 @@ import {
 import { createProxy } from "./proxy";
 import { createStrokes } from "./strokes";
 
-export { maskInput, mixAdjustment } from "./blend";
+export {
+  curveInput,
+  gradientModifiers,
+  gradientParams,
+  isGradient,
+  mixAdjustment,
+  modifierData,
+} from "./blend";
 export {
   type Clipping,
   type CoverageRegion,
@@ -53,7 +60,7 @@ export {
   split,
 } from "./node";
 export type { PaintInput } from "./paint";
-export { transformImages } from "./transform";
+export { transformImage } from "./transform";
 export { createRenderGraph };
 
 export type Composition = {
@@ -90,7 +97,6 @@ export type SceneProcessing = (
   scene: Scene,
   composition: Composition,
 ) => {
-  original: RenderImage;
   full: RenderImage;
   output: RenderImage;
   input?: RenderImage;
@@ -101,9 +107,27 @@ type RenderRequest = {
   scene: Scene;
   inputId?: string;
   rangeSourceId?: string;
+  /** Device pixels shown per source pixel, which the render reduces the source to about. */
+  density: number;
   /** Source pixels per texel of the composition's source; above 1 renders a reduced proxy. */
   factor: number;
+  /** An open gesture, which shows a Remove patch unfilled rather than synthesizing its field. */
+  interactive: boolean;
 };
+
+/** A Remove field a render synthesized, to keep. */
+type Synthesis = { id: string; lattice: FieldLattice; texels: RenderImage };
+
+/** The largest whole reduction that still gives every device pixel a texel. */
+function reductionFor(density: number) {
+  if (!Number.isFinite(density) || density <= 0) {
+    return 1;
+  }
+  return Math.max(1, Math.floor(1 / density));
+}
+
+/** How many reductions keep their proxy and intermediates, each a quarter of the photo at most. */
+const keptReductions = 4;
 
 function sameBalance(a: WhiteBalance | undefined, b: WhiteBalance | undefined) {
   return a?.temperature === b?.temperature && a?.tint === b?.tint;
@@ -148,7 +172,6 @@ export function createRenderer(
   const proxy = createProxy(gpu);
   const release = resource.retain();
   const raw = resource.raw?.createPass();
-  let original = source;
   let full = source;
   const listeners = new Set<() => void>();
   let rendered = false;
@@ -160,8 +183,16 @@ export function createRenderer(
   let balance = resource.raw?.asShot;
   /** Counts developments, so the proxy follows white-balance changes. */
   let version = 0;
-  let displayScale = 1;
   let last: RenderRequest | undefined;
+  /** Whether the last render, a gesture's proxy, showed a Remove patch unfilled. */
+  let lacked = false;
+  /** The passes the last render's synthesis ran apart, before its own. */
+  let synthesized: string[] = [];
+  /**
+   * The reductions rendered at last, latest first, whose proxies and intermediates stay: a zoom
+   * returns to them, and Safari penalizes textures made and freed. The photo's own size never stays.
+   */
+  let reductions: number[] = [];
   let next: RenderRequest | undefined;
   let pending: Promise<void> | undefined;
   /** A raster being read back, a painting to settle or a Remove field to save; nothing renders meanwhile. */
@@ -170,18 +201,75 @@ export function createRenderer(
   const capturing = new Map<string, Promise<RemoveField | undefined>>();
   let disposed = false;
   let instances = new Set<string>();
-  function render(request: RenderRequest) {
+  /**
+   * Composes the scene over `image`, at one reduction: what the composition yields, the Remove fields
+   * it synthesizes, the brush coverage to show, the instances it keeps, and whether it lacked a field.
+   */
+  function composeAt(
+    { scene, inputId, rangeSourceId }: RenderRequest,
+    image: RenderImage,
+    developed: Target,
+  ) {
+    const active = new Set<string>();
+    const covered = new Map<string, RenderImage>();
+    // Read brush views after every raster has updated, including inactive submasks.
+    for (const { layer } of walkLayers(scene.layers)) {
+      if (
+        layer.kind === "mask" &&
+        layer.mask.kind === "brush" &&
+        hasPaint(layer.mask)
+      ) {
+        const coverage = brushes.coverage(layer.id);
+        if (coverage) covered.set(layer.id, coverage);
+      }
+    }
+    const syntheses: Synthesis[] = [];
+    let lacking = false;
+    const images = compose(image, scene, {
+      inputId,
+      rangeSourceId,
+      retain: (id) => active.add(id),
+      coverage: (layer, below) =>
+        masks.coverage(layer, below, {
+          retain: (id) => active.add(id),
+          show: (id, coverage) => covered.set(id, coverage),
+        }),
+      paint: (layer) => paints.input(layer),
+      patch: (id, strokes) => patches.patch(id, strokes, developed.size),
+      // Patches that share a field, such as duplicates, show the one this render synthesizes.
+      field: (patch) => {
+        const held =
+          syntheses.find(({ id }) => id === patch.field) ??
+          fields.get(patch.field);
+        lacking ||= !held;
+        return held;
+      },
+      keepField: (patch, lattice, texels) =>
+        syntheses.push({ id: patch.field, lattice, texels }),
+    });
+    return { images, syntheses, covered, active, lacking };
+  }
+  /** Keeps the fields a render synthesized and reads them back for the document. */
+  function keepSyntheses(syntheses: readonly Synthesis[], targets: Target[]) {
+    for (const [i, { id, lattice }] of syntheses.entries()) {
+      fields.keep(id, lattice, targets[i]);
+    }
+    if (saveField && syntheses.length) {
+      capture(syntheses.map(({ id }) => id));
+    }
+  }
+  function render(request: RenderRequest): void {
     const { scene, inputId, rangeSourceId, factor } = request;
-    if (
+    const unchanged =
       last &&
       last.scene === scene &&
       last.inputId === inputId &&
       last.rangeSourceId === rangeSourceId &&
-      last.factor === factor
-    ) {
+      last.factor === factor;
+    // A gesture's proxy shows a patch unfilled; the gesture's end renders it again to synthesize.
+    if (unchanged && !(lacked && !request.interactive)) {
       return;
     }
-    const active = new Set<string>();
     const developed = raw?.render() ?? source;
     // Every brush and paint layer updates once, bypassed or not, so hidden layers keep their rasters.
     for (const { layer } of walkLayers(scene.layers)) {
@@ -198,41 +286,29 @@ export function createRenderer(
     }
     const image =
       factor > 1 ? proxy.render(developed, factor, version) : input(developed);
-    const covered = new Map<string, RenderImage>();
-    // Read brush views after every raster has updated, including inactive submasks.
-    for (const { layer } of walkLayers(scene.layers)) {
-      if (
-        layer.kind === "mask" &&
-        layer.mask.kind === "brush" &&
-        hasPaint(layer.mask)
-      ) {
-        const coverage = brushes.coverage(layer.id);
-        if (coverage) covered.set(layer.id, coverage);
+    let composed = composeAt(request, image, developed);
+    synthesized = [];
+    // Only a full render synthesizes a field. A proxy that lacks one has it synthesized apart, from
+    // the layers below the patch alone, at full size, and composes again with it; a gesture shows the
+    // patch unfilled instead.
+    if (composed.lacking && factor > 1 && !request.interactive) {
+      const { syntheses } = composeAt(
+        { ...request, factor: 1 },
+        input(developed),
+        developed,
+      );
+      if (syntheses.length) {
+        const texels = graph.render(
+          syntheses.map(({ texels }) => texels),
+          { set: 1, kept: reductions },
+        );
+        keepSyntheses(syntheses, texels);
+        synthesized = graph.inspect().passes;
       }
+      composed = composeAt(request, image, developed);
     }
-    const syntheses: {
-      id: string;
-      lattice: FieldLattice;
-      texels: RenderImage;
-    }[] = [];
-    const images = compose(image, scene, {
-      inputId,
-      rangeSourceId,
-      retain: (id) => active.add(id),
-      coverage: (layer, below) =>
-        masks.coverage(layer, below, {
-          retain: (id) => active.add(id),
-          show: (id, coverage) => covered.set(id, coverage),
-        }),
-      paint: (layer) => paints.input(layer),
-      patch: (id, strokes) => patches.patch(id, strokes, developed.size),
-      // Patches that share a field, such as duplicates, show the one this render synthesizes.
-      field: (patch) =>
-        syntheses.find(({ id }) => id === patch.field) ??
-        fields.get(patch.field),
-      keepField: (patch, lattice, texels) =>
-        syntheses.push({ id: patch.field, lattice, texels }),
-    });
+    const { images, syntheses, covered, active } = composed;
+    lacked = composed.lacking && factor > 1;
     for (const id of instances) {
       if (!active.has(id)) graph.release(`${id}/`);
     }
@@ -242,33 +318,35 @@ export function createRenderer(
     patches.sweep();
     paints.sweep();
     strokes.sweep();
-    // Every render shows three images; the inspected input, the range source, and coverage follow.
+    // The inspected input goes first, so the image it reads is let go once the composition is done
+    // with it; the two images every render shows, the range source, and coverage follow.
     const inputs = images.input ? [images.input] : [];
     const sources = images.rangeSource ? [images.rangeSource] : [];
-    const targets = graph.render([
-      images.original,
-      images.full,
-      images.output,
-      ...inputs,
-      ...sources,
-      ...covered.values(),
-      ...syntheses.map(({ texels }) => texels),
-    ]);
-    [original, full, output] = targets;
-    const [inputTarget] = targets.slice(3, 3 + inputs.length);
-    const [sourceTarget] = targets.slice(3 + inputs.length);
-    const coverages = targets.slice(
-      3 + inputs.length + sources.length,
-      3 + inputs.length + sources.length + covered.size,
+    if (factor > 1) {
+      reductions = [factor, ...reductions.filter((kept) => kept !== factor)];
+      reductions.length = Math.min(reductions.length, keptReductions);
+    }
+    const targets = graph.render(
+      [
+        ...inputs,
+        images.full,
+        images.output,
+        ...sources,
+        ...covered.values(),
+        ...syntheses.map(({ texels }) => texels),
+      ],
+      { set: factor, kept: reductions },
     );
-    const synthesized = targets.slice(targets.length - syntheses.length);
-    for (const [i, { id, lattice }] of syntheses.entries()) {
-      fields.keep(id, lattice, synthesized[i]);
-    }
+    proxy.sweep(reductions);
+    const [inputTarget] = targets;
+    [full, output] = targets.slice(inputs.length);
+    const [sourceTarget] = targets.slice(inputs.length + 2);
+    const coverages = targets.slice(
+      inputs.length + 2 + sources.length,
+      inputs.length + 2 + sources.length + covered.size,
+    );
+    keepSyntheses(syntheses, targets.slice(targets.length - syntheses.length));
     fields.sweep();
-    if (saveField && syntheses.length) {
-      capture(syntheses.map(({ id }) => id));
-    }
     inspected =
       inputId && images.input ? { id: inputId, image: inputTarget } : undefined;
     kept =
@@ -377,20 +455,28 @@ export function createRenderer(
     }
   }
   /**
-   * Interactive updates render at a proxy resolution matched to the display scale. `inputId` keeps a
-   * layer's curve input, and `rangeSourceId` a mask's range source, for reading them.
+   * Renders reduce the source to about `density`, device pixels shown per source pixel, a proxy; one
+   * that lacks a Remove patch's field synthesizes it apart in full, outside a gesture. `inputId` keeps
+   * a layer's curve input, and `rangeSourceId` a mask's range source, for reading them.
    */
   async function update(
     scene: Scene,
     inputId?: string,
     interactive = false,
     rangeSourceId?: string,
+    density = 1,
   ): Promise<void> {
     if (disposed) {
       throw Error("Renderer is closed.");
     }
-    const factor = interactive ? Math.max(1, Math.floor(1 / displayScale)) : 1;
-    const request = { scene, inputId, rangeSourceId, factor };
+    const request = {
+      scene,
+      inputId,
+      rangeSourceId,
+      density,
+      factor: reductionFor(density),
+      interactive,
+    };
     // Renders wait, in order, for a settle, a RAW development, or settled paint and fields to load.
     if (
       !raw &&
@@ -412,8 +498,8 @@ export function createRenderer(
       .finally(() => {
         pending = undefined;
         if (next && !disposed) {
-          const { scene, inputId, factor, rangeSourceId } = next;
-          return update(scene, inputId, factor > 1, rangeSourceId);
+          const { scene, inputId, interactive, rangeSourceId, density } = next;
+          return update(scene, inputId, interactive, rangeSourceId, density);
         }
       });
     return pending;
@@ -447,7 +533,6 @@ export function createRenderer(
   }
 
   return {
-    originalImage: () => original,
     fullImage: () => full,
     outputImage: () => output,
     inputImage: (id: string) =>
@@ -462,14 +547,9 @@ export function createRenderer(
       const target = shown.get(id) ?? paints.get(id);
       return target ? { target, origin: [0, 0] } : patches.raster(id);
     },
-    /** Device pixels shown per source pixel; interactive renders reduce the source to about this density. */
-    setDisplayScale(scale: number) {
-      if (Number.isFinite(scale) && scale > 0) {
-        displayScale = scale;
-      }
-    },
     inspect: () => ({
       ...graph.inspect(),
+      passes: [...synthesized, ...graph.inspect().passes],
       stamped: strokes.stamped(),
       rasters: [
         ...masks.inspect(),

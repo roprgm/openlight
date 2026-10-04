@@ -208,7 +208,7 @@ function RadialGuides({
               stroke="none"
               data-gradient-handle="move"
               aria-label="Move radial gradient"
-              className="pointer-events-auto cursor-grab hover:fill-hover"
+              className="pointer-events-auto cursor-grab"
             />
             <MappedShape
               shape={edge}

@@ -8,13 +8,12 @@ import type { ImageSource } from "@/core/image";
 import {
   type Composition,
   createRenderer,
-  input,
-  maskInput,
+  curveInput,
   mixAdjustment,
   pipeline,
   type RendererOptions,
   type RenderImage,
-  transformImages,
+  transformImage,
 } from "@/core/renderer";
 import { exposure } from "@/features/adjustments/exposure";
 import { adjustments } from "@/features/adjustments/pass";
@@ -23,10 +22,12 @@ import { unsharpMask } from "@/features/details/unsharp-mask";
 import { fill } from "@/features/fill/pass";
 import { grain } from "@/features/grain/pass";
 import { heal, retainHealPatches } from "@/features/heal/pass";
+import { histogramGrid } from "@/features/histogram/histogram";
 import { lut } from "@/features/lut/pass";
 import { paint } from "@/features/paint/pass";
 import { toneCurves } from "@/features/tone-curves/pass";
 import { vignette } from "@/features/vignette/pass";
+import { maskPass } from "./mask-pass";
 
 type Branch = {
   image: RenderImage;
@@ -67,6 +68,18 @@ function composeLayer(
     }
     return { image: below, rangeSource };
   }
+  // Child masks of a mask shape its coverage; every other child processes the image.
+  const effects =
+    layer.kind === "mask"
+      ? layer.children.filter((child) => child.kind !== "mask")
+      : layer.children;
+  // An inspected mask's curve reads the adjusted image, which only the separate passes produce.
+  if (layer.kind === "mask" && !inspected && !effects.length) {
+    return {
+      image: maskPass(name, below, layer, masks, coverage),
+      rangeSource,
+    };
+  }
   let input: RenderImage | undefined;
   let edited = below;
   switch (layer.kind) {
@@ -83,7 +96,14 @@ function composeLayer(
     case "mask": {
       const adjusted = pipeline(below, [adjustments(layer.adjustments, name)]);
       if (layer.id === composition.inputId) {
-        input = maskInput(name, adjusted, layer.mask, masks, coverage);
+        input = curveInput(
+          name,
+          adjusted,
+          histogramGrid,
+          layer.mask,
+          masks,
+          coverage,
+        );
       }
       edited = pipeline(adjusted, [
         toneCurves(layer.toneCurve, `${name}/curves`),
@@ -125,11 +145,6 @@ function composeLayer(
       break;
     }
   }
-  // Child masks of a mask shape its coverage; every other child processes the image.
-  const effects =
-    layer.kind === "mask"
-      ? layer.children.filter((child) => child.kind !== "mask")
-      : layer.children;
   const children = composeLayers(edited, effects, composition);
   const image = mixAdjustment(
     name,
@@ -181,8 +196,9 @@ export function createEditorRenderer(
       const [sourceLayer, ...layers] = scene.layers;
       const name = `layer/${sourceLayer.id}`;
       composition.retain(name);
+      // The photo's first pass converts an 8-bit source into the working space.
       const adjusted = pipeline(image, [
-        adjustments(sourceLayer.adjustments, name),
+        adjustments(sourceLayer.adjustments, name, source.primaries),
       ]);
       const developed = pipeline(adjusted, [
         toneCurves(sourceLayer.toneCurve, `${name}/curves`),
@@ -194,17 +210,12 @@ export function createEditorRenderer(
       );
       const composite = composeLayers(children.image, layers, composition);
       const full = composite.image;
-      const [original, output] = transformImages(
-        [input(source.image), full],
-        scene.frame,
-      );
       return {
-        original,
         full,
-        output,
+        output: transformImage(full, scene.frame),
         input:
           composition.inputId === sourceLayer.id
-            ? adjusted
+            ? curveInput(name, adjusted, histogramGrid)
             : (children.input ?? composite.input),
         rangeSource: children.rangeSource ?? composite.rangeSource,
       };

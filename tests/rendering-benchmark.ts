@@ -341,11 +341,10 @@ export async function benchmarkRendering(
       ...effects,
     ],
   };
+  // Half a device pixel per source pixel, as a fitted view of a large photo, renders at a factor of 2.
+  const density = proxy ? 0.5 : 1;
   function create(clock?: Timer) {
-    const renderer = createEditorRenderer(gpu, source, { timer: clock });
-    // Half a device pixel per source pixel, as a fitted view of a large photo, renders at a factor of 2.
-    renderer.setDisplayScale(proxy ? 0.5 : 1);
-    return renderer;
+    return createEditorRenderer(gpu, source, { timer: clock });
   }
   const setupStart = performance.now();
   let renderer = create();
@@ -358,7 +357,7 @@ export async function benchmarkRendering(
     for (let i = 0; i < warmup + samples; i++) {
       const start = performance.now();
       // A new scene object forces the render; the renderer skips a request equal to its last.
-      await renderer.update({ ...scene }, inputId, proxy);
+      await renderer.update({ ...scene }, inputId, proxy, undefined, density);
       const inspected = inputId && renderer.inputImage(inputId);
       if (inputId && !inspected) {
         throw Error("Missing benchmark curve input.");
@@ -411,7 +410,7 @@ export async function benchmarkRendering(
     frame(gpu, (f) => f.pass(input, fill));
     await gpu.gpu.queue.onSubmittedWorkDone();
     const start = performance.now();
-    await renderer.update({ ...scene }, inputId, proxy);
+    await renderer.update({ ...scene }, inputId, proxy, undefined, density);
     await gpu.gpu.queue.onSubmittedWorkDone();
     await gpu.settled();
     const firstRenderMs = performance.now() - start;

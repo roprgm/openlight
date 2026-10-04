@@ -1,7 +1,14 @@
 import type { Gradient, Mask, MaskLayer, MaskModifier } from "@/core/document";
-import { merge, node, type RenderImage } from "@/core/renderer/node";
+import {
+  merge,
+  node,
+  type RenderImage,
+  sourceSize,
+} from "@/core/renderer/node";
+import inputShader from "./input.wgsl";
 import shader from "./mix.wgsl";
 import rasterShader from "./raster.wgsl";
+import rasterInputShader from "./raster-input.wgsl";
 
 const emptyModifiers = new Float32Array(12);
 
@@ -97,7 +104,7 @@ export function mixAdjustment(
         samplers: {
           coverageSampler: { minFilter: "linear", magFilter: "linear" },
         },
-        set: { params: { opacity, mode: 0 } },
+        set: { params: { opacity } },
       }),
     );
   }
@@ -115,50 +122,65 @@ export function mixAdjustment(
           ...gradientParams(mask),
           modifierCount: gradients.length,
           scale: original.scale,
-          mode: 0,
         },
       },
     }),
   );
 }
 
+/** An image of `image`'s kind at the histogram's grid, standing for the same source pixels. */
+function inputOutput(image: RenderImage, grid: readonly [number, number]) {
+  const [width, height] = sourceSize(image);
+  return {
+    size: grid,
+    format: image.format,
+    scale: [width / grid[0], height / grid[1]] as const,
+  };
+}
+
+const linear: GPUSamplerDescriptor = {
+  minFilter: "linear",
+  magFilter: "linear",
+};
+
 /**
- * The image a mask's curve receives, with the mask's coverage as alpha, so a histogram of it
- * weighs the pixels the curve affects. Layer opacity is left out: it scales the effect, not the region.
+ * The image a layer's curve receives, with the mask's coverage as alpha, so a histogram of it weighs
+ * the pixels the curve affects. It is drawn on `grid`, the texels the histogram counts, each the very
+ * image texel the histogram would read at full size, so inspecting a layer costs no full-size
+ * texture. Layer opacity is left out: it scales the effect, not the region.
  */
-export function maskInput(
+export function curveInput(
   name: string,
   image: RenderImage,
-  mask: Mask,
+  grid: readonly [number, number],
+  mask?: Mask,
   modifiers: readonly MaskModifier[] = [],
   coverage?: RenderImage,
 ) {
+  const output = inputOutput(image, grid);
   if (coverage) {
     return merge(
-      { original: image, edited: image, coverage },
-      node(`${name}/raster-input`, rasterShader, {
-        samplers: {
-          coverageSampler: { minFilter: "linear", magFilter: "linear" },
-        },
-        set: { params: { opacity: 1, mode: 1 } },
+      { image, coverage },
+      node(`${name}/raster-input`, rasterInputShader, {
+        ...output,
+        samplers: { coverageSampler: linear },
+        set: { params: { grid } },
       }),
     );
   }
-  if (!isGradient(mask)) {
-    return image;
-  }
-  const gradients = gradientModifiers(modifiers);
+  const gradient = mask && isGradient(mask) ? mask : undefined;
+  const gradients = gradient ? gradientModifiers(modifiers) : [];
   return merge(
-    { original: image, edited: image },
-    node(`${name}/input`, shader, {
+    { image },
+    node(`${name}/input`, inputShader, {
+      ...output,
       storage: { modifiers: modifierData(gradients) },
       set: {
         params: {
-          opacity: 1,
-          ...gradientParams(mask),
+          ...gradientParams(gradient),
           modifierCount: gradients.length,
-          scale: image.scale,
-          mode: 1,
+          grid,
+          imageScale: image.scale,
         },
       },
     }),

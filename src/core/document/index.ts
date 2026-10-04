@@ -71,6 +71,8 @@ export type Preview = {
   };
   /** The mask whose ranges' image, the one below it, renders keep while a color is picked from it. */
   rangeSource?: string;
+  /** Device pixels the canvas shows per source pixel, which renders reduce the source to about. */
+  density: number;
 };
 
 /** Scenes contain only plain values; unchanged branches keep their identity. */
@@ -206,6 +208,7 @@ export function createDocument(initial: Scene, resources = createResources()) {
       split: 0.5,
       shadows: false,
       highlights: false,
+      density: 1,
     })),
     history,
     resources,

@@ -1,4 +1,5 @@
-import { compute, type Gpu, type Target } from "vgpu";
+import { compute, type Gpu } from "vgpu";
+import { type EncodedImage, primariesIndex } from "@/core/image";
 import { weakMemo } from "@/lib/weak-memo";
 import shader from "./cast.wgsl";
 
@@ -15,16 +16,21 @@ const measure = weakMemo((gpu: Gpu) =>
 );
 
 /**
- * Reduces `image` on the GPU to the light's color in stops and each channel's level where the edges
- * are; nothing for an image without usable pixels.
+ * Reduces the source on the GPU to the light's color in stops and each channel's level where the
+ * edges are, in the working space; nothing for an image without usable pixels.
  */
-export async function measureLight(gpu: Gpu, image: Target) {
+export async function measureLight(
+  gpu: Gpu,
+  { image, primaries }: EncodedImage,
+) {
   const light = gpu.device.createBuffer({
     size: 32,
     usage: ["storage", "copy_src"],
   });
   try {
-    measure(gpu).set({ source: image.color, light }).dispatch(1);
+    measure(gpu)
+      .set({ source: image.color, primaries: primariesIndex[primaries], light })
+      .dispatch(1);
     const [r, g, b, , lr, lg, lb] = new Float32Array(await light.read(32));
     const stops: Rgb = [r, g, b];
     const level: Rgb = [lr, lg, lb];

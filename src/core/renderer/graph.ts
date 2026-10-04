@@ -48,15 +48,23 @@ function plan(outputs: readonly RenderImage[]) {
 const sizeKey = (image: { size: readonly number[]; format: string }) =>
   `${image.size[0]}x${image.size[1]} ${image.format}`;
 
+/**
+ * Which set of sizes a render belongs to, named by the caller, so its sizes replace the ones that
+ * set used before, and the sets whose idle targets stay for the next render in them.
+ */
+export type Retention = {
+  set: number;
+  kept: readonly number[];
+};
+
 /** Owns effects, storage buffers, and transient targets for one renderer. */
 export function createRenderGraph(gpu: Gpu, timer?: Timer) {
   const pool: Target[] = [];
   /**
-   * How many targets of each size the last two distinct sets of sizes used, most recent first. An
-   * interactive proxy and the full image alternate between two such sets, and keeping both saves
-   * reallocating full-size targets on every gesture, which a phone's GPU memory can't absorb.
+   * How many targets of each size the latest render in each set used: the current set's and the kept
+   * ones', so a zoom that returns to a kept set allocates nothing, which Safari penalizes.
    */
-  let recent: Map<string, number>[] = [];
+  const recent = new Map<number, Map<string, number>>();
   const effects = new Map<string, Pass>();
   let passes: string[] = [];
   let disposed = false;
@@ -129,7 +137,7 @@ export function createRenderGraph(gpu: Gpu, timer?: Timer) {
         }
       }
     },
-    render(outputs: readonly RenderImage[]) {
+    render(outputs: readonly RenderImage[], { set, kept }: Retention) {
       if (disposed) {
         throw Error("Render graph is closed.");
       }
@@ -176,21 +184,19 @@ export function createRenderGraph(gpu: Gpu, timer?: Timer) {
       for (const image of written) {
         used.set(sizeKey(image), (used.get(sizeKey(image)) ?? 0) + 1);
       }
-      // Sizes that one set contains of the other are the same mode with more or fewer effects: the new
-      // counts replace the old, so the peak of an effect since turned off is let go.
-      const contains = (a: Map<string, number>, b: Map<string, number>) =>
-        [...b.keys()].every((key) => a.has(key));
-      const sameMode = (counts: Map<string, number>) =>
-        contains(counts, used) || contains(used, counts);
-      recent = [used, ...recent.filter((counts) => !sameMode(counts))].slice(
-        0,
-        2,
-      );
-      // Past these counts, an idle target is an old crop size or an old peak.
-      const kept = new Map<string, number>();
+      // The new counts replace the set's old ones, so an old crop size or the peak of an effect since
+      // turned off is let go, and so is every set no longer kept.
+      recent.set(set, used);
+      for (const other of recent.keys()) {
+        if (other !== set && !kept.includes(other)) {
+          recent.delete(other);
+        }
+      }
+      // Past these counts, an idle target is an old size or an old peak.
+      const counted = new Map<string, number>();
       for (const image of pool) {
         if (written.has(image) || live.has(image)) {
-          kept.set(sizeKey(image), (kept.get(sizeKey(image)) ?? 0) + 1);
+          counted.set(sizeKey(image), (counted.get(sizeKey(image)) ?? 0) + 1);
         }
       }
       for (let i = pool.length - 1; i >= 0; i--) {
@@ -200,11 +206,11 @@ export function createRenderGraph(gpu: Gpu, timer?: Timer) {
         }
         const key = sizeKey(image);
         const allowed = Math.max(
-          ...recent.map((counts) => counts.get(key) ?? 0),
+          ...[...recent.values()].map((counts) => counts.get(key) ?? 0),
         );
-        const count = kept.get(key) ?? 0;
+        const count = counted.get(key) ?? 0;
         if (count < allowed) {
-          kept.set(key, count + 1);
+          counted.set(key, count + 1);
           continue;
         }
         image.color.dispose();
@@ -235,7 +241,7 @@ export function createRenderGraph(gpu: Gpu, timer?: Timer) {
         image.color.dispose();
       }
       pool.length = 0;
-      recent = [];
+      recent.clear();
     },
   };
 }

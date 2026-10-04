@@ -101,7 +101,13 @@ export function HealOverlay({
       const scene = document.scene.getState();
       const patch = findHealPatch(scene, current.layer, current.patch);
       if (!patch) return;
-      await renderer.update(scene, current.patch, true);
+      await renderer.update(
+        scene,
+        current.patch,
+        true,
+        undefined,
+        document.preview.getState().density,
+      );
       if (signal.aborted) return;
       const image = renderer.inputImage(current.patch);
       if (!image) throw Error("Heal input is unavailable.");

@@ -42,7 +42,7 @@ function moved([r, g, b]: Rgb, level: Rgb) {
 export async function autoWhiteBalance(document: EditorDocument, gpu: Gpu) {
   const image = document.scene.getState().layers[0];
   const source = document.resources.get(image.source);
-  const light = await measureLight(gpu, source.image);
+  const light = await measureLight(gpu, source);
   if (!light || document.closed) {
     return;
   }

@@ -5,7 +5,6 @@ import { Slider } from "@roprgm/ui/slider";
 import { Spinner } from "@roprgm/ui/spinner";
 import { cn } from "cn";
 import { type ReactNode, useMemo, useRef, useState } from "react";
-import { useGpu } from "vgpu-react";
 import { writeSceneFile } from "@/app/loaders/scene";
 import { Image } from "@/components/editor/image";
 import { EditorLayout } from "@/components/editor/layout";
@@ -14,8 +13,8 @@ import { useDocument, useScene } from "@/components/editor/session";
 import { EditorViewport, ViewportStage } from "@/components/editor/viewport";
 import type { Point } from "@/core/image/frame";
 import { useShortcuts } from "@/hooks/use-shortcuts";
-import { type ExportFormat, exportImage, exportSize } from "./export-image";
-import { useEncodedPreview } from "./preview";
+import { type ExportFormat, exportSize } from "./export-image";
+import { useExportPreview } from "./preview";
 
 type Format = {
   id: ExportFormat;
@@ -210,8 +209,6 @@ function LoadingOverlay() {
 
 /** Shows the encoded file on the canvas; a spinner marks results from earlier settings as loading. */
 export function ExportMode({ onClose }: { onClose: () => void }) {
-  const gpu = useGpu();
-  const editorDocument = useDocument();
   const size = useScene((scene) => scene.frame.size);
   const maxEdge = Math.max(...exportSize(size));
   const [format, setFormat] = useState(formats[0]);
@@ -223,7 +220,12 @@ export function ExportMode({ onClose }: { onClose: () => void }) {
   const edge = Math.min(longEdge, maxEdge);
   const options = { format: format.id, quality, longEdge: edge };
   const output = useMemo(() => exportSize(size, edge), [size, edge]);
-  const { encoded, pending } = useEncodedPreview(options);
+  const {
+    encoded,
+    pending,
+    encode,
+    error: rendering,
+  } = useExportPreview(options);
   useShortcuts({ escape: onClose });
   const save = async () => {
     if (exporting.current) {
@@ -232,7 +234,7 @@ export function ExportMode({ onClose }: { onClose: () => void }) {
     exporting.current = true;
     setError("");
     try {
-      download(await exportImage(gpu, editorDocument, options));
+      download(await encode(options));
     } catch (error) {
       setError(
         error instanceof Error ? error.message : "Couldn't export image.",
@@ -245,9 +247,7 @@ export function ExportMode({ onClose }: { onClose: () => void }) {
     <EditorLayout
       canvas={
         <EditorViewport size={encoded?.image.size ?? output}>
-          <ViewportStage>
-            {encoded && <Image image={encoded.image} />}
-          </ViewportStage>
+          <ViewportStage>{encoded && <Image image={encoded} />}</ViewportStage>
           {pending && <LoadingOverlay />}
         </EditorViewport>
       }
@@ -283,9 +283,9 @@ export function ExportMode({ onClose }: { onClose: () => void }) {
             <Button size="lg" className="w-full" onClick={save}>
               Save image
             </Button>
-            {error && (
+            {(error || rendering) && (
               <p className="text-danger" role="alert">
-                {error}
+                {error || rendering}
               </p>
             )}
           </section>

@@ -9,6 +9,8 @@ type NodeOptions = {
   readonly storage?: Readonly<Record<string, Float32Array<ArrayBuffer>>>;
   readonly size?: readonly [number, number];
   readonly format?: GPUTextureFormat;
+  /** With `size`, when the node's texels stand for other source pixels than its first input's. */
+  readonly scale?: Scale;
 };
 export type NodeDefinition = NodeOptions & {
   readonly name: string;
@@ -77,7 +79,7 @@ export function merge(
     inputs,
     size: definition.size ?? first.size,
     format: definition.format ?? first.format,
-    scale: first.scale,
+    scale: definition.scale ?? first.scale,
   };
 }
 

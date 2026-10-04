@@ -32,7 +32,7 @@ test("scene files reopen the photo with every layer for further editing", async 
       dispose() {},
     };
     const image = target(gpu, { size, format: "rgba16float" });
-    return Promise.resolve(createImageSource(image, raw));
+    return Promise.resolve(createImageSource(image, { raw }));
   };
   const nef = new File([bytes], "photo.nef", { type: "image/x-nikon-nef" });
   const resources = createResources();

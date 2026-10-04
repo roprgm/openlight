@@ -2,6 +2,7 @@ import { expect, spyOn, test } from "bun:test";
 import { getMockGPUDeviceInstrumentation, init, target } from "vgpu/mock";
 import {
   createRenderGraph,
+  curveInput,
   input,
   merge,
   node,
@@ -72,7 +73,7 @@ test("a shared branch renders once and reuses effects, buffers, and temporary st
     node("join", shader, options),
   );
   const uploads = spyOn(gpu.gpu.queue, "writeBuffer");
-  const [saved, output] = graph.render([shared, joined]);
+  const [saved, output] = graph.render([shared, joined], { set: 1, kept: [] });
   expect(output).not.toBe(saved);
   expect(uploads).toHaveBeenCalledTimes(4);
   expect(graph.inspect().passes).toEqual([
@@ -85,7 +86,7 @@ test("a shared branch renders once and reuses effects, buffers, and temporary st
   const calls = getMockGPUDeviceInstrumentation(gpu.gpu).calls;
   const buffers = calls.createBuffer;
   const pipelines = calls.createRenderPipeline;
-  expect(graph.render([joined, shared, joined])).toEqual([
+  expect(graph.render([joined, shared, joined], { set: 1, kept: [] })).toEqual([
     output,
     saved,
     output,
@@ -95,37 +96,65 @@ test("a shared branch renders once and reuses effects, buffers, and temporary st
   // A storage array uploads once while passes keep receiving it.
   expect(uploads).toHaveBeenCalledTimes(4);
   // Bypassing releases scratch storage.
-  expect(graph.render([shared])[0]).toBe(saved);
+  expect(graph.render([shared], { set: 1, kept: [] })[0]).toBe(saved);
   expect(graph.inspect().textures).toHaveLength(1);
   expect(() => output.color.view).toThrow("destroyed");
-  // A proxy size and the full size alternate without reallocating; a third size lets the oldest go.
+  // Kept reductions keep their targets whichever way the zoom goes; a reduction not kept, the
+  // photo's own size, goes once another renders, and a reduction's new sizes replace its old ones.
   const sized = (size: number) =>
     mixed(source, "shared", { size: [size, size] });
-  const [proxy] = graph.render([sized(4)]);
+  const [proxy] = graph.render([sized(4)], { set: 2, kept: [2] });
   expect(proxy.size).toEqual([4, 4]);
-  expect(graph.render([shared])[0]).toBe(saved);
-  expect(graph.render([sized(4)])[0]).toBe(proxy);
-  graph.render([sized(2)]);
-  expect(graph.inspect().textures).toHaveLength(2);
   expect(() => saved.color.view).toThrow("destroyed");
+  const [small] = graph.render([sized(2)], { set: 4, kept: [4, 2] });
+  expect(graph.render([sized(4)], { set: 2, kept: [2, 4] })[0]).toBe(proxy);
+  const [full] = graph.render([shared], { set: 1, kept: [2, 4] });
+  expect(graph.inspect().textures).toHaveLength(3);
+  expect(graph.render([sized(2)], { set: 4, kept: [4, 2] })[0]).toBe(small);
+  expect(() => full.color.view).toThrow("destroyed");
+  const [cropped] = graph.render([sized(3)], { set: 2, kept: [2, 4] });
+  expect(() => proxy.color.view).toThrow("destroyed");
+  expect(graph.render([sized(2)], { set: 4, kept: [4] })[0]).toBe(small);
+  expect(() => cropped.color.view).toThrow("destroyed");
+  expect(graph.inspect().textures).toHaveLength(1);
   // Removing a composition retires its cached effect so its name can be reused.
   graph.release("shared");
   const replacement = merge(
     { source, base: source },
     node("shared", shader.replace("weights[0]", "1.0 - weights[0]"), options),
   );
-  expect(() => graph.render([replacement])).not.toThrow();
+  expect(() => graph.render([replacement], { set: 1, kept: [] })).not.toThrow();
   // Passes with identical uniforms share one prepared binding state.
   const { effects } = graph.inspect();
   const first = mixed(source, "first", { instance: "twin" });
-  graph.render([mixed(first, "second", { instance: "twin" })]);
+  graph.render([mixed(first, "second", { instance: "twin" })], {
+    set: 1,
+    kept: [],
+  });
   expect(graph.inspect()).toMatchObject({
     passes: ["first", "second"],
     effects: effects + 1,
   });
   graph.dispose();
   expect(() => image.color.view).not.toThrow();
-  expect(() => graph.render([shared])).toThrow("closed");
+  expect(() => graph.render([shared], { set: 1, kept: [] })).toThrow("closed");
   image.color.dispose();
   gpu.dispose();
+});
+
+test("a curve's input is drawn on the histogram's grid, standing for the whole photo", async () => {
+  const gpu = await init();
+  const grid = [512, 320] as const;
+  const image = input(
+    target(gpu, { size: [2048, 1536], format: "rgba16float" }),
+  );
+  const whole = curveInput("layer", image, grid);
+  expect(whole.size).toEqual([512, 320]);
+  expect(whole.scale).toEqual([4, 4.8]);
+  const coverage = input(target(gpu, { size: [1024, 768], format: "r8unorm" }));
+  const painted = curveInput("mask", image, grid, undefined, [], coverage);
+  expect(painted.size).toEqual([512, 320]);
+  // A smaller photo fills the grid too, its texels repeated as the histogram repeats them.
+  const small = input(target(gpu, { size: [300, 200], format: "rgba16float" }));
+  expect(curveInput("small", small, grid).size).toEqual([512, 320]);
 });

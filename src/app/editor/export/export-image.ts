@@ -79,57 +79,144 @@ export async function encodeImage(
   return blob;
 }
 
-/** The scene with its source and the stored pixels and Remove fields its renderer loads, taken together. */
-function snapshotRender(document: EditorDocument) {
+/** The current edits rendered in full, which encodes any number of times until it is disposed. */
+export type ExportRender = {
+  output: Target;
+  /** The source file's name without its extension. */
+  name: string;
+  dispose: () => void;
+};
+
+/**
+ * Renders a snapshot of the current edits. Taken now, since another photo may close the document
+ * meanwhile; its Remove fields complete after, read back from the editor when the document still waits.
+ */
+export async function renderExport(
+  gpu: Gpu,
+  document: EditorDocument,
+): Promise<ExportRender> {
   const scene = document.scene.getState();
+  const source = document.resources.get(scene.layers[0].source);
+  const pixels = settledPixels(document, scene);
+  const release = source.retain();
+  let renderer: ReturnType<typeof createEditorRenderer> | undefined;
+  try {
+    const fields = await completeFields(document, sceneFields(document, scene));
+    renderer = createEditorRenderer(gpu, source, {
+      paintPixels: (id) => {
+        const blob = pixels.get(id);
+        if (!blob) {
+          throw Error("Settled paint is unavailable.");
+        }
+        return blob;
+      },
+      field: (id) => fields.get(id),
+    });
+    await renderer.update(scene);
+  } catch (error) {
+    renderer?.dispose();
+    release();
+    throw error;
+  }
+  const rendered = renderer;
   return {
-    scene,
-    source: document.resources.get(scene.layers[0].source),
-    pixels: settledPixels(document, scene),
-    fields: sceneFields(document, scene),
+    output: rendered.outputImage(),
+    name: source.file.name.replace(/\.[^.]*$/, "") || "export",
+    dispose() {
+      rendered.dispose();
+      release();
+    },
   };
 }
 
-async function renderSnapshot(
+/** Encodes a render as a file named after its source. */
+export async function encodeExport(
   gpu: Gpu,
-  { scene, source, pixels, fields }: ReturnType<typeof snapshotRender>,
-  options: ExportOptions,
+  { output, name }: ExportRender,
+  options: ExportOptions = {},
 ) {
-  const renderer = createEditorRenderer(gpu, source, {
-    paintPixels: (id) => {
-      const blob = pixels.get(id);
-      if (!blob) {
-        throw Error("Settled paint is unavailable.");
-      }
-      return blob;
-    },
-    field: (id) => fields.get(id),
-  });
-  try {
-    await renderer.update(scene);
-    // The renderer retains the source until encoding finishes.
-    const blob = await encodeImage(gpu, renderer.outputImage(), options);
-    const name = source.file.name.replace(/\.[^.]*$/, "") || "export";
-    const { extension } = encodings[options.format ?? "png"];
-    return new File([blob], `${name}.${extension}`, { type: blob.type });
-  } finally {
-    renderer.dispose();
-  }
+  const blob = await encodeImage(gpu, output, options);
+  const { extension } = encodings[options.format ?? "png"];
+  return new File([blob], `${name}.${extension}`, { type: blob.type });
 }
 
-/** Renders a snapshot of the current edits, named after the source file. */
+/**
+ * The current edits rendered in full while an export view is open. `refresh` renders them as they
+ * are now in place of the last render, which goes first, so the session holds one; `encode` makes a
+ * file from the latest render. Renders, encodes, and releases run one at a time in order, so nothing
+ * reads an image after it goes, and a change during one waits for it. Listeners hear each refresh's
+ * outcome: nothing, or why it failed.
+ */
+export function createExportSession(gpu: Gpu, document: EditorDocument) {
+  let render: ExportRender | undefined;
+  let queue: Promise<unknown> = Promise.resolve();
+  const listeners = new Set<(failure?: string) => void>();
+  let disposed = false;
+  function chain<T>(step: () => Promise<T>) {
+    const result = queue.then(step);
+    queue = result.then(
+      () => undefined,
+      () => undefined,
+    );
+    return result;
+  }
+  return {
+    refresh: () =>
+      chain(async () => {
+        if (disposed) {
+          return;
+        }
+        render?.dispose();
+        render = undefined;
+        let failure: string | undefined;
+        try {
+          const next = await renderExport(gpu, document);
+          if (disposed) {
+            next.dispose();
+            return;
+          }
+          render = next;
+        } catch (error) {
+          failure = error instanceof Error ? error.message : "Couldn't render.";
+        }
+        for (const listener of listeners) {
+          listener(failure);
+        }
+      }),
+    encode: (options: ExportOptions) =>
+      chain(() => {
+        if (!render) {
+          throw Error("The photo is still rendering.");
+        }
+        return encodeExport(gpu, render, options);
+      }),
+    subscribe(listener: (failure?: string) => void) {
+      listeners.add(listener);
+      return () => {
+        listeners.delete(listener);
+      };
+    },
+    dispose() {
+      disposed = true;
+      listeners.clear();
+      void chain(async () => {
+        render?.dispose();
+        render = undefined;
+      });
+    },
+  };
+}
+
+/** Renders a snapshot of the current edits and encodes it, named after the source file. */
 export async function exportImage(
   gpu: Gpu,
   document: EditorDocument,
   options: ExportOptions = {},
 ) {
-  // Taken now, since another photo may close the document meanwhile; its Remove fields complete after.
-  const snapshot = snapshotRender(document);
-  const release = snapshot.source.retain();
+  const render = await renderExport(gpu, document);
   try {
-    const fields = await completeFields(document, snapshot.fields);
-    return await renderSnapshot(gpu, { ...snapshot, fields }, options);
+    return await encodeExport(gpu, render, options);
   } finally {
-    release();
+    render.dispose();
   }
 }

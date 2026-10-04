@@ -106,18 +106,21 @@ export function createHealSearch(gpu: Gpu) {
         Math.max(1, Math.round(image.size[0] * ratio)),
         Math.max(1, Math.round(image.size[1] * ratio)),
       ];
-      const [thumbnail] = graph.render([
-        merge(
-          { source: input(image) },
-          node("heal/search-thumbnail", shader, {
-            size,
-            set: { params: { size } },
-            samplers: {
-              linearSampler: { minFilter: "linear", magFilter: "linear" },
-            },
-          }),
-        ),
-      ]);
+      const [thumbnail] = graph.render(
+        [
+          merge(
+            { source: input(image) },
+            node("heal/search-thumbnail", shader, {
+              size,
+              set: { params: { size } },
+              samplers: {
+                linearSampler: { minFilter: "linear", magFilter: "linear" },
+              },
+            }),
+          ),
+        ],
+        { set: 1, kept: [] },
+      );
       return matchSource(
         await thumbnail.readFloats(),
         size,

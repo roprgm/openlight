@@ -29,7 +29,12 @@ export function ImageThumbnail() {
     let active = true;
     async function draw() {
       try {
-        const bitmap = await renderBitmap(gpu, source.image, [64, 64]);
+        const bitmap = await renderBitmap(
+          gpu,
+          source.image,
+          [64, 64],
+          source.primaries,
+        );
         const context = canvas.current?.getContext("2d");
         if (active && !context) {
           throw Error("Cannot draw image thumbnail.");

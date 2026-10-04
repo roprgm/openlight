@@ -19,3 +19,10 @@ export fn combineCoverage(group: f32, child: f32, operation: u32, opacity: f32) 
  let sign = select(1.0, -1.0, operation == 1u);
  return clamp(group + sign * opacity * child, 0.0, 1.0);
 }
+
+// A gradient modifier applied to the group's coverage at `at`, from its three entries as modifierData
+// lays them out: its geometry; opacity, kind, feather, and angle; then its operation.
+export fn modifierCoverage(group: f32, at: vec2f, points: vec4f, settings: vec4f, operation: vec4f) -> f32 {
+ let child = gradientCoverage(at, points.xy, points.zw, u32(settings.y), settings.z, settings.w);
+ return combineCoverage(group, child, u32(operation.x), settings.x);
+}

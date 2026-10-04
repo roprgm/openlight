@@ -37,8 +37,7 @@ export async function perspectiveProxy() {
   try {
     await renderer.update(scene);
     const full = await renderer.outputImage().readFloats();
-    renderer.setDisplayScale(0.5);
-    await renderer.update({ ...scene }, undefined, true);
+    await renderer.update({ ...scene }, undefined, true, undefined, 0.5);
     const reduced = renderer.outputImage();
     const proxy = await reduced.readFloats();
     let stray = 0;
