@@ -232,17 +232,26 @@ function DocumentEditor({
 type EditorProps = {
   state: ReturnType<Workspace["state"]["getState"]>;
   onOpen: (files: File[]) => void;
+  onOpenSample: () => void;
   onDismissFailure: () => void;
   draft?: Recovery;
 };
 function EditorContent({
   state,
   onOpen,
+  onOpenSample,
   onDismissFailure,
   draft,
 }: EditorProps) {
   if (state.status !== "ready") {
-    return <EmptyEditor state={state} onOpen={onOpen} draft={draft} />;
+    return (
+      <EmptyEditor
+        state={state}
+        onOpen={onOpen}
+        onOpenSample={onOpenSample}
+        draft={draft}
+      />
+    );
   }
   return (
     <DocumentProvider key={state.document.id} value={state.document}>

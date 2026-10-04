@@ -5,8 +5,9 @@ import { Editor } from "@/app/editor";
 import { useWorkspace } from "@/app/workspace/use-workspace";
 import { useFileDrop } from "@/hooks/use-file-drop";
 
-/** Visiting /demo opens a bundled photo instead of the empty state. */
-const startup = location.pathname === "/demo" ? "/images/demo.jpg" : undefined;
+/** A bundled photo that the empty state offers and that visiting /demo opens. */
+const samplePhoto = "/images/demo.jpg";
+const startup = location.pathname === "/demo" ? samplePhoto : undefined;
 
 /** The experimental assistant mounts only when the URL asks for it, as in `/?assistant`. */
 const assistant = new URLSearchParams(location.search).has("assistant");
@@ -24,6 +25,7 @@ export function App() {
       <Editor
         state={state}
         onOpen={controls.openFiles}
+        onOpenSample={() => void controls.loadUrl(samplePhoto)}
         onDismissFailure={workspace.dismissFailure}
         draft={recovery}
       />
