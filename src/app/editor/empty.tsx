@@ -229,12 +229,17 @@ function Starts({
   const blank = useRef<HTMLButtonElement>(null);
   const first = useRef<HTMLButtonElement>(null);
 
-  /** Swaps the tiles inside a view transition, then focuses what shows. */
+  /** Swaps the tiles inside a view transition where the browser has one, then focuses what shows. */
   function choose(next: boolean) {
-    window.document.startViewTransition(() => {
+    const swap = () => {
       flushSync(() => setChoosing(next));
       (next ? first : blank).current?.focus();
-    });
+    };
+    if ("startViewTransition" in window.document) {
+      window.document.startViewTransition(swap);
+    } else {
+      swap();
+    }
   }
 
   return (
