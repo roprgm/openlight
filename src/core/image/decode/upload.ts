@@ -1,5 +1,5 @@
 import { effect, frame, type Gpu, type Target, target } from "vgpu";
-import type { Primaries } from "@/core/image";
+import type { EncodedImage } from "@/core/image";
 import { weakMemo } from "@/lib/weak-memo";
 import type { Decoded } from "./types";
 import shader from "./upload.wgsl";
@@ -73,10 +73,7 @@ const layout = weakMemo((gpu: Gpu) => effect(gpu, shader));
  * GPU leg for sRGB-encoded decoders: the decoded image as an 8-bit sRGB-encoded target, half the
  * memory of the working format, in the primaries it came in. The renderer converts what it reads.
  */
-export function uploadDecoded(
-  gpu: Gpu,
-  decoded: Decoded,
-): { image: Target; primaries: Primaries } {
+export function uploadDecoded(gpu: Gpu, decoded: Decoded): EncodedImage {
   const frames = "tiles" in decoded ? decoded : undefined;
   const rotation = frames?.rotation ?? 0;
   const primaries = isP3(frames?.tiles[0]) ? "display-p3" : "srgb";

@@ -2,7 +2,7 @@ import { type Primaries, primariesIndex } from "@/core/image";
 import { node } from "@/core/renderer";
 import shader from "./exposure.wgsl";
 
-/** Exposure in stops; the pass also develops an input in other `primaries` into the working space. */
+/** Exposure in stops; the pass also converts an input in other `primaries` into the working space. */
 export function exposure(
   name: string,
   value: number,

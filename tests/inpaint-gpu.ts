@@ -84,14 +84,14 @@ export async function renderInpaintReference(
       f.pass(clean, shader(false));
     });
     await gpu.gpu.queue.onSubmittedWorkDone();
-    renderer.setDisplayScale(proxy ? 0.5 : 1);
+    const density = proxy ? 0.5 : 1;
     const start = performance.now();
     // A patch waiting for its field synthesizes in full whatever the display; a proxy then shows the field it keeps.
-    await renderer.update(scene);
+    await renderer.update(scene, undefined, false, undefined, density);
     await gpu.gpu.queue.onSubmittedWorkDone();
     const completedMs = performance.now() - start;
     const solved = renderer.inspect();
-    await renderer.update(scene, undefined, proxy);
+    await renderer.update(scene, undefined, proxy, undefined, density);
     const result = renderer.fullImage();
     const actual = await result.readFloats();
     const before = await image.readFloats();
@@ -137,12 +137,14 @@ export async function renderInpaintReference(
       { ...scene, layers: [scene.layers[0], { ...healing, visible: false }] },
       undefined,
       proxy,
+      undefined,
+      density,
     );
     const fields = () =>
       renderer.inspect().rasters.filter(({ id }) => id.endsWith("/field"))
         .length;
     const hiddenFields = fields();
-    await renderer.update(scene, undefined, proxy);
+    await renderer.update(scene, undefined, proxy, undefined, density);
     const shown = renderer.inspect();
     const visible = await renderer.fullImage().readFloats();
     const visibilityError = visible.reduce(
@@ -160,6 +162,8 @@ export async function renderInpaintReference(
       },
       undefined,
       proxy,
+      undefined,
+      density,
     );
     const cached = renderer.inspect();
     await renderer.update(
@@ -175,6 +179,8 @@ export async function renderInpaintReference(
       },
       undefined,
       proxy,
+      undefined,
+      density,
     );
     const exposed = renderer.inspect();
     // The patch keeps its donors, whose colors follow the exposure below it.
@@ -206,8 +212,10 @@ export async function renderInpaintReference(
       },
       undefined,
       proxy,
+      undefined,
+      density,
     );
-    await renderer.update(scene, undefined, proxy);
+    await renderer.update(scene, undefined, proxy, undefined, density);
     const restored = await renderer.fullImage().readFloats();
     const restoredError = restored.reduce(
       (maximum, value, index) =>

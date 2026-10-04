@@ -120,11 +120,14 @@ test.each([1, 16])(
     const calls = getMockGPUDeviceInstrumentation(gpu.gpu).calls;
     const radius = reduction === 1 ? 1 : 64;
     const render = (amount: number) =>
-      graph.render([
-        pipeline(input(source), [
-          unsharpMask("detail", amount / 200, radius, reduction),
-        ]),
-      ])[0];
+      graph.render(
+        [
+          pipeline(input(source), [
+            unsharpMask("detail", amount / 200, radius, reduction),
+          ]),
+        ],
+        { set: 1, kept: [] },
+      )[0];
     expect(render(0)).toBe(source);
     expect(calls.createRenderPipeline ?? 0).toBe(0);
     const filtered = render(100);

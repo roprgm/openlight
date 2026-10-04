@@ -51,17 +51,16 @@ export function RendererProvider({
   const document = useDocument();
   const sourceId = useScene((scene) => scene.layers[0].source);
   const source = document.resources.get(sourceId);
-  const [error, setError] = useState<string>();
   const renderer = useDisposable(
     () =>
       createRenderer(gpu, source, {
         paintPixels: (id) => document.resources.paint(id),
         field: (id) => document.resources.field(id),
         saveField: (id, field) => document.resources.fillField(id, field),
-        onError: (error) => setError(String(error)),
       }),
     [gpu, document, source, createRenderer],
   );
+  const [error, setError] = useState<string>();
 
   // A snapshot reads back the Remove fields this renderer shows that the document still waits for.
   useEffect(
@@ -75,6 +74,7 @@ export function RendererProvider({
     let requestedInput: string | undefined;
     let requestedSource: string | undefined;
     let requestedInteractive = false;
+    let requestedDensity: number | undefined;
     const render = () => {
       const scene = document.scene.getState();
       const target = adjustmentTarget(
@@ -82,28 +82,32 @@ export function RendererProvider({
         document.selection.getState().layerId,
       );
       const input = target && "toneCurve" in target ? target.id : undefined;
-      const source = document.preview.getState().rangeSource;
-      // An open gesture keeps the display's density even where a Remove patch waits for its field.
+      const { rangeSource, density } = document.preview.getState();
+      // An open gesture shows a Remove patch unfilled rather than synthesizing its field.
       const interactive = document.history.status.getState().editing;
       // A dropped input or source can stay live; only a new one needs a render.
       if (
         scene === requestedScene &&
         (input === requestedInput || !input) &&
-        (source === requestedSource || !source) &&
-        interactive === requestedInteractive
+        (rangeSource === requestedSource || !rangeSource) &&
+        interactive === requestedInteractive &&
+        density === requestedDensity
       ) {
         return;
       }
       requestedScene = scene;
       requestedInput = input;
-      requestedSource = source;
+      requestedSource = rangeSource;
       requestedInteractive = interactive;
+      requestedDensity = density;
       setError(undefined);
-      renderer.update(scene, input, interactive, source).catch((error) => {
-        if (active) {
-          setError(String(error));
-        }
-      });
+      renderer
+        .update(scene, input, interactive, rangeSource, density)
+        .catch((error) => {
+          if (active) {
+            setError(String(error));
+          }
+        });
     };
     const unsubscribeScene = document.scene.subscribe(render);
     const unsubscribeSelection = document.selection.subscribe(render);

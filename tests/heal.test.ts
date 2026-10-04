@@ -58,14 +58,17 @@ test("Remove passes never overwrite distinct uniforms before their frame submits
   const uploads = spyOn(gpu.gpu.queue, "writeBuffer");
   const lattice = { origin: [0, 0], scale: 1, size: source.size } as const;
   try {
-    graph.render([
-      inpaintField(
-        input(source),
-        { coverage: input(coverage), origin: [0, 0] },
-        lattice,
-        "remove",
-      ),
-    ]);
+    graph.render(
+      [
+        inpaintField(
+          input(source),
+          { coverage: input(coverage), origin: [0, 0] },
+          lattice,
+          "remove",
+        ),
+      ],
+      { set: 1, kept: [] },
+    );
     const uniforms = new Map<GPUBuffer, Uint8Array>();
     for (const [buffer, , data] of uploads.mock.calls) {
       const bytes = ArrayBuffer.isView(data)
@@ -202,8 +205,14 @@ test("a nested Remove synthesizes once for its strokes, whatever changes below o
     ...dab,
     points: [[64, 48, 1]],
   });
-  const render = (interactive = false) =>
-    renderer.update(document.scene.getState(), undefined, interactive);
+  const render = (interactive = false, density = 1) =>
+    renderer.update(
+      document.scene.getState(),
+      undefined,
+      interactive,
+      undefined,
+      density,
+    );
   const solves = () =>
     renderer.inspect().passes.some((name) => name.includes("/inpaint/"));
   const fields = () =>
@@ -241,8 +250,7 @@ test("a nested Remove synthesizes once for its strokes, whatever changes below o
     setAdjustments(document, { exposure: 1 }, mask);
     await render();
     expect(solves()).toBe(false);
-    renderer.setDisplayScale(0.5);
-    await render(true);
+    await render(true, 0.5);
     expect(solves()).toBe(false);
     for (const mode of ["paint", "erase"] as const) {
       const before = own();
@@ -255,8 +263,8 @@ test("a nested Remove synthesizes once for its strokes, whatever changes below o
       // A new stroke takes a new field, to synthesize for the whole new shape.
       expect(own()).not.toBe(before);
       expect(document.resources.field(own())).toBeUndefined();
-      // A proxy keeps the field it holds; only full resolution synthesizes the new stroke.
-      await render(true);
+      // A gesture's proxy shows the new stroke unfilled; its end synthesizes it in full.
+      await render(true, 0.5);
       expect(solves()).toBe(false);
       await render();
       expect(solves()).toBe(true);
@@ -298,34 +306,45 @@ test("renders follow the display's density, except that a proxy lacking a Remove
   const renderer = createEditorRenderer(gpu, source, {
     field: (id) => document.resources.field(id),
   });
-  const render = (interactive = false) =>
-    renderer.update(document.scene.getState(), undefined, interactive);
+  const render = (interactive = false, density = 0.5) =>
+    renderer.update(
+      document.scene.getState(),
+      undefined,
+      interactive,
+      undefined,
+      density,
+    );
   const size = () => renderer.outputImage().size;
+  const fields = () =>
+    renderer.inspect().rasters.filter(({ id }) => id.endsWith("/field"));
   try {
-    renderer.setDisplayScale(0.5);
     await render();
     expect(size()).toEqual([64, 48]);
     const layer = addLayer(document, createLayer("heal"));
     addRemovePatch(document, layer, { ...dab, points: [[64, 48, 1]] });
-    // A gesture keeps the proxy and shows the patch unfilled; its end synthesizes the field in full.
+    // A gesture shows the patch unfilled; its end synthesizes the field in full apart, and shows the proxy.
     await render(true);
     expect(size()).toEqual([64, 48]);
+    expect(fields()).toHaveLength(0);
     await render();
-    expect(size()).toEqual([128, 96]);
-    expect(
-      renderer.inspect().rasters.some(({ id }) => id.endsWith("/field")),
-    ).toBe(true);
+    expect(size()).toEqual([64, 48]);
+    expect(fields()).toHaveLength(1);
+    expect(renderer.inspect().passes).toContain(
+      `layer/${layer}/${patchesOf(document, layer)[0].id}/blend`,
+    );
+    // The full-size textures the synthesis used go with the proxy's render; the proxy's stay.
+    expect(renderer.inspect().textures.every(({ size }) => size[0] <= 64)).toBe(
+      true,
+    );
     setAdjustments(document, { exposure: 1 });
     await render();
     expect(size()).toEqual([64, 48]);
-    // A finer display renders the last scene again, after the frame that reports it.
-    renderer.setDisplayScale(1);
-    await Promise.resolve();
+    // A finer display renders in full; returning to a reduction already rendered allocates nothing,
+    // since its proxy and intermediates stayed.
+    await render(false, 1);
     expect(size()).toEqual([128, 96]);
-    // Returning to a reduction already rendered allocates nothing: its proxy and intermediates stayed.
     const made = spyOn(gpu.gpu, "createTexture");
-    renderer.setDisplayScale(0.5);
-    await Promise.resolve();
+    await render(false, 0.5);
     expect(size()).toEqual([64, 48]);
     expect(made).not.toHaveBeenCalled();
   } finally {
@@ -433,20 +452,18 @@ test("heal patches reuse brush rasters, scale with the proxy, undo, and release 
       created?.kind === "heal" &&
         created.patches.find((item) => item.id === patch),
     ).toMatchObject({ feather: 0.4, strokes: [{ size: 30, feather: 0 }] });
-    renderer.setDisplayScale(0.25);
-    await renderer.update(document.scene.getState(), id, true);
+    await renderer.update(document.scene.getState(), id, true, undefined, 0.25);
     expect(renderer.fullImage().size).toEqual([64, 48]);
     expect(renderer.inspect().rasters).toEqual([
       { id: `layer/${id}/${patch}`, size: [256, 192], format: "r8unorm" },
     ]);
     const stamped = renderer.inspect().stamped;
     extendHealPatch(document, id, [[120, 80, 1]]);
-    await renderer.update(document.scene.getState(), id, true);
+    await renderer.update(document.scene.getState(), id, true, undefined, 0.25);
     expect(renderer.inspect().stamped).toBeGreaterThan(stamped);
     const extended = renderer.inspect().stamped;
     document.history.commit();
     // The view shows every source pixel again, so the render returns to full size.
-    renderer.setDisplayScale(1);
     await renderer.update(document.scene.getState());
     expect(renderer.fullImage().size).toEqual([256, 192]);
     expect(renderer.inspect().stamped).toBe(extended);

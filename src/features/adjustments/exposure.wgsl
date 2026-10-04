@@ -2,7 +2,7 @@ import { toWorking } from "../../core/image/color.wgsl";
 import { adjustExposure } from "./prepare.wgsl";
 
 struct Params {
- // The primaries the input is in, as toWorking numbers them: the image layer's pass develops an 8-bit source.
+ // The primaries the input is in, as toWorking numbers them: the image layer's pass converts an 8-bit source.
  primaries: u32,
  exposure: f32,
 }

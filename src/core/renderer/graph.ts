@@ -49,11 +49,11 @@ const sizeKey = (image: { size: readonly number[]; format: string }) =>
   `${image.size[0]}x${image.size[1]} ${image.format}`;
 
 /**
- * Which reduction a render is, so its sizes replace the ones that reduction used before, and the
- * reductions whose idle targets stay for the next render at them.
+ * Which set of sizes a render belongs to, named by the caller, so its sizes replace the ones that
+ * set used before, and the sets whose idle targets stay for the next render in them.
  */
 export type Retention = {
-  reduction: number;
+  set: number;
   kept: readonly number[];
 };
 
@@ -61,8 +61,8 @@ export type Retention = {
 export function createRenderGraph(gpu: Gpu, timer?: Timer) {
   const pool: Target[] = [];
   /**
-   * How many targets of each size the latest render at each reduction used: the current one's and the
-   * kept ones', so a zoom that returns to a kept reduction allocates nothing, which Safari penalizes.
+   * How many targets of each size the latest render in each set used: the current set's and the kept
+   * ones', so a zoom that returns to a kept set allocates nothing, which Safari penalizes.
    */
   const recent = new Map<number, Map<string, number>>();
   const effects = new Map<string, Pass>();
@@ -137,10 +137,7 @@ export function createRenderGraph(gpu: Gpu, timer?: Timer) {
         }
       }
     },
-    render(
-      outputs: readonly RenderImage[],
-      { reduction, kept }: Retention = { reduction: 1, kept: [] },
-    ) {
+    render(outputs: readonly RenderImage[], { set, kept }: Retention) {
       if (disposed) {
         throw Error("Render graph is closed.");
       }
@@ -187,11 +184,11 @@ export function createRenderGraph(gpu: Gpu, timer?: Timer) {
       for (const image of written) {
         used.set(sizeKey(image), (used.get(sizeKey(image)) ?? 0) + 1);
       }
-      // The new counts replace the reduction's old ones, so an old crop size or the peak of an effect
-      // since turned off is let go, and so is every reduction no longer kept.
-      recent.set(reduction, used);
+      // The new counts replace the set's old ones, so an old crop size or the peak of an effect since
+      // turned off is let go, and so is every set no longer kept.
+      recent.set(set, used);
       for (const other of recent.keys()) {
-        if (other !== reduction && !kept.includes(other)) {
+        if (other !== set && !kept.includes(other)) {
           recent.delete(other);
         }
       }

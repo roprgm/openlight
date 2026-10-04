@@ -76,8 +76,7 @@ export async function renderHealReference({
         ],
       };
       for (const proxy of [false, true]) {
-        renderer.setDisplayScale(0.25);
-        await renderer.update(renderScene, "spot", proxy);
+        await renderer.update(renderScene, "spot", proxy, undefined, 0.25);
         const output = renderer.fullImage();
         const pixels = await output.readFloats();
         const input = renderer.inputImage("spot");

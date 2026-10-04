@@ -1,5 +1,5 @@
 import { compute, type Gpu } from "vgpu";
-import { type ImageSource, primariesIndex } from "@/core/image";
+import { type EncodedImage, primariesIndex } from "@/core/image";
 import { weakMemo } from "@/lib/weak-memo";
 import shader from "./cast.wgsl";
 
@@ -21,7 +21,7 @@ const measure = weakMemo((gpu: Gpu) =>
  */
 export async function measureLight(
   gpu: Gpu,
-  { image, primaries }: Pick<ImageSource, "image" | "primaries">,
+  { image, primaries }: EncodedImage,
 ) {
   const light = gpu.device.createBuffer({
     size: 32,

@@ -15,7 +15,7 @@ export function isExposureOnly(values: Adjustments) {
 
 /**
  * Exposure alone takes the lighter pass; the full shader runs under its own name once another value
- * moves. Either develops an input in other `primaries` into the working space, so an 8-bit source
+ * moves. Either converts an input in other `primaries` into the working space, so an 8-bit source
  * costs no pass of its own.
  */
 export function adjustments(

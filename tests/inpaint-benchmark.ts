@@ -91,14 +91,17 @@ export async function benchmarkInpaint(
       async render(index: number) {
         const stroke = strokeAt(index);
         const coverage = raster.patch("spot", [stroke], size);
-        graph.render([
-          inpaint(
-            input(image),
-            coverage,
-            patchBounds([stroke], size, 240),
-            "inpaint",
-          ),
-        ]);
+        graph.render(
+          [
+            inpaint(
+              input(image),
+              coverage,
+              patchBounds([stroke], size, 240),
+              "inpaint",
+            ),
+          ],
+          { set: 1, kept: [] },
+        );
       },
       inspect: graph.inspect,
       dispose() {

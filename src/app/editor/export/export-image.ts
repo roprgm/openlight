@@ -140,6 +140,73 @@ export async function encodeExport(
   return new File([blob], `${name}.${extension}`, { type: blob.type });
 }
 
+/**
+ * The current edits rendered in full while an export view is open. `refresh` renders them as they
+ * are now in place of the last render, which goes first, so the session holds one; `encode` makes a
+ * file from the latest render. Renders, encodes, and releases run one at a time in order, so nothing
+ * reads an image after it goes, and a change during one waits for it. Listeners hear each refresh's
+ * outcome: nothing, or why it failed.
+ */
+export function createExportSession(gpu: Gpu, document: EditorDocument) {
+  let render: ExportRender | undefined;
+  let queue: Promise<unknown> = Promise.resolve();
+  const listeners = new Set<(failure?: string) => void>();
+  let disposed = false;
+  function chain<T>(step: () => Promise<T>) {
+    const result = queue.then(step);
+    queue = result.then(
+      () => undefined,
+      () => undefined,
+    );
+    return result;
+  }
+  return {
+    refresh: () =>
+      chain(async () => {
+        if (disposed) {
+          return;
+        }
+        render?.dispose();
+        render = undefined;
+        let failure: string | undefined;
+        try {
+          const next = await renderExport(gpu, document);
+          if (disposed) {
+            next.dispose();
+            return;
+          }
+          render = next;
+        } catch (error) {
+          failure = error instanceof Error ? error.message : "Couldn't render.";
+        }
+        for (const listener of listeners) {
+          listener(failure);
+        }
+      }),
+    encode: (options: ExportOptions) =>
+      chain(() => {
+        if (!render) {
+          throw Error("The photo is still rendering.");
+        }
+        return encodeExport(gpu, render, options);
+      }),
+    subscribe(listener: (failure?: string) => void) {
+      listeners.add(listener);
+      return () => {
+        listeners.delete(listener);
+      };
+    },
+    dispose() {
+      disposed = true;
+      listeners.clear();
+      void chain(async () => {
+        render?.dispose();
+        render = undefined;
+      });
+    },
+  };
+}
+
 /** Renders a snapshot of the current edits and encodes it, named after the source file. */
 export async function exportImage(
   gpu: Gpu,

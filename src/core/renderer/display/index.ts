@@ -10,7 +10,11 @@ import {
   target,
 } from "vgpu";
 import type { Mask, MaskModifier } from "@/core/document";
-import { type Primaries, primariesIndex } from "@/core/image";
+import {
+  type EncodedImage,
+  type Primaries,
+  primariesIndex,
+} from "@/core/image";
 import {
   frameTransform,
   type ImageFrame,
@@ -37,11 +41,7 @@ export type MaskOverlay = {
   opacity?: number;
 };
 /** The photo's source as decoded, in its own primaries, and the frame that places the image over it. */
-export type DisplaySource = {
-  image: Target;
-  frame: ImageFrame;
-  primaries: Primaries;
-};
+export type DisplaySource = EncodedImage & { frame: ImageFrame };
 type DisplayOptions = {
   view: View;
   viewport?: readonly number[];

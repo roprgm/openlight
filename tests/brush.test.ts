@@ -90,8 +90,14 @@ test("brush strokes stamp incrementally, replay after undo, and render a proxy d
   const renderer = createEditorRenderer(gpu, source);
   const notify = mock(() => {});
   renderer.subscribe(notify);
-  const render = (inputId?: string, interactive = false) =>
-    renderer.update(document.scene.getState(), inputId, interactive);
+  const render = (inputId?: string, interactive = false, density = 1) =>
+    renderer.update(
+      document.scene.getState(),
+      inputId,
+      interactive,
+      undefined,
+      density,
+    );
   const inspect = () => renderer.inspect();
   const mask = addLayer(document, createMask({ kind: "brush", strokes: [] }));
   setAdjustments(document, { exposure: 1 }, mask);
@@ -117,13 +123,11 @@ test("brush strokes stamp incrementally, replay after undo, and render a proxy d
   await render(undefined, true);
   expect(inspect().stamped).toBe(21);
   // A quarter of a device pixel per source pixel means a quarter-size render.
-  renderer.setDisplayScale(0.25);
-  await render(undefined, true);
+  await render(undefined, true, 0.25);
   expect(renderer.outputImage().size).toEqual([16, 8]);
   expect(inspect().stamped).toBe(21);
   document.history.commit();
   // The view shows every source pixel again, so the render returns to full size.
-  renderer.setDisplayScale(1);
   await render();
   const rendered = notify.mock.calls.length;
   await render();

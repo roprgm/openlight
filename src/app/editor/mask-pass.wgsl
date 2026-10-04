@@ -1,4 +1,4 @@
-import { combineCoverage, gradientCoverage } from "../../core/renderer/blend/coverage.wgsl";
+import { gradientCoverage, modifierCoverage } from "../../core/renderer/blend/coverage.wgsl";
 import { adjustLayer } from "../../features/adjustments/adjust.wgsl";
 import { Adjustments } from "../../features/adjustments/prepare.wgsl";
 import { tone, toneSamples } from "../../features/tone-curves/tone.wgsl";
@@ -36,10 +36,7 @@ struct Params {
  let at = position.xy * params.scale;
  var coverage = gradientCoverage(at, params.first, params.second, params.kind, params.feather, params.angle);
  for (var i = 0u; i < params.modifierCount; i++) {
-  let points = modifiers[i * 3u];
-  let settings = modifiers[i * 3u + 1u];
-  let child = gradientCoverage(at, points.xy, points.zw, u32(settings.y), settings.z, settings.w);
-  coverage = combineCoverage(coverage, child, u32(modifiers[i * 3u + 2u].x), settings.x);
+coverage = modifierCoverage(coverage, at, modifiers[i * 3u], modifiers[i * 3u + 1u], modifiers[i * 3u + 2u]);
  }
  return vec4f(mix(before.rgb, after, coverage * params.opacity), before.a);
 }

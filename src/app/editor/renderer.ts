@@ -196,7 +196,7 @@ export function createEditorRenderer(
       const [sourceLayer, ...layers] = scene.layers;
       const name = `layer/${sourceLayer.id}`;
       composition.retain(name);
-      // The photo's first pass develops an 8-bit source into the working space.
+      // The photo's first pass converts an 8-bit source into the working space.
       const adjusted = pipeline(image, [
         adjustments(sourceLayer.adjustments, name, source.primaries),
       ]);

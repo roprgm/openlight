@@ -24,6 +24,9 @@ export const primariesIndex: Record<Primaries, number> = {
   "display-p3": 2,
 };
 
+/** A texture with the primaries its texels are in, which whoever reads it converts. */
+export type EncodedImage = { image: Target; primaries: Primaries };
+
 type SourceOptions = {
   raw?: RawDevelopment;
   /** The working space's unless said. */

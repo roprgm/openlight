@@ -120,7 +120,7 @@ Creative LUTs expect and return display-referred, sRGB-encoded color. The layer 
 
 ## History
 
-Each content change creates an undo step unless a group is open. No-op edits add no history. Preview changes stay outside history. Groups do not nest. The preview renders a reduced proxy of the image at the display's scale, in a group or not, and the full image where the display shows every source pixel or, outside a group, where a Remove patch still waits for its field; exports always render in full.
+Each content change creates an undo step unless a group is open. No-op edits add no history. Preview changes stay outside history. Groups do not nest. The preview renders a reduced proxy of the image, by the largest whole factor that still gives every device pixel a source pixel, in a group or not, so the full image renders once the display shows more than half a device pixel per source pixel; outside a group, a Remove patch still waiting for its field is synthesized in full apart. Exports always render in full.
 
 | Method | Behavior |
 | --- | --- |
@@ -155,7 +155,7 @@ try {
 | `shadows` | Show shadow clipping | `false` |
 | `highlights` | Show highlight clipping | `false` |
 
-The editor also manages `maskOverlay` for the selected mask and `rangeSource` for the mask group being sampled. These transient fields are visible in `getState().preview`; leave them to the active tool.
+The editor also manages `maskOverlay` for the selected mask, `rangeSource` for the mask group being sampled, and `density`, the device pixels the canvas shows per source pixel, which renders reduce the source to about. These transient fields are visible in `getState().preview`; leave them to the active tool and the canvas.
 
 ## Export
 

@@ -1,6 +1,6 @@
 import { View, imagePoint, previewColor, background, maskTint } from "./display.wgsl";
 import { Transform, sourcePoint } from "../transform/transform.wgsl";
-import { combineCoverage, gradientCoverage } from "../blend/coverage.wgsl";
+import { gradientCoverage, modifierCoverage } from "../blend/coverage.wgsl";
 import { toWorking } from "../../image/color.wgsl";
 
 struct MaskOverlay {
@@ -41,10 +41,7 @@ fn overlayCoverage(point: vec2f) -> f32 {
   let position = point * overlay.sourceSize;
   var coverage = gradientCoverage(position, overlay.first, overlay.second, overlay.kind, overlay.feather, overlay.angle);
   for (var i = 0u; i < overlay.modifierCount; i++) {
-    let points = modifiers[i * 3u];
-    let settings = modifiers[i * 3u + 1u];
-    let child = gradientCoverage(position, points.xy, points.zw, u32(settings.y), settings.z, settings.w);
-    coverage = combineCoverage(coverage, child, u32(modifiers[i * 3u + 2u].x), settings.x);
+  coverage = modifierCoverage(coverage, position, modifiers[i * 3u], modifiers[i * 3u + 1u], modifiers[i * 3u + 2u]);
   }
   return coverage * overlay.opacity;
 }

@@ -90,9 +90,10 @@ export async function probeColorMixer() {
       mix("saturation", -100, 5),
       mix("hue", 100, 0),
     ]) {
-      const [output] = graph.render([
-        pipeline(inputNode(input), [colorMixer(settings, "color-mixer")]),
-      ]);
+      const [output] = graph.render(
+        [pipeline(inputNode(input), [colorMixer(settings, "color-mixer")])],
+        { set: 1, kept: [] },
+      );
       outputs.push([...(await output.readFloats())]);
     }
     return { original, outputs, sampleCount: samples.length };

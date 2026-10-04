@@ -4,6 +4,8 @@ import { linearToSrgb3 } from "@vgpu/wgsl-std/color";
 struct Params {
   working: u32,
   channels: u32,
+  // The grid of texels counted, one vote each, whatever the image's size.
+  grid: vec2u,
 }
 
 @group(0) @binding(0) var source: texture_2d<f32>;
@@ -11,8 +13,6 @@ struct Params {
 @group(0) @binding(2) var<uniform> params: Params;
 @group(0) @binding(3) var<storage, read_write> heights: array<f32>;
 
-// The grid histogram.ts dispatches, and the size of a curve's input, so the input's texels are the votes.
-const samples = vec2u(512, 320);
 // Soft-binning weight spread across a bin pair; kept as a fixed-point scale so atomics stay integer.
 const weight = 1024u;
 
@@ -28,10 +28,10 @@ fn softBin(channel: u32, position: f32, vote: u32) {
 
 // Alpha weighs each vote: transparent pixels, or those outside a mask's coverage, do not count.
 @compute @workgroup_size(16, 16) fn count(@builtin(global_invocation_id) id: vec3u) {
-  if (any(id.xy >= samples)) {
+  if (any(id.xy >= params.grid)) {
     return;
   }
-  let texel = textureLoad(source, id.xy * textureDimensions(source) / samples, 0);
+  let texel = textureLoad(source, id.xy * textureDimensions(source) / params.grid, 0);
   let vote = u32(round(clamp(texel.a, 0.0, 1.0) * f32(weight)));
   if (vote == 0u) {
     return;

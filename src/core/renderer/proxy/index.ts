@@ -19,26 +19,26 @@ export function createProxy(gpu: Gpu) {
     }
     cached = undefined;
   }
+  /** A reduced copy of `source` at `factor`, rendered now. */
+  function reduceTo(source: Target, factor: number) {
+    const output = target(gpu, {
+      size: [
+        Math.max(1, Math.ceil(source.size[0] / factor)),
+        Math.max(1, Math.ceil(source.size[1] / factor)),
+      ],
+      format: source.format,
+    });
+    reduce.set({ source: source.color, factor });
+    frame(gpu, (frame) => frame.pass(output, reduce));
+    return output;
+  }
   return {
-    /** A reduced copy of the source at `factor`, rendered now. */
-    reduce(source: Target, factor: number) {
-      const output = target(gpu, {
-        size: [
-          Math.max(1, Math.ceil(source.size[0] / factor)),
-          Math.max(1, Math.ceil(source.size[1] / factor)),
-        ],
-        format: source.format,
-      });
-      reduce.set({ source: source.color, factor });
-      frame(gpu, (frame) => frame.pass(output, reduce));
-      return output;
-    },
     render(source: Target, factor: number, version = 0): RenderInput {
       if (cached?.source !== source || cached.version !== version) {
         clear();
         cached = { source, version, outputs: new Map() };
       }
-      const output = cached.outputs.get(factor) ?? this.reduce(source, factor);
+      const output = cached.outputs.get(factor) ?? reduceTo(source, factor);
       cached.outputs.set(factor, output);
       return input(output, [
         source.size[0] / output.size[0],
