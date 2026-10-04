@@ -34,3 +34,38 @@
     color: var(--color-foreground);
   }
 }
+
+/* A start tile's box morphs into the one that takes its place, as the assistant's card moves;
+   its content leaves before the new content shows, so their text never overlaps. */
+::view-transition-group(.start-tile),
+::view-transition-group(.start-content) {
+  animation-duration: 300ms;
+  animation-timing-function: cubic-bezier(0.2, 0, 0, 1);
+}
+
+::view-transition-old(.start-content) {
+  animation-duration: 100ms;
+}
+
+::view-transition-new(.start-content) {
+  animation-delay: 100ms;
+  animation-duration: 200ms;
+}
+
+/* A tile with no counterpart shows once the others have moved aside, and leaves before they do. */
+::view-transition-new(.start-tile):only-child {
+  animation-delay: 150ms;
+  animation-duration: 150ms;
+}
+
+::view-transition-old(.start-tile):only-child {
+  animation-duration: 100ms;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-group(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) {
+    animation: none;
+  }
+}
