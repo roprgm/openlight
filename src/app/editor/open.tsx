@@ -6,7 +6,6 @@ import { createContext, type RefObject, useContext, useRef } from "react";
 import { sceneExtension } from "@/app/loaders/scene";
 import type { OpenFailure } from "@/app/workspace";
 import { OpenIcon } from "@/components/icons/open";
-import { TextLink } from "@/components/ui/text-link";
 import { accept } from "@/core/image/decode";
 import { useShortcuts } from "@/hooks/use-shortcuts";
 
@@ -44,18 +43,6 @@ export function FileInput({
         event.currentTarget.value = "";
       }}
     />
-  );
-}
-
-/** The drop hint doubles as the picker: "choose a file" opens the input. */
-export function OpenImage({ onOpen }: OpenProps) {
-  const input = useRef<HTMLInputElement>(null);
-  return (
-    <p className="mt-4 text-secondary">
-      Drop an image here or{" "}
-      <TextLink onClick={() => input.current?.click()}>choose a file</TextLink>
-      <FileInput ref={input} onOpen={onOpen} />
-    </p>
   );
 }
 
