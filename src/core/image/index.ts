@@ -3,6 +3,7 @@ import type { Target } from "vgpu";
 export type WhiteBalance = { temperature: number; tint: number };
 /** How much noise reduction removes from light and from color, each 0 to 100; 0 keeps it. */
 export type NoiseReduction = { luminance: number; color: number };
+export const noNoiseReduction: NoiseReduction = { luminance: 0, color: 0 };
 /**
  * A source's noise, reduced once at a few strengths, which each renderer composes at any strengths
  * at once.
@@ -121,3 +122,8 @@ export function createImageSource(
 }
 
 export type ImageSource = ReturnType<typeof createImageSource>;
+
+/** Whether a source takes noise reduction: a RAW photo through its 2 × 2 mosaic, any other image itself. */
+export function reducible(source: ImageSource) {
+  return !source.raw || Boolean(source.raw.mosaic);
+}

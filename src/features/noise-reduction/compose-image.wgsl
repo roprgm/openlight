@@ -22,7 +22,8 @@ fn toward(value: vec3f, light: f32, color: vec2f, share: vec4f) -> vec3f {
   let p = vec2i(position.xy);
   let texel = textureLoad(source, p, 0);
   let value = toOpponent(encode(texel.rgb));
-  let uv = position.xy / vec2f(textureDimensions(source));
+  // Each half-size texel averages 2 × 2 pixels, whatever the image's parity.
+  let uv = position.xy * 0.5 / vec2f(textureDimensions(weakColor));
   var result = value;
   result += toward(value, textureLoad(weakLight, p, 0).x, textureSampleLevel(weakColor, linearSampler, uv, 0.0).xy, shares[0]);
   result += toward(value, textureLoad(measuredLight, p, 0).x, textureSampleLevel(measuredColor, linearSampler, uv, 0.0).xy, shares[1]);

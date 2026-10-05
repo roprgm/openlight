@@ -4,10 +4,9 @@ import { useEffect, useState } from "react";
 import { useGpu } from "vgpu-react";
 import type { Parameter } from "@/components/editor/parameter";
 import { useDocument } from "@/components/editor/session";
-import type { Layer } from "@/core/document";
-import type { ImageSource } from "@/core/image";
+import type { ImageLayer, Layer } from "@/core/document";
+import { type ImageSource, noNoiseReduction, reducible } from "@/core/image";
 import { setNoiseReduction } from "./edits";
-import { defaultNoiseReduction, reducible } from "./model";
 import { reduceNoise } from "./reduce";
 
 /**
@@ -47,13 +46,14 @@ export function useNoiseReduction(
 ): { parameters: Parameter[]; reducing: boolean } | undefined {
   const document = useDocument();
   const image = layer.kind === "image" ? layer : undefined;
-  const source = image && document.resources.get(image.source);
-  const strengths = image?.noiseReduction ?? defaultNoiseReduction;
+  const resource = image && document.resources.get(image.source);
+  const source = resource && reducible(resource) ? resource : undefined;
+  const strengths = image?.noiseReduction ?? noNoiseReduction;
   const reducing = useReducing(
     source,
     strengths.luminance > 0 || strengths.color > 0,
   );
-  if (!source || !reducible(source)) {
+  if (!source) {
     return undefined;
   }
   return {
@@ -71,7 +71,7 @@ export function useNoiseReduction(
 }
 
 /** The noise reduction sliders, with a spinner beside the first's label while the first reduction runs. */
-export function NoiseReductionControls({ layer }: { layer: Layer }) {
+export function NoiseReductionControls({ layer }: { layer: ImageLayer }) {
   const noiseReduction = useNoiseReduction(layer);
   if (!noiseReduction) {
     return null;

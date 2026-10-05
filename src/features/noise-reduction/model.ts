@@ -1,13 +1,6 @@
 import { z } from "zod/mini";
-import type { ImageSource, NoiseReduction } from "@/core/image";
+import type { NoiseReduction } from "@/core/image";
 import { range } from "@/lib/parse";
-
-export const defaultNoiseReduction: NoiseReduction = { luminance: 0, color: 0 };
-
-/** Whether a source takes noise reduction: a RAW photo through its 2 × 2 mosaic, any other image itself. */
-export function reducible(source: ImageSource) {
-  return !source.raw || Boolean(source.raw.mosaic);
-}
 
 /** How much noise reduction removes from light and from color, each 0 to 100; 0 keeps it. */
 export const noiseReductionSchema = z.object({

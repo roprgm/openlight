@@ -45,7 +45,7 @@ export function groups([width, height]: Size, side = 8) {
   return [Math.ceil(width / side), Math.ceil(height / side)] as const;
 }
 
-function half([width, height]: Size): Size {
+export function half([width, height]: Size): Size {
   return [Math.ceil(width / 2), Math.ceil(height / 2)];
 }
 
@@ -117,15 +117,17 @@ export async function measureLevels(
   for (const level of pyramid) measured.push(await measureSpread(gpu, level));
   const base = measured[0].map(finest);
   return measured.map((level, l) =>
-    level.map((value, c) =>
-      l ? Math.min(value || Infinity, margin * base[c] * 2 ** -l) : base[c],
-    ),
+    level.map((value, c) => {
+      const white = base[c] * 2 ** -l;
+      if (!l) return base[c];
+      return value ? Math.min(value, margin * white) : white;
+    }),
   );
 }
 
 /** The finest level's noise for a noise model that predicts unit noise, which a lower measure corrects. */
 export function modeled(measured: number) {
-  return Math.min(measured || 1, margin);
+  return Math.min(measured || 1, 1);
 }
 
 /** One step of the patch filter over `noisy` into `output`, shrinking by `pilot`'s Wiener weights if given. */

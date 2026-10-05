@@ -1,11 +1,7 @@
 import { type EditorDocument, editLayer } from "@/core/document";
-import type { NoiseReduction } from "@/core/image";
+import { type NoiseReduction, noNoiseReduction, reducible } from "@/core/image";
 import { change, parse } from "@/lib/parse";
-import {
-  defaultNoiseReduction,
-  noiseReductionSchema,
-  reducible,
-} from "./model";
+import { noiseReductionSchema } from "./model";
 
 const noiseReductionChange = change(noiseReductionSchema);
 
@@ -28,7 +24,7 @@ export function setNoiseReduction(
       throw Error("Select the image layer.");
     }
     const noiseReduction = {
-      ...(layer.noiseReduction ?? defaultNoiseReduction),
+      ...(layer.noiseReduction ?? noNoiseReduction),
       ...strengths,
     };
     return { ...layer, noiseReduction };

@@ -306,7 +306,7 @@ function AdjustmentDials({
       />
     );
   }
-  // A RAW photo's noise reduction follows its tone, with a spinner while the first reduction runs.
+  // Noise reduction follows the tone, with a spinner while the first reduction runs.
   return (
     <DockControls
       header={header}

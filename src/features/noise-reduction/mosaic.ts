@@ -58,15 +58,14 @@ function noiseParams(
 
 type NoiseParams = ReturnType<typeof noiseParams>;
 
-/** Each anchor's change to the samples, a half-size target of each 2 × 2 cell's four by position. */
+/** Composes replacement samples at any strengths from each anchor's change, into a target of its own. */
 function createComposer(
   gpu: Gpu,
   mosaic: Mosaic,
   noise: NoiseParams,
   [weak, measured, strong]: readonly Target[],
-  size: Size,
 ) {
-  const output = target(gpu, { size, format: "rgba16float" });
+  const output = target(gpu, { size: weak.size, format: "rgba16float" });
   return {
     render(strengths: NoiseReduction) {
       const pass = passes(gpu).compose.set({
@@ -144,7 +143,7 @@ export async function reduceMosaic(
     for (const level of pyramid) level.buffer.dispose();
   }
   return {
-    compose: () => createComposer(gpu, mosaic, noise, changes, size),
+    compose: () => createComposer(gpu, mosaic, noise, changes),
     dispose() {
       for (const change of changes) change.color.dispose();
     },

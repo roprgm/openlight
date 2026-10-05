@@ -19,6 +19,7 @@ import {
   buildPyramid,
   filterPyramid,
   groups,
+  half,
   measureLevels,
   type Size,
   spectrum,
@@ -111,10 +112,7 @@ export async function reduceImage(
       try {
         const anchor = {
           light: target(gpu, { size, format: "r16float" }),
-          color: target(gpu, {
-            size: [Math.ceil(size[0] / 2), Math.ceil(size[1] / 2)],
-            format: "rg16float",
-          }),
+          color: target(gpu, { size: half(size), format: "rg16float" }),
         };
         reduced.push(anchor);
         const params = { size, spectrum: estimate.buffer };

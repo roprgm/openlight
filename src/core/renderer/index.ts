@@ -11,11 +11,13 @@ import {
   type Scene,
   walkLayers,
 } from "@/core/document";
-import type {
-  ImageSource,
-  NoiseReduction,
-  Reduction,
-  WhiteBalance,
+import {
+  type ImageSource,
+  type NoiseReduction,
+  noNoiseReduction,
+  type Reduction,
+  reducible,
+  type WhiteBalance,
 } from "@/core/image";
 import type { Point } from "@/core/image/frame";
 import { createFieldStore, type FieldLattice } from "./fields";
@@ -134,8 +136,6 @@ function reductionFor(density: number) {
 /** How many reductions keep their proxy and intermediates, each a quarter of the photo at most. */
 const keptReductions = 4;
 
-const unreduced: NoiseReduction = { luminance: 0, color: 0 };
-
 function sameReduction(a: NoiseReduction, b: NoiseReduction) {
   return a.luminance === b.luminance && a.color === b.color;
 }
@@ -200,10 +200,8 @@ export function createRenderer(
   /** Mask coverage the graph rendered for the overlay and thumbnails, by layer ID. */
   let shown = new Map<string, Target>();
   let balance = resource.raw?.asShot;
-  /** A RAW photo reduces noise on its 2 × 2 mosaic, and any other image on itself. */
-  const reducible = !resource.raw || Boolean(resource.raw.mosaic);
   /** The noise reduction the development applies. */
-  let applied = unreduced;
+  let applied = noNoiseReduction;
   /** Renders the reduction at the applied strengths, for the reduction it composes. */
   let composer:
     | (ReturnType<Reduction["compose"]> & { of: Reduction })
@@ -447,9 +445,9 @@ export function createRenderer(
   }
   /** The noise reduction a scene asks of the image layer, none where the source takes none. */
   function wantedReduction(scene: Scene) {
-    return reducible
-      ? (scene.layers[0].noiseReduction ?? unreduced)
-      : unreduced;
+    return reducible(resource)
+      ? (scene.layers[0].noiseReduction ?? noNoiseReduction)
+      : noNoiseReduction;
   }
   /** The source reduced at `strengths`, through this renderer's composer for `reduction`. */
   function composeReduction(reduction: Reduction, strengths: NoiseReduction) {
