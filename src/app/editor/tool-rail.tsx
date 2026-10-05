@@ -3,7 +3,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@roprgm/ui/tooltip";
 import type { ReactNode } from "react";
 import { GithubIcon } from "@/components/icons/github";
 import { InfoIcon } from "@/components/icons/info";
-import { PaintColors } from "@/features/paint/colors";
+import { RailPaintColors } from "@/features/paint/colors";
 import { type Tool, tools, useTool } from "./tools";
 
 /** Opens in a new tab, leaving the photo open. */
@@ -51,10 +51,11 @@ export function ToolTabList({
 }) {
   const editing = tools.filter((entry) => entry.group === "edit");
   return (
+    // The tools fill the rail, 6px from the window's edge and 7px from the border.
     <Tabs
       value={selected}
       onValueChange={onSelect}
-      className="flex w-11 shrink-0 flex-col gap-1 overflow-auto border-edge border-r material-panel p-1.5"
+      className="flex w-12 shrink-0 flex-col gap-1 overflow-auto border-edge border-r material-panel py-1.5 pr-1.75 pl-1.5"
     >
       <TabList aria-label="Tools" className="flex-col">
         {editing.map((entry) => (
@@ -65,6 +66,7 @@ export function ToolTabList({
                   value={entry}
                   disabled={!onSelect}
                   size="icon-lg"
+                  className="size-8.5"
                   aria-label={entry.label}
                 />
               }
@@ -98,7 +100,7 @@ export function ToolRail() {
   const { tool, setTool } = useTool();
   return (
     <ToolTabList selected={tool} onSelect={setTool}>
-      <PaintColors vertical />
+      <RailPaintColors />
     </ToolTabList>
   );
 }

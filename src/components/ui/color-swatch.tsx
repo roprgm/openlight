@@ -2,8 +2,9 @@ import { cn } from "cn";
 import { type ComponentProps, useEffect, useRef } from "react";
 
 /**
- * A raised square of a color that opens the browser's color picker. The picker streams changes while
- * it moves, and `onClose` follows the last of them.
+ * A flat square of a color that opens the browser's color picker: a control's shadow without the lit
+ * top edge, which would tint the color, and a faint edge that parts it from a background of its
+ * color. The picker streams changes while it moves, and `onClose` follows the last of them.
  */
 export function ColorSwatch({
   label,
@@ -31,7 +32,7 @@ export function ColorSwatch({
     <span
       {...props}
       className={cn(
-        "relative block size-5 shrink-0 rounded-sm material-control focus-ring",
+        "relative block size-5 shrink-0 rounded-sm shadow-card inset-ring inset-ring-foreground/10 focus-ring",
         className,
       )}
       style={{ backgroundColor: value }}
