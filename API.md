@@ -72,6 +72,8 @@ Create an empty Paint layer with `addLayer("paint")`. `addPaintStroke(id, stroke
 
 For RAW sources, `setWhiteBalance({ temperature, tint })` sets absolute Kelvin and DNG tint, preserving unspecified values. Temperature accepts 2000–25000 K and tint accepts -150–150, extending either range to include the file's As Shot value. `setWhiteBalance()` restores that value (the decoder's daylight fallback if camera multipliers are unavailable). Non-RAW sources and invalid values throw. Incremental temperature/tint remain separate RGB adjustments.
 
+For RAW sources with a 2 × 2 Bayer mosaic, `setNoiseReduction(amount)` reduces noise on the mosaic before demosaicing, from 0, the samples as decoded, to 100, fully reduced. A photo's first reduction runs once on the GPU and takes a moment, while the editor keeps showing the photo as it was; later amounts, white balance, and every other edit reuse the reduced samples, so they apply at once. The original comparison shows the samples as decoded. Other sources and invalid values throw.
+
 `autoWhiteBalance()` neutralizes the photo's color cast as one edit and resolves once it is made. The GPU measures the cast of the source before any edit, as its edges' average color, so calling it again gives the same balance. A RAW photo's white balance moves from As Shot; any other photo's incremental temperature and tint are replaced. When another photo opens first, it resolves without an edit.
 
 Edits update the scene and history synchronously. Rendering may finish later, particularly RAW development. Tests should wait for visible results; `exportImage()` renders and waits for its captured scene independently of the preview.
@@ -185,7 +187,7 @@ The image renders at the document dimensions and downsamples to `longEdge` with 
 
 `scene` is the `getState()` scene; each image layer's `source` names an entry in `sources`, and each Remove patch's `field` an entry in `fields`: where its texels sit, or `{}` for a field not yet synthesized. Version 1 files, which kept each Remove field inside its patch, open as version 2. Opening the file with `loadScene`, `openFile`, a drop, or the file picker decodes the stored source again and restores the frame and every layer as a new document with empty history. Preview settings and history are not saved.
 
-Opening validates every value as the matching command does, and a file that fails leaves the workspace in its error state with a message naming the first invalid field. Fields OpenLight does not know are dropped. A parameter missing from `adjustments`, `details`, `vignette`, `grain`, `fill`, or `colorMixer` takes its default, so older files still open when a group gains a parameter; a RAW image without a white balance uses its As Shot value, and a frame without `perspective` has none. `version` increases only when older files can no longer open as written, or an older OpenLight would drop what a file holds: a scene that corrects perspective is version 3, which OpenLight before perspective correction rejects, and every other scene stays version 2. A newer version is rejected.
+Opening validates every value as the matching command does, and a file that fails leaves the workspace in its error state with a message naming the first invalid field. Fields OpenLight does not know are dropped. A parameter missing from `adjustments`, `details`, `vignette`, `grain`, `fill`, or `colorMixer` takes its default, so older files still open when a group gains a parameter; a RAW image without a white balance uses its As Shot value, an image without `noiseReduction` has none, and a frame without `perspective` has none. `version` increases only when older files can no longer open as written, or an older OpenLight would drop what a file holds: a scene that corrects perspective is version 3, which OpenLight before perspective correction rejects, and every other scene stays version 2. A newer version is rejected.
 
 ## Drafts
 
@@ -218,6 +220,7 @@ editor.run({
 | `set-adjustments` | adjustments, `layerId?` | Like `setAdjustments`. |
 | `set-tone-curve` | `points?`, `layerId?` | Like `setToneCurve`. |
 | `set-white-balance` | `temperature?`, `tint?` | Like `setWhiteBalance` with a change. |
+| `set-noise-reduction` | `amount` | Like `setNoiseReduction`. |
 | `set-color-mixer` | `color`, `hue?`, `saturation?`, `luminance?`, `layerId?` | Like `setColorMixer`. |
 | `set-details` | `clarity?`, `sharpening?`, `sharpenRadius?`, `layerId?` | Like `setDetails`. |
 | `set-vignette` | `intensity?`, `softness?`, `layerId?` | Like `setVignette`. |
@@ -225,7 +228,7 @@ editor.run({
 | `add-mask` | `mask`, `adjustments?` | Adds a mask layer with those adjustments on top of the stack as one edit. |
 | `delete-layer` | `layerId` | Like `deleteLayer`. |
 | `set-crop` | `aspectRatio?`, `straighten?` | Replaces the frame with the largest centered crop of the source at `aspectRatio`, width over height, straightened by −45 to 45 degrees, keeping the frame's perspective. Without either, it removes the crop. |
-| `reset` | none | Removes every layer and returns adjustments, the tone curve, white balance, and the frame, perspective included, to how the photo opened, as one edit. |
+| `reset` | none | Removes every layer and returns adjustments, the tone curve, white balance, noise reduction, and the frame, perspective included, to how the photo opened, as one edit. |
 | `undo`, `redo` | none | Like `undo` and `redo`. |
 | `set-preview` | `comparison` | Shows `"edited"`, `"original"`, or `"split"`. |
 

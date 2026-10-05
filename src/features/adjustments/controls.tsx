@@ -66,21 +66,24 @@ function AdjustmentSliders({
   );
 }
 
-/** Tone, then the white balance's controls, then color. */
+/** Tone, then the white balance's controls, then color, then any controls that follow. */
 export function AdjustmentControls({
   id,
   adjustments,
   whiteBalance,
+  children,
 }: {
   id: string;
   adjustments: Readonly<Adjustments>;
   whiteBalance: ReactNode;
+  children?: ReactNode;
 }) {
   return (
     <section className="flex flex-col gap-1.5 p-3.5">
       <AdjustmentSliders id={id} adjustments={adjustments} controls={tone} />
       {whiteBalance}
       <AdjustmentSliders id={id} adjustments={adjustments} controls={color} />
+      {children}
     </section>
   );
 }

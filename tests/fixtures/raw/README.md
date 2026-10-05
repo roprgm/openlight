@@ -5,3 +5,5 @@ These two synthetic MIT-licensed fixtures are copied unchanged from [raw-webgpu]
 `bayer.dng` stores RGGB samples; `linear-jxl.dng` stores equivalent linear RGB with JPEG XL compression. Both use an sRGB-like camera profile, samples `[32768, 16384, 8192]`, white level 65535 and orientation 6. Expected output is 96×128 with sRGB pixels approximately `[188, 137, 99]`.
 
 OpenLight tests loading, white-balance edits, preview/export agreement, history and resource lifetime with these files.
+
+`noisy-bayer.dng` is `bayer.dng` with seeded Poisson-Gaussian noise in its samples, at 64 sensor units per electron over a read noise of 300, for noise reduction.

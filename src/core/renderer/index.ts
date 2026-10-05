@@ -11,7 +11,7 @@ import {
   type Scene,
   walkLayers,
 } from "@/core/document";
-import type { ImageSource, WhiteBalance } from "@/core/image";
+import type { ImageSource, Mosaic, WhiteBalance } from "@/core/image";
 import type { Point } from "@/core/image/frame";
 import { createFieldStore, type FieldLattice } from "./fields";
 import { createRenderGraph } from "./graph";
@@ -142,6 +142,8 @@ export type RendererOptions = {
   field?: (id: string) => RemoveField | undefined;
   /** Receives each Remove field the renderer synthesizes, read back; without it nothing is read back. */
   saveField?: (id: string, field: RemoveField) => void;
+  /** Reduces a RAW mosaic's noise, once per source, for the image layer's noise reduction. */
+  denoise?: (mosaic: Mosaic, signal: AbortSignal) => Promise<Target>;
 };
 
 /**
@@ -159,6 +161,9 @@ export function createRenderer(
     },
     field: savedField = () => undefined,
     saveField,
+    denoise = () => {
+      throw Error("This renderer reduces no noise.");
+    },
   }: RendererOptions = {},
 ) {
   const source = resource.image;
@@ -181,7 +186,9 @@ export function createRenderer(
   /** Mask coverage the graph rendered for the overlay and thumbnails, by layer ID. */
   let shown = new Map<string, Target>();
   let balance = resource.raw?.asShot;
-  /** Counts developments, so the proxy follows white-balance changes. */
+  /** How far the development's samples moved toward their noise-reduced ones, 0 to 1. */
+  let reduction = 0;
+  /** Counts developments, so the proxy follows white-balance and noise-reduction changes. */
   let version = 0;
   let last: RenderRequest | undefined;
   /** Whether the last render, a gesture's proxy, showed a Remove patch unfilled. */
@@ -195,6 +202,8 @@ export function createRenderer(
   let reductions: number[] = [];
   let next: RenderRequest | undefined;
   let pending: Promise<void> | undefined;
+  /** Ends a wait for noise reduction once a newer request or closing makes it moot. */
+  let interrupt: (() => void) | undefined;
   /** A raster being read back, a painting to settle or a Remove field to save; nothing renders meanwhile. */
   let settling: Promise<unknown> | undefined;
   /** Readbacks of synthesized fields in flight, by ID, which finish even once the renderer closes. */
@@ -414,9 +423,19 @@ export function createRenderer(
     }
     return stale;
   }
+  /** Resolves with `work`, or with nothing once a newer request or closing interrupts the wait. */
+  function interruptible<T>(work: Promise<T>) {
+    const interrupted = new Promise<undefined>((resolve) => {
+      interrupt = () => resolve(undefined);
+    });
+    return Promise.race([work, interrupted]).finally(() => {
+      interrupt = undefined;
+    });
+  }
   /**
    * Renders the latest request once what it waits for is ready: a settle, a RAW development, whose
-   * calibration alone crosses the worker, settled paint, or Remove fields to load.
+   * calibration alone crosses the worker and whose noise reduction runs once per source, which a
+   * newer request need not wait for, settled paint, or Remove fields to load.
    */
   async function develop() {
     while (next && !disposed) {
@@ -428,13 +447,34 @@ export function createRenderer(
       }
       if (disposed) return;
       if (next) continue;
-      const selected = scene.layers[0].whiteBalance ?? resource.raw?.asShot;
-      if (raw && selected && !sameBalance(balance, selected)) {
-        await raw.prepare(selected);
+      const [image] = scene.layers;
+      const selected = image.whiteBalance ?? resource.raw?.asShot;
+      const mosaic = resource.raw?.mosaic;
+      const amount = mosaic ? (image.noiseReduction ?? 0) / 100 : 0;
+      let failure: { error: unknown } | undefined;
+      if (
+        raw &&
+        selected &&
+        (!sameBalance(balance, selected) || amount !== reduction)
+      ) {
+        let samples: Target | undefined;
+        if (amount && mosaic) {
+          try {
+            samples = await interruptible(mosaic.denoised(denoise));
+          } catch (error) {
+            // The photo develops as decoded rather than not at all; the error shows once, and the
+            // reduction runs again when the amount changes.
+            failure = { error };
+          }
+        }
+        if (disposed) return;
+        if (next) continue;
+        await raw.prepare(selected, samples && { samples, amount });
         if (disposed) {
           return;
         }
         balance = selected;
+        reduction = amount;
         version++;
       }
       for (const { id, raster, rasters } of stalePaint(scene)) {
@@ -451,6 +491,9 @@ export function createRenderer(
       }
       if (!next) {
         render(request);
+      }
+      if (failure) {
+        throw failure.error;
       }
     }
   }
@@ -489,6 +532,7 @@ export function createRenderer(
       return;
     }
     next = request;
+    interrupt?.();
     pending ??= develop()
       .catch((error) => {
         if (!next) {
@@ -632,6 +676,7 @@ export function createRenderer(
         return;
       }
       disposed = true;
+      interrupt?.();
       listeners.clear();
       // Banded transfers keep their targets until their last GPU operation finishes.
       const finishing = pending ?? settling;

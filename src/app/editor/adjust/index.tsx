@@ -1,5 +1,6 @@
 import { Button } from "@roprgm/ui/button";
 import { Slider } from "@roprgm/ui/slider";
+import { Spinner } from "@roprgm/ui/spinner";
 import { type ReactNode, useCallback, useState } from "react";
 import { useStore } from "zustand";
 import { effectKinds } from "@/app/editor/layers";
@@ -41,6 +42,10 @@ import { Histogram } from "@/features/histogram";
 import { setLayer } from "@/features/layers/edits";
 import { OverlayToggle } from "@/features/layers/overlay-toggle";
 import { LutCurves } from "@/features/lut/curves";
+import {
+  NoiseReductionControls,
+  useNoiseReduction,
+} from "@/features/noise-reduction/controls";
 import { PaintControls } from "@/features/paint/controls";
 import { defaultCurve } from "@/features/tone-curves/curve";
 import { setToneCurve } from "@/features/tone-curves/edits";
@@ -148,7 +153,9 @@ function SelectedControls({ layer }: { layer: Layer }) {
             id={layer.id}
             adjustments={layer.adjustments}
             whiteBalance={<WhiteBalanceControls layer={layer} />}
-          />
+          >
+            {layer.kind === "image" && <NoiseReductionControls layer={layer} />}
+          </AdjustmentControls>
           <div className="px-3.5 pb-3.5">
             <LayerCurve id={layer.id} toneCurve={layer.toneCurve} />
           </div>
@@ -240,6 +247,7 @@ function AdjustmentDials({
 }) {
   const document = useDocument();
   const whiteBalance = useWhiteBalance(layer);
+  const noiseReduction = useNoiseReduction(layer);
   const header = (
     <DockChips
       label="Adjustment group"
@@ -298,11 +306,22 @@ function AdjustmentDials({
       />
     );
   }
+  // A RAW photo's noise reduction follows its tone, with a spinner while the first reduction runs.
   return (
     <DockControls
       header={header}
-      action={action}
-      parameters={adjustments(tone)}
+      action={
+        <>
+          {noiseReduction?.reducing && (
+            <Spinner aria-label="Reducing noise" className="size-3" />
+          )}
+          {action}
+        </>
+      }
+      parameters={[
+        ...adjustments(tone),
+        ...(noiseReduction ? [noiseReduction.parameter] : []),
+      ]}
     />
   );
 }

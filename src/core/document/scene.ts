@@ -72,6 +72,11 @@ export type ImageLayer = {
   readonly name: string;
   readonly source: string;
   readonly whiteBalance?: Readonly<WhiteBalance>;
+  /**
+   * How far a RAW photo's mosaic moves toward its noise-reduced samples before demosaicing, 0 to 100;
+   * none without it.
+   */
+  readonly noiseReduction?: number;
   readonly adjustments: Readonly<Adjustments>;
   readonly toneCurve: ToneCurve;
   readonly children: readonly ProcessingLayer[];

@@ -1,10 +1,35 @@
 import type { Target } from "vgpu";
 
 export type WhiteBalance = { temperature: number; tint: number };
+/** A RAW photo's 2 × 2 color filter mosaic before the GPU demosaics it. */
+export type Mosaic = {
+  /** One `r16uint` sample per sensor pixel, unrotated, as decoded. */
+  readonly samples: GPUTexture;
+  /** Each 2 × 2 cell position's color, row-major: 0 red, 1 or 3 green, 2 blue. */
+  pattern: readonly number[];
+  /** Black level per color, in sensor units. */
+  black: readonly number[];
+  /** The level where samples clip, in sensor units. */
+  white: number;
+  /**
+   * The samples with their noise reduced, which `reduce` makes the first time a renderer or control
+   * asks, kept until the source closes; a failure lets the next ask try again.
+   */
+  denoised(
+    reduce: (mosaic: Mosaic, signal: AbortSignal) => Promise<Target>,
+  ): Promise<Target>;
+};
+/**
+ * Samples a RAW pass develops in place of the decoded ones, blended toward them by `amount`, 0 to 1:
+ * a half-size `rgba16float` image holding each 2 × 2 cell's four by position, above their black level.
+ */
+export type SampleBlend = { samples: Target; amount: number };
 export type RawDevelopment = {
   asShot: WhiteBalance;
+  /** The mosaic, when the GPU demosaics a 2 × 2 one, for processing before demosaicing. */
+  mosaic?: Mosaic;
   createPass(): {
-    prepare(balance: WhiteBalance): Promise<void>;
+    prepare(balance: WhiteBalance, blend?: SampleBlend): Promise<void>;
     render(): Target;
     dispose(): void;
   };

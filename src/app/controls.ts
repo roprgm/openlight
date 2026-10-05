@@ -62,6 +62,7 @@ import {
   setMaskOperation,
 } from "@/features/layers/edits";
 import { defaultGradient } from "@/features/layers/gradient";
+import { setNoiseReduction } from "@/features/noise-reduction/edits";
 import { addPaintStroke, setPaintBlend } from "@/features/paint/edits";
 import { defaultCurve } from "@/features/tone-curves/curve";
 import { setToneCurve } from "@/features/tone-curves/edits";
@@ -123,6 +124,8 @@ export function createControls(
     setWhiteBalance: (change?: Partial<WhiteBalance>) =>
       setWhiteBalance(workspace.getDocument(), change),
     autoWhiteBalance: () => autoWhiteBalance(workspace.getDocument(), gpu),
+    setNoiseReduction: (amount: number) =>
+      setNoiseReduction(workspace.getDocument(), amount),
     setToneCurve: (curve?: ToneCurve, id?: string) =>
       setToneCurve(workspace.getDocument(), curve, id),
     setColorMixer(color: MixerColor, change: MixerChange, id?: string) {
