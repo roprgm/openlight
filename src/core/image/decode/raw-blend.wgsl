@@ -1,15 +1,10 @@
-// Writes sensor samples for the package to develop: the decoded ones blended toward replacement
-// samples, each 2 × 2 cell's four by position above black in one texel, and dithered so smooth
-// replacements don't band when rounded back to whole sensor units.
-struct Blend {
-  amount: f32,
-  // Each 2 × 2 position's black level.
-  black: vec4f,
-}
-
+// Writes sensor samples for the package to develop from replacement samples, each 2 × 2 cell's four by
+// position above black in one texel, dithered so smooth replacements don't band when rounded back to
+// whole sensor units.
 @group(0) @binding(0) var decoded: texture_2d<u32>;
 @group(0) @binding(1) var replacement: texture_2d<f32>;
-@group(0) @binding(2) var<uniform> blend: Blend;
+// Each 2 × 2 position's black level.
+@group(0) @binding(2) var<uniform> black: vec4f;
 
 // One triangle covering the whole destination.
 @vertex fn vs_main(@builtin(vertex_index) index: u32) -> @builtin(position) vec4f {
@@ -26,14 +21,12 @@ fn dither(p: vec2u) -> f32 {
 
 @fragment fn fs_main(@builtin(position) position: vec4f) -> @location(0) vec4u {
   let p = vec2u(position.xy);
-  let original = f32(textureLoad(decoded, p, 0).r);
   let cell = p / 2u;
   // A last odd row or column has no cell and keeps its samples.
   if (any(cell >= textureDimensions(replacement))) {
-    return vec4u(u32(original));
+    return textureLoad(decoded, p, 0);
   }
   let site = (p.y & 1u) * 2u + (p.x & 1u);
-  let value = textureLoad(replacement, cell, 0)[site] + blend.black[site];
-  let blended = mix(original, value, blend.amount) + dither(p);
-  return vec4u(u32(clamp(round(blended), 0.0, 65535.0)));
+  let value = textureLoad(replacement, cell, 0)[site] + black[site] + dither(p);
+  return vec4u(u32(clamp(round(value), 0.0, 65535.0)));
 }

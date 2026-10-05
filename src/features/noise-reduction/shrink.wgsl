@@ -26,6 +26,8 @@ const kaiser = array<f32, 8>(0.438676, 0.681324, 0.87684, 0.985823, 0.985823, 0.
 
 struct Params {
   size: vec2u,
+  // Components the spectrum holds: four for a mosaic, three for an image.
+  channels: u32,
   // Each component's noise deviation.
   sigma: vec4f,
   // 0 thresholds; 1 shrinks by the Wiener weights of `pilot`, the first step's estimate.
@@ -41,6 +43,13 @@ struct Params {
 var<workgroup> basis: array<f32, 64>;
 var<workgroup> sums: array<atomic<i32>, 1024>;
 var<workgroup> weights: array<atomic<u32>, 1024>;
+
+// A texel past the edge reads the image mirrored there, so patches cover the edge as fully as the rest.
+fn mirrored(p: vec2i) -> u32 {
+  let last = vec2i(params.size) - 1;
+  let q = min(abs(p), 2 * last - p);
+  return u32(q.y) * params.size.x + u32(q.x);
+}
 
 // The 2D DCT of a block, or its inverse, separably along rows and then columns.
 fn transform(block: ptr<function, array<f32, 64>>, inverse: bool) {
@@ -72,9 +81,8 @@ fn transform(block: ptr<function, array<f32, 64>>, inverse: bool) {
     basis[t] = select(0.5, 0.35355339, frequency == 0u) * cos(f32((2u * position + 1u) * frequency) * 0.19634954);
   }
   let origin = vec2i(cell.xy * tile);
-  let last = vec2i(params.size) - i32(side);
   var results: array<vec4f, 4>;
-  for (var channel = 0u; channel < 4u; channel++) {
+  for (var channel = 0u; channel < params.channels; channel++) {
     for (var i = t; i < tile * tile; i += threads) {
       atomicStore(&sums[i], 0);
       atomicStore(&weights[i], 0u);
@@ -83,14 +91,10 @@ fn transform(block: ptr<function, array<f32, 64>>, inverse: bool) {
     let sigma = params.sigma[channel];
     for (var i = t; i < span * span; i += threads) {
       let corner = origin - i32(side - 1u) + vec2i(vec2u(i % span, i / span));
-      if (any(corner < vec2i(0)) || any(corner > last)) {
-        continue;
-      }
       var values: array<f32, 64>;
       var guide: array<f32, 64>;
       for (var j = 0u; j < 64u; j++) {
-        let p = vec2u(corner) + vec2u(j % 8u, j / 8u);
-        let index = p.y * params.size.x + p.x;
+        let index = mirrored(corner + vec2i(vec2u(j % 8u, j / 8u)));
         values[j] = unpack(noisy[index])[channel];
         if (params.wiener == 1u) {
           guide[j] = unpack(pilot[index])[channel];

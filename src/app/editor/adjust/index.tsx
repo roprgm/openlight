@@ -318,10 +318,7 @@ function AdjustmentDials({
           {action}
         </>
       }
-      parameters={[
-        ...adjustments(tone),
-        ...(noiseReduction ? [noiseReduction.parameter] : []),
-      ]}
+      parameters={[...adjustments(tone), ...(noiseReduction?.parameters ?? [])]}
     />
   );
 }

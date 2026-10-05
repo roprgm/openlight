@@ -28,7 +28,7 @@ import type {
   ToneCurve,
   Vignette,
 } from "@/core/document";
-import type { WhiteBalance } from "@/core/image";
+import type { NoiseReduction, WhiteBalance } from "@/core/image";
 import { decode } from "@/core/image/decode";
 import type { ImageFrame, Point } from "@/core/image/frame";
 import { setAdjustments, setExposure } from "@/features/adjustments/edits";
@@ -124,8 +124,8 @@ export function createControls(
     setWhiteBalance: (change?: Partial<WhiteBalance>) =>
       setWhiteBalance(workspace.getDocument(), change),
     autoWhiteBalance: () => autoWhiteBalance(workspace.getDocument(), gpu),
-    setNoiseReduction: (amount: number) =>
-      setNoiseReduction(workspace.getDocument(), amount),
+    setNoiseReduction: (change: Partial<NoiseReduction>) =>
+      setNoiseReduction(workspace.getDocument(), change),
     setToneCurve: (curve?: ToneCurve, id?: string) =>
       setToneCurve(workspace.getDocument(), curve, id),
     setColorMixer(color: MixerColor, change: MixerChange, id?: string) {

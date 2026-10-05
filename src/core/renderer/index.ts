@@ -11,7 +11,12 @@ import {
   type Scene,
   walkLayers,
 } from "@/core/document";
-import type { ImageSource, Mosaic, WhiteBalance } from "@/core/image";
+import type {
+  ImageSource,
+  NoiseReduction,
+  Reduction,
+  WhiteBalance,
+} from "@/core/image";
 import type { Point } from "@/core/image/frame";
 import { createFieldStore, type FieldLattice } from "./fields";
 import { createRenderGraph } from "./graph";
@@ -129,6 +134,12 @@ function reductionFor(density: number) {
 /** How many reductions keep their proxy and intermediates, each a quarter of the photo at most. */
 const keptReductions = 4;
 
+const unreduced: NoiseReduction = { luminance: 0, color: 0 };
+
+function sameReduction(a: NoiseReduction, b: NoiseReduction) {
+  return a.luminance === b.luminance && a.color === b.color;
+}
+
 function sameBalance(a: WhiteBalance | undefined, b: WhiteBalance | undefined) {
   return a?.temperature === b?.temperature && a?.tint === b?.tint;
 }
@@ -142,8 +153,11 @@ export type RendererOptions = {
   field?: (id: string) => RemoveField | undefined;
   /** Receives each Remove field the renderer synthesizes, read back; without it nothing is read back. */
   saveField?: (id: string, field: RemoveField) => void;
-  /** Reduces a RAW mosaic's noise, once per source, for the image layer's noise reduction. */
-  denoise?: (mosaic: Mosaic, signal: AbortSignal) => Promise<Target>;
+  /** Reduces a source's noise once at a few strengths, for the image layer's noise reduction. */
+  reduceNoise?: (
+    source: ImageSource,
+    signal: AbortSignal,
+  ) => Promise<Reduction>;
 };
 
 /**
@@ -161,7 +175,7 @@ export function createRenderer(
     },
     field: savedField = () => undefined,
     saveField,
-    denoise = () => {
+    reduceNoise = () => {
       throw Error("This renderer reduces no noise.");
     },
   }: RendererOptions = {},
@@ -186,8 +200,16 @@ export function createRenderer(
   /** Mask coverage the graph rendered for the overlay and thumbnails, by layer ID. */
   let shown = new Map<string, Target>();
   let balance = resource.raw?.asShot;
-  /** How far the development's samples moved toward their noise-reduced ones, 0 to 1. */
-  let reduction = 0;
+  /** A RAW photo reduces noise on its 2 × 2 mosaic, and any other image on itself. */
+  const reducible = !resource.raw || Boolean(resource.raw.mosaic);
+  /** The noise reduction the development applies. */
+  let applied = unreduced;
+  /** Renders the reduction at the applied strengths, for the reduction it composes. */
+  let composer:
+    | (ReturnType<Reduction["compose"]> & { of: Reduction })
+    | undefined;
+  /** An image's reduced self, which compositions take in place of the source. */
+  let reduced: Target | undefined;
   /** Counts developments, so the proxy follows white-balance and noise-reduction changes. */
   let version = 0;
   let last: RenderRequest | undefined;
@@ -279,7 +301,7 @@ export function createRenderer(
     if (unchanged && !(lacked && !request.interactive)) {
       return;
     }
-    const developed = raw?.render() ?? source;
+    const developed = raw?.render() ?? reduced ?? source;
     // Every brush and paint layer updates once, bypassed or not, so hidden layers keep their rasters.
     for (const { layer } of walkLayers(scene.layers)) {
       if (layer.kind === "mask" && layer.mask.kind === "brush") {
@@ -423,6 +445,20 @@ export function createRenderer(
     }
     return stale;
   }
+  /** The noise reduction a scene asks of the image layer, none where the source takes none. */
+  function wantedReduction(scene: Scene) {
+    return reducible
+      ? (scene.layers[0].noiseReduction ?? unreduced)
+      : unreduced;
+  }
+  /** The source reduced at `strengths`, through this renderer's composer for `reduction`. */
+  function composeReduction(reduction: Reduction, strengths: NoiseReduction) {
+    if (composer?.of !== reduction) {
+      composer?.dispose();
+      composer = { ...reduction.compose(), of: reduction };
+    }
+    return composer.render(strengths);
+  }
   /** Resolves with `work`, or with nothing once a newer request or closing interrupts the wait. */
   function interruptible<T>(work: Promise<T>) {
     const interrupted = new Promise<undefined>((resolve) => {
@@ -447,34 +483,41 @@ export function createRenderer(
       }
       if (disposed) return;
       if (next) continue;
-      const [image] = scene.layers;
-      const selected = image.whiteBalance ?? resource.raw?.asShot;
-      const mosaic = resource.raw?.mosaic;
-      const amount = mosaic ? (image.noiseReduction ?? 0) / 100 : 0;
+      const selected = scene.layers[0].whiteBalance ?? resource.raw?.asShot;
+      const wanted = wantedReduction(scene);
       let failure: { error: unknown } | undefined;
       if (
-        raw &&
-        selected &&
-        (!sameBalance(balance, selected) || amount !== reduction)
+        (raw && !sameBalance(balance, selected)) ||
+        !sameReduction(wanted, applied)
       ) {
-        let samples: Target | undefined;
-        if (amount && mosaic) {
+        let output: Target | undefined;
+        if (wanted.luminance || wanted.color) {
           try {
-            samples = await interruptible(mosaic.denoised(denoise));
+            const reduction = await interruptible(
+              resource.reduced((signal) => reduceNoise(resource, signal)),
+            );
+            output = reduction && composeReduction(reduction, wanted);
           } catch (error) {
             // The photo develops as decoded rather than not at all; the error shows once, and the
-            // reduction runs again when the amount changes.
+            // reduction runs again when its strengths change.
             failure = { error };
           }
+        } else {
+          composer?.dispose();
+          composer = undefined;
         }
         if (disposed) return;
         if (next) continue;
-        await raw.prepare(selected, samples && { samples, amount });
-        if (disposed) {
-          return;
+        if (raw && selected) {
+          await raw.prepare(selected, output);
+          if (disposed) {
+            return;
+          }
+          balance = selected;
+        } else {
+          reduced = output;
         }
-        balance = selected;
-        reduction = amount;
+        applied = wanted;
         version++;
       }
       for (const { id, raster, rasters } of stalePaint(scene)) {
@@ -520,11 +563,13 @@ export function createRenderer(
       factor: reductionFor(density),
       interactive,
     };
-    // Renders wait, in order, for a settle, a RAW development, or settled paint and fields to load.
+    // Renders wait, in order, for a settle, a RAW development or noise reduction, or settled paint and
+    // fields to load.
     if (
       !raw &&
       !pending &&
       !settling &&
+      sameReduction(wantedReduction(scene), applied) &&
       !stalePaint(scene).length &&
       !staleFields(scene).length
     ) {
@@ -573,6 +618,7 @@ export function createRenderer(
     strokes.dispose();
     proxy.dispose();
     raw?.dispose();
+    composer?.dispose();
     release();
   }
 

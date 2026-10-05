@@ -1,8 +1,9 @@
-// Noise statistics of a Bayer mosaic: for each block of 32 × 32 sensor pixels, each 2 × 2 cell
+// Noise statistics of a Bayer mosaic: for each block of 16 × 16 sensor pixels, each 2 × 2 cell
 // position's mean above black and the variance of its diagonal Haar detail, which flat blocks owe to
-// noise alone. A position with a clipped sample in the block reports a negative variance, which the
-// fit skips.
-const side = 8u;
+// noise alone; small blocks leave more of them flat in a detailed photo. A position with a clipped
+// sample in the block reports a negative variance, which the fit skips.
+const side = 4u;
+const threads = side * side;
 
 struct Params {
   black: vec4f,
@@ -14,9 +15,9 @@ struct Params {
 // Per block: the four positions' means, then their variances.
 @group(0) @binding(2) var<storage, read_write> blocks: array<vec4f>;
 
-var<workgroup> means: array<vec4f, 64>;
-var<workgroup> details: array<vec4f, 64>;
-var<workgroup> clipped: array<vec4u, 64>;
+var<workgroup> means: array<vec4f, threads>;
+var<workgroup> details: array<vec4f, threads>;
+var<workgroup> clipped: array<vec4u, threads>;
 
 // The 2 × 2 cell at `cell`, one sample per position, above black.
 fn cell(cell: vec2u) -> vec4f {
@@ -47,7 +48,7 @@ fn cell(cell: vec2u) -> vec4f {
   let top = max(max(a, b), max(c, d)) + params.black;
   clipped[thread] = vec4u(top >= vec4f(params.white));
   workgroupBarrier();
-  for (var stride = 32u; stride > 0u; stride /= 2u) {
+  for (var stride = threads / 2u; stride > 0u; stride /= 2u) {
     if (thread < stride) {
       means[thread] += means[thread + stride];
       details[thread] += details[thread + stride];
@@ -57,7 +58,7 @@ fn cell(cell: vec2u) -> vec4f {
   }
   if (thread == 0u) {
     let index = (block.y * blocks_.x + block.x) * 2u;
-    blocks[index] = means[0] / 64.0;
-    blocks[index + 1u] = select(details[0] / 64.0, vec4f(-1.0), clipped[0] != vec4u(0u));
+    blocks[index] = means[0] / f32(threads);
+    blocks[index + 1u] = select(details[0] / f32(threads), vec4f(-1.0), clipped[0] != vec4u(0u));
   }
 }

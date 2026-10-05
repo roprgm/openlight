@@ -4,7 +4,6 @@ import {
   createImageSource,
   type Mosaic,
   type RawDevelopment,
-  type SampleBlend,
 } from "@/core/image";
 import { weakMemo } from "@/lib/weak-memo";
 import blendShader from "./raw-blend.wgsl";
@@ -28,7 +27,7 @@ const blendPipeline = weakMemo((device: GPUDevice) => {
 /**
  * The samples the package develops, which live in its own `sensor` texture. Passes take turns: each
  * writes the samples it develops just before developing, in the same task, so no other pass's write
- * falls between. The decoded samples move to a copy the first time a blend replaces them.
+ * falls between. The decoded samples move to a copy the first time others replace them.
  */
 function createSampleWriter(
   gpu: Gpu,
@@ -36,20 +35,18 @@ function createSampleWriter(
   blacks: readonly number[],
 ) {
   const device = gpu.gpu;
-  // The blend's amount, then each 2 × 2 position's black level.
-  const blendValues = new Float32Array(8);
-  blendValues.set(blacks, 4);
-  const uniforms = gpu.device.createBuffer({
-    size: blendValues.byteLength,
+  const black = gpu.device.createBuffer({
+    size: 16,
     usage: ["uniform", "copy_dst"],
   });
+  black.write(new Float32Array(blacks));
   let decoded: Texture | undefined;
-  let held: SampleBlend | undefined;
   return {
     /** The decoded samples, wherever they are. */
     decoded: () => decoded?.gpu ?? sensor,
-    write(blend?: SampleBlend) {
-      if (blend?.samples === held?.samples && blend?.amount === held?.amount) {
+    /** Writes `samples` in place of the decoded ones, or the decoded ones back. */
+    write(samples?: Target) {
+      if (!samples && !decoded) {
         return;
       }
       const encoder = device.createCommandEncoder();
@@ -66,9 +63,7 @@ function createSampleWriter(
           size,
         );
       }
-      if (blend) {
-        blendValues[0] = blend.amount;
-        uniforms.write(blendValues);
+      if (samples) {
         const pipeline = blendPipeline(device);
         const pass = encoder.beginRenderPass({
           colorAttachments: [
@@ -82,8 +77,8 @@ function createSampleWriter(
             layout: pipeline.getBindGroupLayout(0),
             entries: [
               { binding: 0, resource: decoded.gpu.createView() },
-              { binding: 1, resource: blend.samples.color.gpu.createView() },
-              { binding: 2, resource: { buffer: uniforms.gpu } },
+              { binding: 1, resource: samples.color.gpu.createView() },
+              { binding: 2, resource: { buffer: black.gpu } },
             ],
           }),
         );
@@ -97,10 +92,9 @@ function createSampleWriter(
         );
       }
       device.queue.submit([encoder.finish()]);
-      held = blend;
     },
     dispose() {
-      uniforms.dispose();
+      black.dispose();
       decoded?.dispose();
     },
   };
@@ -125,8 +119,6 @@ function mosaicOf(gpu: Gpu, source: RawSource) {
     source.texture,
     cfa.map((color) => black[color]),
   );
-  const closed = new AbortController();
-  let denoised: Promise<Target> | undefined;
   const mosaic: Mosaic = {
     get samples() {
       return writer.decoded();
@@ -134,26 +126,8 @@ function mosaicOf(gpu: Gpu, source: RawSource) {
     pattern: cfa,
     black,
     white,
-    denoised(reduce) {
-      denoised ??= reduce(mosaic, closed.signal).catch((error) => {
-        denoised = undefined;
-        throw error;
-      });
-      return denoised;
-    },
   };
-  return {
-    mosaic,
-    write: writer.write,
-    dispose() {
-      closed.abort(Error("RAW source is closed."));
-      void denoised?.then(
-        (samples) => samples.color.dispose(),
-        () => {},
-      );
-      writer.dispose();
-    },
-  };
+  return { mosaic, write: writer.write, dispose: writer.dispose };
 }
 
 /** Adapts package-owned sensor sources to OpenLight's document and renderer lifetimes. */
@@ -179,11 +153,11 @@ export async function decodeRaw(gpu: Gpu, file: File) {
       mosaic: mosaic?.mosaic,
       createPass() {
         // The as-shot development of the decoded samples is the image the source keeps; another
-        // balance, or a blend, gets its own.
+        // balance, or other samples, get their own.
         let output: Target | undefined;
         const pass = source.createDevelopPass();
         let calibration = source.calibration;
-        let blend: SampleBlend | undefined;
+        let replaced: Target | undefined;
         let dirty = true;
         return {
           async prepare(balance, samples) {
@@ -193,11 +167,11 @@ export async function decodeRaw(gpu: Gpu, file: File) {
             calibration = shot
               ? source.calibration
               : await source.calibrate(balance);
-            blend = samples?.amount ? samples : undefined;
+            replaced = samples;
             dirty = true;
           },
           render() {
-            if (calibration === source.calibration && !blend) {
+            if (calibration === source.calibration && !replaced) {
               output?.color.dispose();
               output = undefined;
               return developed;
@@ -207,7 +181,7 @@ export async function decodeRaw(gpu: Gpu, file: File) {
               format: "rgba16float",
             });
             if (dirty) {
-              mosaic?.write(blend);
+              mosaic?.write(replaced);
               pass.render({ destination: output.color.gpu, calibration });
               dirty = false;
             }

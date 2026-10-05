@@ -16,15 +16,21 @@ const measure = weakMemo((gpu: Gpu) =>
 );
 
 /** Sensor pixels along each block's side. */
-const block = 32;
+const block = 16;
 /** Equal-count bins of blocks along the signal, each of which yields one point to fit. */
 const bins = 40;
 /**
- * The variance of the quietest quarter of a bin's blocks comes from its flattest ones; a block's
- * estimate over 64 details is chi-squared, whose first quartile lies at 0.885 of its mean.
+ * The variance of the quietest tenth of a bin's blocks comes from its flattest ones, which texture
+ * reaches least; a block's estimate over 16 details is chi-squared, whose tenth percentile lies at
+ * 0.582 of its mean.
  */
-const quartile = 0.25;
-const quartileBias = 0.885;
+const quiet = 0.1;
+const quietBias = 0.582;
+/**
+ * Texture only adds variance, so a bin this far above the fitted line holds texture rather than
+ * noise; fitting again without such bins follows the noise where a detailed photo has few flat blocks.
+ */
+const envelope = 1.3;
 
 function fitLine(points: readonly [number, number][]) {
   // Weighted by the inverse variance squared, so dark and bright bins count by relative error.
@@ -73,10 +79,17 @@ export function fitNoise(
     );
     const variances = bin.map(([, variance]) => variance).sort((a, b) => a - b);
     const mean = bin[Math.floor(bin.length / 2)][0];
-    const variance = variances[Math.floor(bin.length * quartile)];
-    points.push([mean, variance / quartileBias]);
+    const variance = variances[Math.floor(bin.length * quiet)];
+    points.push([mean, variance / quietBias]);
   }
-  return fitLine(points);
+  let fit = fitLine(points);
+  for (let pass = 0; pass < 5; pass++) {
+    const { gain, floor } = fit;
+    const below = points.filter(([x, y]) => y <= envelope * (gain * x + floor));
+    if (below.length < 3) break;
+    fit = fitLine(below);
+  }
+  return fit;
 }
 
 /** Measures the mosaic's noise on the GPU from its flat blocks, then fits each position's model. */

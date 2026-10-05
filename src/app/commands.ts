@@ -108,10 +108,10 @@ export const commands = {
     },
   ),
   "set-noise-reduction": command(
-    "Reduces a RAW photo's noise before demosaicing: amount from 0, as decoded, to 100, fully reduced. The first reduction of a photo takes a moment; later amounts apply at once. Photos without a Bayer mosaic, such as JPEGs, have no noise reduction.",
-    z.strictObject({ amount: noiseReductionSchema }),
-    (document, { amount }) => {
-      setNoiseReduction(document, amount);
+    "Reduces the photo's noise before its adjustments, a RAW photo's before demosaicing: luminance and color from 0, none, to 100, keeping omitted values. 50 removes the noise the photo measures; more smooths further. The first reduction of a photo takes a moment; later strengths apply at once. RAW files without a 2 × 2 mosaic, such as Fujifilm X-Trans, have none.",
+    change(noiseReductionSchema),
+    (document, change) => {
+      setNoiseReduction(document, change);
       return { layerId: image(document).id };
     },
   ),

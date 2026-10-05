@@ -24,7 +24,7 @@ import { grain } from "@/features/grain/pass";
 import { heal, retainHealPatches } from "@/features/heal/pass";
 import { histogramGrid } from "@/features/histogram/histogram";
 import { lut } from "@/features/lut/pass";
-import { denoiseMosaic } from "@/features/noise-reduction/denoise";
+import { reduceNoise } from "@/features/noise-reduction/reduce";
 import { paint } from "@/features/paint/pass";
 import { toneCurves } from "@/features/tone-curves/pass";
 import { vignette } from "@/features/vignette/pass";
@@ -182,8 +182,8 @@ function composeLayers(
 
 /**
  * Pure layer composition shares the same graph for preview, crop, and export.
- * The image layer develops the photo first, a RAW one from its noise-reduced mosaic as it asks; layers
- * above it process that floating-point result.
+ * The image layer develops the photo first, after its noise reduction; layers above it process that
+ * floating-point result.
  * Display and export encode only after composition, so later layers can recover HDR headroom.
  */
 export function createEditorRenderer(
@@ -224,7 +224,7 @@ export function createEditorRenderer(
     },
     {
       ...options,
-      denoise: (mosaic, signal) => denoiseMosaic(gpu, mosaic, signal),
+      reduceNoise: (source, signal) => reduceNoise(gpu, source, signal),
     },
   );
 }

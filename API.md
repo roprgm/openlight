@@ -72,7 +72,7 @@ Create an empty Paint layer with `addLayer("paint")`. `addPaintStroke(id, stroke
 
 For RAW sources, `setWhiteBalance({ temperature, tint })` sets absolute Kelvin and DNG tint, preserving unspecified values. Temperature accepts 2000–25000 K and tint accepts -150–150, extending either range to include the file's As Shot value. `setWhiteBalance()` restores that value (the decoder's daylight fallback if camera multipliers are unavailable). Non-RAW sources and invalid values throw. Incremental temperature/tint remain separate RGB adjustments.
 
-For RAW sources with a 2 × 2 Bayer mosaic, `setNoiseReduction(amount)` reduces noise on the mosaic before demosaicing, from 0, the samples as decoded, to 100, fully reduced. A photo's first reduction runs once on the GPU and takes a moment, while the editor keeps showing the photo as it was; later amounts, white balance, and every other edit reuse the reduced samples, so they apply at once. The original comparison shows the samples as decoded. Other sources and invalid values throw.
+`setNoiseReduction({ luminance, color })` reduces the photo's noise before its adjustments, keeping the strength it omits: a RAW photo's on its Bayer mosaic before demosaicing, any other image's in its encoded color. Each strength goes from 0, none, to 100; near 50 the result comes closest to the clean photo, and higher smooths further. Luminance reduces noise in light, color in color, so color alone leaves a monochrome grain. A photo's first reduction runs once on the GPU, at three strengths, and takes a moment while the editor keeps showing the photo as it was; later strengths, white balance, and every other edit reuse it, so they apply at once. The original comparison shows the photo as decoded. RAW files without a 2 × 2 mosaic, such as Fujifilm X-Trans, and invalid values throw.
 
 `autoWhiteBalance()` neutralizes the photo's color cast as one edit and resolves once it is made. The GPU measures the cast of the source before any edit, as its edges' average color, so calling it again gives the same balance. A RAW photo's white balance moves from As Shot; any other photo's incremental temperature and tint are replaced. When another photo opens first, it resolves without an edit.
 
@@ -220,7 +220,7 @@ editor.run({
 | `set-adjustments` | adjustments, `layerId?` | Like `setAdjustments`. |
 | `set-tone-curve` | `points?`, `layerId?` | Like `setToneCurve`. |
 | `set-white-balance` | `temperature?`, `tint?` | Like `setWhiteBalance` with a change. |
-| `set-noise-reduction` | `amount` | Like `setNoiseReduction`. |
+| `set-noise-reduction` | `luminance?`, `color?` | Like `setNoiseReduction`. |
 | `set-color-mixer` | `color`, `hue?`, `saturation?`, `luminance?`, `layerId?` | Like `setColorMixer`. |
 | `set-details` | `clarity?`, `sharpening?`, `sharpenRadius?`, `layerId?` | Like `setDetails`. |
 | `set-vignette` | `intensity?`, `softness?`, `layerId?` | Like `setVignette`. |
