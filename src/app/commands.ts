@@ -16,6 +16,8 @@ import { setGrain } from "@/features/grain/edits";
 import { grainSchema } from "@/features/grain/model";
 import { addLayer, deleteLayer } from "@/features/layers/edits";
 import { maskSchema } from "@/features/layers/model";
+import { setNoiseReduction } from "@/features/noise-reduction/edits";
+import { noiseReductionSchema } from "@/features/noise-reduction/model";
 import { curveSchema, defaultCurve } from "@/features/tone-curves/curve";
 import { setToneCurve } from "@/features/tone-curves/edits";
 import { setVignette } from "@/features/vignette/edits";
@@ -65,6 +67,7 @@ function reset(document: EditorDocument) {
         adjustments: { ...defaultAdjustments },
         toneCurve: defaultCurve,
         whiteBalance: source.raw?.asShot,
+        noiseReduction: undefined,
       },
     ],
   });
@@ -101,6 +104,14 @@ export const commands = {
     z.partial(z.strictObject({ temperature: z.number(), tint: z.number() })),
     (document, change) => {
       setWhiteBalance(document, change);
+      return { layerId: image(document).id };
+    },
+  ),
+  "set-noise-reduction": command(
+    "Reduces the photo's noise before its adjustments, a RAW photo's before demosaicing: luminance and color from 0, none, to 100, keeping omitted values. 50 removes the noise the photo measures; more smooths further. The first reduction of a photo takes a moment; later strengths apply at once. RAW files without a 2 × 2 mosaic, such as Fujifilm X-Trans, have none.",
+    change(noiseReductionSchema),
+    (document, change) => {
+      setNoiseReduction(document, change);
       return { layerId: image(document).id };
     },
   ),

@@ -1,4 +1,4 @@
-import type { WhiteBalance } from "@/core/image";
+import type { NoiseReduction, WhiteBalance } from "@/core/image";
 import type { ImageFrame, Point } from "@/core/image/frame";
 
 export type Adjustments = {
@@ -72,6 +72,8 @@ export type ImageLayer = {
   readonly name: string;
   readonly source: string;
   readonly whiteBalance?: Readonly<WhiteBalance>;
+  /** Noise reduction on the photo before any adjustment, a RAW one's before demosaicing; none without it. */
+  readonly noiseReduction?: Readonly<NoiseReduction>;
   readonly adjustments: Readonly<Adjustments>;
   readonly toneCurve: ToneCurve;
   readonly children: readonly ProcessingLayer[];

@@ -32,6 +32,7 @@ import {
   maskSchema,
 } from "@/features/layers/model";
 import { lutSchema } from "@/features/lut/model";
+import { noiseReductionSchema } from "@/features/noise-reduction/model";
 import { paintShape } from "@/features/paint/model";
 import { curveSchema } from "@/features/tone-curves/curve";
 import { defaultVignette, vignetteSchema } from "@/features/vignette/model";
@@ -225,6 +226,7 @@ const imageLayer = z.object({
   whiteBalance: z.optional(
     z.object({ temperature: z.number(), tint: z.number() }),
   ),
+  noiseReduction: z.optional(noiseReductionSchema),
   adjustments,
   toneCurve: curveSchema,
   children: empty("The image layer cannot contain layers"),
