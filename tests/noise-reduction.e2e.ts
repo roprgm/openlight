@@ -24,6 +24,7 @@ function measure(samples: number[][]) {
   const color = samples.map(([r, , b]) => r - b);
   return {
     light: mean(light),
+    color: mean(color),
     lightNoise: deviation(light),
     colorNoise: deviation(color),
   };
@@ -85,6 +86,7 @@ test("Noise reduction cleans an image's color and light apart", async ({
   );
   expect(colorOnly.colorNoise).toBeLessThan(before.colorNoise / 2);
   expect(colorOnly.lightNoise).toBeGreaterThan(before.lightNoise * 0.6);
+  expect(Math.abs(colorOnly.color - before.color)).toBeLessThan(3);
   await page.evaluate(() =>
     window.openlight.setNoiseReduction({ luminance: 75 }),
   );

@@ -26,3 +26,12 @@ export fn toOpponent(rgb: vec3f) -> vec3f {
 export fn fromOpponent(value: vec3f) -> vec3f {
   return value * opponent;
 }
+
+// Each 2 × 2 cell's four values, row-major, and its mean, horizontal, vertical, and diagonal
+// differences, one to the other: orthonormal, so noise keeps its deviation, and its own inverse.
+export const haar = mat4x4f(
+  0.5, 0.5, 0.5, 0.5,
+  0.5, -0.5, 0.5, -0.5,
+  0.5, 0.5, -0.5, -0.5,
+  0.5, -0.5, -0.5, 0.5,
+);

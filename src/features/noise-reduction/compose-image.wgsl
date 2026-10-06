@@ -1,32 +1,60 @@
-// An image at chosen strengths: its encoded light and color differences, each moved toward every
-// anchor's by that anchor's share, then decoded. Shares that are all zero give the image exactly.
+// An image at chosen strengths: its encoded light and color differences less part of their difference
+// from the reduction's, in noise deviations, which the limits of light and color and the difference
+// over the 3 × 3 pixels around set; then decoded, and dithered when the output keeps 8 bits, so
+// smooth reductions don't band.
+import { Limits, removed } from "./limit.wgsl";
 import { decode, encode, fromOpponent, toOpponent } from "./opponent.wgsl";
 
-// Per anchor, weakest first: its share of light, then of color.
-@group(0) @binding(0) var<uniform> shares: array<vec4f, 3>;
-@group(0) @binding(1) var source: texture_2d<f32>;
-@group(0) @binding(2) var linearSampler: sampler;
-@group(0) @binding(3) var weakLight: texture_2d<f32>;
-@group(0) @binding(4) var measuredLight: texture_2d<f32>;
-@group(0) @binding(5) var strongLight: texture_2d<f32>;
-// Color at half size, sampled between its texels.
-@group(0) @binding(6) var weakColor: texture_2d<f32>;
-@group(0) @binding(7) var measuredColor: texture_2d<f32>;
-@group(0) @binding(8) var strongColor: texture_2d<f32>;
+struct Params {
+  // The noise deviation of each pixel's light and two color differences.
+  noise: vec4f,
+  // The output's step in the encoding, or 0 when it keeps floats.
+  quantum: f32,
+}
 
-fn toward(value: vec3f, light: f32, color: vec2f, share: vec4f) -> vec3f {
-  return vec3f(share.x * (light - value.x), share.y * (color - value.yz));
+// Of light and the two color differences.
+@group(0) @binding(0) var<uniform> limits: Limits;
+@group(0) @binding(1) var<uniform> params: Params;
+@group(0) @binding(2) var source: texture_2d<f32>;
+@group(0) @binding(3) var linearSampler: sampler;
+@group(0) @binding(4) var light: texture_2d<f32>;
+// Color at half size, sampled between its texels.
+@group(0) @binding(5) var color: texture_2d<f32>;
+
+// Uniform in [-0.5, 0.5), from a hash of the pixel's position (PCG, Jarzynski and Olano, 2020).
+fn dither(p: vec2u) -> f32 {
+  var state = p.x * 747796405u + p.y * 2891336453u + 2891336453u;
+  state = ((state >> ((state >> 28u) + 4u)) ^ state) * 277803737u;
+  return f32((state >> 22u) ^ state) / 4294967296.0 - 0.5;
+}
+
+struct Pixel {
+  value: vec3f,
+  // The difference from the reduction, in noise deviations.
+  difference: vec3f,
+}
+
+fn pixelAt(at: vec2i) -> Pixel {
+  let p = clamp(at, vec2i(0), vec2i(textureDimensions(source)) - 1);
+  let value = toOpponent(encode(textureLoad(source, p, 0).rgb));
+  // Each half-size texel averages 2 × 2 pixels, whatever the image's parity.
+  let uv = (vec2f(p) + 0.5) * 0.5 / vec2f(textureDimensions(color));
+  let reduced = vec3f(textureLoad(light, p, 0).x, textureSampleLevel(color, linearSampler, uv, 0.0).xy);
+  return Pixel(value, (value - reduced) / params.noise.xyz);
 }
 
 @fragment fn fs_main(@builtin(position) position: vec4f) -> @location(0) vec4f {
-  let p = vec2i(position.xy);
-  let texel = textureLoad(source, p, 0);
-  let value = toOpponent(encode(texel.rgb));
-  // Each half-size texel averages 2 × 2 pixels, whatever the image's parity.
-  let uv = position.xy * 0.5 / vec2f(textureDimensions(weakColor));
-  var result = value;
-  result += toward(value, textureLoad(weakLight, p, 0).x, textureSampleLevel(weakColor, linearSampler, uv, 0.0).xy, shares[0]);
-  result += toward(value, textureLoad(measuredLight, p, 0).x, textureSampleLevel(measuredColor, linearSampler, uv, 0.0).xy, shares[1]);
-  result += toward(value, textureLoad(strongLight, p, 0).x, textureSampleLevel(strongColor, linearSampler, uv, 0.0).xy, shares[2]);
-  return vec4f(decode(fromOpponent(result)), texel.a);
+  let center = vec2i(position.xy);
+  let pixel = pixelAt(center);
+  var energy = pixel.difference * pixel.difference;
+  for (var i = 0; i < 9; i++) {
+    let offset = vec2i(i % 3, i / 3) - 1;
+    if (any(offset != vec2i(0))) {
+      let difference = pixelAt(center + offset).difference;
+      energy += difference * difference;
+    }
+  }
+  let part = removed(vec4f(pixel.difference, 0.0), vec4f(energy / 9.0, 0.0), limits).xyz;
+  let result = fromOpponent(pixel.value - params.noise.xyz * part);
+  return vec4f(decode(result + dither(vec2u(center)) * params.quantum), textureLoad(source, center, 0).a);
 }

@@ -1,5 +1,4 @@
 import { expect, test } from "bun:test";
-import { anchorShares, anchors } from "@/features/noise-reduction/model";
 import { fitNoise } from "@/features/noise-reduction/noise";
 
 test("noise fits photon and read noise from the flattest blocks, past texture", () => {
@@ -28,21 +27,4 @@ test("noise fits photon and read noise from the flattest blocks, past texture", 
   const { gain, floor } = fitNoise(means, variances);
   expect(Math.abs(gain / 32 - 1)).toBeLessThan(0.15);
   expect(Math.abs(floor / 1500 - 1)).toBeLessThan(0.15);
-});
-
-test("noise reduction amounts scale the noise filtered between the anchors", () => {
-  expect(anchorShares(0)).toEqual([0, 0, 0]);
-  expect(anchorShares(10)).toEqual([0.4, 0, 0]);
-  expect(anchorShares(25)).toEqual([1, 0, 0]);
-  expect(anchorShares(37.5)).toEqual([0.5, 0.5, 0]);
-  expect(anchorShares(75)).toEqual([0, 0.5, 0.5]);
-  expect(anchorShares(100)).toEqual([0, 0, 1]);
-  // Shares blend anchors linearly, so the noise filtered follows the amount on one line.
-  for (const amount of [10, 25, 40, 60, 90]) {
-    const strength = anchorShares(amount).reduce(
-      (sum, share, k) => sum + share * anchors[k],
-      0,
-    );
-    expect(strength).toBeCloseTo((amount / 100) * anchors[2], 10);
-  }
 });

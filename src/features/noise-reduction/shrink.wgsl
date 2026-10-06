@@ -1,24 +1,20 @@
 // One step of sliding DCT denoising (Yu and Sapiro, 2011), the patch filter BM3D builds on (Dabov,
 // Foi, Katkovnik, and Egiazarian, 2007), over a tile of the spectrum per workgroup: every 8 × 8 patch
-// that reaches the tile is transformed, shrunk, and added back to the texels it covers, weighted by
-// how little of it survived. The first step keeps the coefficients that stand out of the noise; the
-// second shrinks each by the Wiener weight the first step's estimate gives it. Patches are filtered
-// alone rather than grouped with similar ones, which would mistake aligned noise for likeness.
+// that starts on every other texel and reaches the tile is transformed, shrunk, and added back to the
+// 64 texels it covers, weighted by how little of it survived, so 16 patches cover each texel. The
+// first step keeps the coefficients that stand out of the noise; the second shrinks each by the
+// Wiener weight the first step's estimate gives it. Patches are filtered alone rather than grouped
+// with similar ones, which would mistake aligned noise for likeness.
 import { pack, unpack } from "./texels.wgsl";
 
 const side = 8u;
 const tile = 32u;
+const stride = 2u;
 // Patches whose texels reach the tile, along each side.
-const span = 39u;
+const span = 19u;
 const threads = 256u;
-// Coefficients below this many noise deviations are noise, in the first step; the greens' difference
-// holds less detail than light and color.
-const lambda = vec4f(3.0, 3.0, 3.0, 3.5);
-// How much more each component's noise counts in the Wiener weights: color, and more so the greens'
-// difference, shrink harder than light.
-const caution = vec4f(1.0, 2.0, 2.0, 8.0);
 // Fixed-point scales of the sums. Light, the largest component, reaches twice the transform's largest
-// value, 1024, and ringing at most doubles it; the 64 patches over a texel weigh 36 at most, in their
+// value, 1024, and ringing at most doubles it; the 16 patches over a texel weigh 9 at most, in their
 // Kaiser windows. Both sums stay in range.
 const valueScale = 8192.0;
 const weightScale = 16777216.0;
@@ -26,12 +22,17 @@ const kaiser = array<f32, 8>(0.438676, 0.681324, 0.87684, 0.985823, 0.985823, 0.
 
 struct Params {
   size: vec2u,
-  // Components the spectrum holds: four for a mosaic, three for an image.
+  // Components the spectrum holds, up to four.
   channels: u32,
-  // Each component's noise deviation.
-  sigma: vec4f,
   // 0 thresholds; 1 shrinks by the Wiener weights of `pilot`, the first step's estimate.
   wiener: u32,
+  // Each component's noise deviation.
+  sigma: vec4f,
+  // Per component, the noise deviations past which the first step keeps a coefficient, how much more
+  // its noise counts in the second step's Wiener weights, and 1 where patches keep their means whole.
+  threshold: vec4f,
+  caution: vec4f,
+  mean: vec4u,
 }
 
 @group(0) @binding(0) var<uniform> params: Params;
@@ -90,7 +91,7 @@ fn transform(block: ptr<function, array<f32, 64>>, inverse: bool) {
     workgroupBarrier();
     let sigma = params.sigma[channel];
     for (var i = t; i < span * span; i += threads) {
-      let corner = origin - i32(side - 1u) + vec2i(vec2u(i % span, i / span));
+      let corner = origin - i32(side - stride) + i32(stride) * vec2i(vec2u(i % span, i / span));
       var values: array<f32, 64>;
       var guide: array<f32, 64>;
       for (var j = 0u; j < 64u; j++) {
@@ -104,19 +105,18 @@ fn transform(block: ptr<function, array<f32, 64>>, inverse: bool) {
       if (params.wiener == 1u) {
         transform(&guide, false);
       }
-      // A patch's mean, its DC, stays whole: the inverse transform expects every level unbiased. Not
-      // the greens' difference: both greens see the same light, so its mean is noise or imbalance,
-      // which demosaicing would draw as a maze.
+      // A patch's mean, its DC, stays whole where a component holds a level: the inverse transform
+      // expects every level unbiased.
       var kept = 0.0;
       for (var j = 0u; j < 64u; j++) {
-        if (j == 0u && channel != 3u) {
+        if (j == 0u && params.mean[channel] == 1u) {
           kept += 1.0;
         } else if (params.wiener == 1u) {
           let g = guide[j] * guide[j];
-          let w = g / (g + caution[channel] * sigma * sigma);
+          let w = g / (g + params.caution[channel] * sigma * sigma);
           values[j] *= w;
           kept += w * w;
-        } else if (abs(values[j]) > lambda[channel] * sigma) {
+        } else if (abs(values[j]) > params.threshold[channel] * sigma) {
           kept += 1.0;
         } else {
           values[j] = 0.0;

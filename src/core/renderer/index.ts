@@ -153,7 +153,7 @@ export type RendererOptions = {
   field?: (id: string) => RemoveField | undefined;
   /** Receives each Remove field the renderer synthesizes, read back; without it nothing is read back. */
   saveField?: (id: string, field: RemoveField) => void;
-  /** Reduces a source's noise once at a few strengths, for the image layer's noise reduction. */
+  /** Reduces a source's noise once, for the image layer's noise reduction. */
   reduceNoise?: (
     source: ImageSource,
     signal: AbortSignal,

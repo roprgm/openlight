@@ -1,17 +1,16 @@
-// Replacement samples for a mosaic at chosen strengths: the decoded samples plus each anchor's
-// change, split into the spectrum's components and weighed by that anchor's share of each. The
-// split follows the transform's slope where the strongest anchor puts each sample, so changes divide
-// as the filter saw them, and shares that are all one or all zero give an anchor or the decoded
-// samples exactly.
+// Replacement samples for a mosaic at chosen strengths: the decoded samples less part of their
+// difference from the reduced ones, in noise deviations per spectrum component, which the
+// component's limits and the difference over the 3 × 3 cells around set. Shares of one give the
+// reduction, and of zero the decoded samples, exactly.
+import { Limits, removed } from "./limit.wgsl";
 import { fromSpectrum, Noise, toSpectrum } from "./stabilize.wgsl";
 
 @group(0) @binding(0) var<uniform> noise: Noise;
-// Per anchor, weakest first: its share of light, the two color differences, and the greens' one.
-@group(0) @binding(1) var<uniform> shares: array<vec4f, 3>;
+// Of light, the two color differences, and the greens' difference.
+@group(0) @binding(1) var<uniform> limits: Limits;
 @group(0) @binding(2) var samples: texture_2d<u32>;
-@group(0) @binding(3) var weak: texture_2d<f32>;
-@group(0) @binding(4) var measured: texture_2d<f32>;
-@group(0) @binding(5) var strong: texture_2d<f32>;
+// The reduction's change to each 2 × 2 cell's samples, by position.
+@group(0) @binding(3) var reduction: texture_2d<f32>;
 
 @fragment fn fs_main(@builtin(position) position: vec4f) -> @location(0) vec4f {
   let cell = vec2i(position.xy);
@@ -22,17 +21,19 @@ import { fromSpectrum, Noise, toSpectrum } from "./stabilize.wgsl";
     f32(textureLoad(samples, p + vec2i(0, 1), 0).r),
     f32(textureLoad(samples, p + vec2i(1, 1), 0).r),
   ) - noise.black;
-  let changes = array<vec4f, 3>(
-    textureLoad(weak, cell, 0),
-    textureLoad(measured, cell, 0),
-    textureLoad(strong, cell, 0),
-  );
+  let change = textureLoad(reduction, cell, 0);
+  // The transform's slope where the reduction puts each sample, so differences count as the filter
+  // saw them. Neighbors share it: light varies little between them except at edges, which the
+  // difference already marks.
   let a = noise.gain;
-  let settled = max(decoded + changes[2], vec4f(0.0));
-  let slope = sqrt(a * settled + 0.375 * a * a + noise.floor);
-  var result = decoded;
-  for (var k = 0; k < 3; k++) {
-    result += slope * fromSpectrum(shares[k] * toSpectrum(changes[k] / slope, noise), noise);
+  let slope = sqrt(a * max(decoded + change, vec4f(0.0)) + 0.375 * a * a + noise.floor);
+  let last = vec2i(textureDimensions(reduction)) - 1;
+  var energy = vec4f(0.0);
+  for (var i = 0; i < 9; i++) {
+    let neighbor = clamp(cell + vec2i(i % 3, i / 3) - 1, vec2i(0), last);
+    let difference = toSpectrum(textureLoad(reduction, neighbor, 0) / slope, noise);
+    energy += difference * difference;
   }
-  return result;
+  let part = removed(toSpectrum(-change / slope, noise), energy / 9.0, limits);
+  return decoded - slope * fromSpectrum(part, noise);
 }

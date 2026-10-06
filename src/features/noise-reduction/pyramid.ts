@@ -8,6 +8,15 @@ import spreadShader from "./spread.wgsl";
 export type Size = readonly [number, number];
 /** One level of the spectrum: four half floats per texel, row after row. */
 export type Spectrum = { buffer: Buffer; size: Size };
+/** How the filter treats one of a spectrum's components. */
+export type Component = {
+  /** Noise deviations past which the first step keeps a coefficient. */
+  threshold: number;
+  /** How much more its noise counts in the second step's Wiener weights. */
+  caution: number;
+  /** Whether patches keep their means whole, as a component that holds a level must to stay unbiased. */
+  mean: boolean;
+};
 
 const passes = weakMemo((gpu: Gpu) => ({
   down: compute(gpu, downShader),
@@ -33,7 +42,7 @@ const quartileBias = 0.876;
  */
 const margin = 1.15;
 
-export function spectrum(gpu: Gpu, size: Size): Spectrum {
+function spectrum(gpu: Gpu, size: Size): Spectrum {
   const buffer = gpu.device.createBuffer({
     size: size[0] * size[1] * 8,
     usage: ["storage"],
@@ -60,18 +69,16 @@ function down(gpu: Gpu, source: Spectrum, output: Spectrum) {
     .dispatch(...groups(output.size));
 }
 
-/** `finest` and its averages, each level half the one before, down to `smallest` texels. */
-export function buildPyramid(gpu: Gpu, finest: Spectrum) {
-  const pyramid = [finest];
+/** Adds averages of `pyramid`'s last level, each half the one before, down to `smallest` texels. */
+function extendPyramid(gpu: Gpu, pyramid: Spectrum[]) {
   while (pyramid.length < levels) {
     const finer = pyramid[pyramid.length - 1];
     const size = half(finer.size);
-    if (Math.min(...size) < smallest) break;
+    if (Math.min(...size) < smallest) return;
     const level = spectrum(gpu, size);
-    down(gpu, finer, level);
     pyramid.push(level);
+    down(gpu, finer, level);
   }
-  return pyramid;
 }
 
 /**
@@ -105,17 +112,17 @@ async function measureSpread(gpu: Gpu, { buffer, size }: Spectrum) {
 
 /**
  * Each level's noise deviation per component, finest first. `finest` turns the finest level's
- * measure into its noise. A coarser level's flattest blocks give its noise, up to a margin over what
+ * measures into its noise. A coarser level's flattest blocks give its noise, up to a margin over what
  * white noise would leave there, since they still hold texture.
  */
-export async function measureLevels(
+async function measureLevels(
   gpu: Gpu,
   pyramid: readonly Spectrum[],
-  finest: (measured: number) => number,
+  finest: (measured: readonly number[]) => readonly number[],
 ) {
   const measured = [];
   for (const level of pyramid) measured.push(await measureSpread(gpu, level));
-  const base = measured[0].map(finest);
+  const base = finest(measured[0]);
   return measured.map((level, l) =>
     level.map((value, c) => {
       const white = base[c] * 2 ** -l;
@@ -125,10 +132,14 @@ export async function measureLevels(
   );
 }
 
-/** The finest level's noise for a noise model that predicts unit noise, which a lower measure corrects. */
-export function modeled(measured: number) {
-  return Math.min(measured || 1, 1);
+/** The finest level's noise for a noise model that predicts unit noise, which lower measures correct. */
+export function modeled(measured: readonly number[]) {
+  return measured.map((value) => Math.min(value || 1, 1));
 }
+
+/** Each of four components' value, 0 past the components a spectrum holds. */
+const padded = (values: readonly number[]) =>
+  [0, 1, 2, 3].map((c) => values[c] ?? 0);
 
 /** One step of the patch filter over `noisy` into `output`, shrinking by `pilot`'s Wiener weights if given. */
 function shrink(
@@ -136,13 +147,21 @@ function shrink(
   noisy: Spectrum,
   output: Spectrum,
   sigma: readonly number[],
-  channels: number,
+  components: readonly Component[],
   pilot?: Spectrum,
 ) {
   const { size } = noisy;
   passes(gpu)
     .shrink.set({
-      params: { size, channels, sigma, wiener: Number(Boolean(pilot)) },
+      params: {
+        size,
+        channels: components.length,
+        wiener: Number(Boolean(pilot)),
+        sigma,
+        threshold: padded(components.map((c) => c.threshold)),
+        caution: padded(components.map((c) => c.caution)),
+        mean: padded(components.map((c) => Number(c.mean))),
+      },
       noisy: noisy.buffer,
       pilot: (pilot ?? noisy).buffer,
       output: output.buffer,
@@ -199,19 +218,19 @@ function filterLevel(
   noisy: Spectrum,
   coarse: Spectrum | undefined,
   sigma: readonly number[],
-  channels: number,
+  components: readonly Component[],
 ) {
   const first = spectrum(gpu, noisy.size);
   try {
     const second = spectrum(gpu, noisy.size);
     try {
-      shrink(gpu, noisy, first, sigma, channels);
+      shrink(gpu, noisy, first, sigma, components);
       if (!coarse) {
-        shrink(gpu, noisy, second, sigma, channels, first);
+        shrink(gpu, noisy, second, sigma, components, first);
         return second;
       }
       fuse(gpu, first, coarse, second);
-      shrink(gpu, noisy, first, sigma, channels, second);
+      shrink(gpu, noisy, first, sigma, components, second);
       fuse(gpu, first, coarse, second);
       return second;
     } catch (error) {
@@ -224,41 +243,49 @@ function filterLevel(
 }
 
 /**
- * Denoises `pyramid`, finest level first, from its coarsest level up, as if its noise were
- * `strength` times what each level measured: each level takes its low frequencies from the
- * estimate of the one below it. Resolves to the finest estimate; stops between levels once
- * `signal` aborts.
+ * Denoises a spectrum of `size`, which `prepare` fills, through a pyramid of its averages from the
+ * coarsest level up: each level's `components` are filtered at the noise they measure, which
+ * `noiseOf` turns into the finest level's, and each level takes its low frequencies from the
+ * estimate of the level below. Resolves to the finest estimate and the finest level's noise per
+ * component; stops between steps once `signal` aborts.
  */
-export async function filterPyramid(
+export async function reduceSpectrum(
   gpu: Gpu,
-  pyramid: readonly Spectrum[],
-  noise: readonly (readonly number[])[],
-  strength: number,
-  channels: number,
-  signal?: AbortSignal,
-): Promise<Spectrum> {
-  const sigma = (l: number) => noise[l].map((value) => value * strength);
-  const coarsest = pyramid.length - 1;
-  let estimate = filterLevel(
-    gpu,
-    pyramid[coarsest],
-    undefined,
-    sigma(coarsest),
-    channels,
-  );
-  for (let l = coarsest - 1; l >= 0; l--) {
-    const coarse = estimate;
-    try {
-      estimate = filterLevel(gpu, pyramid[l], coarse, sigma(l), channels);
-    } finally {
-      coarse.buffer.dispose();
-    }
-    // Each level submits before the next, so other GPU work, such as the display, runs between.
-    await gpu.gpu.queue.onSubmittedWorkDone();
-    if (signal?.aborted) {
-      estimate.buffer.dispose();
+  size: Size,
+  prepare: (finest: Spectrum) => void,
+  noiseOf: (measured: readonly number[]) => readonly number[],
+  components: readonly Component[],
+  signal: AbortSignal,
+) {
+  signal.throwIfAborted();
+  const pyramid = [spectrum(gpu, size)];
+  let estimate: Spectrum | undefined;
+  try {
+    prepare(pyramid[0]);
+    extendPyramid(gpu, pyramid);
+    const noise = await measureLevels(gpu, pyramid, noiseOf);
+    signal.throwIfAborted();
+    for (let l = pyramid.length - 1; ; l--) {
+      const coarse = estimate;
+      const filtered = filterLevel(
+        gpu,
+        pyramid[l],
+        coarse,
+        noise[l],
+        components,
+      );
+      estimate = filtered;
+      coarse?.buffer.dispose();
+      pyramid[l].buffer.dispose();
+      // Each level submits before the next, so other GPU work, such as the display, runs between.
+      await gpu.gpu.queue.onSubmittedWorkDone();
       signal.throwIfAborted();
+      if (!l) return { estimate: filtered, noise: noise[0] };
     }
+  } catch (error) {
+    estimate?.buffer.dispose();
+    throw error;
+  } finally {
+    for (const level of pyramid) level.buffer.dispose();
   }
-  return estimate;
 }

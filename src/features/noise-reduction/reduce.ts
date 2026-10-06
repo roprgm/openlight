@@ -4,8 +4,8 @@ import { reduceImage } from "./image";
 import { reduceMosaic } from "./mosaic";
 
 /**
- * Reduces a source's noise once at each anchor strength: a RAW photo on its mosaic before
- * demosaicing, any other image in its encoded color.
+ * Reduces a source's noise once: a RAW photo on its mosaic before demosaicing, any other image in
+ * its encoded color.
  */
 export async function reduceNoise(
   gpu: Gpu,
