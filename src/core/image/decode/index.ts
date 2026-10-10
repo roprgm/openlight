@@ -1,5 +1,6 @@
 import type { Gpu, Target } from "vgpu";
 import { createImageSource, type ImageSource } from "@/core/image";
+import { checkHeader } from "./size";
 import type { Decoder } from "./types";
 import { uploadDecoded } from "./upload";
 
@@ -21,11 +22,22 @@ function pixelFormat(load: () => Promise<Decoder>) {
   };
 }
 
-const native = pixelFormat(async () => createImageBitmap);
+/** A format whose header declares its size, checked before decoding. */
+function sized(decode: Format["decode"]) {
+  return async (gpu: Gpu, file: File) => {
+    await checkHeader(file);
+    return decode(gpu, file);
+  };
+}
+
+const native = sized(pixelFormat(async () => createImageBitmap));
 const svg = pixelFormat(async () => (await import("./svg")).decodeSvg);
-const heic = pixelFormat(async () => (await import("./heic")).decodeHeic);
-const tiff = async (gpu: Gpu, file: File) =>
-  (await import("./tiff")).decodeTiff(gpu, file);
+const heic = sized(
+  pixelFormat(async () => (await import("./heic")).decodeHeic),
+);
+const tiff = sized(async (gpu: Gpu, file: File) =>
+  (await import("./tiff")).decodeTiff(gpu, file),
+);
 const raw = async (gpu: Gpu, file: File) =>
   (await import("./raw")).decodeRaw(gpu, file);
 
