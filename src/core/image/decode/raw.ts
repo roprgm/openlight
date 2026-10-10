@@ -2,6 +2,7 @@ import { createRawDecoder } from "raw-webgpu";
 import { type Gpu, type Target, target } from "vgpu";
 import { createImageSource, type RawDevelopment } from "@/core/image";
 import { weakMemo } from "@/lib/weak-memo";
+import { checkSize } from "./size";
 
 /** One decoder per GPU, released with its device. */
 const decoder = weakMemo((gpu: Gpu) => createRawDecoder(gpu.gpu));
@@ -11,6 +12,8 @@ export async function decodeRaw(gpu: Gpu, file: File) {
   const source = await decoder(gpu).load(file);
   let original: Target | undefined;
   try {
+    // Only LibRaw reads a RAW's size, so the check waits for the decoded source.
+    checkSize(...source.size);
     original = target(gpu, { size: source.size, format: "rgba16float" });
     const initial = source.createDevelopPass();
     try {

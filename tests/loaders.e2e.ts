@@ -1,6 +1,52 @@
 import { expect, openPhoto, test } from "./fixtures";
 import { readImage } from "./images";
 
+test("an image beyond the size limit fails to open, saying how large it is", async ({
+  page,
+}) => {
+  await openPhoto(page);
+  const png = await page.evaluate(async () => {
+    const canvas = new OffscreenCanvas(9000, 1);
+    canvas.getContext("2d");
+    const blob = await canvas.convertToBlob();
+    return [...new Uint8Array(await blob.arrayBuffer())];
+  });
+  const svg =
+    '<svg xmlns="http://www.w3.org/2000/svg" width="10" height="8193"/>';
+  const cases = [
+    {
+      file: {
+        name: "wide.png",
+        mimeType: "image/png",
+        buffer: Buffer.from(png),
+      },
+      size: "9,000 × 1",
+    },
+    {
+      file: {
+        name: "tall.svg",
+        mimeType: "image/svg+xml",
+        buffer: Buffer.from(svg),
+      },
+      size: "10 × 8,193",
+    },
+  ];
+  for (const { file, size } of cases) {
+    const chooser = page.waitForEvent("filechooser");
+    await page.getByRole("button", { name: "Open an image or scene" }).click();
+    await (await chooser).setFiles(file);
+    await expect(
+      page.getByText(
+        `Couldn't open ${file.name}: Error: OpenLight opens images up to 8,192 pixels per side; this one is ${size}.`,
+      ),
+    ).toBeVisible();
+    await page.getByRole("button", { name: "Dismiss", exact: true }).click();
+  }
+  expect(await page.evaluate(() => window.openlight.getState().file)).toBe(
+    "photo.svg",
+  );
+});
+
 test("a photo takes XMP settings, survives a failed open, and exports while another replaces it", async ({
   page,
 }) => {

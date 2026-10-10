@@ -45,13 +45,23 @@ class GpuBoundary extends Component<
   }
 }
 
+/** The adapter's own texture limit, rather than WebGPU's default, so an oversized RAW decodes far enough to report its size. */
+async function gpuOptions() {
+  const adapter = await navigator.gpu?.requestAdapter();
+  if (!adapter) {
+    return undefined;
+  }
+  const { maxTextureDimension2D } = adapter.limits;
+  return { requiredLimits: { maxTextureDimension2D } };
+}
+
 const root = document.getElementById("root");
 
 if (root) {
   createRoot(root).render(
     <>
       <GpuBoundary>
-        <GpuProvider>
+        <GpuProvider options={await gpuOptions()}>
           <TooltipProvider delay={500}>
             <App />
           </TooltipProvider>
