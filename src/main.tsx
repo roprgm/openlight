@@ -45,7 +45,7 @@ class GpuBoundary extends Component<
   }
 }
 
-/** The adapter's own texture limit, rather than WebGPU's default, so an oversized RAW decodes far enough to report its size. */
+/** The adapter's own texture limit rather than WebGPU's default 8,192, so images open as large as the GPU holds. */
 async function gpuOptions() {
   const adapter = await navigator.gpu?.requestAdapter();
   if (!adapter) {

@@ -1,6 +1,6 @@
 import type { Gpu, Target } from "vgpu";
 import { createImageSource, type ImageSource } from "@/core/image";
-import { checkHeader } from "./size";
+import { checkHeader, checkSize } from "./size";
 import type { Decoder } from "./types";
 import { uploadDecoded } from "./upload";
 
@@ -17,6 +17,8 @@ function pixelFormat(load: () => Promise<Decoder>) {
   return async (gpu: Gpu, file: File) => {
     const decoder = await load();
     const decoded = await decoder(file);
+    // Covers SVG, whose raster size is known only here, and headers the check couldn't read.
+    checkSize(gpu, decoded.width, decoded.height);
     const { image, primaries } = uploadDecoded(gpu, decoded);
     return createImageSource(image, { primaries });
   };
@@ -25,7 +27,7 @@ function pixelFormat(load: () => Promise<Decoder>) {
 /** A format whose header declares its size, checked before decoding. */
 function sized(decode: Format["decode"]) {
   return async (gpu: Gpu, file: File) => {
-    await checkHeader(file);
+    await checkHeader(gpu, file);
     return decode(gpu, file);
   };
 }

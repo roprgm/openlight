@@ -1,15 +1,15 @@
-/** The longest side OpenLight opens: WebGPU guarantees textures this large on every device. */
-const maxImageSide = 8192;
+import type { Gpu } from "vgpu";
 
 const count = new Intl.NumberFormat("en-US");
 
-/** Rejects an image larger than OpenLight opens. */
-export function checkSize(width: number, height: number) {
-  if (Math.max(width, height) <= maxImageSide) {
+/** Rejects an image larger than the device's textures hold. */
+export function checkSize(gpu: Gpu, width: number, height: number) {
+  const limit = gpu.gpu.limits.maxTextureDimension2D;
+  if (Math.max(width, height) <= limit) {
     return;
   }
   throw new Error(
-    `OpenLight opens images up to ${count.format(maxImageSide)} pixels per side; this one is ${count.format(width)} × ${count.format(height)}.`,
+    `This device opens images up to ${count.format(limit)} pixels per side; this one is ${count.format(width)} × ${count.format(height)}.`,
   );
 }
 
@@ -25,9 +25,9 @@ async function declaredSize(file: Blob) {
 }
 
 /** Checks the size its header declares, without decoding a pixel. */
-export async function checkHeader(file: Blob) {
+export async function checkHeader(gpu: Gpu, file: Blob) {
   const size = await declaredSize(file);
   if (size) {
-    checkSize(size.width, size.height);
+    checkSize(gpu, size.width, size.height);
   }
 }

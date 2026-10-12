@@ -5,14 +5,17 @@ test("an image beyond the size limit fails to open, saying how large it is", asy
   page,
 }) => {
   await openPhoto(page);
-  const png = await page.evaluate(async () => {
-    const canvas = new OffscreenCanvas(9000, 1);
+  const { limit, png } = await page.evaluate(async () => {
+    const adapter = await navigator.gpu.requestAdapter();
+    const limit = adapter?.limits.maxTextureDimension2D ?? 0;
+    const canvas = new OffscreenCanvas(limit + 1, 1);
     canvas.getContext("2d");
     const blob = await canvas.convertToBlob();
-    return [...new Uint8Array(await blob.arrayBuffer())];
+    return { limit, png: [...new Uint8Array(await blob.arrayBuffer())] };
   });
-  const svg =
-    '<svg xmlns="http://www.w3.org/2000/svg" width="10" height="8193"/>';
+  const count = new Intl.NumberFormat("en-US");
+  const over = count.format(limit + 1);
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="10" height="${limit + 1}"/>`;
   const cases = [
     {
       file: {
@@ -20,7 +23,7 @@ test("an image beyond the size limit fails to open, saying how large it is", asy
         mimeType: "image/png",
         buffer: Buffer.from(png),
       },
-      size: "9,000 × 1",
+      size: `${over} × 1`,
     },
     {
       file: {
@@ -28,7 +31,7 @@ test("an image beyond the size limit fails to open, saying how large it is", asy
         mimeType: "image/svg+xml",
         buffer: Buffer.from(svg),
       },
-      size: "10 × 8,193",
+      size: `10 × ${over}`,
     },
   ];
   for (const { file, size } of cases) {
@@ -37,7 +40,7 @@ test("an image beyond the size limit fails to open, saying how large it is", asy
     await (await chooser).setFiles(file);
     await expect(
       page.getByText(
-        `Couldn't open ${file.name}: Error: OpenLight opens images up to 8,192 pixels per side; this one is ${size}.`,
+        `Couldn't open ${file.name}: Error: This device opens images up to ${count.format(limit)} pixels per side; this one is ${size}.`,
       ),
     ).toBeVisible();
     await page.getByRole("button", { name: "Dismiss", exact: true }).click();
