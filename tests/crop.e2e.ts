@@ -3,7 +3,7 @@ import { expect, openPhoto, test } from "./fixtures";
 import { readImage } from "./images";
 import { box, choose, drag, zoom } from "./pointer";
 
-/** Where API.md puts the point Vertical −50 sends to infinity: 1 / (0.0045 · 50) half-heights above the center. */
+/** Where the frame's perspective weights put the point Vertical −50 sends to infinity: 1 / (0.0045 · 50) half-heights above the center. */
 const vanishing = 400 - 400 / (0.0045 * 50);
 const dot = [698, 520] as const;
 /** Black lines that meet above the photo, as a building's edges do when the camera tilts up, and a blue dot between two. */

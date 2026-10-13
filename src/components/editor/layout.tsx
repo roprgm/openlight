@@ -38,7 +38,8 @@ export function EditorFrame({
 /**
  * A view's canvas and controls in the frame: the sidebar beside the canvas on desktop, the dock under
  * it on mobile. The canvas comes first in both, so crossing the breakpoint moves it without mounting
- * it again; the sidebar and the dock swap. `dock` defaults to `panel`.
+ * it again; the sidebar and the dock swap, and neither mounts hidden, since each subscribes to the
+ * document and the histogram reads the GPU. `dock` defaults to `panel`.
  */
 export function EditorLayout({
   canvas,

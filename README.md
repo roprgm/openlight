@@ -1,6 +1,6 @@
 # OpenLight
 
-**An open-source photo editor for the browser, built with [vgpu.sh](https://vgpu.sh).** 
+**An open-source photo editor for the browser, built with [vgpu.sh](https://vgpu.sh).**
 Try it at [openlight.app](https://openlight.app).
 
 Image processing runs on your own GPU with WebGPU. Photos never leave your device.
@@ -9,49 +9,12 @@ Image processing runs on your own GPU with WebGPU. Photos never leave your devic
 
 ## Features
 
-**Adjust**
+- **Adjust:** exposure, contrast, highlights, shadows, whites, blacks, white balance with auto, vibrance, saturation, tone curves, clarity, sharpening, Color Mixer, vignette, and film grain.
+- **Layers and masks:** effect layers, Color and Paint layers with Photoshop blend modes, 3D LUTs, and linear, radial, brush, luminance, and color range masks that add, subtract, or intersect.
+- **Tools:** Healing with Heal, Clone, and Remove; Brush with pen pressure; crop, rotate, straighten, flip, and perspective correction.
+- **Files:** open JPEG, PNG, WebP, AVIF, GIF, BMP, SVG, HEIC, TIFF, and camera RAW/DNG; import Camera Raw XMP; export PNG, JPEG, or WebP; save scenes to keep editing, with a draft recovered after closing the tab.
 
-- Exposure, contrast, highlights, shadows, whites, blacks, temperature, tint, vibrance, and saturation.
-- Auto white balance, which neutralizes the photo's color cast as a starting point for temperature and tint.
-- Tone curves with a live input histogram.
-- Clarity and sharpening.
-- Color Mixer with eight hue, saturation, and luminance ranges.
-- Vignette and film grain.
-
-**Layers and masks**
-
-- Draggable effect layers: Details, Exposure, Color Mixer, Vignette, Grain, Color, which paints one color with Photoshop blend modes, Paint, which holds brush strokes in any colors with the same modes, and LUT, which grades the photo with a 3D LUT from a `.cube` file.
-- Linear and radial masks with their own adjustments and child effects.
-- Add and Subtract submasks, from a mask's actions menu, to shape its coverage.
-
-**Tools**
-
-- Healing paints patches from an automatic or manually positioned donor. Repairs remain editable and each patch builds on the previous result.
-- Brush, linear, and radial gradient tools on the rail draw masks on top of the stack; their options sit in the bar over the image.
-- The Brush paints colors on a Paint layer or coverage on a brush mask, with size, feather, flow, pen pressure, and Alt to erase. Its primary and secondary colors sit at the foot of the tool rail, as in Photoshop.
-- Photoshop's keys: B on the Brush switches Color and Mask; X swaps the colors, or paint and erase on a mask; D resets them to black and white; I picks one from the screen where the browser offers it; `[` and `]` size the brush and Shift with them its feather; digits set the flow and Shift with them the layer's opacity. A right click opens size and feather where you paint.
-- A photo holds up to 4 Paint layers and 10 brush masks, since each keeps a raster at half the photo's resolution. A Paint layer's or brush mask's strokes settle into pixels every 100 strokes, so undo stays quick however much you paint, and still reaches back through them.
-- The mask overlay shows until a mask changes the image, then the image shows the mask; the overlay button beside the mask's adjustments, or O, shows or hides it for every mask.
-- Edits preview at a reduced resolution while you drag, then render in full.
-
-**Compose**
-
-- Crop with aspect presets, rotate, straighten, and flip.
-- Pan and zoom the canvas.
-
-**Review**
-
-- Undo and redo, before/after comparison, RGB histogram, and clipping overlays.
-
-**Files**
-
-- Open JPEG, PNG, WebP, AVIF, GIF, BMP, SVG, HEIC, TIFF at 8-bit, 16-bit, and floating-point precision, and camera RAW/DNG with absolute white balance and As Shot reset.
-- Import Camera Raw XMP settings, and `.cube` LUTs as layers.
-- Export PNG, JPEG, or WebP with resizing, a live preview, and the resulting file size.
-- Save the photo with every edit as an OpenLight scene, then open it to continue editing.
-- Recover the latest edited photo after closing the tab, from a draft kept in the browser.
-
-Export saves a flattened image, a scene file keeps the photo with its edits, and the browser keeps the latest edited document as a draft. HEIC needs a browser with a WebCodecs HEVC decoder. RAW decoding uses [raw-webgpu](https://github.com/roprgm/raw-webgpu), which documents format support and limitations.
+RAW decoding uses [raw-webgpu](https://github.com/roprgm/raw-webgpu). HEIC needs a browser with a WebCodecs HEVC decoder.
 
 ## Browser support
 
@@ -64,9 +27,7 @@ bun install
 bun dev
 ```
 
-The shared controls, such as buttons, sliders, menus, and panels, come from [@roprgm/ui](https://ui.roprgm.com). See [AGENTS.md](AGENTS.md) for browser setup and checks, and [ARCHITECTURE.md](ARCHITECTURE.md) for how the code is organized. `window.openlight` exposes a scripting [API](API.md).
-
-Add `?stats` to the URL to see frames per second and every texture and buffer the GPU makes, frees, and keeps, with their memory; Reset counts a workflow from zero. It wraps WebGPU's own methods, so nothing else in the code reports to it.
+See [AGENTS.md](AGENTS.md) for checks and conventions. `window.openlight` exposes a scripting [API](API.md).
 
 ## License
 
