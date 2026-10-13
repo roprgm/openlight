@@ -15,6 +15,6 @@
 | **Edit** | One reversible content change; a whole gesture is one edit. |
 | **Scene file** | A document saved as an `.openlight` archive to continue editing. |
 | **Draft** | The latest edited document, kept in the browser to survive closing the tab. |
-| **Tool** | What a drag on the canvas does: Brush, Healing, Linear and Radial gradient; Adjust pans and zooms. Crop and Export bring their own view. |
+| **Tool** | What a drag on the canvas does: Brush, Healing, Linear and Radial gradient; Color range picks a range's color from the photo. Adjust pans and zooms. Crop and Export bring their own view. |
 
 Use these names consistently in code, UI text, and documentation.

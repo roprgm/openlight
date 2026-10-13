@@ -30,7 +30,7 @@ File loads are queued and `loadUrl` starts at once; the last load started wins. 
 
 ## Editing
 
-Commands take explicit layer IDs, never the UI selection. Without an ID, adjustments, the tone curve, and white balance address the image; effect setters use the first matching root effect or create one on top. Values must be finite and in range; invalid input throws. Edits update the scene and history synchronously; rendering finishes later.
+Commands take explicit layer IDs, never the UI selection. Without an ID, adjustments, the tone curve, and white balance address the image; effect setters use the first matching root effect or create one on top, as `addLayer` does. Values must be finite and in range; invalid input throws. Edits update the scene and history synchronously; rendering finishes later.
 
 | Method | Arguments |
 | --- | --- |
@@ -57,7 +57,7 @@ A `BrushStroke` has `mode` (`"paint"` or `"erase"`), `size` (diameter in source 
 
 | Method | Behavior |
 | --- | --- |
-| `addLayer(kind, placement?)` | `"exposure"`, `"color-mixer"`, `"details"`, `"vignette"`, `"grain"`, `"fill"`, `"heal"`, `"paint"`, or `"mask"`; `{ inside: id }` or `{ above: id }`, else on top. Selects and returns the ID. |
+| `addLayer(kind, placement?)` | `"exposure"`, `"color-mixer"`, `"details"`, `"vignette"`, `"grain"`, `"fill"`, `"heal"`, `"paint"`, or `"mask"`; `{ inside: id }` or `{ above: id }`, else on top. Exposure starts at +1 EV, Vignette at intensity 50, Grain at amount 25, and Color at `#f0763c`; the rest start neutral. Selects and returns the ID. |
 | `selectLayer(id)` | Selects a layer, without history. |
 | `setLayer(id, change)` | `name`, `visible`, or `opacity` 0…1. |
 | `setExposure(id, value)` | Exposure layer, −5…5 EV. |
@@ -87,7 +87,7 @@ try {
 
 `setPreview(change)` merges `comparison` (`"edited"`, `"original"`, `"split"`), `split` (0…1), `shadows`, and `highlights` (clipping, booleans), outside history and without validation.
 
-`exportImage({ format, quality, longEdge })` returns a `File` without downloading it: `format` `"png"` (default), `"jpeg"`, or `"webp"`; `quality` 1…100, default 80; `longEdge` up to the document's size. It renders its own full-resolution snapshot, unaffected by the preview. `exportScene()` returns the document as an `.openlight` scene file.
+`exportImage({ format, quality, longEdge })` returns a `File` without downloading it: `format` `"png"` (default), `"jpeg"`, or `"webp"`; `quality` 1…100, default 80; `longEdge` from 1 to the document's longest side. It renders its own full-resolution snapshot, unaffected by the preview. `exportScene()` returns the document as an `.openlight` scene file.
 
 ## State
 
@@ -109,7 +109,7 @@ Types: `set-adjustments`, `set-tone-curve`, `set-white-balance`, `set-color-mixe
 
 ## WebMCP
 
-In browsers with [WebMCP](https://webmachinelearning.github.io/webmcp/), such as Chrome 149 through an origin trial or `chrome://flags/#enable-webmcp-testing`, every command is a tool on `document.modelContext` with a JSON Schema from the same models. Tools return `{ layerId }` or `"Done."`; errors come back as text.
+In browsers with [WebMCP](https://webmachinelearning.github.io/webmcp/), in Chrome through an origin trial or `chrome://flags/#enable-webmcp-testing`, every command is a tool on `document.modelContext` with a JSON Schema from the same models. Tools return `{ layerId }` or `"Done."`; errors come back as text.
 
 - `get-state` summarizes the file, size, frame, layers, comparison, and history.
 - `open-image` opens an http(s) `url` like `loadUrl`, since tools carry no files; serve a local file over HTTP with CORS. From a public origin, Chrome's [Local Network Access](https://developer.chrome.com/blog/local-network-access) asks before the page reaches a local address.

@@ -4,7 +4,7 @@ A professional photo editor with little, readable code: Vite, React, [vgpu](http
 
 ## Commands
 
-`bun install`, then `bun dev`. On every code change run `bun run check` (writes fixes), `bun run build`, and `bun run test` (Bun with `vgpu/mock`); CI runs them too. `bun run test:browser [file]` runs `*.e2e.ts` in Chromium with real pixels; install its browser once per Playwright version with `bunx --no-install playwright install chromium`. It starts its own Vite: stop any other Vite server first, since concurrent servers reload each other's pages mid-test. Any other scripted browser reuses the launch flags in [playwright.config.ts](playwright.config.ts). The assistant at `/?assistant` needs `vercel dev` with `AI_GATEWAY_API_KEY` in `.env.local`.
+`bun install`, then `bun dev`. On every code change run `bun run check` (writes fixes), `bun run build`, and `bun run test` (Bun; GPU tests use `vgpu/mock`). `bun run test:browser [file]` runs `*.e2e.ts` in Chromium with real pixels; install its browser once per Playwright version with `bunx --no-install playwright install chromium`. It starts its own Vite: stop any other Vite server first, since concurrent servers reload each other's pages mid-test. Any other scripted browser reuses the launch flags in [playwright.config.ts](playwright.config.ts). The assistant at `/?assistant` needs `vercel dev` with `AI_GATEWAY_API_KEY` in `.env.local`.
 
 ## Structure
 
@@ -13,7 +13,7 @@ A professional photo editor with little, readable code: Vite, React, [vgpu](http
 - `features/<name>`: one removable capability, usually `model.ts`, `edits.ts`, `pass.ts` with its `.wgsl`, and `controls.tsx`. Most product behavior lives here.
 - `app/`: shell, entry points, and the explicit composition of features.
 
-Dependencies point down. Features never import each other; `app/` connects them. Keep module internals private; no application-wide barrel.
+Dependencies point down: `core/`, `components/`, and `hooks/` never import features, and features never import each other; `app/` connects them. Keep module internals private; no application-wide barrel.
 
 Edits and rendering run without React or an implicit active document: pass the workspace, document, and GPU explicitly. UI controls, `window.openlight`, and commands call the same edits; a change to them updates API.md in the same change. The workspace owns document replacement; each document owns its scene, history, and resources. Scenes hold immutable, serializable content; files and GPU resources stay outside history. A gesture is one edit; preview and navigation stay outside history. Async work never outlives its document.
 
@@ -56,5 +56,5 @@ Tests follow what a person verifies: open an image, use a tool, undo, export, ch
 ## Review and PRs
 
 - Verify what the change can reach with the cheapest check that catches a regression: Bun tests for document, history, and loaders; the feature's `*.e2e.ts` for processing and rendering; the whole suite only when a change cuts across the editor; the affected screens for UI. A failure that also happens on the base is a gap to report.
-- Review substantial changes before the PR is ready; offer a review after small ones. Name each finding's code, problem, and smallest fix, separating required from optional. A simpler version that removes code without losing behavior is required.
+- Review substantial changes before the PR is ready; offer a review after small ones. Name each finding's code, problem, and smallest fix, separating required from optional. A simpler version that removes code without losing behavior is a required change.
 - Short PR descriptions with the [template](.github/pull_request_template.md). New features and substantial UI changes show before/after screenshots with the same fixture and viewport, uploaded as PR attachments. Generated output never goes in the repository.
