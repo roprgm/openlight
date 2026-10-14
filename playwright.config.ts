@@ -2,13 +2,13 @@ import { defineConfig } from "@playwright/test";
 
 const args = ["--enable-unsafe-webgpu"];
 const features = ["WebMCP"];
-if (process.platform !== "darwin") {
+if (process.platform === "win32") {
   args.push("--use-webgpu-adapter=swiftshader");
 }
 if (process.platform === "linux") {
-  // Vulkan enables image transfers; ANGLE's SwiftShader path presents canvases in headless Chromium.
+  // ANGLE on Vulkan gives headless Chromium the machine's GPU for WebGPU and canvases.
   features.push("Vulkan");
-  args.push("--use-angle=swiftshader", "--use-vulkan=swiftshader");
+  args.push("--use-angle=vulkan");
 }
 args.push(`--enable-features=${features.join(",")}`);
 
