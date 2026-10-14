@@ -1,5 +1,5 @@
 import type { Page } from "@playwright/test";
-import { expect, test } from "./fixtures";
+import { expect, expectNear, test } from "./fixtures";
 import { readImage } from "./images";
 import { box } from "./pointer";
 
@@ -37,6 +37,15 @@ async function quadrantColors(page: Page) {
   return { dark, light, blue, orange };
 }
 
+type Quadrants = Awaited<ReturnType<typeof quadrantColors>>;
+
+/** Expects every quadrant near the expected one, within a GPU's rounding. */
+function expectQuadrants(actual: Quadrants, expected: Quadrants) {
+  for (const [name, color] of Object.entries(expected)) {
+    expectNear(actual[name as keyof Quadrants], color, 2);
+  }
+}
+
 async function setField(page: Page, name: string, value: string) {
   const field = page.getByRole("textbox", { name, exact: true });
   await field.fill(value);
@@ -63,7 +72,7 @@ test("luminance and color range masks select tones and a picked color", async ({
   await setField(page, "Exposure", "-2");
   const darkened = await quadrantColors(page);
   expect(darkened.light[0]).toBeLessThan(original.light[0] - 60);
-  expect({ ...darkened, light: original.light }).toEqual(original);
+  expectQuadrants({ ...darkened, light: original.light }, original);
 
   await addEffect(page, "Color Range");
   const picker = page.getByRole("application", { name: "Color range canvas" });
@@ -86,7 +95,7 @@ test("luminance and color range masks select tones and a picked color", async ({
   await setField(page, "Saturation", "-100");
   const gray = await quadrantColors(page);
   expect(Math.abs(gray.orange[0] - gray.orange[2])).toBeLessThan(12);
-  expect({ ...gray, orange: darkened.orange }).toEqual(darkened);
+  expectQuadrants({ ...gray, orange: darkened.orange }, darkened);
 
   // Picking again reads the photo below the mask, so its own edit doesn't change the color.
   await page
@@ -102,18 +111,18 @@ test("luminance and color range masks select tones and a picked color", async ({
   await expect(color).toHaveValue("#2060d0");
   const recolored = await quadrantColors(page);
   expect(Math.abs(recolored.blue[0] - recolored.blue[2])).toBeLessThan(12);
-  expect(recolored.orange).toEqual(darkened.orange);
+  expectNear(recolored.orange, darkened.orange, 2);
   await page.getByRole("button", { name: "Undo", exact: true }).click();
   await expect(color).toHaveValue("#e07020");
-  expect(await quadrantColors(page)).toEqual(gray);
+  expectQuadrants(await quadrantColors(page), gray);
 });
 
-test("a range intersects, or is shaped by, gradient and brush masks", async ({
+test("a range intersects, or is shaped by, gradient and brush masks, and an unpicked one covers nothing", async ({
   page,
 }) => {
   await open(page);
   const original = await quadrantColors(page);
-  const darkened = (colors: Awaited<ReturnType<typeof quadrantColors>>) =>
+  const darkened = (colors: Quadrants) =>
     Object.entries(colors)
       .filter(([name, color]) => color[0] < original[name as "light"][0] - 40)
       .map(([name]) => name);
@@ -180,54 +189,51 @@ test("a range intersects, or is shaped by, gradient and brush masks", async ({
     api.setMaskOperation(range.id, "subtract");
   }, id);
   expect(darkened(await quadrantColors(page))).toEqual(["light"]);
-});
 
-test("an unpicked color range has no coverage, including as an intersection", async ({
-  page,
-}) => {
-  await open(page);
-  const original = await quadrantColors(page);
-  await addEffect(page, "Color Range");
-  const state = await page.evaluate(() => window.openlight.getState());
-  expect(state.scene?.layers.at(-1)).toMatchObject({
-    kind: "mask",
-    mask: { kind: "color-range", color: null },
-  });
-  expect(state.selectedLayerId).toBe(state.scene?.layers.at(-1)?.id);
-  await expect(page.getByLabel("Range color")).toHaveCount(0);
-  await setField(page, "Exposure", "-2");
-  expect(await quadrantColors(page)).toEqual(original);
-  await page.keyboard.press("Escape");
+  await test.step("an unpicked color range has no coverage, including as an intersection", async () => {
+    await page.evaluate((id) => window.openlight.deleteLayer(id), id);
+    await addEffect(page, "Color Range");
+    const state = await page.evaluate(() => window.openlight.getState());
+    expect(state.scene?.layers.at(-1)).toMatchObject({
+      kind: "mask",
+      mask: { kind: "color-range", color: null },
+    });
+    expect(state.selectedLayerId).toBe(state.scene?.layers.at(-1)?.id);
+    await expect(page.getByLabel("Range color")).toHaveCount(0);
+    await setField(page, "Exposure", "-2");
+    expectQuadrants(await quadrantColors(page), original);
+    await page.keyboard.press("Escape");
 
-  const child = await page.evaluate(() => {
-    const api = window.openlight;
-    const parent = api.addLayer("mask");
-    api.setLayerMask(parent, {
-      kind: "linear",
-      start: [101, 100],
-      end: [99, 100],
+    const child = await page.evaluate(() => {
+      const api = window.openlight;
+      const parent = api.addLayer("mask");
+      api.setLayerMask(parent, {
+        kind: "linear",
+        start: [101, 100],
+        end: [99, 100],
+      });
+      api.setAdjustments({ exposure: -2 }, parent);
+      const child = api.addLayer("mask", { inside: parent });
+      api.setLayerMask(child, {
+        kind: "color-range",
+        color: null,
+        tolerance: 30,
+      });
+      api.setMaskOperation(child, "intersect");
+      return child;
     });
-    api.setAdjustments({ exposure: -2 }, parent);
-    const child = api.addLayer("mask", { inside: parent });
-    api.setLayerMask(child, {
-      kind: "color-range",
-      color: null,
-      tolerance: 30,
-    });
-    api.setMaskOperation(child, "intersect");
-    return child;
+    expectQuadrants(await quadrantColors(page), original);
+    await page.evaluate(
+      (id) => window.openlight.setMaskOperation(id, "subtract"),
+      child,
+    );
+    const subtracted = await quadrantColors(page);
+    expect(subtracted.light[0]).toBeLessThan(original.light[0] - 60);
+    expect(subtracted.orange[0]).toBeLessThan(original.orange[0] - 60);
+    await page.evaluate(
+      (id) => window.openlight.setMaskOperation(id, "add"),
+      child,
+    );
+    expectQuadrants(await quadrantColors(page), subtracted);
   });
-  expect(await quadrantColors(page)).toEqual(original);
-  await page.evaluate(
-    (id) => window.openlight.setMaskOperation(id, "subtract"),
-    child,
-  );
-  const subtracted = await quadrantColors(page);
-  expect(subtracted.light[0]).toBeLessThan(original.light[0] - 60);
-  expect(subtracted.orange[0]).toBeLessThan(original.orange[0] - 60);
-  await page.evaluate(
-    (id) => window.openlight.setMaskOperation(id, "add"),
-    child,
-  );
-  expect(await quadrantColors(page)).toEqual(subtracted);
 });

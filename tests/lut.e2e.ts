@@ -1,4 +1,4 @@
-import { expect, test } from "./fixtures";
+import { expect, expectNear, test } from "./fixtures";
 import { readImage } from "./images";
 
 test("a LUT layer grades the photo from a .cube file at the layer's opacity, undoes, and saves with the scene", async ({
@@ -17,14 +17,21 @@ test("a LUT layer grades the photo from a .cube file at the layer's opacity, und
     [350, 200],
     [600, 400],
   ] as const;
-  const sample = async () => (await readImage(page, undefined, points)).samples;
-  const near = (actual: number[] | undefined, expected: number[]) => {
-    for (const [channel, value] of expected.entries()) {
-      expect(Math.abs((actual?.[channel] ?? 0) - value)).toBeLessThanOrEqual(1);
+  const sample = async () =>
+    (await readImage(page, undefined, points)).samples ?? [];
+  /** Expects each sample near the one at the same index. */
+  const expectSamples = (
+    actual: number[][],
+    expected: readonly (readonly number[])[],
+    tolerance = 1,
+  ) => {
+    expect(actual).toHaveLength(expected.length);
+    for (const [i, pixel] of expected.entries()) {
+      expectNear(actual[i], pixel, tolerance);
     }
   };
   const original = await sample();
-  expect(original).toEqual([
+  expectSamples(original, [
     [48, 80, 128, 255],
     [128, 128, 128, 255],
   ]);
@@ -36,9 +43,15 @@ test("a LUT layer grades the photo from a .cube file at the layer's opacity, und
     await page.getByRole("menuitem", { name: "LUT", exact: true }).click();
     await (await chooser).setFiles("tests/fixtures/swap.cube");
     await expect(layers.getByText("Swap red and blue")).toBeVisible();
-    const [patch, gray] = (await sample()) ?? [];
-    near(patch, [128, 80, 48, 255]);
-    near(gray, [128, 128, 128, 255]);
+    // Trilinear lookups in half floats round within a few levels.
+    expectSamples(
+      await sample(),
+      [
+        [128, 80, 48, 255],
+        [128, 128, 128, 255],
+      ],
+      3,
+    );
   });
   const swapped = await sample();
 
@@ -60,7 +73,7 @@ test("a LUT layer grades the photo from a .cube file at the layer's opacity, und
         }),
       )
       .toBe(0.5);
-    const [patch] = (await sample()) ?? [];
+    const [patch] = await sample();
     expect(patch?.[0]).toBeGreaterThan(48);
     expect(patch?.[0]).toBeLessThan(128);
     expect(patch?.[2]).toBeGreaterThan(48);
@@ -70,12 +83,12 @@ test("a LUT layer grades the photo from a .cube file at the layer's opacity, und
 
   await test.step("undo steps back through the opacity and the layer", async () => {
     await page.keyboard.press("ControlOrMeta+z");
-    expect(await sample()).toEqual(swapped);
+    expectSamples(await sample(), swapped);
     await page.keyboard.press("ControlOrMeta+z");
-    expect(await sample()).toEqual(original);
+    expectSamples(await sample(), original);
     await page.keyboard.press("ControlOrMeta+Shift+z");
     await page.keyboard.press("ControlOrMeta+Shift+z");
-    expect(await sample()).toEqual(half);
+    expectSamples(await sample(), half);
   });
 
   await test.step("a scene file carries the LUT", async () => {
@@ -87,7 +100,7 @@ test("a LUT layer grades the photo from a .cube file at the layer's opacity, und
     });
     expect(reopened).toBe(true);
     await expect(layers.getByText("Swap red and blue")).toBeVisible();
-    expect(await sample()).toEqual(half);
+    expectSamples(await sample(), half);
   });
 
   await test.step("a file that isn't a 3D LUT says why and changes nothing", async () => {
@@ -98,7 +111,7 @@ test("a LUT layer grades the photo from a .cube file at the layer's opacity, und
       ),
     );
     await expect(
-      page.getByText("Couldn't open curve.cube: Error: This is a 1D LUT"),
+      page.getByText(/Couldn't open curve\.cube: .*1D LUT/),
     ).toBeVisible();
     const after = await page.evaluate(() => window.openlight.getState());
     expect(after.failure?.file).toBe("curve.cube");

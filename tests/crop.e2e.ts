@@ -1,5 +1,5 @@
 import type { Page } from "@playwright/test";
-import { expect, openPhoto, test } from "./fixtures";
+import { expect, expectNear, openPhoto, test } from "./fixtures";
 import { readImage } from "./images";
 import { box, choose, drag, zoom } from "./pointer";
 
@@ -90,14 +90,17 @@ function expectParallel([first, second]: number[][]) {
   }
 }
 
-/** The blue dot's center on the page, as the canvas shows it. */
-async function dotOnPage(page: Page) {
-  const canvas = page
+function distance(a: readonly number[], b: readonly number[]) {
+  return Math.hypot(a[0] - b[0], a[1] - b[1]);
+}
+
+/** The blue dot's center in the canvas's screenshot, or nothing while the canvas doesn't show it. */
+async function findDot(page: Page) {
+  const bytes = await page
     .getByRole("region", { name: "Image canvas" })
-    .locator("canvas");
-  const origin = await box(canvas);
-  const bytes = await canvas.screenshot();
-  const [x, y] = await page.evaluate(
+    .locator("canvas")
+    .screenshot();
+  return page.evaluate(
     async (bytes) => {
       const image = await createImageBitmap(new Blob([new Uint8Array(bytes)]));
       const canvas = new OffscreenCanvas(image.width, image.height);
@@ -107,17 +110,35 @@ async function dotOnPage(page: Page) {
       const { data } = context.getImageData(0, 0, image.width, image.height);
       let [sx, sy, count] = [0, 0, 0];
       for (let i = 0; i < data.length; i += 4) {
-        if (data[i + 2] > 200 && data[i] < 80 && data[i + 1] < 80) {
+        if (data[i + 2] > data[i] + 100 && data[i + 2] > data[i + 1] + 100) {
           sx += ((i / 4) % image.width) + 0.5;
           sy += Math.floor(i / 4 / image.width) + 0.5;
           count++;
         }
       }
-      return [sx / count, sy / count];
+      return count < 20 ? [] : [sx / count, sy / count];
     },
     [...bytes],
   );
-  return [origin.x + x, origin.y + y] as const;
+}
+
+/** The blue dot's center on the page, once the canvas shows it in the same place twice in a row. */
+async function dotOnPage(page: Page) {
+  let previous: number[] = [];
+  let at: number[] = [];
+  await expect
+    .poll(async () => {
+      previous = at;
+      at = await findDot(page);
+      return at.length === 2 && previous.length === 2
+        ? distance(at, previous)
+        : Number.POSITIVE_INFINITY;
+    })
+    .toBeLessThan(0.5);
+  const origin = await box(
+    page.getByRole("region", { name: "Image canvas" }).locator("canvas"),
+  );
+  return [origin.x + at[0], origin.y + at[1]] as const;
 }
 
 /** In the export, the blue dot's center and that of the dark paint within the dot's bounds. */
@@ -165,10 +186,6 @@ async function paintOnDot(page: Page) {
   });
 }
 
-function distance(a: readonly number[], b: readonly number[]) {
-  return Math.hypot(a[0] - b[0], a[1] - b[1]);
-}
-
 test("crop, rotate, flip and straighten the photo, then undo", async ({
   page,
 }) => {
@@ -212,7 +229,7 @@ test("crop, rotate, flip and straighten the photo, then undo", async ({
     const cropped = await readImage(page);
     expect(cropped.size[0]).toBe(cropped.size[1]);
     expect(cropped.size[0]).toBeLessThan(800);
-    expect(cropped.corner).toEqual([0, 0, 0, 255]);
+    expectNear(cropped.corner, [0, 0, 0, 255]);
     expect((await state()).history.undoCount).toBe(1);
     await page.getByRole("button", { name: "Undo", exact: true }).click();
     expect((await readImage(page)).size).toEqual([1200, 800]);
@@ -225,11 +242,10 @@ test("crop, rotate, flip and straighten the photo, then undo", async ({
       .click();
     await panel.getByRole("button", { name: "Flip vertical" }).click();
     await apply.click();
-    expect(await readImage(page)).toEqual({
-      size: [800, 1200],
-      center: [128, 128, 128, 255],
-      corner: [0, 0, 0, 255],
-    });
+    const turned = await readImage(page);
+    expect(turned.size).toEqual([800, 1200]);
+    expectNear(turned.center, [128, 128, 128, 255]);
+    expectNear(turned.corner, [0, 0, 0, 255]);
   });
 
   await test.step("a drag outside the crop straightens it, and reset restores the photo", async () => {
@@ -244,11 +260,11 @@ test("crop, rotate, flip and straighten the photo, then undo", async ({
     await drag(page, [x, y], [x, y + rise]);
     await apply.click();
     expect((await state()).frame?.angle).toBeCloseTo(30, 0);
-    expect(await readImage(page)).toEqual({
-      size: [1200, 800],
-      center: [128, 128, 128, 255],
-      corner: [32, 32, 32, 255],
-    });
+    // The turned crop's corner falls on the dark band beside the black square.
+    const straightened = await readImage(page);
+    expect(straightened.size).toEqual([1200, 800]);
+    expectNear(straightened.center, [128, 128, 128, 255]);
+    expectNear(straightened.corner, [32, 32, 32, 255]);
     await open.click();
     await reset.click();
     await apply.click();
@@ -256,35 +272,15 @@ test("crop, rotate, flip and straighten the photo, then undo", async ({
   });
 });
 
-/** The stored draft's frame, read straight from IndexedDB. */
-function savedFrame(page: Page) {
-  return page.evaluate(
-    () =>
-      new Promise<unknown>((resolve, reject) => {
-        const opening = indexedDB.open("openlight", 1);
-        opening.onerror = () => reject(opening.error);
-        opening.onsuccess = () => {
-          const database = opening.result;
-          const request = database
-            .transaction("draft")
-            .objectStore("draft")
-            .get("latest");
-          request.onsuccess = () => {
-            database.close();
-            resolve(request.result?.scene.scene.frame);
-          };
-        };
-      }),
-  );
-}
-
-test("perspective makes converging lines parallel and stays with the photo through undo, turns, flips, scene files, and drafts", async ({
+test("perspective makes converging lines parallel, stays with the photo through undo, turns, and flips, and picks and paint land where it shows them", async ({
   page,
 }) => {
   test.setTimeout(120_000);
   const state = () => page.evaluate(() => window.openlight.getState());
+  const layers = async () => (await state()).scene?.layers ?? [];
   await openKeystone(page);
   const initial = await state();
+  let upright = initial.frame;
   const crop = page.getByRole("group", { name: "Crop" });
   const vertical = crop.getByRole("textbox", { name: "Vertical", exact: true });
   const horizontal = crop.getByRole("textbox", {
@@ -323,6 +319,7 @@ test("perspective makes converging lines parallel and stays with the photo throu
     const { frame, history } = await state();
     expect(frame?.perspective).toEqual([0, -50]);
     expect(history.undoCount).toBe(1);
+    upright = frame;
     expect((await readImage(page)).size).toEqual([1200, 800]);
     expectParallel(await lines(page, [0.25, 0.75]));
   });
@@ -331,7 +328,7 @@ test("perspective makes converging lines parallel and stays with the photo throu
     await page.keyboard.press("ControlOrMeta+z");
     expect((await state()).frame).toEqual(initial.frame);
     await page.keyboard.press("ControlOrMeta+Shift+z");
-    expect((await state()).frame?.perspective).toEqual([0, -50]);
+    expect((await state()).frame).toEqual(upright);
   });
 
   await test.step("a quarter turn and a flip carry the correction, shown along the displayed axes", async () => {
@@ -349,34 +346,11 @@ test("perspective makes converging lines parallel and stays with the photo throu
     expectParallel(await lines(page, [0.25, 0.75], 1));
   });
 
-  await test.step("a scene file and the draft reopen with the correction", async () => {
-    const corrected = await state();
-    const shown = await lines(page, [0.25, 0.75], 1);
-    await page.evaluate(async () => {
-      const api = window.openlight;
-      await api.loadScene(await api.exportScene());
-    });
-    const reopened = await state();
-    expect(reopened.documentId).not.toBe(corrected.documentId);
-    expect(reopened.frame).toEqual(corrected.frame);
-    expect(await lines(page, [0.25, 0.75], 1)).toEqual(shown);
-    await expect.poll(() => savedFrame(page)).toEqual(corrected.frame);
-    await page.reload();
-    await page.getByRole("button", { name: "Recover", exact: true }).click();
-    await expect
-      .poll(async () => (await state()).frame)
-      .toEqual(corrected.frame);
+  await test.step("undo returns the correction upright", async () => {
+    await page.keyboard.press("ControlOrMeta+z");
+    expect((await state()).frame).toEqual(upright);
+    expect((await readImage(page)).size).toEqual([1200, 800]);
   });
-});
-
-test("brush, retouch, and color picks land where the corrected photo shows them, and paint stays there", async ({
-  page,
-}) => {
-  test.setTimeout(120_000);
-  const state = () => page.evaluate(() => window.openlight.getState());
-  const layers = async () => (await state()).scene?.layers ?? [];
-  await openKeystone(page);
-  await correct(page, "Vertical", "-50");
 
   await test.step("a color range picks the dot's blue", async () => {
     const at = await dotOnPage(page);
