@@ -1,4 +1,4 @@
-import { expect, openPhoto, test } from "./fixtures";
+import { expect, test } from "./fixtures";
 
 test("the assistant at /?assistant edits the photo it was asked about and selects the layer it edits", async ({
   page,
@@ -32,9 +32,6 @@ test("the assistant at /?assistant edits the photo it was asked about and select
   });
   const button = page.getByRole("button", { name: "Assistant", exact: true });
   const state = () => page.evaluate(() => window.openlight.getState());
-  await openPhoto(page);
-  await expect(button).toBeHidden();
-
   await page.goto("/?assistant");
   await page
     .locator('input[type="file"]')

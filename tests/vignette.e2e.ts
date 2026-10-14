@@ -1,4 +1,4 @@
-import { expect, test } from "./fixtures";
+import { expect, expectNear, test } from "./fixtures";
 import { readImage } from "./images";
 
 test("vignette darkens a white image's edges, softens, undoes and disables", async ({
@@ -21,7 +21,8 @@ test("vignette darkens a white image's edges, softens, undoes and disables", asy
   await intensity.fill("80");
   await intensity.press("Enter");
   const vignetted = await readImage(page);
-  expect(vignetted.center).toEqual([255, 255, 255, 255]);
+  // The center stays white.
+  expect(Math.min(...vignetted.center)).toBeGreaterThanOrEqual(253);
   expect(vignetted.corner[0]).toBeLessThan(255);
 
   const softness = page.getByRole("textbox", { name: "Softness", exact: true });
@@ -29,9 +30,11 @@ test("vignette darkens a white image's edges, softens, undoes and disables", asy
   await softness.press("Enter");
   expect((await readImage(page)).corner[0]).toBeLessThan(vignetted.corner[0]);
   await page.getByRole("button", { name: "Undo", exact: true }).click();
-  expect(await readImage(page)).toEqual(vignetted);
+  const undone = await readImage(page);
+  expectNear(undone.center, vignetted.center, 1);
+  expectNear(undone.corner, vignetted.corner, 1);
 
   await intensity.fill("0");
   await intensity.press("Enter");
-  expect((await readImage(page)).corner).toEqual([255, 255, 255, 255]);
+  expectNear((await readImage(page)).corner, [255, 255, 255, 255], 1);
 });

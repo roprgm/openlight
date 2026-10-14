@@ -8,7 +8,8 @@ import { correct } from "@/features/crop/geometry";
 
 /**
  * Renders a smooth chart through strong perspective twice, at full size and as the half-size proxy an
- * open gesture shows, and returns how far each proxy texel strays from the full pixels it stands for.
+ * open gesture shows, and returns how far proxy texels stray from the full pixels they stand for: the
+ * largest stray, and the mean one, which a misaligned proxy raises everywhere while rounding hardly moves it.
  */
 export async function perspectiveProxy() {
   const gpu = await init();
@@ -41,6 +42,8 @@ export async function perspectiveProxy() {
     const reduced = renderer.outputImage();
     const proxy = await reduced.readFloats();
     let stray = 0;
+    let total = 0;
+    let count = 0;
     for (let y = 0; y < reduced.size[1]; y++) {
       for (let x = 0; x < reduced.size[0]; x++) {
         for (let channel = 0; channel < 2; channel++) {
@@ -58,13 +61,21 @@ export async function perspectiveProxy() {
           // Sampling clamps within a texel of the chart's edge, where the crop may touch it.
           if (block > 0.01 && block < 0.99) {
             stray = Math.max(stray, Math.abs(texel - block));
+            total += Math.abs(texel - block);
+            count++;
           }
         }
       }
     }
     // Without correction the output's corners would show the chart's own corners.
     const corner = [...full.slice(0, 2)];
-    return { proxySize: reduced.size, stray, corner, errors };
+    return {
+      proxySize: reduced.size,
+      stray,
+      meanStray: total / count,
+      corner,
+      errors,
+    };
   } finally {
     renderer.dispose();
     source.dispose();

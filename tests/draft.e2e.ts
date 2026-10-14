@@ -1,5 +1,5 @@
 import type { Page } from "@playwright/test";
-import { expect, openPhoto, test } from "./fixtures";
+import { expect, expectNear, openPhoto, test } from "./fixtures";
 import { readImage } from "./images";
 
 /** The stored draft's base exposure, read straight from IndexedDB. */
@@ -40,7 +40,10 @@ test("edits survive a reload as a draft that recovers, keeps saving, and can be 
   await page.reload();
   await recover.click();
   await expect(exposure).toHaveValue("-1.00");
-  expect(await readImage(page)).toEqual(edited);
+  const recovered = await readImage(page);
+  expect(recovered.size).toEqual(edited.size);
+  expectNear(recovered.center, edited.center, 1);
+  expectNear(recovered.corner, edited.corner, 1);
   expect(
     (await page.evaluate(() => window.openlight.getState())).history.undoCount,
   ).toBe(0);

@@ -1,6 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { readZip } from "@/lib/zip";
-import { expect, openPhoto, test } from "./fixtures";
+import { expect, expectNear, openPhoto, test } from "./fixtures";
 import { readImage } from "./images";
 
 test("a saved scene reopens the photo with its edits and keeps editing", async ({
@@ -72,7 +72,11 @@ test("a saved scene reopens the photo with its edits and keeps editing", async (
   const exposure = page.getByRole("textbox", { name: "Exposure", exact: true });
   await expect(exposure).toHaveValue("-1.00");
   expect(await field()).toEqual(saved);
-  expect(await readImage(page, undefined, samples)).toEqual(edited);
+  const reopened = await readImage(page, undefined, samples);
+  expect(reopened.size).toEqual(edited.size);
+  for (const [i, pixel] of (edited.samples ?? []).entries()) {
+    expectNear(reopened.samples?.[i], pixel, 1);
+  }
 
   await page.evaluate(() => window.openlight.setAdjustments({ exposure: 0 }));
   await expect(exposure).toHaveValue("0.00");

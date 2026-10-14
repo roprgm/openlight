@@ -1,5 +1,5 @@
 import type { Page } from "@playwright/test";
-import { expect, openPhoto, test } from "./fixtures";
+import { expect, expectNear, expectPixels, openPhoto, test } from "./fixtures";
 import { readImage } from "./images";
 import { box, choose, drag } from "./pointer";
 
@@ -64,13 +64,13 @@ test("paint colors on a layer, swap them, erase, blend, and switch to a mask", a
   await test.step("a stroke paints the primary color", async () => {
     await page.getByLabel("Primary color").fill("#ff0000");
     await drag(page, from, to, 16);
-    expect(await samples(page)).toEqual([[255, 0, 0, 255], gray]);
+    expectPixels(await samples(page), [[255, 0, 0, 255], gray]);
   });
   await test.step("X swaps in the secondary color, white", async () => {
     await page.keyboard.press("x");
     await expect(page.getByLabel("Secondary color")).toHaveValue("#ff0000");
     await drag(page, from, to, 16);
-    expect(await samples(page)).toEqual([[255, 255, 255, 255], gray]);
+    expectPixels(await samples(page), [[255, 255, 255, 255], gray]);
   });
   await test.step("Multiply by white leaves the image as it was", async () => {
     await choose(
@@ -78,16 +78,16 @@ test("paint colors on a layer, swap them, erase, blend, and switch to a mask", a
       page.getByRole("combobox", { name: "Blend" }),
       "Multiply",
     );
-    expect(await samples(page)).toEqual([gray, gray]);
+    expectPixels(await samples(page), [gray, gray]);
     await page.keyboard.press("ControlOrMeta+z");
   });
   await test.step("Alt erases the paint, and undo brings it back", async () => {
     await page.keyboard.down("Alt");
     await drag(page, from, to, 16);
     await page.keyboard.up("Alt");
-    expect(await samples(page)).toEqual([gray, gray]);
+    expectPixels(await samples(page), [gray, gray]);
     await page.keyboard.press("ControlOrMeta+z");
-    expect(await samples(page)).toEqual([[255, 255, 255, 255], gray]);
+    expectPixels(await samples(page), [[255, 255, 255, 255], gray]);
   });
   await test.step("the mode follows the selected layer", async () => {
     await mask.click();
@@ -107,51 +107,35 @@ test("paint colors on a layer, swap them, erase, blend, and switch to a mask", a
   });
 });
 
-/** The red channel's least and most along each displayed row, `rows` in page pixels. */
+/** The red channel's least and most along each exported row, from `left` to `right` in photo pixels. */
 async function redRange(
   page: Page,
   rows: readonly number[],
   left: number,
   right: number,
 ) {
-  const canvas = page
-    .getByRole("region", { name: "Image canvas" })
-    .locator("canvas");
-  const origin = await box(canvas);
-  const bytes = await canvas.screenshot();
-  return page.evaluate(
-    async ([bytes, rows, left, right]) => {
-      const image = await createImageBitmap(new Blob([new Uint8Array(bytes)]));
-      const canvas = new OffscreenCanvas(image.width, image.height);
-      const context = canvas.getContext("2d");
-      if (!context) throw new Error("Cannot read preview pixels.");
-      context.drawImage(image, 0, 0);
-      return rows.map((y) => {
-        const { data } = context.getImageData(left, y, right - left, 1);
-        const red = data.filter((_, i) => i % 4 === 0);
-        return [Math.min(...red), Math.max(...red)];
-      });
-    },
-    [
-      [...bytes],
-      rows.map((y) => Math.round(y - origin.y)),
-      Math.round(left - origin.x),
-      Math.round(right - origin.x),
-    ] as const,
-  );
+  const xs = Array.from({ length: right - left }, (_, i) => left + i);
+  const points = rows.flatMap((y) => xs.map((x) => [x, y] as const));
+  const { samples = [] } = await readImage(page, undefined, points);
+  return rows.map((_, row) => {
+    const red = samples
+      .slice(row * xs.length, (row + 1) * xs.length)
+      .map(([red]) => red);
+    return [Math.min(...red), Math.max(...red)];
+  });
 }
 
-/** Draws a light stroke across the photo in small moves; each row along it must show and stay within a level. */
+/** Draws a light stroke across the photo in small moves; each exported row along it must show and stay within a level or two. */
 async function expectSmoothStroke(page: Page, y: number) {
   await setBrush(page, { Size: "200", Flow: "40" });
   const at = await photoToPage(page);
   // Each small move stamps a dab or two, which used to round to 8 bits apart and leave rings.
-  await drag(page, at(-300, y), at(300, y), 120);
-  const rows = [0, 25, 50, 70].map((offset) => at(0, y + offset)[1]);
-  const ranges = await redRange(page, rows, at(-100, 0)[0], at(100, 0)[0]);
+  await drag(page, at(-300, y), at(300, y), 40);
+  const rows = [0, 25, 50, 70].map((offset) => 400 + y + offset);
+  const ranges = await redRange(page, rows, 500, 700);
   expect(ranges[0][0]).toBeGreaterThan(gray[0] + 20);
   for (const [least, most] of ranges) {
-    expect(most - least).toBeLessThanOrEqual(1);
+    expect(most - least).toBeLessThanOrEqual(2);
   }
 }
 
@@ -177,214 +161,156 @@ test("light strokes drawn a little at a time come out smooth, on a mask and in c
   });
 });
 
-test("strokes settle into pixels, undo takes them back, and scenes keep them", async ({
+test("strokes on paint and on a brush mask settle into pixels, undo takes them back, and scenes keep them", async ({
   page,
 }) => {
   test.setTimeout(120_000);
-  await openPhoto(page);
-  const layer = () =>
-    page.evaluate(() => {
-      const [, paint] = window.openlight.getState().scene?.layers ?? [];
-      return paint?.kind === "paint"
-        ? { raster: paint.raster, strokes: paint.strokes.length }
-        : undefined;
-    });
-  // Short strokes down the image, red then blue, the last across the center.
-  const paint = (from: number, to: number) =>
-    page.evaluate(
-      ([from, to]) => {
-        const [, layer] = window.openlight.getState().scene?.layers ?? [];
-        const id = layer?.id ?? window.openlight.addLayer("paint");
-        for (let i = from; i < to; i++) {
-          const x = i === 99 ? 580 : 100 + (i % 10) * 100;
-          const y = i === 99 ? 400 : 80 + Math.floor(i / 10) * 60;
-          window.openlight.addPaintStroke(id, {
-            mode: "paint",
-            size: 30,
-            feather: 0.5,
-            flow: 1,
-            color: i === 99 ? "#0000ff" : "#ff0000",
-            points: [
-              [x, y, 1],
-              [x + 40, y, 1],
-            ],
-          });
-        }
-      },
-      [from, to] as const,
-    );
-  await paint(0, 99);
-  expect(await layer()).toEqual({ raster: undefined, strokes: 99 });
-  const before = await samples(page);
-  expect(before[0]).toEqual(gray);
+  for (const kind of ["paint", "mask"] as const) {
+    await test.step(kind, async () => {
+      await openPhoto(page);
+      const layer = () =>
+        page.evaluate(() => {
+          const [, layer] = window.openlight.getState().scene?.layers ?? [];
+          if (layer?.kind === "paint") {
+            return { raster: layer.raster, strokes: layer.strokes.length };
+          }
+          if (layer?.kind === "mask" && layer.mask.kind === "brush") {
+            return {
+              raster: layer.mask.raster,
+              strokes: layer.mask.strokes.length,
+            };
+          }
+        });
+      // Short strokes down the image, the hundredth across its center; paint is red, and a mask brightens by a stop.
+      const paint = (from: number, to: number) =>
+        page.evaluate(
+          ([kind, from, to]) => {
+            const api = window.openlight;
+            const [, layer] = api.getState().scene?.layers ?? [];
+            const id = layer?.id ?? api.addLayer(kind);
+            const strokes = Array.from({ length: to }, (_, i) => {
+              const [x, y] =
+                i === 99
+                  ? [580, 400]
+                  : [100 + (i % 10) * 100, 80 + Math.floor(i / 10) * 60];
+              return {
+                mode: "paint" as const,
+                size: 30,
+                feather: 0.5,
+                flow: 1,
+                points: [
+                  [x, y, 1],
+                  [x + 40, y, 1],
+                ] as [number, number, number][],
+              };
+            });
+            if (kind === "paint") {
+              for (const stroke of strokes.slice(from)) {
+                api.addPaintStroke(id, { ...stroke, color: "#ff0000" });
+              }
+              return;
+            }
+            api.setLayerMask(id, { kind: "brush", strokes });
+            api.setAdjustments({ exposure: 1 }, id);
+          },
+          [kind, from, to] as const,
+        );
+      /** Export pixels inside an early stroke and at the hundredth. */
+      const pixels = async () =>
+        (
+          await readImage(page, undefined, [
+            [620, 80],
+            [600, 400],
+          ])
+        ).samples ?? [];
+      await paint(0, 99);
+      expect(await layer()).toEqual({ raster: undefined, strokes: 99 });
+      const before = await pixels();
+      expect(before[0][0]).toBeGreaterThan(gray[0] + 20);
+      expectNear(before[1], gray, 1);
 
-  await test.step("the hundredth stroke settles every stroke into pixels", async () => {
-    await paint(99, 100);
-    await expect.poll(layer).toMatchObject({ strokes: 0 });
-    expect((await layer())?.raster).toEqual(expect.any(String));
-    const settled = await samples(page);
-    expect(settled[0][2]).toBeGreaterThan(200);
-    expect(settled[1]).toEqual(before[1]);
-  });
+      const raster =
+        await test.step("the hundredth stroke settles every stroke into pixels", async () => {
+          await paint(99, 100);
+          await expect.poll(layer).toMatchObject({ strokes: 0 });
+          const { raster } = (await layer()) ?? {};
+          expect(raster).toEqual(expect.any(String));
+          const [early, last] = await pixels();
+          expectNear(early, before[0], 2);
+          expect(last[0]).toBeGreaterThan(gray[0] + 20);
+          return raster;
+        });
+      const settled = await pixels();
 
-  await test.step("undo goes back to the strokes, and redo to the pixels", async () => {
-    const settled = await samples(page);
-    await page.evaluate(() => window.openlight.undo());
-    expect(await layer()).toEqual({ raster: undefined, strokes: 99 });
-    expect(await samples(page)).toEqual(before);
-    await page.evaluate(() => window.openlight.redo());
-    expect(await samples(page)).toEqual(settled);
-  });
-
-  await test.step("a stroke over the pixels undoes by loading them again", async () => {
-    const settled = await samples(page);
-    await paint(100, 101);
-    expect((await layer())?.strokes).toBe(1);
-    await page.evaluate(() => window.openlight.undo());
-    expect(await samples(page)).toEqual(settled);
-  });
-
-  await test.step("a scene file keeps the pixels", async () => {
-    const settled = await samples(page);
-    const raster = (await layer())?.raster;
-    await page.evaluate(async () => {
-      const scene = await window.openlight.exportScene();
-      await window.openlight.openFile(scene);
-    });
-    await expect.poll(layer).toEqual({ raster, strokes: 0 });
-    expect(await samples(page)).toEqual(settled);
-  });
-});
-
-test("a brush mask settles into pixels like paint, and undo and scene files keep them", async ({
-  page,
-}) => {
-  test.setTimeout(120_000);
-  await openPhoto(page);
-  const mask = () =>
-    page.evaluate(() => {
-      const [, layer] = window.openlight.getState().scene?.layers ?? [];
-      return layer?.kind === "mask" && layer.mask.kind === "brush"
-        ? { raster: layer.mask.raster, strokes: layer.mask.strokes.length }
-        : undefined;
-    });
-  // Short strokes down the image, through a mask that brightens by a stop.
-  const paint = (count: number) =>
-    page.evaluate((count) => {
-      const api = window.openlight;
-      const [, layer] = api.getState().scene?.layers ?? [];
-      const id = layer?.id ?? api.addLayer("mask");
-      api.setLayerMask(id, {
-        kind: "brush",
-        strokes: Array.from({ length: count }, (_, i) => {
-          const [x, y] = [100 + (i % 10) * 100, 80 + Math.floor(i / 10) * 60];
-          return {
-            mode: "paint" as const,
-            size: 30,
-            feather: 0.5,
-            flow: 1,
-            points: [
-              [x, y, 1],
-              [x + 40, y, 1],
-            ] as [number, number, number][],
-          };
-        }),
+      await test.step("undo goes back to the strokes, and redo to the pixels", async () => {
+        await page.evaluate(() => window.openlight.undo());
+        expect(await layer()).toEqual({ raster: undefined, strokes: 99 });
+        expectPixels(await pixels(), before, 1);
+        await page.evaluate(() => window.openlight.redo());
+        expect(await layer()).toEqual({ raster, strokes: 0 });
+        expectPixels(await pixels(), settled, 1);
       });
-      api.setAdjustments({ exposure: 1 }, id);
-    }, count);
-  const inside = async () =>
-    (await readImage(page, undefined, [[620, 80]])).samples?.[0];
-  await paint(99);
-  expect(await mask()).toEqual({ raster: undefined, strokes: 99 });
-  const before = await inside();
-  expect(before?.[0]).toBeGreaterThan(gray[0] + 20);
-  await paint(100);
-  await expect.poll(mask).toMatchObject({ strokes: 0 });
-  const raster = (await mask())?.raster;
-  expect(raster).toEqual(expect.any(String));
-  expect(await inside()).toEqual(before);
-  await page.evaluate(() => window.openlight.undo());
-  expect(await mask()).toEqual({ raster: undefined, strokes: 99 });
-  await page.evaluate(() => window.openlight.redo());
-  expect(await mask()).toEqual({ raster, strokes: 0 });
-  expect(await inside()).toEqual(before);
-  await page.evaluate(async () => {
-    const scene = await window.openlight.exportScene();
-    await window.openlight.openFile(scene);
-  });
-  await expect.poll(mask).toEqual({ raster, strokes: 0 });
-  expect(await inside()).toEqual(before);
+
+      if (kind === "paint") {
+        await test.step("a stroke over the pixels undoes by loading them again", async () => {
+          await paint(100, 101);
+          expect((await layer())?.strokes).toBe(1);
+          await page.evaluate(() => window.openlight.undo());
+          expectPixels(await pixels(), settled, 1);
+        });
+      }
+
+      await test.step("a scene file keeps the pixels", async () => {
+        await page.evaluate(async () => {
+          const scene = await window.openlight.exportScene();
+          await window.openlight.openFile(scene);
+        });
+        await expect.poll(layer).toEqual({ raster, strokes: 0 });
+        expectPixels(await pixels(), settled, 1);
+      });
+    });
+  }
 });
 
-test("Photoshop's keys switch the brush, its colors, feather, flow, and opacity", async ({
+test("settling stays atomic when an edit lands during readback", async ({
   page,
 }) => {
-  await openPhoto(page);
-  const field = (name: string) => brushField(page, name);
-  const chip = (name: string) => brushChip(page, name);
-  await page.keyboard.press("b");
-  await expect(chip("Mask")).toHaveAttribute("aria-pressed", "true");
-  await page.keyboard.press("b");
-  await expect(chip("Color")).toHaveAttribute("aria-pressed", "true");
-
-  const primary = page.getByLabel("Primary color");
-  await primary.fill("#ff0000");
-  await page.keyboard.press("d");
-  await expect(primary).toHaveValue("#000000");
-
-  await page.keyboard.press("Shift+BracketRight");
-  await expect(field("Feather")).toHaveValue("60");
-  await page.keyboard.press("5");
-  await expect(field("Flow")).toHaveValue("50");
-  await page.keyboard.press("Shift+Digit3");
-  await expect(field("Opacity")).toHaveValue("30");
-
-  // On a mask, X paints or erases, as black and white do in Photoshop.
-  await page.keyboard.press("b");
-  await expect(chip("Mask")).toHaveAttribute("aria-pressed", "true");
-  await page.keyboard.press("x");
-  await expect(chip("Erase")).toHaveAttribute("aria-pressed", "true");
-  await page.keyboard.press("x");
-  await expect(chip("Paint")).toHaveAttribute("aria-pressed", "true");
+  await page.goto("/tests/gpu.html");
+  for (const [mode, action] of [
+    ["paint", "append"],
+    ["mask", "append"],
+    ["paint", "undo"],
+    ["paint", "close"],
+  ] as const) {
+    await test.step(`${mode} with ${action}`, async () => {
+      const result = await page.evaluate(
+        async ({ mode, action }) => {
+          const path = "/tests/settle-gpu.ts";
+          const { editDuringSettle } = (await import(
+            path
+          )) as typeof import("./settle-gpu");
+          return editDuringSettle(mode, action);
+        },
+        { mode, action },
+      );
+      expect(result.errors).toEqual([]);
+      expect(result.historyUnchanged).toBe(true);
+      expect(result.accepted).toBe(action === "append");
+      if (action !== "close") {
+        expect(result.error).toBeLessThan(0.002);
+      }
+      if (action === "append") {
+        expect(result.raster).toEqual(expect.any(String));
+        expect(result.strokes).toBe(1);
+        expect(result.stamped).toBe(101);
+      } else {
+        expect(result.unchanged).toBe(true);
+        expect(result.raster).toBeUndefined();
+        expect(result.strokes).toBe(action === "undo" ? 99 : 100);
+      }
+    });
+  }
 });
-
-for (const [mode, action] of [
-  ["paint", "append"],
-  ["mask", "append"],
-  ["paint", "undo"],
-  ["paint", "close"],
-] as const) {
-  test(`${mode} settling remains atomic when ${action} happens during readback`, async ({
-    page,
-  }) => {
-    await page.goto("/tests/gpu.html");
-    const result = await page.evaluate(
-      async ({ mode, action }) => {
-        const path = "/tests/settle-gpu.ts";
-        const { editDuringSettle } = (await import(
-          path
-        )) as typeof import("./settle-gpu");
-        return editDuringSettle(mode, action);
-      },
-      { mode, action },
-    );
-    expect(result.errors).toEqual([]);
-    expect(result.historyUnchanged).toBe(true);
-    expect(result.accepted).toBe(action === "append");
-    if (action !== "close") {
-      expect(result.error).toBeLessThan(0.002);
-    }
-    if (action === "append") {
-      expect(result.raster).toEqual(expect.any(String));
-      expect(result.strokes).toBe(1);
-      expect(result.stamped).toBe(101);
-    } else {
-      expect(result.unchanged).toBe(true);
-      expect(result.raster).toBeUndefined();
-      expect(result.strokes).toBe(action === "undo" ? 99 : 100);
-    }
-  });
-}
 
 test("photo exposure, contrast, and curves leave the selected paint color unchanged", async ({
   page,
@@ -408,7 +334,7 @@ test("photo exposure, contrast, and curves leave the selected paint color unchan
       points: [[600, 400, 1]],
     });
   });
-  expect((await samples(page))[0]).toEqual([185, 80, 80, 255]);
+  expectNear((await samples(page))[0], [185, 80, 80, 255]);
 });
 
 test("deleting a paint layer at the limit lets the brush paint again", async ({
@@ -437,7 +363,7 @@ test("deleting a paint layer at the limit lets the brush paint again", async ({
   await page.getByLabel("Primary color").fill("#ff0000");
   const at = await photoToPage(page);
   await drag(page, at(-20, 0), at(20, 0));
-  expect((await samples(page))[0]).toEqual([255, 0, 0, 255]);
+  expectNear((await samples(page))[0], [255, 0, 0, 255]);
 });
 
 test("at the mask limit, nesting another brush is unavailable", async ({

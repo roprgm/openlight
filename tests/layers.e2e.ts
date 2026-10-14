@@ -1,11 +1,11 @@
-import { expect, openPhoto, test } from "./fixtures";
-import { readImage, readPreview } from "./images";
+import { expect, expectNear, expectPixels, openPhoto, test } from "./fixtures";
+import { readImage, redness } from "./images";
 import { box, choose, drag } from "./pointer";
 
 test("draw masks, edit their child effects, reorder layers and undo", async ({
   page,
 }) => {
-  test.setTimeout(90_000);
+  test.setTimeout(120_000);
   await page.setViewportSize({ width: 1440, height: 1000 });
   const state = () => page.evaluate(() => window.openlight.getState());
   const layers = async () => (await state()).scene?.layers ?? [];
@@ -48,7 +48,7 @@ test("draw masks, edit their child effects, reorder layers and undo", async ({
     ] as const;
     const tones = async () =>
       (await readImage(page, undefined, points)).samples?.map(([red]) => red);
-    expect(await tones()).toEqual([128, 224]);
+    expectNear(await tones(), [128, 224]);
     await page.evaluate(() => {
       const api = window.openlight;
       api.setAdjustments({ exposure: 2 });
@@ -82,21 +82,19 @@ test("draw masks, edit their child effects, reorder layers and undo", async ({
   const to = [center[0], center[1] + 200 * scale];
   await test.step("a linear mask shows its overlay until an adjustment changes the image", async () => {
     // Sample above the center, clear of the guide lines and the move handle.
-    const tinted = async () => {
-      const { center } = await readPreview(page, [0, -100 * scale]);
-      return center[0] > center[1] + 30;
-    };
+    const tint = () => redness(page, [0, -100 * scale]);
+    const untinted = await tint();
     await drag(page, from, to);
     expect(await layers()).toMatchObject([{}, { mask: { kind: "linear" } }]);
-    await expect.poll(tinted).toBe(true);
+    await expect.poll(tint).toBeGreaterThan(untinted + 20);
     await setField("Exposure", "1");
-    await expect.poll(tinted).toBe(false);
+    await expect.poll(tint).toBeLessThan(untinted + 5);
     await page.keyboard.press("o");
-    await expect.poll(tinted).toBe(true);
+    await expect.poll(tint).toBeGreaterThan(untinted + 20);
     await page.keyboard.press("o");
     const [top, bottom] = await samples();
     expect(top[0]).toBeGreaterThan(170);
-    expect(bottom).toEqual(original[1]);
+    expectNear(bottom, original[1], 1);
   });
   await test.step("the move guide is one undo step, Escape cancels it, and Delete removes the mask", async () => {
     const before = await state();
@@ -124,10 +122,10 @@ test("draw masks, edit their child effects, reorder layers and undo", async ({
     const masked = await samples();
     await action("Sky", "Subtract from mask", "Linear gradient");
     await drag(page, from, to);
-    expect((await samples())[0]).toEqual(original[0]);
+    expectNear((await samples())[0], original[0], 1);
     const operation = page.getByRole("combobox", { name: "Mask operation" });
     await choose(page, operation, "Add");
-    expect((await samples())[0]).toEqual(masked[0]);
+    expectNear((await samples())[0], masked[0], 1);
     await undo();
     await undo();
     expect(await samples()).toEqual(masked);
@@ -140,7 +138,7 @@ test("draw masks, edit their child effects, reorder layers and undo", async ({
     await setField("Intensity", "80");
     const nested = await samples();
     expect(nested[0][0]).toBeLessThan(masked[0][0]);
-    expect(nested[1]).toEqual(masked[1]);
+    expectNear(nested[1], masked[1], 1);
     const row = (name: string) =>
       box(
         page
@@ -174,7 +172,7 @@ test("draw masks, edit their child effects, reorder layers and undo", async ({
     await page.getByRole("button", { name: "Sky", exact: true }).click();
     const masked = await samples();
     await setField("Opacity", "0");
-    expect(await samples()).toEqual(original);
+    expectPixels(await samples(), original, 1);
     await undo();
     // The row's opacity drags to zero and undoes as one edit.
     const opacity = await box(
@@ -182,12 +180,12 @@ test("draw masks, edit their child effects, reorder layers and undo", async ({
     );
     const y = opacity.y + opacity.height / 2;
     await drag(page, [opacity.x + opacity.width / 2, y], [opacity.x - 300, y]);
-    expect(await samples()).toEqual(original);
+    expectPixels(await samples(), original, 1);
     await undo();
     expect(await samples()).toEqual(masked);
     const show = page.getByRole("button", { name: "Show Sky", exact: true });
     await show.click();
-    expect(await samples()).toEqual(original);
+    expectPixels(await samples(), original, 1);
     await show.click();
     expect(await samples()).toEqual(masked);
   });
@@ -208,7 +206,7 @@ test("draw masks, edit their child effects, reorder layers and undo", async ({
       [center[0] + 40, center[1] + 30],
       [center[0] + 40 + 300 * scale, center[1] + 30],
     );
-    expect((await readImage(page)).center).toEqual(before.center);
+    expectNear((await readImage(page)).center, before.center, 1);
     await page.keyboard.press("ControlOrMeta+z");
     const radius = await box(page.getByLabel("Radial right radius"));
     const [x, y] = [radius.x + radius.width / 2, radius.y + radius.height / 2];

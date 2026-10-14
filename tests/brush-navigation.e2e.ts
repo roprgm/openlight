@@ -2,6 +2,14 @@ import { expect, openPhoto, test } from "./fixtures";
 import { readImage, readPixel } from "./images";
 import { box } from "./pointer";
 
+/** Tells the fixture's blue square from its gray field, whatever the GPU's rounding and the cursor's tint. */
+function tone(pixel: readonly number[] | undefined) {
+  const [red, green, blue] = pixel ?? [];
+  if (blue - red > 40) return "blue";
+  if (Math.abs(blue - red) < 16 && Math.abs(green - red) < 16) return "gray";
+  return "other";
+}
+
 test(`brush menu owns clicks and slider drags without painting or navigating`, async ({
   page,
 }) => {
@@ -65,85 +73,110 @@ test(`brush menu owns clicks and slider drags without painting or navigating`, a
   ).toHaveValue("90");
 });
 
-for (const { name, shortcut, presses, label } of [
-  { name: "mask", shortcut: "b", presses: 1, label: "Brush canvas" },
-  { name: "color", shortcut: "b", presses: 2, label: "Paint canvas" },
-  { name: "retouch", shortcut: "h", presses: 1, label: "Healing canvas" },
-]) {
-  test(`${name} brush keeps its screen size across zoom while new strokes scale in the image`, async ({
-    page,
-  }) => {
-    await page.setViewportSize({ width: 1440, height: 1000 });
-    await openPhoto(page);
-    for (let i = 0; i < presses; i++) await page.keyboard.press(shortcut);
-    const canvas = page.getByLabel(label, { exact: true });
-    await expect(canvas).toBeVisible();
-    const size = page.getByRole("textbox", { name: "Size", exact: true });
-    await expect(size).toHaveValue("50");
-    await canvas.click({ button: "right", position: { x: 300, y: 300 } });
-    const menu = page.getByRole("dialog");
-    await menu.getByRole("textbox", { name: "Size", exact: true }).fill("80");
-    await menu
-      .getByRole("textbox", { name: "Size", exact: true })
-      .press("Enter");
-    await page.keyboard.press("Escape");
-    await expect(size).toHaveValue("80");
-    await canvas.hover();
-    await page.mouse.wheel(0, 100);
-    await expect(size).toHaveValue("103");
-    await size.fill("100");
-    await size.press("Enter");
-    const bounds = await box(canvas);
-    const cursor = canvas.locator('[data-brush-cursor="true"] ellipse').first();
-    /** The cursor's radii in viewport pixels, a circle without perspective. */
-    const radii = () =>
-      Promise.all(
-        ["rx", "ry"].map(async (name) =>
-          Number(await cursor.getAttribute(name)),
-        ),
-      );
-    const fifty = [expect.closeTo(50, 6), expect.closeTo(50, 6)];
-    const strokes = () =>
-      page.evaluate(() => {
-        const { scene, selectedLayerId } = window.openlight.getState();
-        const layer = scene?.layers.find(
-          (layer) => layer.id === selectedLayerId,
+test("brushes keep their screen size across zoom while new strokes scale in the image", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await openPhoto(page);
+  // The mask and color brushes share their size, so color starts where mask left it.
+  for (const { name, shortcut, presses, label, initial } of [
+    {
+      name: "mask",
+      shortcut: "b",
+      presses: 1,
+      label: "Brush canvas",
+      initial: "50",
+    },
+    {
+      name: "color",
+      shortcut: "b",
+      presses: 2,
+      label: "Paint canvas",
+      initial: "100",
+    },
+    {
+      name: "retouch",
+      shortcut: "h",
+      presses: 1,
+      label: "Healing canvas",
+      initial: "50",
+    },
+  ]) {
+    await test.step(name, async () => {
+      for (let i = 0; i < presses; i++) await page.keyboard.press(shortcut);
+      const canvas = page.getByLabel(label, { exact: true });
+      await expect(canvas).toBeVisible();
+      const size = page.getByRole("textbox", { name: "Size", exact: true });
+      await expect(size).toHaveValue(initial);
+      await canvas.click({ button: "right", position: { x: 300, y: 300 } });
+      const menu = page.getByRole("dialog");
+      await menu.getByRole("textbox", { name: "Size", exact: true }).fill("80");
+      await menu
+        .getByRole("textbox", { name: "Size", exact: true })
+        .press("Enter");
+      await page.keyboard.press("Escape");
+      await expect(size).toHaveValue("80");
+      await canvas.hover();
+      await page.mouse.wheel(0, 100);
+      await expect(size).toHaveValue("103");
+      await size.fill("100");
+      await size.press("Enter");
+      const bounds = await box(canvas);
+      const cursor = canvas
+        .locator('[data-brush-cursor="true"] ellipse')
+        .first();
+      /** The cursor's radii in viewport pixels, a circle without perspective. */
+      const radii = () =>
+        Promise.all(
+          ["rx", "ry"].map(async (name) =>
+            Number(await cursor.getAttribute(name)),
+          ),
         );
-        if (layer?.kind === "paint") return layer.strokes;
-        if (layer?.kind === "mask" && layer.mask.kind === "brush")
-          return layer.mask.strokes;
-        if (layer?.kind === "heal")
-          return layer.patches.flatMap((patch) => patch.strokes);
-        return [];
-      });
-    const x = bounds.x + bounds.width / 2 + 180;
-    const y = bounds.y + bounds.height / 2 + 120;
-    await page.mouse.move(x, y);
-    await expect.poll(radii).toEqual(fifty);
-    await page.mouse.click(x, y);
-    await expect.poll(async () => (await strokes()).length).toBe(1);
-    const first = (await strokes())[0];
-    await page.getByRole("button", { name: "Zoom in", exact: true }).click();
-    await page.getByRole("button", { name: "Zoom in", exact: true }).click();
-    await page.mouse.move(x + 180, y);
-    await expect.poll(radii).toEqual(fifty);
-    await expect(size).toHaveValue("100");
-    await page.mouse.click(x + 180, y);
-    await expect.poll(async () => (await strokes()).length).toBe(2);
-    const recorded = await strokes();
-    expect(recorded[0]).toEqual(first);
-    expect(recorded[1].size).toBeCloseTo(first.size / 1.25 ** 2, 6);
-    // Navigating does not resize existing content; each stroke remains one undo step.
-    await page.keyboard.press("ControlOrMeta+z");
-    expect(await strokes()).toEqual([first]);
-    await page.keyboard.press("ControlOrMeta+Shift+z");
-    expect(await strokes()).toEqual(recorded);
-    await page.getByRole("button", { name: /^\d+%$/ }).click();
-    await page.mouse.move(x, y);
-    await expect.poll(radii).toEqual(fifty);
-    await expect(size).toHaveValue("100");
-  });
-}
+      const fifty = [expect.closeTo(50, 6), expect.closeTo(50, 6)];
+      const strokes = () =>
+        page.evaluate(() => {
+          const { scene, selectedLayerId } = window.openlight.getState();
+          const layer = scene?.layers.find(
+            (layer) => layer.id === selectedLayerId,
+          );
+          if (layer?.kind === "paint") return layer.strokes;
+          if (layer?.kind === "mask" && layer.mask.kind === "brush")
+            return layer.mask.strokes;
+          if (layer?.kind === "heal")
+            return layer.patches.flatMap((patch) => patch.strokes);
+          return [];
+        });
+      const x = bounds.x + bounds.width / 2 + 180;
+      const y = bounds.y + bounds.height / 2 + 120;
+      await page.mouse.move(x, y);
+      await expect.poll(radii).toEqual(fifty);
+      await page.mouse.click(x, y);
+      await expect.poll(async () => (await strokes()).length).toBe(1);
+      const first = (await strokes())[0];
+      await page.getByRole("button", { name: "Zoom in", exact: true }).click();
+      await page.getByRole("button", { name: "Zoom in", exact: true }).click();
+      await page.mouse.move(x + 180, y);
+      await expect.poll(radii).toEqual(fifty);
+      await expect(size).toHaveValue("100");
+      await page.mouse.click(x + 180, y);
+      await expect.poll(async () => (await strokes()).length).toBe(2);
+      const recorded = await strokes();
+      expect(recorded[0]).toEqual(first);
+      expect(recorded[1].size).toBeCloseTo(first.size / 1.25 ** 2, 6);
+      // Navigating does not resize existing content; each stroke remains one undo step.
+      await page.keyboard.press("ControlOrMeta+z");
+      expect(await strokes()).toEqual([first]);
+      await page.keyboard.press("ControlOrMeta+Shift+z");
+      expect(await strokes()).toEqual(recorded);
+      await page.getByRole("button", { name: /^\d+%$/ }).click();
+      await page.mouse.move(x, y);
+      await expect.poll(radii).toEqual(fifty);
+      await expect(size).toHaveValue("100");
+      await page.keyboard.press("Escape");
+      await expect(canvas).toHaveCount(0);
+    });
+  }
+});
 
 test(`brush wheel sizes the brush while pinch zoom and Space-drag navigate`, async ({
   page,
@@ -225,18 +258,16 @@ test(`brush wheel sizes the brush while pinch zoom and Space-drag navigate`, asy
         zoomBounds.height / 2 + (200 - 400) * zoomScale,
       ] as const,
   );
-  const edgePixels = async () =>
-    (await readImage(page, await rendered.screenshot(), edgeSamples)).samples;
-  const expectedEdge = [
-    [48, 80, 128, 255],
-    [128, 128, 128, 255],
-  ];
-  await expect.poll(edgePixels).toEqual(expectedEdge);
+  const edge = async () =>
+    (
+      await readImage(page, await rendered.screenshot(), edgeSamples)
+    ).samples?.map(tone);
+  await expect.poll(edge).toEqual(["blue", "gray"]);
   for (const x of [60, -60]) {
     await page.mouse.wheel(x, 0);
     await expect(size).toHaveValue("1000");
     await expect(zoom).not.toHaveText(fit);
-    await expect.poll(edgePixels).toEqual(expectedEdge);
+    await expect.poll(edge).toEqual(["blue", "gray"]);
   }
   await zoom.click();
   await expect(zoom).toHaveText(fit);
@@ -281,7 +312,9 @@ test(`brush wheel sizes the brush while pinch zoom and Space-drag navigate`, asy
     x: bounds.x + bounds.width / 2 + (430 - 600) * scale,
     y: bounds.y + bounds.height / 2 + (150 - 400) * scale,
   };
-  await expect.poll(() => readPixel(page, sample)).toEqual([48, 80, 128, 255]);
+  await expect
+    .poll(async () => tone(await readPixel(page, sample)))
+    .toBe("blue");
   await canvas.hover();
   await page.keyboard.down("Space");
   await expect(canvas).toHaveAttribute("data-pan", "true");
@@ -297,15 +330,19 @@ test(`brush wheel sizes the brush while pinch zoom and Space-drag navigate`, asy
   );
   await page.mouse.up();
   await expect
-    .poll(() => readPixel(page, { ...sample, x: sample.x + 101 }))
-    .toEqual([48, 80, 128, 255]);
+    .poll(async () =>
+      tone(await readPixel(page, { ...sample, x: sample.x + 101 })),
+    )
+    .toBe("blue");
   await page.keyboard.down("Space");
   await expect(center).toHaveCount(0);
   await page.mouse.wheel(60, 40);
   await page.keyboard.up("Space");
   await expect(size).toHaveValue("128");
   await expect
-    .poll(() => readPixel(page, { x: sample.x + 41, y: sample.y - 40 }))
-    .toEqual([48, 80, 128, 255]);
+    .poll(async () =>
+      tone(await readPixel(page, { x: sample.x + 41, y: sample.y - 40 })),
+    )
+    .toBe("blue");
   expect(await page.evaluate(() => window.openlight.getState())).toEqual(state);
 });

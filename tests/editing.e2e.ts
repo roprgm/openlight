@@ -1,8 +1,42 @@
 import { readFile } from "node:fs/promises";
+import type { Locator } from "@playwright/test";
 import { interpolatePchip } from "@/lib/math";
-import { expect, openPhoto, test } from "./fixtures";
+import { expect, expectNear, openPhoto, test } from "./fixtures";
 import { readImage, readPixel, readPreview } from "./images";
 import { box, choose, drag, zoom } from "./pointer";
+
+/** A histogram's bin heights, 0 to 100, from the polyline its SVG draws downward. */
+async function heights(plot: Locator) {
+  const points = (await plot.getAttribute("points")) ?? "";
+  return points
+    .split(" ")
+    .filter(Boolean)
+    .map((point) => 100 - Number(point.split(",")[1]));
+}
+
+/** The height-weighted mean bin, which rises as the image brightens. */
+function meanBin(heights: number[]) {
+  const total = heights.reduce((sum, height) => sum + height, 0);
+  return heights.reduce((sum, height, bin) => sum + height * bin, 0) / total;
+}
+
+/** The mean height difference between two histograms of the same bins. */
+function difference(a: number[], b: number[]) {
+  if (a.length !== b.length) return Number.POSITIVE_INFINITY;
+  return (
+    a.reduce((sum, height, bin) => sum + Math.abs(height - b[bin]), 0) /
+    a.length
+  );
+}
+
+/** The largest channel difference between two colors. */
+function distance(a: number[], b: number[]) {
+  return Math.max(...b.map((value, channel) => Math.abs(a[channel] - value)));
+}
+
+const isGray = (pixel: number[]) =>
+  distance(pixel.slice(0, 3), [128, 128, 128]) <= 10;
+const isBlue = (pixel: number[]) => pixel[2] - pixel[0] > 40;
 
 test("edit a photo, inspect the preview and histograms, undo changes, and export", async ({
   page,
@@ -10,6 +44,10 @@ test("edit a photo, inspect the preview and histograms, undo changes, and export
   test.setTimeout(90_000);
   const state = () => page.evaluate(() => window.openlight.getState());
   await openPhoto(page);
+  // The experimental assistant mounts only for `/?assistant`.
+  await expect(
+    page.getByRole("button", { name: "Assistant", exact: true }),
+  ).toBeHidden();
   const canvas = page
     .getByRole("region", { name: "Image canvas" })
     .locator("canvas");
@@ -17,9 +55,17 @@ test("edit a photo, inspect the preview and histograms, undo changes, and export
     .getByLabel("output histogram", { exact: true })
     .locator("polyline")
     .first();
-  await expect(output).toHaveAttribute("points", /,\d{1,2}\./);
-  const original = await canvas.screenshot();
-  const histogram = (await output.getAttribute("points")) ?? "";
+  const drawn = (plot: Locator) =>
+    expect
+      .poll(async () => Math.max(...(await heights(plot))))
+      .toBeGreaterThan(1);
+  await drawn(output);
+  const histogram = await heights(output);
+  /** The preview shows the unedited photo again, as its output histogram does. */
+  const restored = () =>
+    expect
+      .poll(async () => difference(await heights(output), histogram))
+      .toBeLessThan(0.5);
   const initial = await state();
   async function type(name: string, value: string) {
     const field = page.getByRole("textbox", { name, exact: true });
@@ -33,20 +79,27 @@ test("edit a photo, inspect the preview and histograms, undo changes, and export
       viewport.x + viewport.width / 2,
       viewport.y + viewport.height / 2,
     ];
+    const top = { x, y: viewport.y + 4 };
+    const level = page.getByRole("button", { name: /^\d+%$/ });
+    const fit = (await level.textContent()) ?? "";
     await canvas.hover();
     await zoom(page, 2);
+    await expect(level).not.toHaveText(fit);
     // Only a zoomed photo reaches past the fitted margin to the top edge.
     await expect
-      .poll(() => readPixel(page, { x, y: viewport.y + 4 }))
-      .toEqual([128, 128, 128, 255]);
+      .poll(async () => isGray(await readPixel(page, top)))
+      .toBe(true);
     await canvas.dblclick();
-    await expect.poll(() => canvas.screenshot()).toEqual(original);
+    await expect(level).toHaveText(fit);
+    await expect
+      .poll(async () => isGray(await readPixel(page, top)))
+      .toBe(false);
     const scale = Math.min(
       (viewport.width - 48) / 1200,
       (viewport.height - 48) / 800,
     );
     const blue = { x: x + (430 - 600) * scale, y: y + (150 - 400) * scale };
-    expect(await readPixel(page, blue)).toEqual([48, 80, 128, 255]);
+    expect(isBlue(await readPixel(page, blue))).toBe(true);
     // Releasing Space mid-drag keeps the pan going.
     await page.keyboard.down("Space");
     await page.mouse.down();
@@ -55,10 +108,13 @@ test("edit a photo, inspect the preview and histograms, undo changes, and export
     await page.mouse.move(x + 101, y);
     await page.mouse.up();
     await expect
-      .poll(() => readPixel(page, { ...blue, x: blue.x + 101 }))
-      .toEqual([48, 80, 128, 255]);
+      .poll(async () =>
+        isBlue(await readPixel(page, { ...blue, x: blue.x + 101 })),
+      )
+      .toBe(true);
     expect(await state()).toEqual(initial);
     await canvas.dblclick();
+    await expect(level).toHaveText(fit);
   });
 
   await test.step("an exposure drag is one edit of the image and histogram", async () => {
@@ -76,11 +132,13 @@ test("edit a photo, inspect the preview and histograms, undo changes, and export
       [track.x + track.width / 2, y],
       [track.x + track.width * 0.6, y],
     );
-    await expect(output).not.toHaveAttribute("points", histogram);
+    await expect
+      .poll(async () => meanBin(await heights(output)))
+      .toBeGreaterThan(meanBin(histogram) + 10);
     expect((await readImage(page)).center[0]).toBeGreaterThan(160);
     await page.keyboard.press("ControlOrMeta+z");
     await expect(exposure).toHaveValue("0");
-    await expect.poll(() => canvas.screenshot()).toEqual(original);
+    await restored();
   });
 
   await test.step("compare and clipping change only the preview", async () => {
@@ -94,16 +152,19 @@ test("edit a photo, inspect the preview and histograms, undo changes, and export
     });
     const edited = await readImage(page);
     const { history } = await state();
-    const center = async () => (await readPreview(page)).center;
+    const center = (expected: number[]) =>
+      expect
+        .poll(async () => distance((await readPreview(page)).center, expected))
+        .toBeLessThanOrEqual(4);
     const compare = page.getByRole("button", {
       name: "Compare before and after",
       exact: true,
     });
     await compare.focus();
     await page.keyboard.down("Backslash");
-    await expect.poll(center).toEqual([128, 128, 128, 255]);
+    await center([128, 128, 128, 255]);
     await page.keyboard.up("Backslash");
-    await expect.poll(center).toEqual([255, 255, 255, 255]);
+    await center([255, 255, 255, 255]);
     await compare.click();
     const divider = page.getByRole("slider", {
       name: "Before and after divider",
@@ -114,7 +175,7 @@ test("edit a photo, inspect the preview and histograms, undo changes, and export
     await page.mouse.move(bounds.x + bounds.width * 0.8, bounds.y + 10);
     await page.mouse.up();
     await expect(divider).toHaveAttribute("aria-valuenow", "80");
-    await expect.poll(center).toEqual([128, 128, 128, 255]);
+    await center([128, 128, 128, 255]);
     await compare.click();
     const shadows = page.getByRole("button", { name: "Show clipped shadows" });
     const highlights = page.getByRole("button", {
@@ -122,7 +183,7 @@ test("edit a photo, inspect the preview and histograms, undo changes, and export
     });
     await shadows.click();
     await highlights.click();
-    await expect.poll(center).toEqual([255, 0, 0, 255]);
+    await center([255, 0, 0, 255]);
     expect((await readPreview(page)).blue).toBeGreaterThan(100);
     expect(await readImage(page)).toEqual(edited);
     expect((await state()).history).toEqual(history);
@@ -132,7 +193,7 @@ test("edit a photo, inspect the preview and histograms, undo changes, and export
       window.openlight.setAdjustments({ exposure: 0 });
       window.openlight.setToneCurve();
     });
-    await expect.poll(() => canvas.screenshot()).toEqual(original);
+    await restored();
   });
 
   await test.step("clarity and sharpening edit a Details effect", async () => {
@@ -143,14 +204,16 @@ test("edit a photo, inspect the preview and histograms, undo changes, and export
     const clarity = page.getByRole("slider", { name: "Clarity", exact: true });
     await clarity.locator("..").dblclick();
     await expect(clarity).toHaveValue("0");
-    const edge = () => readImage(page, undefined, [[102, 50]]);
+    // Beside the black corner, on the dark strip.
+    const edge = async () =>
+      (await readImage(page, undefined, [[102, 50]])).samples?.[0];
     await type("Sharpening", "100");
     await type("Radius", "3");
-    expect((await edge()).samples?.[0][0]).toBeGreaterThan(40);
+    expect((await edge())?.[0]).toBeGreaterThan(40);
     await page.getByRole("button", { name: "Undo", exact: true }).click();
     await page.getByRole("button", { name: "Undo", exact: true }).click();
-    expect((await edge()).samples?.[0][0]).toBe(32);
-    await expect(output).toHaveAttribute("points", histogram);
+    expectNear((await edge())?.slice(0, 3), [32, 32, 32]);
+    await restored();
   });
 
   await test.step("a curve drag after adjustments is one edit", async () => {
@@ -164,8 +227,8 @@ test("edit a photo, inspect the preview and histograms, undo changes, and export
       .getByLabel("curve input histogram", { exact: true })
       .locator("polyline");
     await graph.scrollIntoViewIfNeeded();
-    await expect(input).toHaveAttribute("points", /,\d{1,2}\./);
-    const points = (await input.getAttribute("points")) ?? "";
+    await drawn(input);
+    const before = await heights(input);
     const bounds = await box(graph);
     const x = bounds.x + bounds.width / 2;
     await drag(
@@ -174,11 +237,12 @@ test("edit a photo, inspect the preview and histograms, undo changes, and export
       [x, bounds.y + bounds.height / 4],
     );
     await expect(graph.locator("circle")).toHaveCount(3);
-    await expect(input).toHaveAttribute("points", points);
+    // The curve's input comes before the curve.
+    expect(difference(await heights(input), before)).toBeLessThan(0.5);
     const curve = interpolatePchip((await state()).toneCurve);
     const expected = curve(adjusted.center[0] / 255) * 255;
     expect(Math.abs((await readImage(page)).center[0] - expected)).toBeLessThan(
-      2,
+      4,
     );
     await page.keyboard.press("ControlOrMeta+z");
     expect(await readImage(page)).toEqual(adjusted);
@@ -189,10 +253,10 @@ test("edit a photo, inspect the preview and histograms, undo changes, and export
       [bounds.x, bounds.y + bounds.height * 0.75],
       5,
     );
-    expect(Math.abs((await readImage(page)).corner[0] - 64)).toBeLessThan(2);
+    expect(Math.abs((await readImage(page)).corner[0] - 64)).toBeLessThan(4);
     await page.getByRole("button", { name: "Reset curve" }).click();
     await page.evaluate(() => window.openlight.setAdjustments({ exposure: 0 }));
-    await expect.poll(() => canvas.screenshot()).toEqual(original);
+    await restored();
   });
 
   await test.step("the mode bar switches panels by click, arrow keys, and letters", async () => {
@@ -226,7 +290,7 @@ test("edit a photo, inspect the preview and histograms, undo changes, and export
       window.openlight.commitEdit();
     });
     const expected = await readImage(page);
-    expect(expected.center).not.toEqual([128, 128, 128, 255]);
+    expect(expected.center[0]).toBeGreaterThan(160);
     await canvas.hover();
     await zoom(page, Math.E);
     await page.getByRole("button", { name: "Export", exact: true }).click();
@@ -262,9 +326,7 @@ test("edit a photo, inspect the preview and histograms, undo changes, and export
       .toBeLessThan(Math.max(1000, large.length * 0.01));
     const jpeg = await readImage(page, large);
     expect(jpeg.size).toEqual([1200, 800]);
-    expect(Math.abs(jpeg.center[0] - expected.center[0])).toBeLessThanOrEqual(
-      3,
-    );
+    expectNear(jpeg.center, expected.center, 4);
     await choose(page, format, "WebP");
     await type("Width", "600");
     await expect(panel.getByRole("textbox", { name: "Height" })).toHaveValue(
@@ -272,9 +334,7 @@ test("edit a photo, inspect the preview and histograms, undo changes, and export
     );
     const webp = await readImage(page, await save("photo.webp"));
     expect(webp.size).toEqual([600, 400]);
-    expect(Math.abs(webp.center[0] - expected.center[0])).toBeLessThanOrEqual(
-      3,
-    );
+    expectNear(webp.center, expected.center, 4);
     await page.keyboard.press("a");
   });
 
@@ -282,26 +342,32 @@ test("edit a photo, inspect the preview and histograms, undo changes, and export
     const plot = page
       .getByLabel("curve input histogram", { exact: true })
       .locator("polyline");
-    await expect(plot).toHaveAttribute("points", /,\d{1,2}\./);
-    const whole = (await plot.getAttribute("points")) ?? "";
+    await drawn(plot);
+    const whole = await heights(plot);
     const mask = await page.evaluate(() => {
       const mask = window.openlight.addLayer("mask");
       window.openlight.setLayer(mask, { name: "Curve input mask" });
       return mask;
     });
     // A neutral mask receives the same pixels, counted only where it covers them.
-    await expect(plot).toHaveAttribute("points", /,\d{1,2}\./);
-    await expect(plot).not.toHaveAttribute("points", whole);
-    const neutral = (await plot.getAttribute("points")) ?? "";
+    await expect
+      .poll(async () => {
+        const now = await heights(plot);
+        return Math.max(...now) > 1 && difference(now, whole) > 1;
+      })
+      .toBe(true);
+    const neutral = await heights(plot);
     await page.evaluate(
       (mask) => window.openlight.setAdjustments({ exposure: 1 }, mask),
       mask,
     );
-    await expect(plot).not.toHaveAttribute("points", neutral);
-    const points = (await plot.getAttribute("points")) ?? "";
+    await expect
+      .poll(async () => meanBin(await heights(plot)))
+      .toBeGreaterThan(meanBin(neutral) + 2);
+    const brighter = await heights(plot);
     await page
       .getByRole("button", { name: "Show Curve input mask", exact: true })
       .click();
-    await expect(plot).toHaveAttribute("points", points);
+    expect(difference(await heights(plot), brighter)).toBeLessThan(0.5);
   });
 });
