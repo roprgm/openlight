@@ -27,12 +27,40 @@ test("?stats counts the GPU's textures and buffers, and Reset starts a workflow 
   );
   await expect(value("Textures")).toHaveText(/ · [1-9]\d* made/);
   // Changing values only rewrites uniforms: every render, histograms included, reuses what it has.
-  await stats.getByRole("button", { name: "Reset" }).click();
+  // Counted here, since the panel refreshes once a second with no sign of which renders it saw.
+  const counts = await page.evaluateHandle(() => {
+    const counts = { made: 0, destroyed: 0 };
+    const { createTexture, createBuffer } = GPUDevice.prototype;
+    const destroyTexture = GPUTexture.prototype.destroy;
+    const destroyBuffer = GPUBuffer.prototype.destroy;
+    GPUDevice.prototype.createTexture = function (descriptor) {
+      counts.made++;
+      return createTexture.call(this, descriptor);
+    };
+    GPUDevice.prototype.createBuffer = function (descriptor) {
+      counts.made++;
+      return createBuffer.call(this, descriptor);
+    };
+    GPUTexture.prototype.destroy = function () {
+      counts.destroyed++;
+      destroyTexture.call(this);
+    };
+    GPUBuffer.prototype.destroy = function () {
+      counts.destroyed++;
+      destroyBuffer.call(this);
+    };
+    return counts;
+  });
+  const histogram = page
+    .getByLabel("output histogram", { exact: true })
+    .locator("polyline")
+    .first();
   for (const next of ["2", "0.5", "1.5"]) {
+    const shown = (await histogram.getAttribute("points")) ?? "";
     await exposure.fill(next);
     await exposure.press("Enter");
+    // The histogram reads back the finished render.
+    await expect(histogram).not.toHaveAttribute("points", shown);
   }
-  await page.waitForTimeout(1500);
-  await expect(value("Buffers")).toHaveText(/ · 0 made · 0 freed/);
-  await expect(value("Textures")).toHaveText(/ · 0 made · 0 freed/);
+  expect(await counts.jsonValue()).toEqual({ made: 0, destroyed: 0 });
 });
