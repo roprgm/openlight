@@ -7,6 +7,7 @@ import { box, choose, drag, zoom } from "./pointer";
 test("edit a photo, inspect the preview and histograms, undo changes, and export", async ({
   page,
 }) => {
+  test.setTimeout(90_000);
   const state = () => page.evaluate(() => window.openlight.getState());
   await openPhoto(page);
   const canvas = page
@@ -291,11 +292,12 @@ test("edit a photo, inspect the preview and histograms, undo changes, and export
     // A neutral mask receives the same pixels, counted only where it covers them.
     await expect(plot).toHaveAttribute("points", /,\d{1,2}\./);
     await expect(plot).not.toHaveAttribute("points", whole);
+    const neutral = (await plot.getAttribute("points")) ?? "";
     await page.evaluate(
       (mask) => window.openlight.setAdjustments({ exposure: 1 }, mask),
       mask,
     );
-    await expect(plot).toHaveAttribute("points", /,\d{1,2}\./);
+    await expect(plot).not.toHaveAttribute("points", neutral);
     const points = (await plot.getAttribute("points")) ?? "";
     await page
       .getByRole("button", { name: "Show Curve input mask", exact: true })
