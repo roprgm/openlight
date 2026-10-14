@@ -53,6 +53,8 @@ Frame rate and low memory are product requirements, on phones as much as desktop
 
 Tests follow what a person verifies: open an image, use a tool, undo, export, check the output. Add one when a workflow or its processing changes or a regression is fixed; core algorithms may have unit tests. Layout, styling, and copy are checked by looking at the app. Tests run offline: the browser fixture fails any request beyond the dev server.
 
+Browser tests pass on any GPU: GPUs round filtering, `pow`, and half floats differently. Check pixels as a person would, with `expectNear`, directions, and outcomes rather than exact bytes or golden constants; read image content from the export and the preview only for what only it shows.
+
 ## Review and PRs
 
 - Verify what the change can reach with the cheapest check that catches a regression: Bun tests for document, history, and loaders; the feature's `*.e2e.ts` for processing and rendering; the whole suite only when a change cuts across the editor; the affected screens for UI. A failure that also happens on the base is a gap to report.
