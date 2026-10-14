@@ -5,14 +5,25 @@ import type { HealMode, Scene } from "@/core/document";
 import { createImageSource } from "@/core/image";
 import { imageFrame } from "@/core/image/frame";
 
-/** A dark spot crosses a luminance edge on an HDR gradient. Its donor crosses the same edge. */
-export async function renderHealReference({
-  mode = "heal",
-  opacity = 1,
-}: {
-  mode?: Exclude<HealMode, "remove">;
-  opacity?: number;
-} = {}) {
+/** Document regions as `[x, y, width, height]`, aligned to the quarter-size proxy's pixels. */
+const regions = {
+  left: [120, 92, 8, 8],
+  right: [128, 92, 8, 8],
+  edge: [96, 92, 8, 8],
+  outside: [56, 56, 16, 16],
+} as const;
+
+/**
+ * A dark spot crosses a luminance edge on an HDR gradient; its donor, 60 pixels below, crosses the
+ * same edge. Each render reports the mean RGBA of each region, at full size and as a proxy.
+ */
+export async function renderHealReference(
+  cases: readonly {
+    mode: Exclude<HealMode, "remove">;
+    opacity: number;
+    feather: number;
+  }[],
+) {
   const gpu = await init();
   const errors: string[] = [];
   gpu.onError((error) => errors.push(error.message));
@@ -29,104 +40,62 @@ export async function renderHealReference({
     }
   `,
   );
-  const scene: Scene = {
-    frame: imageFrame(image.size),
-    layers: [
-      createImageLayer("source", "Reference"),
-      {
-        ...createLayer("heal"),
-        patches: [
-          {
-            id: "spot",
-            mode,
-            feather: 0.25,
-            opacity,
-            strokes: [
-              {
-                mode: "paint",
-                size: 56,
-                feather: 0,
-                flow: 1,
-                points: [[128, 96, 1]],
-              },
-            ],
-            offset: [0, 60],
-          },
-        ],
-      },
-    ],
-  };
   try {
     frame(gpu, (frame) => frame.pass(image, shader));
     const results = [];
-    const healing = scene.layers[1];
-    if (healing.kind !== "heal") throw Error("Healing layer missing.");
-    for (const feather of [0, 0.75]) {
-      const renderScene: Scene = {
-        ...scene,
+    for (const { mode, opacity, feather } of cases) {
+      const scene: Scene = {
+        frame: imageFrame(image.size),
         layers: [
-          scene.layers[0],
+          createImageLayer("source", "Reference"),
           {
-            ...healing,
-            patches: healing.patches.map((patch) => ({
-              ...patch,
-              feather,
-            })),
+            ...createLayer("heal"),
+            patches: [
+              {
+                id: "spot",
+                mode,
+                feather,
+                opacity,
+                strokes: [
+                  {
+                    mode: "paint",
+                    size: 56,
+                    feather: 0,
+                    flow: 1,
+                    points: [[128, 96, 1]],
+                  },
+                ],
+                offset: [0, 60],
+              },
+            ],
           },
         ],
       };
-      for (const proxy of [false, true]) {
-        await renderer.update(renderScene, "spot", proxy, undefined, 0.25);
+      for (const density of [1, 0.25]) {
+        await renderer.update(scene, undefined, false, undefined, density);
         const output = renderer.fullImage();
         const pixels = await output.readFloats();
-        const input = renderer.inputImage("spot");
-        if (!input) throw Error("Patch input missing.");
-        const before =
-          mode === "clone" ? await input.readFloats() : new Float32Array();
-        const scale = 256 / output.size[0];
-        const samples = [
-          [128, 96],
-          [120, 96],
-          [136, 96],
-          [100, 96],
-          [158, 96],
-          [64, 64],
-        ].map(([x, y], index) => {
-          const px = Math.floor(x / scale);
-          const py = Math.floor(y / scale);
-          const p = [(px + 0.5) * scale, (py + 0.5) * scale];
-          const i = (py * output.size[0] + px) * 4;
-          const background = [
-            0.2 + p[0] * 0.002 + (p[0] >= 128 ? 0.5 : 0),
-            0.3 + p[1] * 0.001,
-            1.4,
-          ];
-          const inputPixel = (x: number, y: number) =>
-            (Math.floor((y * input.size[1]) / 192) * input.size[0] +
-              Math.floor((x * input.size[0]) / 256)) *
-            4;
-          const original = before.slice(
-            inputPixel(p[0], p[1]),
-            inputPixel(p[0], p[1]) + 3,
-          );
-          const donor = before.slice(
-            inputPixel(p[0], p[1] + 60),
-            inputPixel(p[0], p[1] + 60) + 3,
-          );
-          const cloned =
-            index < 3
-              ? [...donor].map(
-                  (value, channel) =>
-                    original[channel] + (value - original[channel]) * opacity,
-                )
-              : background;
-          const expected = mode === "clone" ? cloned : background;
-          return {
-            actual: [...pixels.slice(i, i + 4)],
-            expected: [...expected, 0.75],
-          };
-        });
-        results.push({ feather, proxy, samples });
+        const scale = output.size[0] / image.size[0];
+        const mean = ([x, y, width, height]: readonly number[]) => {
+          const sum = [0, 0, 0, 0];
+          let count = 0;
+          for (let py = y * scale; py < (y + height) * scale; py++) {
+            for (let px = x * scale; px < (x + width) * scale; px++) {
+              const i = (py * output.size[0] + px) * 4;
+              for (let channel = 0; channel < 4; channel++)
+                sum[channel] += pixels[i + channel];
+              count++;
+            }
+          }
+          return sum.map((value) => value / count);
+        };
+        const means = {
+          left: mean(regions.left),
+          right: mean(regions.right),
+          edge: mean(regions.edge),
+          outside: mean(regions.outside),
+        };
+        results.push({ mode, opacity, feather, density, means });
       }
     }
     return { results, errors };

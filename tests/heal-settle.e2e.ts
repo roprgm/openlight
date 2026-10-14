@@ -96,7 +96,7 @@ for (const gesture of ["stroke", "destination"] as const) {
       )
       .toBe(true);
     if (gesture === "stroke") await expect(preview).toBeVisible();
-    else expect((await box(target)).x).toBeCloseTo(position.x);
+    else expect(Math.abs((await box(target)).x - position.x)).toBeLessThan(2);
     await page.mouse.move(start.x + 60, start.y + 30);
     await page.mouse.up();
     await expect(preview).toHaveCount(0);

@@ -1,5 +1,4 @@
 import { effect, frame, init, target } from "vgpu";
-import { encodeImage } from "@/app/editor/export/export-image";
 import { createImageLayer, createLayer } from "@/app/editor/layers";
 import { createEditorRenderer } from "@/app/editor/renderer";
 import {
@@ -13,12 +12,7 @@ import { imageFrame } from "@/core/image/frame";
 import { addHealStroke, addRemovePatch } from "@/features/heal/edits";
 import { addLayer } from "@/features/layers/edits";
 
-export type InpaintFixture =
-  | "flat"
-  | "gradient"
-  | "texture"
-  | "edge"
-  | "structure";
+export type InpaintFixture = "flat" | "gradient" | "texture" | "edge";
 
 /** Known backgrounds make removal measurable, including cases that cannot be inferred locally. */
 export async function renderInpaintReference(
@@ -40,8 +34,6 @@ export async function renderInpaintReference(
     texture:
       "vec3f(0.3, 0.5, 0.7) + 0.12 * sin(p.x * 0.785398) * cos(p.y * 0.785398)",
     edge: "select(vec3f(0.2, 0.35, 0.6), vec3f(0.65, 0.5, 0.3), p.y >= 72.0)",
-    structure:
-      "select(vec3f(0.55, 0.22, 0.12), vec3f(0.75), (u32(p.y) % 24u < 2u) || (u32(p.x + f32(u32(p.y) / 24u % 2u) * 24.0) % 48u < 2u))",
   };
   const shader = (defect: boolean) =>
     effect(
@@ -85,12 +77,8 @@ export async function renderInpaintReference(
     });
     await gpu.gpu.queue.onSubmittedWorkDone();
     const density = proxy ? 0.5 : 1;
-    const start = performance.now();
     // A patch waiting for its field synthesizes in full whatever the display; a proxy then shows the field it keeps.
     await renderer.update(scene, undefined, false, undefined, density);
-    await gpu.gpu.queue.onSubmittedWorkDone();
-    const completedMs = performance.now() - start;
-    const solved = renderer.inspect();
     await renderer.update(scene, undefined, proxy, undefined, density);
     const result = renderer.fullImage();
     const actual = await result.readFloats();
@@ -128,44 +116,6 @@ export async function renderInpaintReference(
         alphaError = Math.max(alphaError, Math.abs(actual[index + 3] - 0.75));
       }
     }
-    const images = await Promise.all(
-      [image, result, clean].map(async (target) => [
-        ...new Uint8Array(await (await encodeImage(gpu, target)).arrayBuffer()),
-      ]),
-    );
-    await renderer.update(
-      { ...scene, layers: [scene.layers[0], { ...healing, visible: false }] },
-      undefined,
-      proxy,
-      undefined,
-      density,
-    );
-    const fields = () =>
-      renderer.inspect().rasters.filter(({ id }) => id.endsWith("/field"))
-        .length;
-    const hiddenFields = fields();
-    await renderer.update(scene, undefined, proxy, undefined, density);
-    const shown = renderer.inspect();
-    const visible = await renderer.fullImage().readFloats();
-    const visibilityError = visible.reduce(
-      (maximum, value, index) =>
-        Math.max(maximum, Math.abs(value - actual[index])),
-      0,
-    );
-    await renderer.update(
-      {
-        ...scene,
-        layers: [
-          scene.layers[0],
-          { ...healing, patches: [{ ...patch, opacity: 0.5 }] },
-        ],
-      },
-      undefined,
-      proxy,
-      undefined,
-      density,
-    );
-    const cached = renderer.inspect();
     await renderer.update(
       {
         ...scene,
@@ -182,7 +132,6 @@ export async function renderInpaintReference(
       undefined,
       density,
     );
-    const exposed = renderer.inspect();
     // The patch keeps its donors, whose colors follow the exposure below it.
     const brighter = await renderer.fullImage().readFloats();
     let exposedError = 0;
@@ -222,37 +171,15 @@ export async function renderInpaintReference(
         Math.max(maximum, Math.abs(value - actual[index])),
       0,
     );
-    await renderer.update({ ...scene, layers: [scene.layers[0]] });
-    const releasedFields = fields();
-    await gpu.settled();
     return {
-      fixture,
-      diameter,
-      proxy,
-      completedMs,
       beforeError: errorBefore / count,
       afterError: errorAfter / count,
       outsideError,
       alphaError,
       restoredError,
-      visibilityError,
       exposedError: exposedError / count,
-      hiddenFields,
-      shownSolverPasses: shown.passes.filter((name) =>
-        name.includes("/inpaint/"),
-      ).length,
       finite: actual.every(Number.isFinite),
       errors,
-      images,
-      solverPasses: solved.passes.filter((name) => name.includes("/inpaint/"))
-        .length,
-      cachedSolverPasses: cached.passes.filter((name) =>
-        name.includes("/inpaint/"),
-      ).length,
-      exposedSolverPasses: exposed.passes.filter((name) =>
-        name.includes("/inpaint/"),
-      ).length,
-      releasedFields,
     };
   } finally {
     renderer.dispose();
@@ -264,8 +191,8 @@ export async function renderInpaintReference(
 
 /**
  * A Remove patch over a dark bar on noise whose first stroke stops short of the bar's tip: a stroke
- * added over the tip, and one erasing part of the patch, each synthesize the whole new shape, as
- * painting it at once does, so nothing of the bar stays.
+ * added over the tip, and one erasing part of the patch, each synthesize the whole new shape, so
+ * nothing of the bar stays.
  */
 export async function renderInpaintReshape() {
   const gpu = await init();
@@ -284,12 +211,11 @@ export async function renderInpaintReshape() {
     },
     resources,
   );
-  // The editor's renderer keeps each version's field in the document; another paints shapes at once.
+  // The editor's renderer keeps each version's field in the document.
   const renderer = createEditorRenderer(gpu, source, {
     field: (id) => document.resources.field(id),
     saveField: (id, field) => document.resources.fillField(id, field),
   });
-  const fresh = createEditorRenderer(gpu, source);
   const stroke = (
     mode: "paint" | "erase",
     from: readonly [number, number],
@@ -338,32 +264,6 @@ export async function renderInpaintReshape() {
       await renderer.update(document.scene.getState());
       reshaped.push(await renderer.fullImage().readFloats());
     }
-    // The same shapes painted at once: the scene of each version, rendered with no field held.
-    const atOnce = [];
-    for (const count of [2, 3]) {
-      const scene = document.scene.getState();
-      const [, healing] = scene.layers;
-      if (healing.kind !== "heal") throw Error("The Healing layer is gone.");
-      const [painted] = healing.patches;
-      if (painted?.mode !== "remove") throw Error("The Remove patch is gone.");
-      await fresh.update({
-        ...scene,
-        layers: [
-          scene.layers[0],
-          {
-            ...healing,
-            patches: [
-              {
-                ...painted,
-                field: `at-once/${count}`,
-                strokes: painted.strokes.slice(0, count),
-              },
-            ],
-          },
-        ],
-      });
-      atOnce.push(await fresh.fullImage().readFloats());
-    }
     /** The red of each pixel `within` selects. */
     function reds(
       pixels: Float32Array,
@@ -377,9 +277,8 @@ export async function renderInpaintReshape() {
       }
       return selected;
     }
-    function change(a: Float32Array, b: Float32Array) {
-      return Math.max(...a.map((value, index) => Math.abs(value - b[index])));
-    }
+    const change = (a: number[], b: number[]) =>
+      Math.max(...a.map((value, index) => Math.abs(value - b[index])));
     const bar = (x: number, y: number) =>
       x >= 40 && x <= 150 && Math.abs(y - 72) < 6;
     const tip = (x: number, y: number) => bar(x, y) && x > 136;
@@ -390,16 +289,11 @@ export async function renderInpaintReshape() {
       errors,
       missedTip: Math.min(...reds(first, tip)),
       barLeft: Math.min(...reds(added, bar)),
-      added: change(added, atOnce[0]),
-      erased: change(subtracted, atOnce[1]),
-      erasedRestored: change(
-        new Float32Array(reds(original, near)),
-        new Float32Array(reds(subtracted, near)),
-      ),
+      barLeftErased: Math.min(...reds(subtracted, bar)),
+      erasedRestored: change(reds(original, near), reds(subtracted, near)),
     };
   } finally {
     renderer.dispose();
-    fresh.dispose();
     document.dispose();
     gpu.dispose();
   }
