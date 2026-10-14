@@ -1,5 +1,5 @@
 import type { Page } from "@playwright/test";
-import { expect, expectNear, openPhoto, test } from "./fixtures";
+import { expect, expectNear, expectPixels, openPhoto, test } from "./fixtures";
 import { readImage } from "./images";
 import { box, choose, drag } from "./pointer";
 
@@ -29,17 +29,6 @@ async function photoToPage(page: Page) {
     bounds.x + bounds.width / 2 + x * scale,
     bounds.y + bounds.height / 2 + y * scale,
   ];
-}
-
-function expectPixels(
-  actual: readonly number[][],
-  expected: readonly (readonly number[])[],
-  tolerance?: number,
-) {
-  expect(actual).toHaveLength(expected.length);
-  for (const [i, pixel] of expected.entries()) {
-    expectNear(actual[i], pixel, tolerance);
-  }
 }
 
 /** Export pixels inside the strokes and far above them. */

@@ -31,6 +31,18 @@ export async function openPhoto(page: Page) {
   ).toHaveValue("0.00");
 }
 
+/** Expects each pixel near its expected one, as `expectNear` does. */
+export function expectPixels(
+  actual: readonly (readonly number[])[] | undefined,
+  expected: readonly (readonly number[])[],
+  tolerance?: number,
+) {
+  expect(actual).toHaveLength(expected.length);
+  for (const [i, pixel] of expected.entries()) {
+    expectNear(actual?.[i], pixel, tolerance);
+  }
+}
+
 export const test = base.extend<{ browserErrors: undefined }>({
   browserErrors: [
     async ({ page, baseURL }, use) => {

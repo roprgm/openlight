@@ -1,46 +1,6 @@
-import type { Page } from "@playwright/test";
-import { expect, expectNear, openPhoto, test } from "./fixtures";
-import { readImage } from "./images";
+import { expect, expectNear, expectPixels, openPhoto, test } from "./fixtures";
+import { readImage, redness } from "./images";
 import { box, choose, drag } from "./pointer";
-
-function expectPixels(
-  actual: readonly number[][],
-  expected: readonly (readonly number[])[],
-  tolerance?: number,
-) {
-  expect(actual).toHaveLength(expected.length);
-  for (const [i, pixel] of expected.entries()) {
-    expectNear(actual[i], pixel, tolerance);
-  }
-}
-
-/** Mean red over green across a small square of the displayed canvas, `offset` from its center, as the mask overlay tints it. */
-async function redness(page: Page, offset: readonly [number, number]) {
-  const bytes = await page
-    .getByRole("region", { name: "Image canvas" })
-    .locator("canvas")
-    .screenshot();
-  return page.evaluate(
-    async ([bytes, [x, y]]) => {
-      const image = await createImageBitmap(new Blob([new Uint8Array(bytes)]));
-      const canvas = new OffscreenCanvas(image.width, image.height);
-      const context = canvas.getContext("2d");
-      if (!context) throw new Error("Cannot read preview pixels.");
-      context.drawImage(image, 0, 0);
-      const { data } = context.getImageData(
-        image.width / 2 + x - 10,
-        image.height / 2 + y - 10,
-        21,
-        21,
-      );
-      image.close();
-      let sum = 0;
-      for (let i = 0; i < data.length; i += 4) sum += data[i] - data[i + 1];
-      return sum / (data.length / 4);
-    },
-    [[...bytes], offset] as const,
-  );
-}
 
 test("draw masks, edit their child effects, reorder layers and undo", async ({
   page,
