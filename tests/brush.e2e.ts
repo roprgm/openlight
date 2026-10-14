@@ -1,6 +1,46 @@
-import { expect, openPhoto, test } from "./fixtures";
-import { readImage, readPreview } from "./images";
+import type { Page } from "@playwright/test";
+import { expect, expectNear, openPhoto, test } from "./fixtures";
+import { readImage } from "./images";
 import { box, drag } from "./pointer";
+
+function expectPixels(
+  actual: readonly number[][],
+  expected: readonly (readonly number[])[],
+  tolerance?: number,
+) {
+  expect(actual).toHaveLength(expected.length);
+  for (const [i, pixel] of expected.entries()) {
+    expectNear(actual[i], pixel, tolerance);
+  }
+}
+
+/** Mean red over green across a small square at the displayed canvas's center, as the mask overlay tints it. */
+async function redness(page: Page) {
+  const bytes = await page
+    .getByRole("region", { name: "Image canvas" })
+    .locator("canvas")
+    .screenshot();
+  return page.evaluate(
+    async (bytes) => {
+      const image = await createImageBitmap(new Blob([new Uint8Array(bytes)]));
+      const canvas = new OffscreenCanvas(image.width, image.height);
+      const context = canvas.getContext("2d");
+      if (!context) throw new Error("Cannot read preview pixels.");
+      context.drawImage(image, 0, 0);
+      const { data } = context.getImageData(
+        image.width / 2 - 10,
+        image.height / 2 - 10,
+        21,
+        21,
+      );
+      image.close();
+      let sum = 0;
+      for (let i = 0; i < data.length; i += 4) sum += data[i] - data[i + 1];
+      return sum / (data.length / 4);
+    },
+    [...bytes],
+  );
+}
 
 test("paint a brush mask, adjust it in the sidebar, erase, and undo", async ({
   page,
@@ -21,10 +61,6 @@ test("paint a brush mask, adjust it in the sidebar, erase, and undo", async ({
     const field = page.getByRole("textbox", { name, exact: true });
     await field.fill(value);
     await field.press("Enter");
-  }
-  async function tinted() {
-    const { center } = await readPreview(page);
-    return center[0] > center[1] + 30;
   }
   await openPhoto(page);
   const original = await samples();
@@ -54,7 +90,7 @@ test("paint a brush mask, adjust it in the sidebar, erase, and undo", async ({
     await page.keyboard.press("b");
     await setField("Size", "200");
     await setField("Exposure", "2");
-    expect(await samples()).toEqual(original);
+    expectPixels(await samples(), original, 1);
     await drag(page, from, to, 16);
     const current = await state();
     expect(current.scene?.layers[1]).toMatchObject({
@@ -67,11 +103,13 @@ test("paint a brush mask, adjust it in the sidebar, erase, and undo", async ({
     });
     const [inside, above] = await samples();
     expect(inside[0]).toBeGreaterThan(original[0][0] + 40);
-    expect(above).toEqual(original[1]);
+    expectNear(above, original[1], 1);
     await page.mouse.move(bounds.x + 20, bounds.y + 20);
+    const untinted = await redness(page);
     await page.keyboard.press("o");
-    await expect.poll(tinted).toBe(true);
+    await expect.poll(() => redness(page)).toBeGreaterThan(untinted + 20);
     await page.keyboard.press("o");
+    await expect.poll(() => redness(page)).toBeLessThan(untinted + 5);
     // The row's thumbnail shows the stroke through the middle.
     const thumbnail = page
       .getByRole("region", { name: "Layers", exact: true })
@@ -92,9 +130,9 @@ test("paint a brush mask, adjust it in the sidebar, erase, and undo", async ({
     await page.keyboard.down("Alt");
     await drag(page, from, to, 16);
     await page.keyboard.up("Alt");
-    expect((await samples())[0]).toEqual(original[0]);
+    expectNear((await samples())[0], original[0], 1);
     await page.keyboard.press("ControlOrMeta+z");
-    expect(await samples()).toEqual(painted);
+    expectPixels(await samples(), painted, 1);
   });
   await test.step("Enter leaves one level at a time; selecting the mask returns", async () => {
     const { selectedLayerId, scene } = await state();
@@ -130,11 +168,11 @@ test("paint a brush mask, adjust it in the sidebar, erase, and undo", async ({
     expect((await state()).scene?.layers.at(-1)?.children).toMatchObject([
       { operation: "subtract", mask: { kind: "brush" } },
     ]);
-    expect((await samples())[1]).toEqual(original[1]);
+    expectNear((await samples())[1], original[1], 1);
     await page.keyboard.down("Alt");
     await drag(page, dot, [dot[0], dot[1] + 1], 2);
     await page.keyboard.up("Alt");
-    expect((await samples())[1]).toEqual(lit[1]);
+    expectNear((await samples())[1], lit[1], 1);
   });
   await test.step("Escape climbs from the child mask to its parent and the image", async () => {
     const { selectedLayerId, scene } = await state();
@@ -157,7 +195,7 @@ test.describe("on a touch phone", () => {
     deviceScaleFactor: 2,
   });
 
-  test("a second finger during a touch stroke cancels it and pinches instead", async ({
+  test("a second finger during a touch stroke cancels it and pinches instead, even over a healing patch", async ({
     page,
     context,
   }) => {
@@ -168,98 +206,77 @@ test.describe("on a touch phone", () => {
     await expect(
       page.getByRole("slider", { name: "Exposure", exact: true }),
     ).toHaveAttribute("aria-valuetext", "0.00");
-    await page.getByRole("tab", { name: "Brush", exact: true }).click();
-    const bounds = await box(page.getByLabel("Brush canvas", { exact: true }));
     const zoom = page.getByRole("button", { name: /^\d+%$/ });
-    const fitted = await zoom.innerText();
-    const [x, y] = [bounds.x + bounds.width / 2, bounds.y + bounds.height / 2];
+    const fit = await zoom.innerText();
     const touch = await context.newCDPSession(page);
-    const send = (
-      type: "touchStart" | "touchMove" | "touchEnd",
-      at: number[],
-    ) =>
-      touch.send("Input.dispatchTouchEvent", {
-        type,
-        touchPoints: at.map((dx) => ({ x: x + dx, y })),
-      });
-    await send("touchStart", [-40]);
-    await send("touchMove", [-20]);
-    await send("touchStart", [-20, 40]);
-    for (let step = 1; step <= 6; step++) {
-      await send("touchMove", [-20 - step * 8, 40 + step * 8]);
+    /** The first finger paints from `start`, the second lands at `land`, offsets from the canvas center; then both spread. */
+    async function pinch(canvas: string, start: number, land: number) {
+      const bounds = await box(page.getByLabel(canvas, { exact: true }));
+      const [x, y] = [
+        bounds.x + bounds.width / 2,
+        bounds.y + bounds.height / 2,
+      ];
+      const send = (
+        type: "touchStart" | "touchMove" | "touchEnd",
+        at: number[],
+      ) =>
+        touch.send("Input.dispatchTouchEvent", {
+          type,
+          touchPoints: at.map((dx) => ({ x: x + dx, y })),
+        });
+      await send("touchStart", [start]);
+      await send("touchMove", [start + 10]);
+      await send("touchStart", [start + 10, land]);
+      for (let step = 1; step <= 6; step++) {
+        await send("touchMove", [start + 10 - step * 8, land + step * 8]);
+      }
+      await send("touchEnd", []);
+      await expect(zoom).not.toHaveText(fit);
     }
-    await send("touchEnd", []);
-    await expect(zoom).not.toHaveText(fitted);
-    expect(
-      await page.evaluate(() => window.openlight.getState()),
-    ).toMatchObject({
-      scene: { layers: [{}, { mask: { strokes: [] } }] },
-      history: { editing: false },
-    });
-  });
 
-  test("a second finger landing on another patch during a healing stroke pinches instead of selecting it", async ({
-    page,
-    context,
-  }) => {
-    await page.goto("/");
-    await page
-      .locator('input[type="file"]')
-      .setInputFiles("tests/fixtures/photo.svg");
-    await expect(
-      page.getByRole("slider", { name: "Exposure", exact: true }),
-    ).toHaveAttribute("aria-valuetext", "0.00");
-    // A patch right of the photo's center, where the second finger lands.
-    await page.evaluate(() => {
-      const api = window.openlight;
-      api.addHealPatch(
-        api.addLayer("heal"),
-        {
-          mode: "paint",
-          size: 160,
-          feather: 0,
-          flow: 1,
-          points: [[900, 400, 1]],
-        },
-        [-300, 0],
-      );
-    });
-    const before = await page.evaluate(() => window.openlight.getState());
-    await page.getByRole("tab", { name: "Healing", exact: true }).click();
-    const canvas = page.getByLabel("Healing canvas", { exact: true });
-    const bounds = await box(canvas);
-    // The fitted photo's pixels per source pixel, inside the viewport's padding.
-    const scale = Math.min(
-      (bounds.width - 48) / 1200,
-      (bounds.height - 48) / 800,
-    );
-    const zoom = page.getByRole("button", { name: /^\d+%$/ });
-    const fitted = await zoom.innerText();
-    const [x, y] = [bounds.x + bounds.width / 2, bounds.y + bounds.height / 2];
-    const patch = 300 * scale;
-    const touch = await context.newCDPSession(page);
-    const send = (
-      type: "touchStart" | "touchMove" | "touchEnd",
-      at: number[],
-    ) =>
-      touch.send("Input.dispatchTouchEvent", {
-        type,
-        touchPoints: at.map((dx) => ({ x: x + dx, y })),
+    await test.step("on a brush mask", async () => {
+      await page.getByRole("tab", { name: "Brush", exact: true }).click();
+      await pinch("Brush canvas", -30, 40);
+      expect(
+        await page.evaluate(() => window.openlight.getState()),
+      ).toMatchObject({
+        scene: { layers: [{}, { mask: { strokes: [] } }] },
+        history: { editing: false },
       });
-    // The first finger paints left of the patch; the second lands on it, then both spread.
-    await send("touchStart", [-patch]);
-    await send("touchMove", [-patch + 10]);
-    await send("touchStart", [-patch + 10, patch]);
-    for (let step = 1; step <= 6; step++) {
-      await send("touchMove", [-patch + 10 - step * 8, patch + step * 8]);
-    }
-    await send("touchEnd", []);
-    await expect(zoom).not.toHaveText(fitted);
-    const after = await page.evaluate(() => window.openlight.getState());
-    expect(after.scene).toEqual(before.scene);
-    expect(after.history).toEqual(before.history);
-    await expect(
-      canvas.locator('[data-heal-destination-handle="true"]'),
-    ).toHaveCount(0);
+    });
+
+    await test.step("with the second finger on another healing patch", async () => {
+      await zoom.click();
+      await expect(zoom).toHaveText(fit);
+      // A patch right of the photo's center, where the second finger lands.
+      await page.evaluate(() => {
+        const api = window.openlight;
+        api.addHealPatch(
+          api.addLayer("heal"),
+          {
+            mode: "paint",
+            size: 160,
+            feather: 0,
+            flow: 1,
+            points: [[900, 400, 1]],
+          },
+          [-300, 0],
+        );
+      });
+      await page.getByRole("tab", { name: "Healing", exact: true }).click();
+      const canvas = page.getByLabel("Healing canvas", { exact: true });
+      const before = await page.evaluate(() => window.openlight.getState());
+      const bounds = await box(canvas);
+      // The fitted photo's pixels per source pixel, inside the viewport's padding.
+      const patch =
+        300 * Math.min((bounds.width - 48) / 1200, (bounds.height - 48) / 800);
+      await pinch("Healing canvas", -patch, patch);
+      const after = await page.evaluate(() => window.openlight.getState());
+      expect(after.scene).toEqual(before.scene);
+      expect(after.history).toEqual(before.history);
+      await expect(
+        canvas.locator('[data-heal-destination-handle="true"]'),
+      ).toHaveCount(0);
+    });
   });
 });

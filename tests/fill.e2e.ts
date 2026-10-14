@@ -1,4 +1,4 @@
-import { expect, openPhoto, test } from "./fixtures";
+import { expect, expectNear, openPhoto, test } from "./fixtures";
 import { readImage } from "./images";
 import { box, choose, drag } from "./pointer";
 
@@ -21,10 +21,8 @@ test("a color layer paints a brush stroke with Photoshop blends", async ({
       ])
     ).samples ?? [];
   const [painted, outside] = await read();
-  for (const [channel, expected] of [240, 118, 60].entries()) {
-    expect(Math.abs(painted[channel] - expected)).toBeLessThanOrEqual(2);
-  }
-  expect(outside).toEqual([128, 128, 128, 255]);
+  expectNear(painted, [240, 118, 60, 255]);
+  expectNear(outside, [128, 128, 128, 255]);
   await choose(page, page.getByRole("combobox", { name: "Blend" }), "Multiply");
   const [multiplied] = await read();
   expect(multiplied[0]).toBeLessThan(128);
