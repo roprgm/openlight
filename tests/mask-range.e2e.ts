@@ -1,5 +1,5 @@
 import type { Page } from "@playwright/test";
-import { expect, expectNear, test } from "./fixtures";
+import { expect, expectNear, openImage, test } from "./fixtures";
 import { readImage } from "./images";
 import { box } from "./pointer";
 
@@ -14,8 +14,7 @@ const quadrants = Buffer.from(
 );
 
 async function open(page: Page) {
-  await page.goto("/");
-  await page.locator('input[type="file"]').setInputFiles({
+  await openImage(page, {
     name: "quadrants.svg",
     mimeType: "image/svg+xml",
     buffer: quadrants,

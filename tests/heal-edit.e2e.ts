@@ -1,4 +1,4 @@
-import { expect, expectNear, test } from "./fixtures";
+import { expect, expectNear, openImage, test } from "./fixtures";
 import { readImage } from "./images";
 import { box } from "./pointer";
 
@@ -6,10 +6,7 @@ test("Remove adds and subtracts separate strokes on the selected patch, on relea
   page,
 }) => {
   await page.setViewportSize({ width: 1440, height: 1000 });
-  await page.goto("/");
-  await page
-    .locator('input[type="file"]')
-    .setInputFiles("tests/fixtures/spots.svg");
+  await openImage(page, "tests/fixtures/spots.svg");
   await expect(
     page.getByRole("textbox", { name: "Exposure", exact: true }),
   ).toHaveValue("0.00");

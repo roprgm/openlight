@@ -1,5 +1,5 @@
 import type { Page } from "@playwright/test";
-import { expect, expectNear, openPhoto, test } from "./fixtures";
+import { expect, expectNear, openImage, openPhoto, test } from "./fixtures";
 import { readImage } from "./images";
 import { box, choose, drag, zoom } from "./pointer";
 
@@ -21,8 +21,7 @@ const keystone = Buffer.from(
 );
 
 async function openKeystone(page: Page) {
-  await page.goto("/");
-  await page.locator('input[type="file"]').setInputFiles({
+  await openImage(page, {
     name: "keystone.svg",
     mimeType: "image/svg+xml",
     buffer: keystone,

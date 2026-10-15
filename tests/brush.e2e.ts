@@ -1,4 +1,11 @@
-import { expect, expectNear, expectPixels, openPhoto, test } from "./fixtures";
+import {
+  expect,
+  expectNear,
+  expectPixels,
+  openImage,
+  openPhoto,
+  test,
+} from "./fixtures";
 import { readImage, redness } from "./images";
 import { box, drag } from "./pointer";
 
@@ -159,10 +166,7 @@ test.describe("on a touch phone", () => {
     page,
     context,
   }) => {
-    await page.goto("/");
-    await page
-      .locator('input[type="file"]')
-      .setInputFiles("tests/fixtures/photo.svg");
+    await openImage(page, "tests/fixtures/photo.svg");
     await expect(
       page.getByRole("slider", { name: "Exposure", exact: true }),
     ).toHaveAttribute("aria-valuetext", "0.00");

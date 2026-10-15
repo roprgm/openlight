@@ -1,5 +1,5 @@
 import { readFile } from "node:fs/promises";
-import { expect, expectNear, test } from "./fixtures";
+import { expect, expectNear, openApp, test } from "./fixtures";
 
 function linear(value: number) {
   const encoded = value / 255;
@@ -11,8 +11,7 @@ function linear(value: number) {
 test("tone adjustments preserve ramps, colors and alpha, compose, and reset", async ({
   page,
 }) => {
-  await page.goto("/");
-  await page.waitForFunction(() => window.openlight);
+  await openApp(page);
   const bytes = await readFile("tests/fixtures/tones.png");
   const result = await page.evaluate(
     async (bytes) => {

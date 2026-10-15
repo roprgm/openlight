@@ -1,5 +1,5 @@
 import type { Page } from "@playwright/test";
-import { expect, test } from "./fixtures";
+import { expect, openImage, test } from "./fixtures";
 
 /** The exported image's red channel, row by row; grain keeps a gray image gray. */
 async function exportRed(page: Page) {
@@ -42,8 +42,7 @@ function expectSame(actual: readonly number[], expected: readonly number[]) {
 test("grain textures a gray image without shifting its tone, holds through a crop, and undoes", async ({
   page,
 }) => {
-  await page.goto("/");
-  await page.locator('input[type="file"]').setInputFiles({
+  await openImage(page, {
     name: "gray.svg",
     mimeType: "image/svg+xml",
     buffer: Buffer.from(

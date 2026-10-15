@@ -1,8 +1,8 @@
-import { expect, expectNear, test } from "./fixtures";
+import { expect, expectNear, openApp, test } from "./fixtures";
 import { readImage } from "./images";
 
 test("a HEIC image opens with its size and pixels", async ({ page }) => {
-  await page.goto("/");
+  await openApp(page);
   const supported = await page.evaluate(
     async () =>
       "VideoDecoder" in window &&

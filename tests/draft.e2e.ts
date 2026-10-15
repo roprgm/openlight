@@ -2,6 +2,9 @@ import type { Page } from "@playwright/test";
 import { expect, expectNear, openPhoto, test } from "./fixtures";
 import { readImage } from "./images";
 
+// Reloads find the drafts these tests save, and one removes IndexedDB before the editor loads.
+test.use({ isolated: true });
+
 /** The stored draft's base exposure, read straight from IndexedDB. */
 function savedExposure(page: Page) {
   return page.evaluate(

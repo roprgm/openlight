@@ -2,6 +2,9 @@ import { expect, expectNear, openPhoto, test } from "./fixtures";
 import { readImage } from "./images";
 import { box } from "./pointer";
 
+// The first test fakes the page's clock.
+test.use({ isolated: true });
+
 test("Remove previews each frame, solves on release, exports, undoes, cancels, and moves on drop", async ({
   page,
 }) => {

@@ -1,6 +1,6 @@
 import { readFile } from "node:fs/promises";
 import type { Page } from "@playwright/test";
-import { expect, expectNear, test } from "./fixtures";
+import { expect, expectNear, openApp, openImage, test } from "./fixtures";
 import { readImage } from "./images";
 
 /** Gray stripes under warm light, as linear sRGB encoded in an SVG; the middle stripe is middle gray. */
@@ -36,8 +36,7 @@ const undoCount = (page: Page) =>
 test("Auto takes most of a warm photo's cast away as one undoable edit, and drops a stale result", async ({
   page,
 }) => {
-  await page.goto("/");
-  await page.locator('input[type="file"]').setInputFiles({
+  await openImage(page, {
     name: "cast.svg",
     mimeType: "image/svg+xml",
     buffer: Buffer.from(castWedge()),
@@ -79,8 +78,7 @@ test("Auto takes most of a warm photo's cast away as one undoable edit, and drop
 test("Auto moves a RAW photo's white balance from As Shot toward neutral", async ({
   page,
 }) => {
-  await page.goto("/");
-  await page.waitForFunction(() => window.openlight);
+  await openApp(page);
   const bytes = [...(await readFile("tests/fixtures/raw/bayer.dng"))];
   await page.evaluate(
     (bytes) =>
