@@ -51,7 +51,7 @@ Frame rate and low memory are product requirements, on phones as much as desktop
 
 ## Tests
 
-Tests follow what a person verifies: open an image, use a tool, undo, export, check the output. Add one when a workflow or its processing changes or a regression is fixed; core algorithms may have unit tests. Layout, styling, and copy are checked by looking at the app. Tests run offline: the browser fixture fails any request beyond the dev server.
+Tests follow what a person verifies: open an image, use a tool, undo, export, check the output. Add one when a workflow or its processing changes or a regression is fixed; core algorithms may have unit tests. Layout, styling, and copy are checked by looking at the app. Tests run offline: the browser fixture fails any request beyond the dev server. Browser tests share one editor page per worker: open images with `openImage` or `openPhoto` rather than reloading, and set `isolated` for a test that changes the page itself.
 
 Browser tests pass on any GPU: GPUs round filtering, `pow`, and half floats differently. Check pixels as a person would, with `expectNear`, directions, and outcomes rather than exact bytes or golden constants; read image content from the export and the preview only for what only it shows.
 
