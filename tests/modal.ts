@@ -31,6 +31,8 @@ const image = modal.images
     // Modal's GPU sandboxes hand WebGPU to the headless shell build of Chromium only.
     "ENV CI=1 NVIDIA_DRIVER_CAPABILITIES=all PLAYWRIGHT_CHANNEL=chromium-headless-shell",
   ]);
+await image.build(app);
+log(`image ${image.imageId} built`);
 const sandbox = await modal.sandboxes.create(app, image, {
   gpu: "L4",
   // Eight workers keep the GPU busy; more contend for it and time out.
