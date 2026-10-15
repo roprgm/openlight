@@ -13,10 +13,13 @@ function log(message: string) {
   console.log(`[modal ${seconds}s] ${message}`);
 }
 
-// Dependencies become an image layer keyed on the lockfile, so a sandbox starts with them installed.
-const manifest = Buffer.from(
-  await $`tar -cz package.json bun.lock`.arrayBuffer(),
-).toString("base64");
+// Dependencies become an image layer keyed on the lockfile's content, so a sandbox starts with them installed.
+const manifest = await Promise.all(
+  ["package.json", "bun.lock"].map(
+    async (file) =>
+      `echo ${Buffer.from(await Bun.file(file).arrayBuffer()).toString("base64")} | base64 -d > ${file}`,
+  ),
+);
 const modal = new ModalClient();
 const app = await modal.apps.fromName("openlight-tests", {
   createIfMissing: true,
@@ -27,7 +30,7 @@ const image = modal.images
     // Without Mesa's Vulkan drivers beside NVIDIA's, Chromium loses its WebGPU instance mid-test.
     "RUN apt-get update && apt-get install -y --no-install-recommends libvulkan1 mesa-vulkan-drivers unzip && rm -rf /var/lib/apt/lists/*",
     `RUN curl -fsSL https://bun.sh/install | bash -s bun-v${Bun.version} && ln -s /root/.bun/bin/bun /usr/local/bin/bun`,
-    `RUN mkdir /repo && cd /repo && echo ${manifest} | base64 -d | tar -xz && bun install --frozen-lockfile`,
+    `RUN mkdir /repo && cd /repo && ${manifest.join(" && ")} && bun install --frozen-lockfile`,
     // Modal's GPU sandboxes hand WebGPU to the headless shell build of Chromium only.
     "ENV CI=1 NVIDIA_DRIVER_CAPABILITIES=all PLAYWRIGHT_CHANNEL=chromium-headless-shell",
   ]);
