@@ -31,4 +31,6 @@ export async function zoom(page: Page, factor: number) {
 export async function choose(page: Page, select: Locator, option: string) {
   await select.click();
   await page.getByRole("option", { name: option, exact: true }).click();
+  // Back on the select, the pointer leaves no tooltip open where the list was to take the next Escape.
+  await select.hover();
 }

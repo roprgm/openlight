@@ -9,7 +9,8 @@
     "build": "tsc && vite build",
     "check": "biome check --write",
     "test": "bun test",
-    "test:browser": "playwright test"
+    "test:browser": "playwright test",
+    "test:modal": "bun tests/modal.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.8.0",
@@ -41,6 +42,7 @@
     "@types/react-dom": "^19.2.5",
     "@vitejs/plugin-react": "^6.1.1",
     "@xmldom/xmldom": "^0.9.12",
+    "modal": "^0.11.0",
     "typescript": "^7.0.2",
     "vite": "^8.2.2"
   }

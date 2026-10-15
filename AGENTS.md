@@ -4,7 +4,7 @@ A professional photo editor with little, readable code: Vite, React, [vgpu](http
 
 ## Commands
 
-`bun install`, then `bun dev`. On every code change run `bun run check` (writes fixes), `bun run build`, and `bun run test` (Bun; GPU tests use `vgpu/mock`). `bun run test:browser [file]` runs `*.e2e.ts` in Chromium with real pixels; install its browser once per Playwright version with `bunx --no-install playwright install chromium`. It starts its own Vite: stop any other Vite server first, since concurrent servers reload each other's pages mid-test. Any other scripted browser reuses the launch flags in [playwright.config.ts](playwright.config.ts). The assistant at `/?assistant` needs `vercel dev` with `AI_GATEWAY_API_KEY` in `.env.local`.
+`bun install`, then `bun dev`. On every code change run `bun run check` (writes fixes), `bun run build`, and `bun run test` (Bun; GPU tests use `vgpu/mock`). `bun run test:browser [file]` runs `*.e2e.ts` in Chromium with real pixels; install its browser once per Playwright version with `bunx --no-install playwright install chromium`. It starts its own Vite: stop any other Vite server first, since concurrent servers reload each other's pages mid-test. Any other scripted browser reuses the launch flags in [playwright.config.ts](playwright.config.ts). `bun run test:modal [file]` runs the same suite on a Modal L4 GPU, signed in through the Modal CLI or `MODAL_TOKEN_ID` and `MODAL_TOKEN_SECRET`; CI runs it on every pull request. The assistant at `/?assistant` needs `vercel dev` with `AI_GATEWAY_API_KEY` in `.env.local`.
 
 ## Structure
 
@@ -51,7 +51,7 @@ Frame rate and low memory are product requirements, on phones as much as desktop
 
 ## Tests
 
-Tests follow what a person verifies: open an image, use a tool, undo, export, check the output. Add one when a workflow or its processing changes or a regression is fixed; core algorithms may have unit tests. Layout, styling, and copy are checked by looking at the app. Tests run offline: the browser fixture fails any request beyond the dev server.
+Tests follow what a person verifies: open an image, use a tool, undo, export, check the output. Add one when a workflow or its processing changes or a regression is fixed; core algorithms may have unit tests. Layout, styling, and copy are checked by looking at the app. Tests run offline: the browser fixture fails any request beyond the dev server. Browser tests share one editor page per worker: open images with `openImage` or `openPhoto` rather than reloading, and set `isolated` for a test that changes the page itself.
 
 Browser tests pass on any GPU: GPUs round filtering, `pow`, and half floats differently. Check pixels as a person would, with `expectNear`, directions, and outcomes rather than exact bytes or golden constants; read image content from the export and the preview only for what only it shows.
 

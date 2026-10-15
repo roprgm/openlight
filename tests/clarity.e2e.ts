@@ -1,4 +1,4 @@
-import { expect, test } from "./fixtures";
+import { expect, openApp, test } from "./fixtures";
 
 // Full-resolution Gaussian reference, independent of GPU passes and working-space conversion.
 function expectedStep(x: number, amount: number, sigma: number) {
@@ -20,8 +20,7 @@ function expectedStep(x: number, amount: number, sigma: number) {
 test("detail filters follow Gaussian unsharp masking and preserve flat fields and alpha", async ({
   page,
 }) => {
-  await page.goto("/");
-  await page.waitForFunction(() => window.openlight);
+  await openApp(page);
   const xs = [0, 384, 448, 504, 509, 510, 511, 512, 513, 514, 519, 576, 640];
   const settings = [
     { clarity: -100, sharpening: 0, sharpenRadius: 1 },

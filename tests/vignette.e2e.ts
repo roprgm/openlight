@@ -1,11 +1,10 @@
-import { expect, expectNear, test } from "./fixtures";
+import { expect, expectNear, openImage, test } from "./fixtures";
 import { readImage } from "./images";
 
 test("vignette darkens a white image's edges, softens, undoes and disables", async ({
   page,
 }) => {
-  await page.goto("/");
-  await page.locator('input[type="file"]').setInputFiles({
+  await openImage(page, {
     name: "white.svg",
     mimeType: "image/svg+xml",
     buffer: Buffer.from(

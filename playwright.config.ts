@@ -16,7 +16,8 @@ export default defineConfig({
   testDir: "./tests",
   testMatch: "**/*.e2e.ts",
   use: {
-    channel: "chromium",
+    // Modal's GPU sandboxes give WebGPU to the headless shell build only.
+    channel: process.env.PLAYWRIGHT_CHANNEL ?? "chromium",
     baseURL: "http://127.0.0.1:4173",
     launchOptions: { args },
   },

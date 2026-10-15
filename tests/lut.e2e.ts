@@ -1,4 +1,4 @@
-import { expect, expectNear, test } from "./fixtures";
+import { expect, expectNear, openImage, test } from "./fixtures";
 import { readImage } from "./images";
 
 test("a LUT layer grades the photo from a .cube file at the layer's opacity, undoes, and saves with the scene", async ({
@@ -6,10 +6,7 @@ test("a LUT layer grades the photo from a .cube file at the layer's opacity, und
 }) => {
   test.setTimeout(90_000);
   await page.setViewportSize({ width: 1440, height: 1000 });
-  await page.goto("/");
-  await page
-    .locator('input[type="file"]')
-    .setInputFiles("tests/fixtures/photo.svg");
+  await openImage(page, "tests/fixtures/photo.svg");
   const exposure = page.getByRole("textbox", { name: "Exposure", exact: true });
   await expect(exposure).toHaveValue("0.00");
   // The blue patch, #305080, and the gray middle.

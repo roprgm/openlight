@@ -1,4 +1,4 @@
-import { expect, expectNear, test } from "./fixtures";
+import { expect, expectNear, openImage, test } from "./fixtures";
 import { readImage } from "./images";
 import { box, drag } from "./pointer";
 
@@ -56,10 +56,7 @@ test("Heal corrects donor color and Clone copies it, across an edge, with HDR, a
 
 test("Healing paints patches, edits them, and undoes", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 1000 });
-  await page.goto("/");
-  await page
-    .locator('input[type="file"]')
-    .setInputFiles("tests/fixtures/photo.svg");
+  await openImage(page, "tests/fixtures/photo.svg");
   await expect(
     page.getByRole("textbox", { name: "Exposure", exact: true }),
   ).toHaveValue("0.00");
@@ -429,10 +426,7 @@ test("Healing paints patches, edits them, and undoes", async ({ page }) => {
 test("Healing takes the first stroke after selecting Heal and finds donors inside a mask", async ({
   page,
 }) => {
-  await page.goto("/");
-  await page
-    .locator('input[type="file"]')
-    .setInputFiles("tests/fixtures/photo.svg");
+  await openImage(page, "tests/fixtures/photo.svg");
   await expect(
     page.getByRole("textbox", { name: "Exposure", exact: true }),
   ).toHaveValue("0.00");
@@ -493,10 +487,7 @@ test("retouch modes cycle, preserve each family's brush, and keep patches indepe
   page,
 }) => {
   await page.setViewportSize({ width: 1440, height: 1000 });
-  await page.goto("/");
-  await page
-    .locator('input[type="file"]')
-    .setInputFiles("tests/fixtures/photo.svg");
+  await openImage(page, "tests/fixtures/photo.svg");
   await expect(
     page.getByRole("textbox", { name: "Exposure", exact: true }),
   ).toHaveValue("0.00");

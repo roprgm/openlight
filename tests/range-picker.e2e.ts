@@ -1,7 +1,10 @@
 import type { Page } from "@playwright/test";
-import { expect, expectNear, test } from "./fixtures";
+import { expect, expectNear, openImage, test } from "./fixtures";
 import { readImage } from "./images";
 import { box } from "./pointer";
+
+// An init script holds the picker's GPU readbacks until a test releases them.
+test.use({ isolated: true });
 
 declare global {
   interface Window {
@@ -65,8 +68,7 @@ async function open(page: Page, buffer = photo) {
       });
     };
   });
-  await page.goto("/");
-  await page.locator('input[type="file"]').setInputFiles({
+  await openImage(page, {
     name: "orange.svg",
     mimeType: "image/svg+xml",
     buffer,

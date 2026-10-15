@@ -1,4 +1,4 @@
-import { expect, openPhoto, test } from "./fixtures";
+import { expect, openImage, openPhoto, test } from "./fixtures";
 import { box } from "./pointer";
 
 test("edit on a phone and carry the canvas across the breakpoint", async ({
@@ -51,10 +51,7 @@ test.describe("on a touch phone", () => {
     page,
     context,
   }) => {
-    await page.goto("/");
-    await page
-      .locator('input[type="file"]')
-      .setInputFiles("tests/fixtures/photo.svg");
+    await openImage(page, "tests/fixtures/photo.svg");
     const exposure = page.getByRole("slider", {
       name: "Exposure",
       exact: true,

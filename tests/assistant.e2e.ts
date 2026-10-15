@@ -1,5 +1,8 @@
 import { expect, test } from "./fixtures";
 
+// A route stands in for the assistant's server.
+test.use({ isolated: true });
+
 test("the assistant at /?assistant edits the photo it was asked about and selects the layer it edits", async ({
   page,
 }) => {

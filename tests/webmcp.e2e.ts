@@ -2,6 +2,9 @@ import type { Page } from "@playwright/test";
 import { expect, test } from "./fixtures";
 import { readImage } from "./images";
 
+// A route serves the photo from another origin.
+test.use({ isolated: true });
+
 /** Calls a tool as a browser agent does, with its input as JSON. */
 function callTool(page: Page, name: string, input: object = {}) {
   return page.evaluate(

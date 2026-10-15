@@ -1,4 +1,4 @@
-import { expect, test } from "./fixtures";
+import { expect, openImage, test } from "./fixtures";
 import { box } from "./pointer";
 
 for (const gesture of ["stroke", "destination"] as const) {
@@ -6,8 +6,7 @@ for (const gesture of ["stroke", "destination"] as const) {
     page,
   }) => {
     await page.setViewportSize({ width: 1440, height: 1000 });
-    await page.goto("/");
-    await page.locator('input[type="file"]').setInputFiles({
+    await openImage(page, {
       name: "small.svg",
       mimeType: "image/svg+xml",
       buffer: Buffer.from(
