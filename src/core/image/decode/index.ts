@@ -1,5 +1,6 @@
 import type { Gpu, Target } from "vgpu";
 import { createImageSource, type ImageSource } from "@/core/image";
+import { checkHeader } from "./size";
 import type { Decoder } from "./types";
 import { uploadDecoded } from "./upload";
 
@@ -15,13 +16,21 @@ type Format = {
 function pixelFormat(load: () => Promise<Decoder>) {
   return async (gpu: Gpu, file: File) => {
     const decoder = await load();
-    const decoded = await decoder(file);
+    const decoded = await decoder(file, gpu.gpu.limits.maxTextureDimension2D);
     const { image, primaries } = uploadDecoded(gpu, decoded);
     return createImageSource(image, { primaries });
   };
 }
 
-const native = pixelFormat(async () => createImageBitmap);
+/** Decodes through the browser once the size its header declares fits. */
+async function decodeBrowser(file: Blob, limit: number) {
+  await checkHeader(limit, file);
+  return createImageBitmap(file);
+}
+
+const native = pixelFormat(async () => decodeBrowser);
+// An AVIF header lists several images without marking the primary one, so upload checks its size.
+const avif = pixelFormat(async () => (file: Blob) => createImageBitmap(file));
 const svg = pixelFormat(async () => (await import("./svg")).decodeSvg);
 const heic = pixelFormat(async () => (await import("./heic")).decodeHeic);
 const tiff = async (gpu: Gpu, file: File) =>
@@ -74,7 +83,7 @@ const formats: Format[] = [
   { types: ["image/jpeg"], extensions: ["jpg", "jpeg"], decode: native },
   { types: ["image/gif"], extensions: ["gif"], decode: native },
   { types: ["image/webp"], extensions: ["webp"], decode: native },
-  { types: ["image/avif"], extensions: ["avif"], decode: native },
+  { types: ["image/avif"], extensions: ["avif"], decode: avif },
   { types: ["image/bmp"], extensions: ["bmp"], decode: native },
   { types: ["image/svg+xml"], extensions: ["svg"], decode: svg },
   {

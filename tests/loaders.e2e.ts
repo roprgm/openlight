@@ -1,6 +1,54 @@
 import { expect, openPhoto, test } from "./fixtures";
 import { readImage } from "./images";
 
+test("an image beyond the GPU's texture limit fails before decoding, saying how large it is", async ({
+  page,
+}) => {
+  await openPhoto(page);
+  const limit = await page.evaluate(
+    async () =>
+      (await navigator.gpu.requestAdapter())?.limits.maxTextureDimension2D ?? 0,
+  );
+  const count = new Intl.NumberFormat("en-US");
+  const over = limit + 1;
+  // A PNG header with nothing decodable after it: the size error shows the check came first.
+  const png = Buffer.alloc(40);
+  png.write("\x89PNG\r\n\x1a\n", "latin1");
+  png.writeUInt32BE(13, 8);
+  png.write("IHDR", 12);
+  png.writeUInt32BE(over, 16);
+  png.writeUInt32BE(1, 20);
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="10" height="${over}"/>`;
+  const cases = [
+    {
+      file: { name: "wide.png", mimeType: "image/png", buffer: png },
+      size: `${count.format(over)} × 1`,
+    },
+    {
+      file: {
+        name: "tall.svg",
+        mimeType: "image/svg+xml",
+        buffer: Buffer.from(svg),
+      },
+      size: `10 × ${count.format(over)}`,
+    },
+  ];
+  for (const { file, size } of cases) {
+    const chooser = page.waitForEvent("filechooser");
+    await page.getByRole("button", { name: "Open an image or scene" }).click();
+    await (await chooser).setFiles(file);
+    await expect(
+      page.getByText(
+        `Couldn't open ${file.name}: Error: This device opens images up to ${count.format(limit)} pixels per side; this one is ${size}.`,
+      ),
+    ).toBeVisible();
+    await page.getByRole("button", { name: "Dismiss", exact: true }).click();
+  }
+  expect(await page.evaluate(() => window.openlight.getState().file)).toBe(
+    "photo.svg",
+  );
+});
+
 test("a photo takes XMP settings, survives a failed open, and exports while another replaces it", async ({
   page,
 }) => {

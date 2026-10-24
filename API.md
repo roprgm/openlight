@@ -26,7 +26,7 @@ These return promises; await them before editing. File arguments are browser `Fi
 | `importXmp(file)` | Applies supported Camera Raw adjustments as one edit. |
 | `recoverDraft()`, `discardDraft()` | Opens or deletes the draft kept in the browser. |
 
-File loads are queued and `loadUrl` starts at once; the last load started wins. Image, scene, and `.cube` failures do not reject: the open document, if any, stays with its history, and `getState().failure` names the file and error. Check `failure` to confirm success; a `documentId` may be the previous document's. Loading completion does not mean the preview has rendered.
+File loads are queued and `loadUrl` starts at once; the last load started wins. Image, scene, and `.cube` failures do not reject: the open document, if any, stays with its history, and `getState().failure` names the file and error. Check `failure` to confirm success; a `documentId` may be the previous document's. An image with a side longer than the GPU's texture limit (`maxTextureDimension2D`: at least 8,192 pixels, usually 16,384) fails with an error naming its size, before decoding when its format declares the size up front. Loading completion does not mean the preview has rendered.
 
 ## Editing
 

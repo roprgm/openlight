@@ -3,6 +3,8 @@
  * image, one hvc1 item or a grid of hvc1 tiles. Parsing is independent of WebCodecs.
  */
 
+import { checkSize } from "./size";
+
 type Box = { type: string; start: number; end: number };
 
 function check(condition: unknown): asserts condition {
@@ -278,10 +280,11 @@ function parseHeic(bytes: Uint8Array) {
   };
 }
 
-export async function decodeHeic(file: Blob) {
+export async function decodeHeic(file: Blob, limit: number) {
   const { chunks, codec, description, ...image } = parseHeic(
     new Uint8Array(await file.arrayBuffer()),
   );
+  checkSize(limit, image.width, image.height);
   const tiles: VideoFrame[] = [];
   let failure: DOMException | undefined;
   const decoder = new VideoDecoder({

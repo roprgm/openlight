@@ -13,4 +13,5 @@ export type Frames = {
   rotation: number;
 };
 export type Decoded = ImageBitmap | Pixels | Frames;
-export type Decoder = (file: Blob) => Promise<Decoded>;
+/** Decodes a file, rejecting one with a side longer than `limit` before allocating its pixels. */
+export type Decoder = (file: Blob, limit: number) => Promise<Decoded>;

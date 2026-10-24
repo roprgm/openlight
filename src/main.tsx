@@ -1,8 +1,9 @@
 import { TooltipProvider } from "@roprgm/ui/tooltip";
 import { Analytics } from "@vercel/analytics/react";
 import { SpeedInsights } from "@vercel/speed-insights/react";
-import { Component, type ReactNode } from "react";
+import { Component, type ReactNode, Suspense, use } from "react";
 import { createRoot } from "react-dom/client";
+import { initFromDevice } from "vgpu";
 import { GpuProvider } from "vgpu-react";
 import { App } from "@/app";
 import { GpuStats } from "@/components/gpu-stats";
@@ -45,17 +46,42 @@ class GpuBoundary extends Component<
   }
 }
 
+/**
+ * A device with its adapter's own texture limit rather than WebGPU's default, which stops at
+ * 8,192 pixels a side; it lives as long as the page.
+ */
+async function createGpu() {
+  const adapter = await navigator.gpu?.requestAdapter();
+  if (!adapter) {
+    throw Error("This browser offers no WebGPU adapter.");
+  }
+  const { maxTextureDimension2D } = adapter.limits;
+  const device = await adapter.requestDevice({
+    requiredLimits: { maxTextureDimension2D },
+  });
+  return initFromDevice(device);
+}
+
+const gpu = createGpu();
+
+/** Provides the page's GPU once it exists; a failure reaches the boundary above. */
+function PageGpu({ children }: { children: ReactNode }) {
+  return <GpuProvider gpu={use(gpu)}>{children}</GpuProvider>;
+}
+
 const root = document.getElementById("root");
 
 if (root) {
   createRoot(root).render(
     <>
       <GpuBoundary>
-        <GpuProvider>
-          <TooltipProvider delay={500}>
-            <App />
-          </TooltipProvider>
-        </GpuProvider>
+        <Suspense>
+          <PageGpu>
+            <TooltipProvider delay={500}>
+              <App />
+            </TooltipProvider>
+          </PageGpu>
+        </Suspense>
       </GpuBoundary>
       {statsEnabled && <GpuStats />}
       {/* Their scripts load from Vercel's CDN; development and tests stay offline. */}
