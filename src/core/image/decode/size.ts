@@ -10,10 +10,10 @@ export function checkSize(limit: number, width: number, height: number) {
   );
 }
 
-/** Checks the size a header declares before decoding; a header it can't read is left to the decoder. */
+/** Checks the size declared in the first 512 KiB; a header it can't read is left to the decoder. */
 export async function checkHeader(limit: number, file: Blob) {
   const { imageSize } = await import("image-size");
-  const bytes = new Uint8Array(await file.arrayBuffer());
+  const bytes = new Uint8Array(await file.slice(0, 512 * 1024).arrayBuffer());
   let size: { width: number; height: number };
   try {
     size = imageSize(bytes);

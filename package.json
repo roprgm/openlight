@@ -24,7 +24,7 @@
     "cn": "^0.4.0",
     "idb": "^8.0.3",
     "image-size": "2.0.4",
-    "raw-webgpu": "0.1.1",
+    "raw-webgpu": "0.2.0",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
     "tailwindcss": "^4.3.3",
