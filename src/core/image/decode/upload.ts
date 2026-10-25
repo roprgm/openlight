@@ -1,6 +1,7 @@
 import { effect, frame, type Gpu, type Target, target } from "vgpu";
 import type { EncodedImage } from "@/core/image";
 import { weakMemo } from "@/lib/weak-memo";
+import { checkSize } from "./size";
 import type { Decoded } from "./types";
 import shader from "./upload.wgsl";
 
@@ -12,6 +13,7 @@ const isP3 = (frame?: VideoFrame) =>
 
 /** A texture of sRGB-encoded bytes, which the GPU decodes to linear when it reads them. */
 function encoded(gpu: Gpu, size: Size) {
+  checkSize(gpu.gpu.limits.maxTextureDimension2D, ...size);
   return gpu.device.createTexture({
     size,
     format: "rgba8unorm-srgb",
